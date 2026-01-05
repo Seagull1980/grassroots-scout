@@ -63,6 +63,22 @@ app.use('/api/saved-searches', savedSearchesRouter);
 (async () => {
   try {
     await db.createTables();
+    
+    // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
+    try {
+      const checkEmailHash = await db.query('PRAGMA table_info(users)');
+      const hasEmailHash = checkEmailHash.rows.some(row => row.name === 'emailHash');
+      if (!hasEmailHash) {
+        console.log('⚠️  emailHash column missing - adding now...');
+        await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR UNIQUE');
+        console.log('✅ Added emailHash column to users table');
+      } else {
+        console.log('✅ emailHash column exists');
+      }
+    } catch (hashError) {
+      console.error('❌ Error checking/adding emailHash column:', hashError);
+    }
+    
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
     
     // Initialize and start cron jobs with shared database instance
