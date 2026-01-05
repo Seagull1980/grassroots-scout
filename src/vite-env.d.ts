@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="node" />
 
 interface ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
@@ -14,6 +15,17 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+// Leaflet image module declarations
+declare module 'leaflet/dist/images/marker-icon.png' {
+  const value: string;
+  export default value;
+}
+
+declare module 'leaflet/dist/images/marker-shadow.png' {
+  const value: string;
+  export default value;
+}
+
 // Google Maps types
 declare namespace google {
   namespace maps {
@@ -25,6 +37,7 @@ declare namespace google {
       panTo(latLng: LatLng | LatLngLiteral): void;
       getCenter(): LatLng;
       getZoom(): number;
+      addListener(eventName: string, handler: Function): MapsEventListener;
     }
 
     class Marker {
@@ -35,11 +48,38 @@ declare namespace google {
       addListener(eventName: string, handler: Function): MapsEventListener;
     }
 
+    class Polygon {
+      constructor(opts?: PolygonOptions);
+      setMap(map: Map | null): void;
+      getPath(): MVCArray<LatLng>;
+      setPath(path: LatLng[] | LatLngLiteral[]): void;
+    }
+
+    class Polyline {
+      constructor(opts?: PolylineOptions);
+      setMap(map: Map | null): void;
+      getPath(): MVCArray<LatLng>;
+    }
+
+    class Circle {
+      constructor(opts?: CircleOptions);
+      setMap(map: Map | null): void;
+      setCenter(center: LatLng | LatLngLiteral): void;
+      setRadius(radius: number): void;
+    }
+
+    class MVCArray<T> {
+      getAt(i: number): T;
+      getLength(): number;
+      push(elem: T): number;
+    }
+
     class InfoWindow {
       constructor(opts?: InfoWindowOptions);
       open(map?: Map, anchor?: Marker): void;
       close(): void;
       setContent(content: string | Element): void;
+      setPosition(position: LatLng | LatLngLiteral): void;
     }
 
     class LatLng {
@@ -58,6 +98,74 @@ declare namespace google {
       geocode(request: GeocoderRequest, callback: (results: GeocoderResult[], status: GeocoderStatus) => void): void;
     }
 
+    namespace event {
+      function addListener(instance: any, eventName: string, handler: Function): MapsEventListener;
+      function removeListener(listener: MapsEventListener): void;
+    }
+
+    namespace geometry {
+      namespace spherical {
+        function computeDistanceBetween(from: LatLng, to: LatLng): number;
+      }
+    }
+
+    namespace drawing {
+      class DrawingManager {
+        constructor(options?: any);
+        setMap(map: Map | null): void;
+      }
+    }
+
+    namespace marker {
+      class AdvancedMarkerElement {
+        constructor(options?: any);
+        position: LatLng | LatLngLiteral;
+        map: Map | null;
+      }
+      
+      enum CollisionBehavior {
+        REQUIRED = 'REQUIRED',
+        REQUIRED_AND_HIDES_OPTIONAL = 'REQUIRED_AND_HIDES_OPTIONAL',
+        OPTIONAL_AND_HIDES_LOWER_PRIORITY = 'OPTIONAL_AND_HIDES_LOWER_PRIORITY'
+      }
+    }
+
+    interface MapMouseEvent {
+      latLng: LatLng;
+      stop(): void;
+    }
+
+    interface PolygonOptions {
+      paths?: LatLng[] | LatLngLiteral[];
+      strokeColor?: string;
+      strokeOpacity?: number;
+      strokeWeight?: number;
+      fillColor?: string;
+      fillOpacity?: number;
+      map?: Map;
+      editable?: boolean;
+      draggable?: boolean;
+    }
+
+    interface PolylineOptions {
+      path?: LatLng[] | LatLngLiteral[];
+      strokeColor?: string;
+      strokeOpacity?: number;
+      strokeWeight?: number;
+      map?: Map;
+    }
+
+    interface CircleOptions {
+      center?: LatLng | LatLngLiteral;
+      radius?: number;
+      strokeColor?: string;
+      strokeOpacity?: number;
+      strokeWeight?: number;
+      fillColor?: string;
+      fillOpacity?: number;
+      map?: Map;
+    }
+
     namespace places {
       class Autocomplete {
         constructor(input: HTMLInputElement, opts?: AutocompleteOptions);
@@ -69,6 +177,10 @@ declare namespace google {
       class PlacesService {
         constructor(attrContainer: HTMLDivElement | Map);
         getDetails(request: PlaceDetailsRequest, callback: (result: PlaceResult, status: PlacesServiceStatus) => void): void;
+      }
+
+      class PlaceAutocompleteElement extends HTMLElement {
+        constructor();
       }
 
       interface PlaceResult {
@@ -90,6 +202,7 @@ declare namespace google {
         types?: string[];
         componentRestrictions?: { country: string | string[] };
         bounds?: LatLngBounds | LatLngBoundsLiteral;
+        fields?: string[];
       }
 
       enum PlacesServiceStatus {

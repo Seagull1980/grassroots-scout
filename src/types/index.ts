@@ -40,6 +40,8 @@ export interface TeamVacancy {
   locationData?: Location;
   contactInfo: string;
   postedBy: string;
+  firstName?: string;
+  lastName?: string;
   hasMatchRecording?: boolean;
   hasPathwayToSenior?: boolean;
   createdAt: string;

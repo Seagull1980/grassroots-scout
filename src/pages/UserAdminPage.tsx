@@ -42,7 +42,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { API_URL } from '../services/api';
+import { API_URL, ngrokHeaders } from '../services/api';
 import { storage } from '../utils/storage';
 
 interface User {

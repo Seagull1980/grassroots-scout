@@ -53,7 +53,7 @@ import {
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
-import { ROSTER_API_URL } from '../services/api';
+import { ROSTER_API_URL, ngrokHeaders } from '../services/api';
 
 interface ClubUpdate {
   id: number;
