@@ -1174,7 +1174,7 @@ app.get('/api/leagues', (req, res, next) => {
     const { includePending = false } = req.query;
     
     // Get approved leagues
-    let query = 'SELECT id, name, region, ageGroup, url, hits, description, "approved" as status FROM leagues WHERE isActive = 1';
+    let query = 'SELECT id, name, region, ageGroup, url, hits, description, \'approved\' as status FROM leagues WHERE isActive = 1';
     let params = [];
 
     // If user wants pending leagues and is authenticated
@@ -1189,7 +1189,7 @@ app.get('/api/leagues', (req, res, next) => {
           url, 
           0 as hits, 
           description, 
-          "pending" as status 
+          'pending' as status 
         FROM league_requests 
         WHERE status = 'pending' AND submittedBy = ?
       `;
@@ -1207,7 +1207,16 @@ app.get('/api/leagues', (req, res, next) => {
     res.json({ leagues });
   } catch (error) {
     console.error('Error fetching leagues:', error);
-    res.status(500).json({ error: 'Database error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      errno: error.errno
+    });
+    res.status(500).json({ 
+      error: 'Database error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
