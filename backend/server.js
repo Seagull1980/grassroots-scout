@@ -208,18 +208,6 @@ app.post('/api/auth/register', authLimiter, [
         betaAccess: 0
       }
     });
-      requiresVerification: true,
-      tempToken,
-      user: {
-        id: userId,
-        email,
-        firstName,
-        lastName,
-        role,
-        isEmailVerified: false,
-        createdAt: new Date().toISOString()
-      }
-    });
   } catch (error) {
     console.error('Registration error:', error);
     console.error('Error details:', {
