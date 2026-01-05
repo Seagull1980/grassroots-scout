@@ -165,28 +165,27 @@ app.post('/api/auth/register', authLimiter, [
     // Hash password with increased rounds for better security
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate email verification token
+    // Generate email verification token (not used but kept for future)
     const emailVerificationToken = crypto.randomBytes(32).toString('hex');
     const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Insert user with encrypted email and verification token (betaAccess = 0 for new users)
+    // Insert user with encrypted email - AUTO-VERIFY for now (betaAccess = 0 for new users, requires admin approval)
     const insertResult = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, emailVerificationToken, emailVerificationExpires, betaAccess) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role, emailVerificationToken, emailVerificationExpires.toISOString(), 0]
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, emailVerificationToken, emailVerificationExpires, isEmailVerified, betaAccess) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role, emailVerificationToken, emailVerificationExpires.toISOString(), 1, 0]
     );
 
     const userId = insertResult.lastID;
 
-    // Send verification email
-    try {
-      await emailService.sendVerificationEmail(email, firstName, emailVerificationToken);
-    } catch (emailError) {
-      console.error('Failed to send verification email:', emailError);
-      // Don't fail registration if email fails, just log it
-    }
+    // Skip email sending for now (SMTP blocked on Render)
+    // try {
+    //   await emailService.sendVerificationEmail(email, firstName, emailVerificationToken);
+    // } catch (emailError) {
+    //   console.error('Failed to send verification email:', emailError);
+    // }
 
-    // Don't create JWT token until email is verified - send temporary token for verification page
-    const tempToken = jwt.sign({ userId, email, verified: false }, JWT_SECRET, { expiresIn: '24h' });
+    // Create JWT token - user is verified but needs beta approval
+    const token = jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
 
     // Audit log successful registration
     auditLogger('user_registered', userId, {
@@ -197,7 +196,18 @@ app.post('/api/auth/register', authLimiter, [
     });
 
     res.status(201).json({
-      message: 'User created successfully. Please check your email to verify your account.',
+      message: 'Registration successful! Your account is pending admin approval for beta access.',
+      token,
+      user: {
+        id: userId,
+        email,
+        firstName,
+        lastName,
+        role,
+        isEmailVerified: true,
+        betaAccess: 0
+      }
+    });
       requiresVerification: true,
       tempToken,
       user: {
