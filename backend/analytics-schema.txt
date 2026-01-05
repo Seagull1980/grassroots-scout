@@ -1,0 +1,159 @@
+-- Enhanced Analytics Database Schema
+-- SQLite schema for comprehensive analytics tracking
+
+-- Analytics Events Table - Core event tracking
+CREATE TABLE IF NOT EXISTS analytics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event VARCHAR(100) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    label VARCHAR(255),
+    value INTEGER,
+    user_id INTEGER,
+    session_id VARCHAR(100) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_event ON analytics_events(event);
+CREATE INDEX IF NOT EXISTS idx_analytics_category ON analytics_events(category);
+CREATE INDEX IF NOT EXISTS idx_analytics_user_id ON analytics_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_session_id ON analytics_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON analytics_events(timestamp);
+
+-- User Sessions Table - Session tracking and analytics
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id VARCHAR(100) UNIQUE NOT NULL,
+    user_id INTEGER,
+    start_time BIGINT NOT NULL,
+    end_time BIGINT,
+    duration INTEGER,
+    page_views INTEGER DEFAULT 0,
+    events_count INTEGER DEFAULT 0,
+    device_type VARCHAR(50),
+    browser VARCHAR(50),
+    operating_system VARCHAR(50),
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    referrer VARCHAR(500),
+    landing_page VARCHAR(500),
+    exit_page VARCHAR(500),
+    bounced BOOLEAN DEFAULT FALSE,
+    converted BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON user_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON user_sessions(start_time);
+
+-- Page Analytics - Page-specific metrics
+CREATE TABLE IF NOT EXISTS page_analytics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_path VARCHAR(500) NOT NULL,
+    page_title VARCHAR(255),
+    date DATE NOT NULL,
+    unique_visitors INTEGER DEFAULT 0,
+    page_views INTEGER DEFAULT 0,
+    avg_time_on_page INTEGER DEFAULT 0,
+    bounce_rate DECIMAL(5,2) DEFAULT 0.00,
+    exit_rate DECIMAL(5,2) DEFAULT 0.00,
+    conversion_rate DECIMAL(5,2) DEFAULT 0.00,
+    load_time_avg INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_page_analytics_unique ON page_analytics(page_path, date);
+
+-- Performance Metrics - Application performance tracking
+CREATE TABLE IF NOT EXISTS performance_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_type VARCHAR(50) NOT NULL,
+    page_path VARCHAR(500),
+    metric_name VARCHAR(100) NOT NULL,
+    metric_value DECIMAL(10,2) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    user_id INTEGER,
+    session_id VARCHAR(100),
+    device_info TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_performance_type ON performance_metrics(metric_type);
+CREATE INDEX IF NOT EXISTS idx_performance_timestamp ON performance_metrics(timestamp);
+
+-- Error Tracking
+CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    error_type VARCHAR(50) NOT NULL,
+    error_message TEXT NOT NULL,
+    stack_trace TEXT,
+    page_path VARCHAR(500),
+    user_id INTEGER,
+    session_id VARCHAR(100),
+    timestamp BIGINT NOT NULL,
+    browser_info TEXT,
+    resolved BOOLEAN DEFAULT FALSE,
+    severity VARCHAR(20) DEFAULT 'error',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_error_type ON error_logs(error_type);
+CREATE INDEX IF NOT EXISTS idx_error_timestamp ON error_logs(timestamp);
+
+-- Business Metrics - Football-specific analytics
+CREATE TABLE IF NOT EXISTS business_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_type VARCHAR(50) NOT NULL,
+    metric_name VARCHAR(100) NOT NULL,
+    metric_value DECIMAL(10,2),
+    string_value TEXT,
+    user_id INTEGER,
+    target_type VARCHAR(50),
+    target_id VARCHAR(100),
+    timestamp BIGINT NOT NULL,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_type ON business_metrics(metric_type);
+CREATE INDEX IF NOT EXISTS idx_business_timestamp ON business_metrics(timestamp);
+
+-- Feature Usage Tracking
+CREATE TABLE IF NOT EXISTS feature_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feature_name VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    user_id INTEGER,
+    session_id VARCHAR(100),
+    timestamp BIGINT NOT NULL,
+    duration INTEGER,
+    success BOOLEAN DEFAULT TRUE,
+    error_message TEXT,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_feature_name ON feature_usage(feature_name);
+CREATE INDEX IF NOT EXISTS idx_feature_timestamp ON feature_usage(timestamp);
+
+-- Search Analytics
+CREATE TABLE IF NOT EXISTS search_analytics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    search_type VARCHAR(50) NOT NULL,
+    filters TEXT,
+    result_count INTEGER NOT NULL,
+    clicked_results INTEGER DEFAULT 0,
+    user_id INTEGER,
+    session_id VARCHAR(100),
+    timestamp BIGINT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_type ON search_analytics(search_type);
+CREATE INDEX IF NOT EXISTS idx_search_timestamp ON search_analytics(timestamp);

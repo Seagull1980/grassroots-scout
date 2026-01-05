@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Flow Test - The Grassroots Scout</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Login Flow Diagnostic Tool</h1>
+    
+    <div class="test-section">
+        <h2>1. Storage Test</h2>
+        <button onclick="testStorage()">Test Storage Availability</button>
+        <div id="storageResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. API Connectivity Test</h2>
+        <button onclick="testAPI()">Test API Connection</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Login Test</h2>
+        <input type="email" id="testEmail" placeholder="Email" value="coach@example.com" style="padding: 8px; margin: 5px; width: 200px;">
+        <input type="password" id="testPassword" placeholder="Password" value="password123" style="padding: 8px; margin: 5px; width: 200px;">
+        <br>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testQuickLogin()">Quick Dev Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Session Persistence Test</h2>
+        <button onclick="testSessionPersistence()">Test Session Persistence</button>
+        <button onclick="clearSession()">Clear Session</button>
+        <div id="sessionResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Protected Route Test</h2>
+        <button onclick="testProtectedRoute()">Test Dashboard Access</button>
+        <div id="routeResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Diagnostic Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <button onclick="exportLog()">Export Log</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api';
+        const logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = { timestamp, message, type };
+            logs.push(logEntry);
+            
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            logs.length = 0;
+            log('Log cleared', 'info');
+        }
+
+        function exportLog() {
+            const logText = logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`).join('\n');
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `login-diagnostic-${Date.now()}.txt`;
+            a.click();
+            log('Log exported', 'success');
+        }
+
+        async function testStorage() {
+            log('Testing storage availability...', 'info');
+            const resultDiv = document.getElementById('storageResult');
+            let html = '';
+
+            // Test localStorage
+            try {
+                const testKey = '__storage_test__';
+                localStorage.setItem(testKey, 'test');
+                localStorage.removeItem(testKey);
+                html += '<div class="status success">✅ localStorage: Available</div>';
+                log('localStorage is available', 'success');
+            } catch (error) {
+                html += `<div class="status error">❌ localStorage: Blocked (${error.message})</div>`;
+                log(`localStorage blocked: ${error.message}`, 'error');
+            }
+
+            // Test sessionStorage
+            try {
+                const testKey = '__storage_test__';
+                sessionStorage.setItem(testKey, 'test');
+                sessionStorage.removeItem(testKey);
+                html += '<div class="status success">✅ sessionStorage: Available</div>';
+                log('sessionStorage is available', 'success');
+            } catch (error) {
+                html += `<div class="status error">❌ sessionStorage: Blocked (${error.message})</div>`;
+                log(`sessionStorage blocked: ${error.message}`, 'error');
+            }
+
+            // Check current storage
+            try {
+                const token = localStorage.getItem('token');
+                const user = localStorage.getItem('user');
+                if (token && user) {
+                    html += '<div class="status info">ℹ️ Current session found</div>';
+                    html += `<pre>Token: ${token.substring(0, 20)}...\nUser: ${user}</pre>`;
+                    log('Existing session found in storage', 'info');
+                } else {
+                    html += '<div class="status warning">⚠️ No active session</div>';
+                    log('No active session in storage', 'warning');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ Cannot read storage: ${error.message}</div>`;
+                log(`Cannot read storage: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        async function testAPI() {
+            log('Testing API connectivity...', 'info');
+            const resultDiv = document.getElementById('apiResult');
+            let html = '';
+
+            try {
+                const response = await fetch(`${API_URL}/health`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    html += '<div class="status success">✅ API Server: Connected</div>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    log(`API connected: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    html += `<div class="status error">❌ API Server: HTTP ${response.status}</div>`;
+                    log(`API returned HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ API Server: Connection Failed<br>${error.message}</div>`;
+                log(`API connection failed: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        async function testLogin() {
+            log('Testing login flow...', 'info');
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            const resultDiv = document.getElementById('loginResult');
+            let html = '';
+
+            try {
+                log(`Attempting login with email: ${email}`, 'info');
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token && data.user) {
+                    html += '<div class="status success">✅ Login Successful</div>';
+                    html += `<pre>${JSON.stringify(data.user, null, 2)}</pre>`;
+                    
+                    // Store in localStorage
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    html += '<div class="status success">✅ Session stored in localStorage</div>';
+                    log(`Login successful for ${data.user.email}`, 'success');
+                    log(`Token stored: ${data.token.substring(0, 20)}...`, 'info');
+                } else {
+                    html += `<div class="status error">❌ Login Failed: ${data.message || 'Unknown error'}</div>`;
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    log(`Login failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ Login Error: ${error.message}</div>`;
+                log(`Login error: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        async function testQuickLogin() {
+            log('Testing quick dev login...', 'info');
+            const resultDiv = document.getElementById('loginResult');
+            let html = '';
+
+            try {
+                const response = await fetch(`${API_URL}/dev/admin-login`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token && data.user) {
+                    html += '<div class="status success">✅ Dev Login Successful</div>';
+                    html += `<pre>${JSON.stringify(data.user, null, 2)}</pre>`;
+                    
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    html += '<div class="status success">✅ Session stored</div>';
+                    log(`Dev login successful for ${data.user.email}`, 'success');
+                } else {
+                    html += `<div class="status error">❌ Dev Login Failed</div>`;
+                    log('Dev login failed', 'error');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ Dev Login Error: ${error.message}</div>`;
+                log(`Dev login error: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        async function testSessionPersistence() {
+            log('Testing session persistence...', 'info');
+            const resultDiv = document.getElementById('sessionResult');
+            let html = '';
+
+            try {
+                const token = localStorage.getItem('token');
+                const userStr = localStorage.getItem('user');
+
+                if (!token || !userStr) {
+                    html += '<div class="status warning">⚠️ No session found. Please login first.</div>';
+                    log('No session to test', 'warning');
+                    resultDiv.innerHTML = html;
+                    return;
+                }
+
+                const user = JSON.parse(userStr);
+                html += '<div class="status success">✅ Session data found in storage</div>';
+                html += `<pre>Token: ${token.substring(0, 30)}...\nUser: ${user.email}</pre>`;
+                log('Session data retrieved from storage', 'success');
+
+                // Test API call with token
+                log('Testing API call with stored token...', 'info');
+                const response = await fetch(`${API_URL}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+
+                if (response.ok) {
+                    const profile = await response.json();
+                    html += '<div class="status success">✅ Token is valid - API call successful</div>';
+                    html += `<pre>${JSON.stringify(profile, null, 2)}</pre>`;
+                    log('Token validated successfully via API', 'success');
+                } else if (response.status === 401) {
+                    html += '<div class="status error">❌ Token expired or invalid (401)</div>';
+                    log('Token is invalid - received 401 response', 'error');
+                } else {
+                    html += `<div class="status error">❌ API Error: HTTP ${response.status}</div>`;
+                    log(`API error: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ Session Test Error: ${error.message}</div>`;
+                log(`Session test error: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        function clearSession() {
+            log('Clearing session...', 'info');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            document.getElementById('sessionResult').innerHTML = '<div class="status success">✅ Session cleared</div>';
+            log('Session cleared successfully', 'success');
+        }
+
+        async function testProtectedRoute() {
+            log('Testing protected route access...', 'info');
+            const resultDiv = document.getElementById('routeResult');
+            let html = '';
+
+            try {
+                const token = localStorage.getItem('token');
+
+                if (!token) {
+                    html += '<div class="status warning">⚠️ No token found. Login first.</div>';
+                    log('Cannot test protected route without token', 'warning');
+                    resultDiv.innerHTML = html;
+                    return;
+                }
+
+                // Simulate what happens when user navigates to dashboard
+                log('Simulating dashboard access...', 'info');
+                
+                // Test profile endpoint (commonly called on dashboard)
+                const profileResponse = await fetch(`${API_URL}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+
+                if (profileResponse.ok) {
+                    html += '<div class="status success">✅ Dashboard would load successfully</div>';
+                    log('Dashboard access would succeed', 'success');
+                } else if (profileResponse.status === 401) {
+                    html += '<div class="status error">❌ Would redirect to login (401 - Unauthorized)</div>';
+                    html += '<div class="status warning">⚠️ This causes the login loop!</div>';
+                    log('Dashboard access would fail with 401 - causes login loop', 'error');
+                } else {
+                    html += `<div class="status error">❌ Unexpected error: HTTP ${profileResponse.status}</div>`;
+                    log(`Unexpected response: HTTP ${profileResponse.status}`, 'error');
+                }
+            } catch (error) {
+                html += `<div class="status error">❌ Route Test Error: ${error.message}</div>`;
+                log(`Route test error: ${error.message}`, 'error');
+            }
+
+            resultDiv.innerHTML = html;
+        }
+
+        // Auto-run storage and API tests on load
+        window.addEventListener('load', () => {
+            log('Login Flow Diagnostic Tool loaded', 'info');
+            testStorage();
+            testAPI();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "grassroots-hub-testing",
+  "version": "1.0.0",
+  "description": "Testing utilities for The Grassroots Hub",
+  "scripts": {
+    "start:testing": "node scripts/start-external-testing.js",
+    "update:urls": "node scripts/update-ngrok-urls.js",
+    "setup:admin": "cd backend && node scripts/create-admin-user.js",
+    "test:external": "powershell -ExecutionPolicy Bypass -File start-external-testing.ps1",
+    "test:external:quick": "powershell -ExecutionPolicy Bypass -File start-external-testing.ps1 -SkipCleanup",
+    "stop:testing": "taskkill /f /im node.exe & taskkill /f /im ngrok.exe",
+    "help:testing": "powershell -ExecutionPolicy Bypass -File start-external-testing.ps1 -Help"
+  },
+  "devDependencies": {
+    "axios": "^1.11.0"
+  }
+}

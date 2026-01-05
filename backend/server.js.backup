@@ -1,0 +1,1446 @@
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
+const Database = require('./db/database.js');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Database connection
+const db = new Database();
+
+// Initialize database tables on startup
+(async () => {
+  try {
+    await db.createTables();
+    console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
+  } catch (error) {
+    console.error('❌ Failed to initialize database:', error);
+    process.exit(1);
+  }
+})();
+
+// Authentication middleware
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    firstName TEXT NOT NULL,
+    lastName TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('Coach', 'Player', 'Parent/Guardian', 'Admin')),
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Create user profiles table for extended information
+  db.run(`CREATE TABLE IF NOT EXISTS user_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER UNIQUE NOT NULL,
+    phone TEXT,
+    dateOfBirth DATE,
+    location TEXT,
+    bio TEXT,
+    -- Player-specific fields
+    position TEXT,
+    preferredFoot TEXT CHECK(preferredFoot IN ('Left', 'Right', 'Both')),
+    height INTEGER, -- in cm
+    weight INTEGER, -- in kg
+    experienceLevel TEXT CHECK(experienceLevel IN ('Beginner', 'Intermediate', 'Advanced', 'Professional')),
+    availability TEXT, -- JSON string of available days/times
+    -- Coach-specific fields
+    coachingLicense TEXT,
+    yearsExperience INTEGER,
+    specializations TEXT, -- JSON string of coaching specializations
+    trainingLocation TEXT,
+    matchLocation TEXT,
+    trainingDays TEXT, -- JSON string of training days
+    ageGroupsCoached TEXT, -- JSON string of age groups
+    -- Contact and additional info
+    emergencyContact TEXT,
+    emergencyPhone TEXT,
+    medicalInfo TEXT,
+    profilePicture TEXT, -- URL to profile picture
+    isProfileComplete BOOLEAN DEFAULT 0,
+    lastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS leagues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    isActive BOOLEAN DEFAULT 1,
+    createdBy INTEGER NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (createdBy) REFERENCES users (id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS team_vacancies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    league TEXT NOT NULL,
+    ageGroup TEXT NOT NULL,
+    position TEXT NOT NULL,
+    location TEXT,
+    contactInfo TEXT,
+    postedBy INTEGER NOT NULL,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'filled', 'expired')),
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (postedBy) REFERENCES users (id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS player_availability (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    preferredLeagues TEXT NOT NULL,
+    ageGroup TEXT NOT NULL,
+    positions TEXT NOT NULL, -- Changed from position to positions, will store JSON array
+    location TEXT,
+    contactInfo TEXT,
+    postedBy INTEGER NOT NULL,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (postedBy) REFERENCES users (id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    filters TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('vacancy', 'availability')),
+    isActive BOOLEAN DEFAULT 1,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES users (id)
+  )`);
+
+  // Calendar events table
+  db.run(`CREATE TABLE IF NOT EXISTS calendar_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    eventType TEXT NOT NULL CHECK(eventType IN ('training', 'match', 'trial')),
+    date DATE NOT NULL,
+    startTime TIME NOT NULL,
+    endTime TIME NOT NULL,
+    location TEXT,
+    createdBy INTEGER NOT NULL,
+    teamId INTEGER,
+    isRecurring BOOLEAN DEFAULT 0,
+    recurringPattern TEXT CHECK(recurringPattern IN ('weekly', 'monthly')),
+    maxParticipants INTEGER,
+    ageGroup TEXT,
+    positions TEXT, -- JSON string for trial positions
+    requirements TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (createdBy) REFERENCES users (id)
+  )`);
+
+  // Trial invitations table
+  db.run(`CREATE TABLE IF NOT EXISTS trial_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trialId INTEGER NOT NULL,
+    playerId INTEGER NOT NULL,
+    coachId INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'accepted', 'declined', 'expired')) DEFAULT 'pending',
+    message TEXT,
+    sentAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    respondedAt DATETIME,
+    FOREIGN KEY (trialId) REFERENCES calendar_events (id) ON DELETE CASCADE,
+    FOREIGN KEY (playerId) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (coachId) REFERENCES users (id) ON DELETE CASCADE,
+    UNIQUE(trialId, playerId)
+  )`);
+
+  // Event participants table (for tracking who's attending events)
+  db.run(`CREATE TABLE IF NOT EXISTS event_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eventId INTEGER NOT NULL,
+    userId INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('attending', 'not_attending', 'maybe')) DEFAULT 'attending',
+    addedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (eventId) REFERENCES calendar_events (id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+    UNIQUE(eventId, userId)
+  )`);
+
+  // Add location data columns to existing tables (migration)
+  db.run(`ALTER TABLE team_vacancies ADD COLUMN locationAddress TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationAddress to team_vacancies:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE team_vacancies ADD COLUMN locationLatitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationLatitude to team_vacancies:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE team_vacancies ADD COLUMN locationLongitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationLongitude to team_vacancies:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE team_vacancies ADD COLUMN locationPlaceId TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationPlaceId to team_vacancies:', err.message);
+    }
+  });
+
+  db.run(`ALTER TABLE player_availability ADD COLUMN locationAddress TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationAddress to player_availability:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE player_availability ADD COLUMN locationLatitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationLatitude to player_availability:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE player_availability ADD COLUMN locationLongitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationLongitude to player_availability:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE player_availability ADD COLUMN locationPlaceId TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding locationPlaceId to player_availability:', err.message);
+    }
+  });
+
+  // Migration: Update position column to positions for multiple position support
+  db.run(`ALTER TABLE player_availability ADD COLUMN positions TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding positions to player_availability:', err.message);
+    } else {
+      // Migrate existing data from position to positions
+      db.run(`UPDATE player_availability SET positions = '["' || position || '"]' WHERE positions IS NULL AND position IS NOT NULL`, (err) => {
+        if (err) {
+          console.error('Error migrating position data to positions:', err.message);
+        } else {
+          console.log('Successfully migrated player_availability position data to positions array format');
+        }
+      });
+    }
+  });
+
+  // Add location data to user profiles table
+  db.run(`ALTER TABLE user_profiles ADD COLUMN homePitchAddress TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding homePitchAddress to user_profiles:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE user_profiles ADD COLUMN homePitchLatitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding homePitchLatitude to user_profiles:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE user_profiles ADD COLUMN homePitchLongitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding homePitchLongitude to user_profiles:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE user_profiles ADD COLUMN trainingLocationAddress TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding trainingLocationAddress to user_profiles:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE user_profiles ADD COLUMN trainingLocationLatitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding trainingLocationLatitude to user_profiles:', err.message);
+    }
+  });
+  
+  db.run(`ALTER TABLE user_profiles ADD COLUMN trainingLocationLongitude REAL`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding trainingLocationLongitude to user_profiles:', err.message);
+    }
+  });
+
+  // Insert default leagues if they don't exist
+  db.run(`INSERT OR IGNORE INTO leagues (name, description, createdBy) VALUES 
+    ('Premier League', 'Top tier professional league', 1),
+    ('Championship', 'Second tier professional league', 1),
+    ('National League', 'Fifth tier national league', 1),
+    ('County League', 'Regional county level league', 1),
+    ('Local League', 'Local community league', 1),
+    ('Sunday League', 'Weekend recreational league', 1),
+    ('Youth League', 'Youth development league', 1)
+  `);
+
+  // Migration to update users table to support Admin role
+  db.run(`CREATE TABLE IF NOT EXISTS users_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    firstName TEXT NOT NULL,
+    lastName TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('Coach', 'Player', 'Parent/Guardian', 'Admin')),
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`, (err) => {
+    if (!err) {
+      // Copy existing data
+      db.run(`INSERT INTO users_new SELECT * FROM users`, (err) => {
+        if (!err) {
+          // Drop old table and rename new one
+          db.run(`DROP TABLE users`, (err) => {
+            if (!err) {
+              db.run(`ALTER TABLE users_new RENAME TO users`, (err) => {
+                if (!err) {
+                  console.log('Successfully migrated users table to support Admin role');
+                } else {
+                  console.error('Error renaming users table:', err);
+                }
+              });
+            } else {
+              console.error('Error dropping old users table:', err);
+            }
+          });
+        } else {
+          console.error('Error copying users data:', err);
+        }
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Admin middleware
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+// Routes
+
+// Register
+app.post('/api/auth/register', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('lastName').notEmpty().withMessage('Last name is required'),
+  body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password, firstName, lastName, role } = req.body;
+
+    // Prevent Admin registration through public endpoint
+    if (role === 'Admin') {
+      return res.status(403).json({ error: 'Admin accounts can only be created by existing administrators' });
+    }
+
+    // Check if user already exists
+    db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (row) {
+        return res.status(400).json({ error: 'User already exists with this email' });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Insert user
+      db.run(
+        'INSERT INTO users (email, password, firstName, lastName, role) VALUES (?, ?, ?, ?, ?)',
+        [email, hashedPassword, firstName, lastName, role],
+        function(err) {
+          if (err) {
+            console.error('Database error during user creation:', err);
+            return res.status(500).json({ error: 'Failed to create user', details: err.message });
+          }
+
+          const userId = this.lastID;
+          const token = jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
+
+          res.status(201).json({
+            message: 'User created successfully',
+            token,
+            user: {
+              id: userId,
+              email,
+              firstName,
+              lastName,
+              role,
+              createdAt: new Date().toISOString()
+            }
+          });
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login
+app.post('/api/auth/login', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').notEmpty().withMessage('Password is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const token = jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.json({
+        message: 'Login successful',
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          createdAt: user.createdAt
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get current user
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  db.get('SELECT id, email, firstName, lastName, role, createdAt FROM users WHERE id = ?', 
+    [req.user.userId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user });
+  });
+});
+
+// Get user profile
+app.get('/api/profile', authenticateToken, (req, res) => {
+  console.log('Profile GET request from user:', req.user.userId);
+  const query = `
+    SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdAt,
+           p.phone, p.dateOfBirth, p.location, p.bio, p.position, p.preferredFoot,
+           p.height, p.weight, p.experienceLevel, p.availability, p.coachingLicense,
+           p.yearsExperience, p.specializations, p.trainingLocation, p.matchLocation,
+           p.trainingDays, p.ageGroupsCoached, p.teamName, p.currentAgeGroup,
+           p.trainingTime, p.matchDay, p.emergencyContact, p.emergencyPhone,
+           p.medicalInfo, p.profilePicture, p.isProfileComplete, p.lastUpdated
+    FROM users u
+    LEFT JOIN user_profiles p ON u.id = p.userId
+    WHERE u.id = ?
+  `;
+  
+  db.get(query, [req.user.userId], (err, row) => {
+    if (err) {
+      console.error('Database error in profile GET:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) {
+      console.log('No user found for ID:', req.user.userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('Raw profile data:', row);
+    
+    // Parse JSON fields
+    if (row.availability) {
+      try {
+        row.availability = JSON.parse(row.availability);
+      } catch (e) {
+        row.availability = [];
+      }
+    } else {
+      row.availability = [];
+    }
+    
+    if (row.specializations) {
+      try {
+        row.specializations = JSON.parse(row.specializations);
+      } catch (e) {
+        row.specializations = [];
+      }
+    } else {
+      row.specializations = [];
+    }
+    
+    if (row.trainingDays) {
+      try {
+        row.trainingDays = JSON.parse(row.trainingDays);
+      } catch (e) {
+        row.trainingDays = [];
+      }
+    } else {
+      row.trainingDays = [];
+    }
+    
+    if (row.ageGroupsCoached) {
+      try {
+        row.ageGroupsCoached = JSON.parse(row.ageGroupsCoached);
+      } catch (e) {
+        row.ageGroupsCoached = [];
+      }
+    } else {
+      row.ageGroupsCoached = [];
+    }
+    
+    console.log('Processed profile data:', row);
+    res.json({ profile: row });
+  });
+});
+
+// Update user profile
+app.put('/api/profile', authenticateToken, [
+  body('phone').optional().isLength({ min: 5, max: 20 }).withMessage('Phone number must be 5-20 characters'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth required'),
+  body('location').optional().notEmpty().withMessage('Location cannot be empty'),
+  body('bio').optional().isLength({ max: 500 }).withMessage('Bio must be less than 500 characters'),
+  body('position').optional().notEmpty().withMessage('Position cannot be empty'),
+  body('height').optional().isInt({ min: 100, max: 250 }).withMessage('Height must be between 100-250 cm'),
+  body('weight').optional().isInt({ min: 30, max: 200 }).withMessage('Weight must be between 30-200 kg'),
+  body('yearsExperience').optional().isInt({ min: 0, max: 50 }).withMessage('Years of experience must be 0-50')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const {
+    phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
+    experienceLevel, availability, coachingLicense, yearsExperience, specializations,
+    trainingLocation, matchLocation, trainingDays, ageGroupsCoached, teamName,
+    currentAgeGroup, trainingTime, matchDay, emergencyContact, emergencyPhone,
+    medicalInfo, profilePicture
+  } = req.body;
+
+  // Check if profile exists
+  db.get('SELECT userId FROM user_profiles WHERE userId = ?', [req.user.userId], (err, existingProfile) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    const profileData = [
+      phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
+      experienceLevel, JSON.stringify(availability), coachingLicense, yearsExperience,
+      JSON.stringify(specializations), trainingLocation, matchLocation,
+      JSON.stringify(trainingDays), JSON.stringify(ageGroupsCoached), teamName,
+      currentAgeGroup, trainingTime, matchDay, emergencyContact, emergencyPhone,
+      medicalInfo, profilePicture, 1, new Date().toISOString(), req.user.userId
+    ];
+
+    if (existingProfile) {
+      // Update existing profile
+      const updateQuery = `
+        UPDATE user_profiles SET
+          phone = ?, dateOfBirth = ?, location = ?, bio = ?, position = ?, preferredFoot = ?,
+          height = ?, weight = ?, experienceLevel = ?, availability = ?, coachingLicense = ?,
+          yearsExperience = ?, specializations = ?, trainingLocation = ?, matchLocation = ?,
+          trainingDays = ?, ageGroupsCoached = ?, teamName = ?, currentAgeGroup = ?,
+          trainingTime = ?, matchDay = ?, emergencyContact = ?, emergencyPhone = ?,
+          medicalInfo = ?, profilePicture = ?, isProfileComplete = ?, lastUpdated = ?
+        WHERE userId = ?
+      `;
+      
+      db.run(updateQuery, profileData, function(err) {
+        if (err) {
+          console.error('Profile update error:', err);
+          return res.status(500).json({ error: 'Failed to update profile' });
+        }
+        res.json({ message: 'Profile updated successfully' });
+      });
+    } else {
+      // Create new profile
+      const insertQuery = `
+        INSERT INTO user_profiles (
+          phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
+          experienceLevel, availability, coachingLicense, yearsExperience, specializations,
+          trainingLocation, matchLocation, trainingDays, ageGroupsCoached, teamName,
+          currentAgeGroup, trainingTime, matchDay, emergencyContact, emergencyPhone,
+          medicalInfo, profilePicture, isProfileComplete, lastUpdated, userId
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      db.run(insertQuery, profileData, function(err) {
+        if (err) {
+          console.error('Profile creation error:', err);
+          return res.status(500).json({ error: 'Failed to create profile' });
+        }
+        res.json({ message: 'Profile created successfully' });
+      });
+    }
+  });
+});
+
+// Post team vacancy
+app.post('/api/vacancies', authenticateToken, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('description').notEmpty().withMessage('Description is required'),
+  body('league').notEmpty().withMessage('League is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('position').notEmpty().withMessage('Position is required')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { title, description, league, ageGroup, position, location, contactInfo, locationData } = req.body;
+
+  // Handle location data if provided
+  let locationAddress = null, locationLatitude = null, locationLongitude = null, locationPlaceId = null;
+  if (locationData) {
+    locationAddress = locationData.address;
+    locationLatitude = locationData.latitude;
+    locationLongitude = locationData.longitude;
+    locationPlaceId = locationData.placeId;
+  }
+
+  db.run(
+    `INSERT INTO team_vacancies (
+      title, description, league, ageGroup, position, location, contactInfo, postedBy,
+      locationAddress, locationLatitude, locationLongitude, locationPlaceId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, description, league, ageGroup, position, location, contactInfo, req.user.userId,
+     locationAddress, locationLatitude, locationLongitude, locationPlaceId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to create vacancy' });
+      }
+      res.status(201).json({
+        message: 'Vacancy created successfully',
+        vacancyId: this.lastID
+      });
+    }
+  );
+});
+
+// Get team vacancies
+app.get('/api/vacancies', (req, res) => {
+  const { league, ageGroup, position, location, search } = req.query;
+  let query = `
+    SELECT v.*, u.firstName, u.lastName 
+    FROM team_vacancies v 
+    JOIN users u ON v.postedBy = u.id 
+    WHERE v.status = 'active'
+  `;
+  const params = [];
+
+  if (league) {
+    query += ' AND v.league = ?';
+    params.push(league);
+  }
+  if (ageGroup) {
+    query += ' AND v.ageGroup = ?';
+    params.push(ageGroup);
+  }
+  if (position) {
+    query += ' AND v.position = ?';
+    params.push(position);
+  }
+  if (location) {
+    query += ' AND v.location LIKE ?';
+    params.push(`%${location}%`);
+  }
+  if (search) {
+    query += ' AND (v.title LIKE ? OR v.description LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  query += ' ORDER BY v.createdAt DESC';
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    // Transform rows to include locationData object
+    const vacancies = rows.map(row => {
+      const vacancy = { ...row };
+      
+      // Add locationData if coordinates exist
+      if (row.locationLatitude && row.locationLongitude) {
+        vacancy.locationData = {
+          address: row.locationAddress,
+          latitude: row.locationLatitude,
+          longitude: row.locationLongitude,
+          placeId: row.locationPlaceId
+        };
+      }
+      
+      // Remove raw location columns from response
+      delete vacancy.locationAddress;
+      delete vacancy.locationLatitude;
+      delete vacancy.locationLongitude;
+      delete vacancy.locationPlaceId;
+      
+      return vacancy;
+    });
+    
+    res.json({ vacancies });
+  });
+});
+
+// Player Availability endpoints
+
+// Create player availability
+app.post('/api/player-availability', authenticateToken, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('description').notEmpty().withMessage('Description is required'),
+  body('league').notEmpty().withMessage('League is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { title, description, league, ageGroup, positions, location, contactInfo, locationData } = req.body;
+
+  // Handle location data if provided
+  let locationAddress = null, locationLatitude = null, locationLongitude = null, locationPlaceId = null;
+  if (locationData) {
+    locationAddress = locationData.address;
+    locationLatitude = locationData.latitude;
+    locationLongitude = locationData.longitude;
+    locationPlaceId = locationData.placeId;
+  }
+
+  db.run(
+    `INSERT INTO player_availability (
+      title, description, preferredLeagues, ageGroup, positions, location, contactInfo, postedBy,
+      locationAddress, locationLatitude, locationLongitude, locationPlaceId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, description, league, ageGroup, JSON.stringify(positions), location, contactInfo, req.user.userId,
+     locationAddress, locationLatitude, locationLongitude, locationPlaceId],
+    function(err) {
+      if (err) {
+        console.error('Error creating player availability:', err);
+        return res.status(500).json({ error: 'Failed to create player availability' });
+      }
+      res.status(201).json({
+        message: 'Player availability created successfully',
+        availabilityId: this.lastID
+      });
+    }
+  );
+});
+
+// Get player availability
+app.get('/api/player-availability', (req, res) => {
+  const { league, ageGroup, position, location, search } = req.query;
+  let query = `
+    SELECT p.*, u.firstName, u.lastName 
+    FROM player_availability p 
+    JOIN users u ON p.postedBy = u.id 
+    WHERE p.status = 'active'
+  `;
+  const params = [];
+
+  if (league) {
+    query += ' AND p.preferredLeagues = ?';
+    params.push(league);
+  }
+  if (ageGroup) {
+    query += ' AND p.ageGroup = ?';
+    params.push(ageGroup);
+  }
+  if (position) {
+    // Search within the JSON array of positions
+    query += ' AND p.positions LIKE ?';
+    params.push(`%"${position}"%`);
+  }
+  if (location) {
+    query += ' AND p.location LIKE ?';
+    params.push(`%${location}%`);
+  }
+  if (search) {
+    query += ' AND (p.title LIKE ? OR p.description LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  query += ' ORDER BY p.createdAt DESC';
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching player availability:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    // Transform rows to include locationData object and parse positions
+    const availability = rows.map(row => {
+      const item = { ...row };
+      
+      // Parse positions JSON array
+      try {
+        item.positions = JSON.parse(row.positions || '[]');
+      } catch (e) {
+        console.error('Error parsing positions JSON:', e);
+        item.positions = [];
+      }
+      
+      // Add locationData if coordinates exist
+      if (row.locationLatitude && row.locationLongitude) {
+        item.locationData = {
+          address: row.locationAddress,
+          latitude: row.locationLatitude,
+          longitude: row.locationLongitude,
+          placeId: row.locationPlaceId
+        };
+      }
+      
+      // Remove raw location columns from response
+      delete item.locationAddress;
+      delete item.locationLatitude;
+      delete item.locationLongitude;
+      delete item.locationPlaceId;
+      
+      return item;
+    });
+    
+    res.json({ availability });
+  });
+});
+
+// League management endpoints
+
+// Get all leagues
+app.get('/api/leagues', (req, res) => {
+  db.all('SELECT * FROM leagues WHERE isActive = 1 ORDER BY name ASC', (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json({ leagues: rows });
+  });
+});
+
+// Create new league (Admin only)
+app.post('/api/leagues', authenticateToken, requireAdmin, [
+  body('name').notEmpty().withMessage('League name is required'),
+  body('description').optional()
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { name, description } = req.body;
+
+  db.run(
+    'INSERT INTO leagues (name, description, createdBy) VALUES (?, ?, ?)',
+    [name, description, req.user.userId],
+    function(err) {
+      if (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          return res.status(400).json({ error: 'League name already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to create league' });
+      }
+      res.status(201).json({
+        message: 'League created successfully',
+        league: {
+          id: this.lastID,
+          name,
+          description
+        }
+      });
+    }
+  );
+});
+
+// Update league (Admin only)
+app.put('/api/leagues/:id', authenticateToken, requireAdmin, [
+  body('name').notEmpty().withMessage('League name is required'),
+  body('description').optional()
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { name, description } = req.body;
+  const leagueId = req.params.id;
+
+  db.run(
+    'UPDATE leagues SET name = ?, description = ? WHERE id = ?',
+    [name, description, leagueId],
+    function(err) {
+      if (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          return res.status(400).json({ error: 'League name already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to update league' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'League not found' });
+      }
+      res.json({ message: 'League updated successfully' });
+    }
+  );
+});
+
+// Delete league (Admin only)
+app.delete('/api/leagues/:id', authenticateToken, requireAdmin, (req, res) => {
+  const leagueId = req.params.id;
+
+  db.run(
+    'UPDATE leagues SET isActive = 0 WHERE id = ?',
+    [leagueId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to delete league' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'League not found' });
+      }
+      res.json({ message: 'League deleted successfully' });
+    }
+  );
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Create admin user (Admin only)
+app.post('/api/admin/create-admin', authenticateToken, requireAdmin, [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('lastName').notEmpty().withMessage('Last name is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password, firstName, lastName } = req.body;
+
+    // Check if user already exists
+    db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (row) {
+        return res.status(400).json({ error: 'User already exists with this email' });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Insert admin user
+      db.run(
+        'INSERT INTO users (email, password, firstName, lastName, role) VALUES (?, ?, ?, ?, ?)',
+        [email, hashedPassword, firstName, lastName, 'Admin'],
+        function(err) {
+          if (err) {
+            console.error('Database error during admin creation:', err);
+            return res.status(500).json({ error: 'Failed to create admin user' });
+          }
+
+          res.status(201).json({
+            message: 'Admin user created successfully',
+            admin: {
+              id: this.lastID,
+              email,
+              firstName,
+              lastName,
+              role: 'Admin',
+              createdAt: new Date().toISOString()
+            }
+          });
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Calendar API endpoints
+
+// Get calendar events
+app.get('/api/calendar/events', authenticateToken, (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  let query = `
+    SELECT e.*, u.firstName, u.lastName 
+    FROM calendar_events e 
+    JOIN users u ON e.createdBy = u.id
+  `;
+  const params = [];
+
+  if (startDate && endDate) {
+    query += ' WHERE e.date BETWEEN ? AND ?';
+    params.push(startDate, endDate);
+  }
+
+  query += ' ORDER BY e.date ASC, e.startTime ASC';
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching calendar events:', err);
+      return res.status(500).json({ error: 'Failed to fetch events' });
+    }
+
+    const events = rows.map(row => ({
+      ...row,
+      positions: row.positions ? JSON.parse(row.positions) : []
+    }));
+
+    res.json({ events });
+  });
+});
+
+// Create calendar event
+app.post('/api/calendar/events', authenticateToken, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('eventType').isIn(['training', 'match', 'trial']).withMessage('Valid event type required'),
+  body('date').isISO8601().withMessage('Valid date required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required'),
+  body('location').notEmpty().withMessage('Location is required')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const {
+    title, description, eventType, date, startTime, endTime, location,
+    isRecurring, recurringPattern, maxParticipants
+  } = req.body;
+
+  const insertQuery = `
+    INSERT INTO calendar_events 
+    (title, description, eventType, date, startTime, endTime, location, createdBy, isRecurring, recurringPattern, maxParticipants)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.run(insertQuery, [
+    title, description, eventType, date, startTime, endTime, location,
+    req.user.userId, isRecurring || false, recurringPattern, maxParticipants
+  ], function(err) {
+    if (err) {
+      console.error('Error creating calendar event:', err);
+      return res.status(500).json({ error: 'Failed to create event' });
+    }
+
+    res.status(201).json({
+      message: 'Event created successfully',
+      event: { id: this.lastID, title, date, startTime, endTime }
+    });
+  });
+});
+
+// Create trial with invitation capability
+app.post('/api/calendar/trials', authenticateToken, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('date').isISO8601().withMessage('Valid date required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required'),
+  body('location').notEmpty().withMessage('Location is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('positions').isArray().withMessage('Positions must be an array')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  // Only coaches can create trials
+  if (req.user.role !== 'Coach') {
+    return res.status(403).json({ error: 'Only coaches can create trials' });
+  }
+
+  const {
+    title, description, date, startTime, endTime, location,
+    maxParticipants, ageGroup, positions, requirements
+  } = req.body;
+
+  const insertQuery = `
+    INSERT INTO calendar_events 
+    (title, description, eventType, date, startTime, endTime, location, createdBy, maxParticipants, ageGroup, positions, requirements)
+    VALUES (?, ?, 'trial', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.run(insertQuery, [
+    title, description, date, startTime, endTime, location,
+    req.user.userId, maxParticipants || 20, ageGroup, JSON.stringify(positions), requirements
+  ], function(err) {
+    if (err) {
+      console.error('Error creating trial:', err);
+      return res.status(500).json({ error: 'Failed to create trial' });
+    }
+
+    const trialId = this.lastID;
+
+    // Auto-invite players based on age group and positions
+    const findPlayersQuery = `
+      SELECT DISTINCT u.id, u.firstName, u.lastName, u.email, p.position
+      FROM users u
+      LEFT JOIN user_profiles p ON u.id = p.userId
+      WHERE u.role = 'Player' 
+      AND (p.position IN (${positions.map(() => '?').join(', ')}) OR p.position IS NULL)
+      LIMIT 50
+    `;
+
+    db.all(findPlayersQuery, positions, (err, players) => {
+      if (err) {
+        console.error('Error finding players for trial invites:', err);
+        return res.status(201).json({
+          message: 'Trial created successfully but failed to send automatic invites',
+          trial: { id: trialId, title, date, startTime, endTime }
+        });
+      }
+
+      // Send invitations to eligible players
+      if (players.length > 0) {
+        const invitePromises = players.map(player => {
+          return new Promise((resolve, reject) => {
+            db.run(
+              'INSERT INTO trial_invitations (trialId, playerId, coachId, message) VALUES (?, ?, ?, ?)',
+              [trialId, player.id, req.user.userId, `You've been invited to try out for our ${ageGroup} team. Positions needed: ${positions.join(', ')}`],
+              (err) => {
+                if (err) reject(err);
+                else resolve(true);
+              }
+            );
+          });
+        });
+
+        Promise.all(invitePromises)
+          .then(() => {
+            res.status(201).json({
+              message: `Trial created successfully and ${players.length} players invited`,
+              trial: { id: trialId, title, date, startTime, endTime },
+              invitesSent: players.length
+            });
+          })
+          .catch((err) => {
+            console.error('Error sending trial invites:', err);
+            res.status(201).json({
+              message: 'Trial created successfully but some invites failed to send',
+              trial: { id: trialId, title, date, startTime, endTime }
+            });
+          });
+      } else {
+        res.status(201).json({
+          message: 'Trial created successfully (no eligible players found for automatic invites)',
+          trial: { id: trialId, title, date, startTime, endTime }
+        });
+      }
+    });
+  });
+});
+
+// Get trial invitations for a player
+app.get('/api/calendar/trial-invitations', authenticateToken, (req, res) => {
+  if (req.user.role !== 'Player') {
+    return res.status(403).json({ error: 'Only players can view trial invitations' });
+  }
+
+  const query = `
+    SELECT 
+      ti.*,
+      e.title as trialTitle, e.description, e.date, e.startTime, e.endTime, 
+      e.location, e.maxParticipants, e.ageGroup, e.positions, e.requirements,
+      coach.firstName as coachFirstName, coach.lastName as coachLastName,
+      profile.teamName
+    FROM trial_invitations ti
+    JOIN calendar_events e ON ti.trialId = e.id
+    JOIN users coach ON ti.coachId = coach.id
+    LEFT JOIN user_profiles profile ON coach.id = profile.userId
+    WHERE ti.playerId = ?
+    ORDER BY ti.sentAt DESC
+  `;
+
+  db.all(query, [req.user.userId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching trial invitations:', err);
+      return res.status(500).json({ error: 'Failed to fetch trial invitations' });
+    }
+
+    const invitations = rows.map(row => ({
+      id: row.id,
+      trialId: row.trialId,
+      status: row.status,
+      message: row.message,
+      sentAt: row.sentAt,
+      respondedAt: row.respondedAt,
+      trial: {
+        title: row.trialTitle,
+        description: row.description,
+        date: row.date,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        location: row.location,
+        maxParticipants: row.maxParticipants,
+        ageGroup: row.ageGroup,
+        positions: row.positions ? JSON.parse(row.positions) : [],
+        requirements: row.requirements
+      },
+      coach: {
+        firstName: row.coachFirstName,
+        lastName: row.coachLastName,
+        teamName: row.teamName
+      }
+    }));
+
+    res.json({ invitations });
+  });
+});
+
+// Respond to trial invitation
+app.put('/api/calendar/trial-invitations/:id', authenticateToken, [
+  body('status').isIn(['accepted', 'declined']).withMessage('Status must be accepted or declined')
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { id } = req.params;
+  const { status } = req.body;
+
+  // Verify the invitation belongs to the current user
+  db.get('SELECT * FROM trial_invitations WHERE id = ? AND playerId = ?', [id, req.user.userId], (err, invitation) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!invitation) {
+      return res.status(404).json({ error: 'Trial invitation not found' });
+    }
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ error: 'This invitation has already been responded to' });
+    }
+
+    // Update the invitation status
+    db.run(
+      'UPDATE trial_invitations SET status = ?, respondedAt = ? WHERE id = ?',
+      [status, new Date().toISOString(), id],
+      function(err) {
+        if (err) {
+          console.error('Error updating trial invitation:', err);
+          return res.status(500).json({ error: 'Failed to update invitation' });
+        }
+
+        // If accepted, add to event participants
+        if (status === 'accepted') {
+          db.run(
+            'INSERT OR IGNORE INTO event_participants (eventId, userId, status) VALUES (?, ?, ?)',
+            [invitation.trialId, req.user.userId, 'attending'],
+            (err) => {
+              if (err) {
+                console.error('Error adding to event participants:', err);
+              }
+            }
+          );
+        }
+
+        res.json({ message: `Trial invitation ${status} successfully` });
+      }
+    );
+  });
+});
+
+// Maps API endpoints
+
+// Search vacancies by location
+app.get('/api/maps/search', (req, res) => {
+  const { lat, lng, radius = 50, type = 'both' } = req.query;
+  
+  if (!lat || !lng) {
+    return res.status(400).json({ error: 'Latitude and longitude are required' });
+  }
+
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+  const searchRadius = parseFloat(radius);
+
+  let queries = [];
+  
+  if (type === 'vacancies' || type === 'both') {
+    const vacancyQuery = `
+      SELECT 'vacancy' as type, v.*, u.firstName, u.lastName,
+        (6371 * acos(cos(radians(?)) * cos(radians(locationLatitude)) * 
+         cos(radians(locationLongitude) - radians(?)) + 
+         sin(radians(?)) * sin(radians(locationLatitude)))) AS distance
+      FROM team_vacancies v 
+      JOIN users u ON v.postedBy = u.id 
+      WHERE v.status = 'active' 
+        AND v.locationLatitude IS NOT NULL 
+        AND v.locationLongitude IS NOT NULL
+      HAVING distance <= ?
+      ORDER BY distance
+    `;
+    queries.push({
+      query: vacancyQuery,
+      params: [latitude, longitude, latitude, searchRadius]
+    });
+  }
+
+  if (type === 'availability' || type === 'both') {
+    const availabilityQuery = `
+      SELECT 'availability' as type, p.*, u.firstName, u.lastName,
+        (6371 * acos(cos(radians(?)) * cos(radians(locationLatitude)) * 
+         cos(radians(locationLongitude) - radians(?)) + 
+         sin(radians(?)) * sin(radians(locationLatitude)))) AS distance
+      FROM player_availability p 
+      JOIN users u ON p.postedBy = u.id 
+      WHERE p.status = 'active' 
+        AND p.locationLatitude IS NOT NULL 
+        AND p.locationLongitude IS NOT NULL
+      HAVING distance <= ?
+      ORDER BY distance
+    `;
+    queries.push({
+      query: availabilityQuery,
+      params: [latitude, longitude, latitude, searchRadius]
+    });
+  }
+
+  Promise.all(queries.map(({ query, params }) => {
+    return new Promise((resolve, reject) => {
+      db.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }))
+  .then(results => {
+    const allResults = results.flat().map(row => {
+      const item = { ...row };
+      
+      // Add locationData if coordinates exist
+      if (row.locationLatitude && row.locationLongitude) {
+        item.locationData = {
+          address: row.locationAddress,
+          latitude: row.locationLatitude,
+          longitude: row.locationLongitude,
+          placeId: row.locationPlaceId
+        };
+      }
+      
+      // Remove raw location columns from response
+      delete item.locationAddress;
+      delete item.locationLatitude;
+      delete item.locationLongitude;
+      delete item.locationPlaceId;
+      
+      return item;
+    });
+
+    // Sort all results by distance
+    allResults.sort((a, b) => a.distance - b.distance);
+    
+    res.json({ results: allResults });
+  })
+  .catch(err => {
+    console.error('Error searching by location:', err);
+    res.status(500).json({ error: 'Database error' });
+  });
+});
+
+// Geocoding endpoint (for converting addresses to coordinates)
+app.post('/api/maps/geocode', (req, res) => {
+  const { address } = req.body;
+  
+  if (!address) {
+    return res.status(400).json({ error: 'Address is required' });
+  }
+
+  // This would integrate with Google Geocoding API in a real implementation
+  // For now, return a placeholder response
+  res.json({
+    message: 'Geocoding endpoint - integrate with Google Maps Geocoding API',
+    address,
+    coordinates: null
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  db.close((err) => {
+    if (err) {
+      console.error(err.message);
+    }
+    console.log('Database connection closed.');
+    process.exit(0);
+  });
+});

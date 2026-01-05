@@ -1,0 +1,843 @@
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Alert,
+  Chip,
+  FormControlLabel,
+  Switch,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  IconButton,
+  Paper,
+  SelectChangeEvent,
+} from '@mui/material';
+import {
+  CalendarToday,
+  Schedule,
+  LocationOn,
+  Cloud,
+  Warning,
+  Error,
+  WbSunny,
+  Air,
+  Opacity,
+  Visibility,
+  ExpandMore,
+  Add,
+  Delete,
+  Notifications,
+} from '@mui/icons-material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useAuth } from '../contexts/AuthContext';
+import { calendarIntegrationService } from '../services/calendarIntegration';
+import { 
+  ConflictDetection, 
+  WeatherInfo
+} from '../types/calendar';
+import { CalendarEvent } from '../services/api';
+
+interface EventData {
+  title: string;
+  description: string;
+  eventType: 'training' | 'match' | 'trial';
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  maxParticipants: number;
+  isRecurring: boolean;
+  recurringPattern: {
+    frequency: string;
+    interval: number;
+    daysOfWeek: string[];
+    endDate?: Date;
+  };
+  participants: string[];
+  reminders: Array<{
+    type: string;
+    time: number;
+    unit: string;
+  }>;
+  createdBy: unknown;
+}
+
+interface EnhancedEventDialogProps {
+  open?: boolean;
+  isOpen?: boolean;
+  onClose: () => void;
+  onSave: (eventData: EventData) => Promise<void>;
+  event?: CalendarEvent | null;
+  mode?: 'create' | 'edit';
+}
+
+const EnhancedEventDialog = ({
+  open,
+  isOpen,
+  onClose,
+  onSave,
+  event,
+  mode = 'create'
+}: EnhancedEventDialogProps) => {
+  const isDialogOpen = isOpen || open || false;
+  const { user } = useAuth();
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    eventType: 'training' as 'training' | 'match' | 'trial',
+    date: new Date(),
+    startTime: new Date(),
+    endTime: new Date(),
+    location: '',
+    maxParticipants: 22,
+    isRecurring: false,
+    recurringPattern: {
+      frequency: 'weekly' as 'daily' | 'weekly' | 'monthly',
+      interval: 1,
+      daysOfWeek: [] as number[],
+      endDate: null as Date | null,
+      occurrences: null as number | null,
+    },
+    participants: [] as string[],
+    reminders: [] as any[],
+  });
+
+  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+  const [conflicts, setConflicts] = useState<ConflictDetection | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const [loadingConflicts, setLoadingConflicts] = useState(false);
+  const [error, setError] = useState('');
+  const [suggestedTimes, setSuggestedTimes] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (event && mode === 'edit') {
+      setEventForm({
+        title: event.title,
+        description: event.description || '',
+        eventType: event.eventType,
+        date: new Date(event.date),
+        startTime: new Date(`${event.date} ${event.startTime}`),
+        endTime: new Date(`${event.date} ${event.endTime}`),
+        location: event.location,
+        maxParticipants: event.maxParticipants || 22,
+        isRecurring: event.isRecurring,
+        recurringPattern: {
+          frequency: (event.recurringPattern as any) || 'weekly',
+          interval: 1,
+          daysOfWeek: [],
+          endDate: null,
+          occurrences: null,
+        },
+        participants: event.participants?.map(p => String(p)) || [],
+        reminders: [],
+      });
+    }
+  }, [event, mode]);
+
+  useEffect(() => {
+    if (eventForm.location && eventForm.date) {
+      fetchWeather();
+    }
+  }, [eventForm.location, eventForm.date]);
+
+  useEffect(() => {
+    if (eventForm.startTime && eventForm.endTime && eventForm.participants.length > 0) {
+      checkConflicts();
+    }
+  }, [eventForm.startTime, eventForm.endTime, eventForm.participants]);
+
+  const fetchWeather = async () => {
+    if (!eventForm.location) return;
+    
+    setLoadingWeather(true);
+    try {
+      const weatherData = await calendarIntegrationService.getWeatherForEvent(
+        eventForm.location,
+        eventForm.startTime.toISOString()
+      );
+      setWeather(weatherData);
+    } catch (err) {
+      console.error('Error fetching weather:', err);
+      setWeather(null);
+    } finally {
+      setLoadingWeather(false);
+    }
+  };
+
+  const checkConflicts = async () => {
+    setLoadingConflicts(true);
+    try {
+      const conflictData = await calendarIntegrationService.detectConflicts({
+        startTime: eventForm.startTime.toISOString(),
+        endTime: eventForm.endTime.toISOString(),
+        participants: eventForm.participants,
+        eventId: event?.id.toString(),
+      });
+      setConflicts(conflictData);
+    } catch (err) {
+      console.error('Error checking conflicts:', err);
+      setConflicts(null);
+    } finally {
+      setLoadingConflicts(false);
+    }
+  };
+
+  const getSuggestedTimes = async () => {
+    try {
+      const suggestions = await calendarIntegrationService.suggestOptimalTimes({
+        duration: (eventForm.endTime.getTime() - eventForm.startTime.getTime()) / (1000 * 60),
+        participants: eventForm.participants,
+        preferredDate: eventForm.date.toISOString().split('T')[0],
+        location: eventForm.location,
+        eventType: eventForm.eventType,
+      });
+      setSuggestedTimes(suggestions.suggestions);
+    } catch (err) {
+      console.error('Error getting suggested times:', err);
+    }
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const eventData = {
+        ...eventForm,
+        date: eventForm.startTime.toISOString().split('T')[0],
+        startTime: eventForm.startTime.toTimeString().slice(0, 5),
+        endTime: eventForm.endTime.toTimeString().slice(0, 5),
+        createdBy: user?.id,
+        recurringPattern: {
+          ...eventForm.recurringPattern,
+          daysOfWeek: eventForm.recurringPattern.daysOfWeek.map(day => day.toString()),
+          endDate: eventForm.recurringPattern.endDate || undefined
+        }
+      };
+
+      await onSave(eventData);
+      
+      // Set reminders if any
+      if (eventForm.reminders.length > 0 && event?.id) {
+        await calendarIntegrationService.setReminders(
+          event.id.toString(),
+          eventForm.reminders
+        );
+      }
+
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save event');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addReminder = () => {
+    setEventForm(prev => ({
+      ...prev,
+      reminders: [
+        ...prev.reminders,
+        {
+          type: 'email' as 'email' | 'sms' | 'push' | 'calendar',
+          minutesBefore: 60,
+          isEnabled: true,
+        }
+      ]
+    }));
+  };
+
+  const updateReminder = (index: number, field: string, value: any) => {
+    setEventForm(prev => ({
+      ...prev,
+      reminders: prev.reminders.map((reminder, i) => 
+        i === index ? { ...reminder, [field]: value } : reminder
+      )
+    }));
+  };
+
+  const removeReminder = (index: number) => {
+    setEventForm(prev => ({
+      ...prev,
+      reminders: prev.reminders.filter((_, i) => i !== index)
+    }));
+  };
+
+  const getWeatherIcon = (condition: string) => {
+    switch (condition.toLowerCase()) {
+      case 'clear':
+      case 'sunny':
+        return <WbSunny color="warning" />;
+      case 'rain':
+        return <Opacity color="primary" />;
+      case 'clouds':
+        return <Cloud color="action" />;
+      default:
+        return <WbSunny color="action" />;
+    }
+  };
+
+  const getConflictSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warning';
+      case 'low':
+        return 'info';
+      default:
+        return 'default';
+    }
+  };
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <Dialog open={isDialogOpen} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center">
+            <CalendarToday sx={{ mr: 1 }} />
+            {mode === 'create' ? 'Create New Event' : 'Edit Event'}
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          
+          <Grid container spacing={3}>
+            {/* Basic Event Details */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Event Details
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={8}>
+              <TextField
+                label="Event Title"
+                value={eventForm.title}
+                onChange={(e) => setEventForm(prev => ({ ...prev, title: e.target.value }))}
+                fullWidth
+                required
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Event Type</InputLabel>
+                <Select
+                  value={eventForm.eventType}
+                  onChange={(e: SelectChangeEvent) => setEventForm(prev => ({ 
+                    ...prev, 
+                    eventType: e.target.value as 'training' | 'match' | 'trial' 
+                  }))}
+                >
+                  <MenuItem value="training">Training</MenuItem>
+                  <MenuItem value="match">Match</MenuItem>
+                  <MenuItem value="trial">Trial</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <TextField
+                label="Description"
+                value={eventForm.description}
+                onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+                multiline
+                rows={3}
+                fullWidth
+              />
+            </Grid>
+            
+            {/* Date and Time */}
+            <Grid item xs={12} md={6}>
+              <DateTimePicker
+                label="Start Time"
+                value={eventForm.startTime}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    setEventForm(prev => ({ 
+                      ...prev, 
+                      startTime: newValue,
+                      date: newValue
+                    }));
+                  }
+                }}
+                slotProps={{
+                  textField: { fullWidth: true }
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <DateTimePicker
+                label="End Time"
+                value={eventForm.endTime}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    setEventForm(prev => ({ ...prev, endTime: newValue }));
+                  }
+                }}
+                slotProps={{
+                  textField: { fullWidth: true }
+                }}
+              />
+            </Grid>
+            
+            {/* Location */}
+            <Grid item xs={12} md={8}>
+              <TextField
+                label="Location"
+                value={eventForm.location}
+                onChange={(e) => setEventForm(prev => ({ ...prev, location: e.target.value }))}
+                fullWidth
+                InputProps={{
+                  startAdornment: <LocationOn color="action" sx={{ mr: 1 }} />
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Max Participants"
+                type="number"
+                value={eventForm.maxParticipants}
+                onChange={(e) => setEventForm(prev => ({ ...prev, maxParticipants: Number(e.target.value) }))}
+                fullWidth
+                inputProps={{ min: 1, max: 50 }}
+              />
+            </Grid>
+
+            {/* Weather Information */}
+            {eventForm.location && (
+              <Grid item xs={12}>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Box display="flex" alignItems="center">
+                      <Cloud sx={{ mr: 1 }} />
+                      <Typography>Weather Forecast</Typography>
+                      {loadingWeather && <Typography variant="caption" sx={{ ml: 2 }}>Loading...</Typography>}
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    {weather ? (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <Card>
+                            <CardContent>
+                              <Box display="flex" alignItems="center" mb={2}>
+                                {getWeatherIcon(weather.forecast.condition)}
+                                <Box ml={1}>
+                                  <Typography variant="h6">
+                                    {weather.forecast.temperature}°C
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {weather.forecast.condition}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              
+                              <Grid container spacing={1}>
+                                <Grid item xs={6}>
+                                  <Box display="flex" alignItems="center">
+                                    <Opacity fontSize="small" sx={{ mr: 0.5 }} />
+                                    <Typography variant="caption">
+                                      Humidity: {weather.forecast.humidity}%
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                                <Grid item xs={6}>
+                                  <Box display="flex" alignItems="center">
+                                    <Air fontSize="small" sx={{ mr: 0.5 }} />
+                                    <Typography variant="caption">
+                                      Wind: {weather.forecast.windSpeed} m/s
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                                <Grid item xs={6}>
+                                  <Box display="flex" alignItems="center">
+                                    <Visibility fontSize="small" sx={{ mr: 0.5 }} />
+                                    <Typography variant="caption">
+                                      Visibility: {weather.forecast.visibility} km
+                                    </Typography>
+                                  </Box>
+                                </Grid>
+                                <Grid item xs={6}>
+                                  <Typography variant="caption">
+                                    Rain: {weather.forecast.precipitation} mm
+                                  </Typography>
+                                </Grid>
+                              </Grid>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        
+                        <Grid item xs={12} md={6}>
+                          <Alert 
+                            severity={weather.recommendation.suitable ? 'success' : 'warning'}
+                            sx={{ mb: 1 }}
+                          >
+                            <Typography variant="body2">
+                              {weather.recommendation.message}
+                            </Typography>
+                          </Alert>
+                          
+                          {weather.alerts.map((alert, index) => (
+                            <Alert 
+                              key={index}
+                              severity={alert.severity === 'high' ? 'error' : alert.severity === 'medium' ? 'warning' : 'info'}
+                              sx={{ mb: 1 }}
+                            >
+                              <Typography variant="caption">
+                                <strong>{alert.type.toUpperCase()}:</strong> {alert.message}
+                              </Typography>
+                              <br />
+                              <Typography variant="caption">
+                                {alert.impact}
+                              </Typography>
+                            </Alert>
+                          ))}
+                          
+                          {weather.recommendation.alternatives && weather.recommendation.alternatives.length > 0 && (
+                            <Paper sx={{ p: 1, mt: 1 }}>
+                              <Typography variant="caption" fontWeight="bold">
+                                Suggestions:
+                              </Typography>
+                              {weather.recommendation.alternatives.map((alt, index) => (
+                                <Typography key={index} variant="caption" display="block">
+                                  • {alt}
+                                </Typography>
+                              ))}
+                            </Paper>
+                          )}
+                        </Grid>
+                      </Grid>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Enter a location to see weather forecast
+                      </Typography>
+                    )}
+                  </AccordionDetails>
+                </Accordion>
+              </Grid>
+            )}
+
+            {/* Conflict Detection */}
+            {eventForm.participants.length > 0 && (
+              <Grid item xs={12}>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Box display="flex" alignItems="center">
+                      <Warning sx={{ mr: 1 }} />
+                      <Typography>Conflict Detection</Typography>
+                      {conflicts && conflicts.conflictingEvents.length > 0 && (
+                        <Chip 
+                          label={`${conflicts.conflictingEvents.length} conflicts`}
+                          color="warning"
+                          size="small"
+                          sx={{ ml: 1 }}
+                        />
+                      )}
+                      {loadingConflicts && <Typography variant="caption" sx={{ ml: 2 }}>Checking...</Typography>}
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    {conflicts ? (
+                      conflicts.conflictingEvents.length > 0 ? (
+                        <Box>
+                          <List>
+                            {conflicts.conflictingEvents.map((conflict, index) => (
+                              <ListItem key={index}>
+                                <ListItemIcon>
+                                  <Error color={getConflictSeverityColor(conflict.severity) as any} />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={conflict.title}
+                                  secondary={`${conflict.startTime} - ${conflict.endTime} | Severity: ${conflict.severity}`}
+                                />
+                                <Chip 
+                                  label={conflict.type}
+                                  color={getConflictSeverityColor(conflict.severity) as any}
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                          
+                          {conflicts.suggestions.length > 0 && (
+                            <Box mt={2}>
+                              <Typography variant="subtitle2" gutterBottom>
+                                Suggestions:
+                              </Typography>
+                              {conflicts.suggestions.map((suggestion, index) => (
+                                <Alert key={index} severity="info" sx={{ mb: 1 }}>
+                                  <Typography variant="body2">
+                                    <strong>{suggestion.type}:</strong> {suggestion.reason}
+                                  </Typography>
+                                  {suggestion.newStartTime && suggestion.newEndTime && (
+                                    <Typography variant="caption">
+                                      Suggested time: {suggestion.newStartTime} - {suggestion.newEndTime}
+                                    </Typography>
+                                  )}
+                                </Alert>
+                              ))}
+                            </Box>
+                          )}
+                          
+                          <Button
+                            variant="outlined"
+                            onClick={getSuggestedTimes}
+                            startIcon={<Schedule />}
+                            sx={{ mt: 1 }}
+                          >
+                            Get Alternative Times
+                          </Button>
+                        </Box>
+                      ) : (
+                        <Alert severity="success">
+                          <Typography variant="body2">
+                            No conflicts detected for this time slot!
+                          </Typography>
+                        </Alert>
+                      )
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Add participants to check for conflicts
+                      </Typography>
+                    )}
+                    
+                    {suggestedTimes.length > 0 && (
+                      <Box mt={2}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Alternative Times (sorted by suitability):
+                        </Typography>
+                        {suggestedTimes.slice(0, 3).map((suggestion, index) => (
+                          <Card key={index} sx={{ mb: 1 }}>
+                            <CardContent sx={{ py: 1 }}>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                  <Typography variant="body2">
+                                    {suggestion.startTime} - {suggestion.endTime}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Score: {suggestion.score}/100 | Conflicts: {suggestion.conflicts}
+                                  </Typography>
+                                </Box>
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    setEventForm(prev => ({
+                                      ...prev,
+                                      startTime: new Date(suggestion.startTime),
+                                      endTime: new Date(suggestion.endTime),
+                                    }));
+                                  }}
+                                >
+                                  Use This Time
+                                </Button>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Box>
+                    )}
+                  </AccordionDetails>
+                </Accordion>
+              </Grid>
+            )}
+
+            {/* Reminders */}
+            <Grid item xs={12}>
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMore />}>
+                  <Box display="flex" alignItems="center">
+                    <Notifications sx={{ mr: 1 }} />
+                    <Typography>Reminders</Typography>
+                    {eventForm.reminders.length > 0 && (
+                      <Chip 
+                        label={`${eventForm.reminders.length} set`}
+                        color="primary"
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  {eventForm.reminders.map((reminder, index) => (
+                    <Card key={index} sx={{ mb: 1 }}>
+                      <CardContent sx={{ py: 1 }}>
+                        <Grid container spacing={2} alignItems="center">
+                          <Grid item xs={3}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Type</InputLabel>
+                              <Select
+                                value={reminder.type}
+                                onChange={(e) => updateReminder(index, 'type', e.target.value)}
+                              >
+                                <MenuItem value="email">Email</MenuItem>
+                                <MenuItem value="sms">SMS</MenuItem>
+                                <MenuItem value="push">Push</MenuItem>
+                                <MenuItem value="calendar">Calendar</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <TextField
+                              label="Minutes Before"
+                              type="number"
+                              size="small"
+                              value={reminder.minutesBefore}
+                              onChange={(e) => updateReminder(index, 'minutesBefore', Number(e.target.value))}
+                              fullWidth
+                            />
+                          </Grid>
+                          <Grid item xs={3}>
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={reminder.isEnabled}
+                                  onChange={(e) => updateReminder(index, 'isEnabled', e.target.checked)}
+                                />
+                              }
+                              label="Enabled"
+                            />
+                          </Grid>
+                          <Grid item xs={2}>
+                            <IconButton
+                              onClick={() => removeReminder(index)}
+                              color="error"
+                              size="small"
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  <Button
+                    variant="outlined"
+                    onClick={addReminder}
+                    startIcon={<Add />}
+                    size="small"
+                  >
+                    Add Reminder
+                  </Button>
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+
+            {/* Recurring Event Settings */}
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={eventForm.isRecurring}
+                    onChange={(e) => setEventForm(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                  />
+                }
+                label="Recurring Event"
+              />
+            </Grid>
+
+            {eventForm.isRecurring && (
+              <>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Frequency</InputLabel>
+                    <Select
+                      value={eventForm.recurringPattern.frequency}
+                      onChange={(e) => setEventForm(prev => ({
+                        ...prev,
+                        recurringPattern: {
+                          ...prev.recurringPattern,
+                          frequency: e.target.value as any
+                        }
+                      }))}
+                    >
+                      <MenuItem value="weekly">Weekly</MenuItem>
+                      <MenuItem value="monthly">Monthly</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Repeat Every"
+                    type="number"
+                    value={eventForm.recurringPattern.interval}
+                    onChange={(e) => setEventForm(prev => ({
+                      ...prev,
+                      recurringPattern: {
+                        ...prev.recurringPattern,
+                        interval: Number(e.target.value)
+                      }
+                    }))}
+                    fullWidth
+                    helperText={`Every ${eventForm.recurringPattern.interval} ${eventForm.recurringPattern.frequency}`}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <DateTimePicker
+                    label="End Date (Optional)"
+                    value={eventForm.recurringPattern.endDate}
+                    onChange={(newValue) => setEventForm(prev => ({
+                      ...prev,
+                      recurringPattern: {
+                        ...prev.recurringPattern,
+                        endDate: newValue
+                      }
+                    }))}
+                    slotProps={{
+                      textField: { fullWidth: true }
+                    }}
+                  />
+                </Grid>
+              </>
+            )}
+          </Grid>
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            variant="contained" 
+            disabled={loading || !eventForm.title || !eventForm.location}
+          >
+            {loading ? 'Saving...' : mode === 'create' ? 'Create Event' : 'Update Event'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </LocalizationProvider>
+  );
+};
+
+export default EnhancedEventDialog;

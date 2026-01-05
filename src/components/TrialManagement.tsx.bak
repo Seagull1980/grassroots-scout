@@ -1,0 +1,925 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Container,
+  Typography,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardActions,
+  Grid,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
+  List,
+  ListItem,
+  Divider,
+  Alert,
+  CircularProgress,
+  Paper,
+  Rating,
+  FormControlLabel,
+  Switch,
+  Snackbar
+} from '@mui/material';
+import {
+  Add,
+  Delete,
+  KeyboardArrowUp,
+  KeyboardArrowDown,
+  Person,
+  Schedule,
+  LocationOn,
+  Star,
+  GroupAdd,
+  Assessment
+} from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
+
+interface TrialList {
+  id: number;
+  title: string;
+  description?: string;
+  trialDate?: string;
+  trialTime?: string;
+  location?: string;
+  status: 'active' | 'completed' | 'cancelled';
+  maxPlayers?: number;
+  playerCount: number;
+  avgRating?: number;
+  createdAt: string;
+}
+
+interface PlayerEvaluation {
+  id: number;
+  playerId: number;
+  playerName: string;
+  playerAge?: number;
+  playerPosition?: string;
+  ranking: number;
+  overallRating?: number;
+  technicalSkills?: number;
+  physicalAttributes?: number;
+  mentalStrength?: number;
+  teamwork?: number;
+  privateNotes?: string;
+  strengths?: string;
+  areasForImprovement?: string;
+  recommendedForTeam: boolean;
+  status: 'evaluating' | 'approved' | 'rejected' | 'pending';
+  evaluatedAt: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+const TrialManagement: React.FC = () => {
+  const { user } = useAuth();
+  const [trialLists, setTrialLists] = useState<TrialList[]>([]);
+  const [selectedTrialList, setSelectedTrialList] = useState<TrialList | null>(null);
+  const [players, setPlayers] = useState<PlayerEvaluation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerEvaluation | null>(null);
+
+  // Dialog states
+  const [createTrialDialog, setCreateTrialDialog] = useState(false);
+  const [addPlayerDialog, setAddPlayerDialog] = useState(false);
+  const [evaluationDialog, setEvaluationDialog] = useState(false);
+  
+  // Form states
+  const [trialForm, setTrialForm] = useState({
+    title: '',
+    description: '',
+    trialDate: null as Date | null,
+    trialTime: null as Date | null,
+    location: '',
+    maxPlayers: ''
+  });
+
+  const [playerForm, setPlayerForm] = useState({
+    playerId: '',
+    playerName: '',
+    playerAge: '',
+    playerPosition: ''
+  });
+
+  const [evaluationForm, setEvaluationForm] = useState({
+    overallRating: 0,
+    technicalSkills: 0,
+    physicalAttributes: 0,
+    mentalStrength: 0,
+    teamwork: 0,
+    privateNotes: '',
+    strengths: '',
+    areasForImprovement: '',
+    recommendedForTeam: false,
+    status: 'evaluating' as 'evaluating' | 'approved' | 'rejected' | 'pending'
+  });
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+  useEffect(() => {
+    if (user?.role === 'Coach') {
+      fetchTrialLists();
+    }
+  }, [user]);
+
+  const fetchTrialLists = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/trial-lists');
+      if (response.data.success) {
+        setTrialLists(response.data.trialLists);
+      }
+    } catch (error) {
+      console.error('Error fetching trial lists:', error);
+      showSnackbar('Failed to fetch trial lists', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTrialListDetails = async (trialListId: number) => {
+    try {
+      const response = await api.get(`/trial-lists/${trialListId}`);
+      if (response.data.success) {
+        setSelectedTrialList(response.data.trialList);
+        setPlayers(response.data.players);
+      }
+    } catch (error) {
+      console.error('Error fetching trial list details:', error);
+      showSnackbar('Failed to fetch trial list details', 'error');
+    }
+  };
+
+  const createTrialList = async () => {
+    try {
+      const payload: {
+        title: string;
+        description?: string;
+        trialDate?: string;
+        trialTime?: string;
+        location?: string;
+        maxPlayers?: number;
+      } = {
+        title: trialForm.title,
+        description: trialForm.description || undefined
+      };
+
+      if (trialForm.trialDate) {
+        payload.trialDate = trialForm.trialDate.toISOString().split('T')[0];
+      }
+      if (trialForm.trialTime) {
+        payload.trialTime = trialForm.trialTime.toTimeString().split(' ')[0].substring(0, 5);
+      }
+      if (trialForm.location) {
+        payload.location = trialForm.location;
+      }
+      if (trialForm.maxPlayers) {
+        payload.maxPlayers = parseInt(trialForm.maxPlayers);
+      }
+
+      const response = await api.post('/trial-lists', payload);
+      
+      if (response.data.success) {
+        showSnackbar('Trial list created successfully', 'success');
+        setCreateTrialDialog(false);
+        resetTrialForm();
+        fetchTrialLists();
+      }
+    } catch (error: any) {
+      console.error('Error creating trial list:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to create trial list';
+      showSnackbar(errorMessage, 'error');
+    }
+  };
+
+  const addPlayerToTrial = async () => {
+    if (!selectedTrialList) return;
+
+    try {
+      const payload = {
+        playerId: parseInt(playerForm.playerId),
+        playerName: playerForm.playerName,
+        playerAge: playerForm.playerAge ? parseInt(playerForm.playerAge) : undefined,
+        playerPosition: playerForm.playerPosition || undefined
+      };
+
+      const response = await api.post(`/trial-lists/${selectedTrialList.id}/players`, payload);
+      
+      if (response.data.success) {
+        showSnackbar('Player added successfully', 'success');
+        setAddPlayerDialog(false);
+        resetPlayerForm();
+        fetchTrialListDetails(selectedTrialList.id);
+      }
+    } catch (error: any) {
+      console.error('Error adding player:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to add player';
+      showSnackbar(errorMessage, 'error');
+    }
+  };
+
+  const updatePlayerEvaluation = async () => {
+    if (!selectedPlayer) return;
+
+    try {
+      const response = await api.put(`/trial-evaluations/${selectedPlayer.id}`, evaluationForm);
+      
+      if (response.data.success) {
+        showSnackbar('Player evaluation updated successfully', 'success');
+        setEvaluationDialog(false);
+        if (selectedTrialList) {
+          fetchTrialListDetails(selectedTrialList.id);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error updating evaluation:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to update evaluation';
+      showSnackbar(errorMessage, 'error');
+    }
+  };
+
+  const movePlayer = async (evaluationId: number, direction: 'up' | 'down') => {
+    const player = players.find(p => p.id === evaluationId);
+    if (!player) return;
+
+    const newRanking = direction === 'up' ? player.ranking - 1 : player.ranking + 1;
+    
+    if (newRanking < 1 || newRanking > players.length) return;
+
+    try {
+      const response = await api.put(`/trial-evaluations/${evaluationId}/ranking`, {
+        newRanking
+      });
+
+      if (response.data.success) {
+        if (selectedTrialList) {
+          fetchTrialListDetails(selectedTrialList.id);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error moving player:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to move player';
+      showSnackbar(errorMessage, 'error');
+    }
+  };
+
+  const removePlayer = async (evaluationId: number) => {
+    if (!confirm('Are you sure you want to remove this player from the trial list?')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/trial-evaluations/${evaluationId}`);
+      
+      if (response.data.success) {
+        showSnackbar('Player removed successfully', 'success');
+        if (selectedTrialList) {
+          fetchTrialListDetails(selectedTrialList.id);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error removing player:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to remove player';
+      showSnackbar(errorMessage, 'error');
+    }
+  };
+
+  const openEvaluationDialog = (player: PlayerEvaluation) => {
+    setSelectedPlayer(player);
+    setEvaluationForm({
+      overallRating: player.overallRating || 0,
+      technicalSkills: player.technicalSkills || 0,
+      physicalAttributes: player.physicalAttributes || 0,
+      mentalStrength: player.mentalStrength || 0,
+      teamwork: player.teamwork || 0,
+      privateNotes: player.privateNotes || '',
+      strengths: player.strengths || '',
+      areasForImprovement: player.areasForImprovement || '',
+      recommendedForTeam: player.recommendedForTeam,
+      status: player.status as 'evaluating' | 'approved' | 'rejected' | 'pending'
+    });
+    setEvaluationDialog(true);
+  };
+
+  const resetTrialForm = () => {
+    setTrialForm({
+      title: '',
+      description: '',
+      trialDate: null,
+      trialTime: null,
+      location: '',
+      maxPlayers: ''
+    });
+  };
+
+  const resetPlayerForm = () => {
+    setPlayerForm({
+      playerId: '',
+      playerName: '',
+      playerAge: '',
+      playerPosition: ''
+    });
+  };
+
+  const showSnackbar = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'Not set';
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return 'Not set';
+    return timeStr.substring(0, 5);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'primary';
+      case 'completed': return 'success';
+      case 'cancelled': return 'error';
+      case 'approved': return 'success';
+      case 'rejected': return 'error';
+      case 'pending': return 'warning';
+      default: return 'default';
+    }
+  };
+
+  if (user?.role !== 'Coach') {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error">
+          Only coaches can access trial management features.
+        </Alert>
+      </Container>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        {!selectedTrialList ? (
+          // Trial Lists Overview
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h4" component="h1">
+                Trial Management
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setCreateTrialDialog(true)}
+              >
+                Create New Trial List
+              </Button>
+            </Box>
+
+            {trialLists.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary">
+                  No trial lists created yet.
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Create your first trial list to start evaluating players for your team.
+                </Typography>
+              </Paper>
+            ) : (
+              <Grid container spacing={3}>
+                {trialLists.map((trialList) => (
+                  <Grid item xs={12} md={6} lg={4} key={trialList.id}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                          {trialList.title}
+                        </Typography>
+                        
+                        <Chip
+                          label={trialList.status}
+                          color={getStatusColor(trialList.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                          size="small"
+                          sx={{ mb: 1 }}
+                        />
+
+                        {trialList.description && (
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            {trialList.description}
+                          </Typography>
+                        )}
+
+                        <Box sx={{ mt: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Person fontSize="small" sx={{ mr: 1 }} />
+                            <Typography variant="body2">
+                              {trialList.playerCount} players
+                            </Typography>
+                          </Box>
+
+                          {trialList.trialDate && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                              <Schedule fontSize="small" sx={{ mr: 1 }} />
+                              <Typography variant="body2">
+                                {formatDate(trialList.trialDate)} at {formatTime(trialList.trialTime)}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {trialList.location && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                              <LocationOn fontSize="small" sx={{ mr: 1 }} />
+                              <Typography variant="body2">
+                                {trialList.location}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {trialList.avgRating && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                              <Star fontSize="small" sx={{ mr: 1 }} />
+                              <Typography variant="body2">
+                                Avg Rating: {trialList.avgRating.toFixed(1)}/10
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </CardContent>
+                      <CardActions>
+                        <Button
+                          size="small"
+                          onClick={() => fetchTrialListDetails(trialList.id)}
+                        >
+                          View Details
+                        </Button>
+                      </CardActions>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </>
+        ) : (
+          // Trial List Details View
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h4" component="h1">
+                {selectedTrialList.title}
+              </Typography>
+              <Box>
+                <Button
+                  variant="outlined"
+                  startIcon={<GroupAdd />}
+                  onClick={() => setAddPlayerDialog(true)}
+                  sx={{ mr: 1 }}
+                >
+                  Add Player
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setSelectedTrialList(null)}
+                >
+                  Back to Lists
+                </Button>
+              </Box>
+            </Box>
+
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Status: <Chip label={selectedTrialList.status} color={getStatusColor(selectedTrialList.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'} size="small" />
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Players: {players.length}{selectedTrialList.maxPlayers ? `/${selectedTrialList.maxPlayers}` : ''}
+                    </Typography>
+                  </Grid>
+                  {selectedTrialList.trialDate && (
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Date & Time: {formatDate(selectedTrialList.trialDate)} at {formatTime(selectedTrialList.trialTime)}
+                      </Typography>
+                    </Grid>
+                  )}
+                  {selectedTrialList.location && (
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Location: {selectedTrialList.location}
+                      </Typography>
+                    </Grid>
+                  )}
+                </Grid>
+                {selectedTrialList.description && (
+                  <Typography variant="body1" sx={{ mt: 2 }}>
+                    {selectedTrialList.description}
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
+            {players.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary">
+                  No players added to this trial list yet.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<GroupAdd />}
+                  onClick={() => setAddPlayerDialog(true)}
+                  sx={{ mt: 2 }}
+                >
+                  Add First Player
+                </Button>
+              </Paper>
+            ) : (
+              <List>
+                {players.map((player, index) => (
+                  <React.Fragment key={player.id}>
+                    <ListItem>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                        <Box sx={{ mr: 2, minWidth: 40 }}>
+                          <Typography variant="h6" color="primary">
+                            #{player.ranking}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6">
+                            {player.playerName}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                            {player.playerAge && (
+                              <Chip label={`Age ${player.playerAge}`} size="small" />
+                            )}
+                            {player.playerPosition && (
+                              <Chip label={player.playerPosition} size="small" color="secondary" />
+                            )}
+                            <Chip
+                              label={player.status}
+                              color={getStatusColor(player.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                              size="small"
+                            />
+                            {player.overallRating && (
+                              <Chip
+                                label={`${player.overallRating}/10`}
+                                color="primary"
+                                size="small"
+                              />
+                            )}
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <IconButton
+                            onClick={() => movePlayer(player.id, 'up')}
+                            disabled={index === 0}
+                            size="small"
+                          >
+                            <KeyboardArrowUp />
+                          </IconButton>
+                          <IconButton
+                            onClick={() => movePlayer(player.id, 'down')}
+                            disabled={index === players.length - 1}
+                            size="small"
+                          >
+                            <KeyboardArrowDown />
+                          </IconButton>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<Assessment />}
+                            onClick={() => openEvaluationDialog(player)}
+                          >
+                            Evaluate
+                          </Button>
+                          <IconButton
+                            onClick={() => removePlayer(player.id)}
+                            color="error"
+                            size="small"
+                          >
+                            <Delete />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </ListItem>
+                    {index < players.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </List>
+            )}
+          </>
+        )}
+
+        {/* Create Trial List Dialog */}
+        <Dialog open={createTrialDialog} onClose={() => setCreateTrialDialog(false)} maxWidth="md" fullWidth>
+          <DialogTitle>Create New Trial List</DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Trial List Title"
+                  value={trialForm.title}
+                  onChange={(e) => setTrialForm(prev => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Description (Optional)"
+                  multiline
+                  rows={3}
+                  value={trialForm.description}
+                  onChange={(e) => setTrialForm(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  label="Trial Date (Optional)"
+                  value={trialForm.trialDate}
+                  onChange={(newValue) => setTrialForm(prev => ({ ...prev, trialDate: newValue }))}
+                  sx={{ width: '100%' }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TimePicker
+                  label="Trial Time (Optional)"
+                  value={trialForm.trialTime}
+                  onChange={(newValue) => setTrialForm(prev => ({ ...prev, trialTime: newValue }))}
+                  sx={{ width: '100%' }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Location (Optional)"
+                  value={trialForm.location}
+                  onChange={(e) => setTrialForm(prev => ({ ...prev, location: e.target.value }))}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Max Players (Optional)"
+                  type="number"
+                  value={trialForm.maxPlayers}
+                  onChange={(e) => setTrialForm(prev => ({ ...prev, maxPlayers: e.target.value }))}
+                  inputProps={{ min: 1, max: 100 }}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateTrialDialog(false)}>Cancel</Button>
+            <Button
+              onClick={createTrialList}
+              variant="contained"
+              disabled={!trialForm.title.trim()}
+            >
+              Create Trial List
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Add Player Dialog */}
+        <Dialog open={addPlayerDialog} onClose={() => setAddPlayerDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Add Player to Trial</DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Player ID"
+                  type="number"
+                  value={playerForm.playerId}
+                  onChange={(e) => setPlayerForm(prev => ({ ...prev, playerId: e.target.value }))}
+                  required
+                  helperText="Enter the player's user ID from the system"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Player Name"
+                  value={playerForm.playerName}
+                  onChange={(e) => setPlayerForm(prev => ({ ...prev, playerName: e.target.value }))}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Age (Optional)"
+                  type="number"
+                  value={playerForm.playerAge}
+                  onChange={(e) => setPlayerForm(prev => ({ ...prev, playerAge: e.target.value }))}
+                  inputProps={{ min: 5, max: 50 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Position (Optional)"
+                  value={playerForm.playerPosition}
+                  onChange={(e) => setPlayerForm(prev => ({ ...prev, playerPosition: e.target.value }))}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAddPlayerDialog(false)}>Cancel</Button>
+            <Button
+              onClick={addPlayerToTrial}
+              variant="contained"
+              disabled={!playerForm.playerId || !playerForm.playerName.trim()}
+            >
+              Add Player
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Player Evaluation Dialog */}
+        <Dialog open={evaluationDialog} onClose={() => setEvaluationDialog(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            Evaluate Player: {selectedPlayer?.playerName}
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={3} sx={{ mt: 1 }}>
+              {/* Ratings */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>Performance Ratings</Typography>
+              </Grid>
+              
+              <Grid item xs={12} sm={6}>
+                <Typography component="legend">Overall Rating</Typography>
+                <Rating
+                  value={evaluationForm.overallRating}
+                  onChange={(_, newValue) => {
+                    setEvaluationForm(prev => ({ ...prev, overallRating: newValue || 0 }));
+                  }}
+                  max={10}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Typography component="legend">Technical Skills</Typography>
+                <Rating
+                  value={evaluationForm.technicalSkills}
+                  onChange={(_, newValue) => {
+                    setEvaluationForm(prev => ({ ...prev, technicalSkills: newValue || 0 }));
+                  }}
+                  max={10}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Typography component="legend">Physical Attributes</Typography>
+                <Rating
+                  value={evaluationForm.physicalAttributes}
+                  onChange={(_, newValue) => {
+                    setEvaluationForm(prev => ({ ...prev, physicalAttributes: newValue || 0 }));
+                  }}
+                  max={10}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Typography component="legend">Mental Strength</Typography>
+                <Rating
+                  value={evaluationForm.mentalStrength}
+                  onChange={(_, newValue) => {
+                    setEvaluationForm(prev => ({ ...prev, mentalStrength: newValue || 0 }));
+                  }}
+                  max={10}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Typography component="legend">Teamwork</Typography>
+                <Rating
+                  value={evaluationForm.teamwork}
+                  onChange={(_, newValue) => {
+                    setEvaluationForm(prev => ({ ...prev, teamwork: newValue || 0 }));
+                  }}
+                  max={10}
+                />
+              </Grid>
+
+              {/* Text fields */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Strengths"
+                  value={evaluationForm.strengths}
+                  onChange={(e) => setEvaluationForm(prev => ({ ...prev, strengths: e.target.value }))}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Areas for Improvement"
+                  value={evaluationForm.areasForImprovement}
+                  onChange={(e) => setEvaluationForm(prev => ({ ...prev, areasForImprovement: e.target.value }))}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Private Notes"
+                  value={evaluationForm.privateNotes}
+                  onChange={(e) => setEvaluationForm(prev => ({ ...prev, privateNotes: e.target.value }))}
+                  multiline
+                  rows={4}
+                  helperText="These notes are private and only visible to you"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={evaluationForm.status}
+                    onChange={(e) => setEvaluationForm(prev => ({ ...prev, status: e.target.value as "pending" | "evaluating" | "approved" | "rejected" }))}
+                  >
+                    <MenuItem value="evaluating">Evaluating</MenuItem>
+                    <MenuItem value="approved">Approved</MenuItem>
+                    <MenuItem value="rejected">Rejected</MenuItem>
+                    <MenuItem value="pending">Pending Decision</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={evaluationForm.recommendedForTeam}
+                      onChange={(e) => setEvaluationForm(prev => ({ ...prev, recommendedForTeam: e.target.checked }))}
+                    />
+                  }
+                  label="Recommend for Team"
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEvaluationDialog(false)}>Cancel</Button>
+            <Button onClick={updatePlayerEvaluation} variant="contained">
+              Save Evaluation
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Container>
+    </LocalizationProvider>
+  );
+};
+
+export default TrialManagement;

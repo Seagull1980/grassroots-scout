@@ -1,0 +1,1 @@
+import{j as a,ae as r}from"./mui-vendor-rZ0WLTig.js";import{E as t}from"./analytics-features-CT0hzqEO.js";import"./react-vendor-CRXLTmIH.js";import"./admin-features-d6LVy8Ft.js";import"./charts-vendor-B0AXBVgz.js";const i=()=>a.jsx(r,{maxWidth:"lg",sx:{mt:3,mb:3},children:a.jsx(t,{})});export{i as default};

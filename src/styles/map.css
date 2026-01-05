@@ -1,0 +1,96 @@
+/* Leaflet Map Custom Styles */
+
+.custom-marker {
+  background: transparent;
+  border: none;
+}
+
+/* Popup customization */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  padding: 0;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  min-width: 250px;
+}
+
+/* Map controls styling */
+.leaflet-control-zoom {
+  border: none !important;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.leaflet-control-zoom a {
+  border-radius: 4px;
+  border: none !important;
+}
+
+/* Attribution positioning */
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+/* Map container */
+.leaflet-container {
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Marker cluster customization (if added later) */
+.marker-cluster-small {
+  background-color: rgba(76, 175, 80, 0.6);
+}
+
+.marker-cluster-small div {
+  background-color: rgba(76, 175, 80, 0.8);
+}
+
+.marker-cluster-medium {
+  background-color: rgba(33, 150, 243, 0.6);
+}
+
+.marker-cluster-medium div {
+  background-color: rgba(33, 150, 243, 0.8);
+}
+
+.marker-cluster-large {
+  background-color: rgba(244, 67, 54, 0.6);
+}
+
+.marker-cluster-large div {
+  background-color: rgba(244, 67, 54, 0.8);
+}
+
+/* User location marker pulse animation */
+.user-location-marker {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(33, 150, 243, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0);
+  }
+}
+
+/* Responsive map container */
+@media (max-width: 600px) {
+  .leaflet-popup-content {
+    min-width: 200px;
+  }
+  
+  .leaflet-control-zoom {
+    margin-right: 5px !important;
+    margin-top: 5px !important;
+  }
+}

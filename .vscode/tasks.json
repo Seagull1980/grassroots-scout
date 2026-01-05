@@ -1,0 +1,41 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Development Server",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Full Development Environment",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"dev:full"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Team Roster Server",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"team-roster-server"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

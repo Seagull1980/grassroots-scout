@@ -1,0 +1,232 @@
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Grid,
+  Alert,
+  CircularProgress,
+} from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import api from '../services/api';
+
+interface TrainingInviteDialogProps {
+  open: boolean;
+  onClose: () => void;
+  playerId: number;
+  playerName: string;
+  onSuccess?: () => void;
+}
+
+const TrainingInviteDialog: React.FC<TrainingInviteDialogProps> = ({
+  open,
+  onClose,
+  playerId,
+  playerName,
+  onSuccess
+}) => {
+  const [formData, setFormData] = useState({
+    teamName: '',
+    trainingLocation: '',
+    trainingDate: new Date(),
+    trainingTime: new Date(),
+    message: '',
+    expiresInDays: 7
+  });
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleClose = () => {
+    if (!sending) {
+      setFormData({
+        teamName: '',
+        trainingLocation: '',
+        trainingDate: new Date(),
+        trainingTime: new Date(),
+        message: '',
+        expiresInDays: 7
+      });
+      setError('');
+      onClose();
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setSending(true);
+      setError('');
+
+      // Format date and time
+      const trainingDateStr = formData.trainingDate.toISOString().split('T')[0];
+      const trainingTimeStr = formData.trainingTime.toTimeString().split(' ')[0].substring(0, 5);
+
+      const response = await api.post('/training-invitations', {
+        playerId,
+        teamName: formData.teamName,
+        trainingLocation: formData.trainingLocation,
+        trainingDate: trainingDateStr,
+        trainingTime: trainingTimeStr,
+        message: formData.message || undefined,
+        expiresInDays: formData.expiresInDays
+      });
+
+      if (response.data.success) {
+        if (onSuccess) {
+          onSuccess();
+        }
+        handleClose();
+        // Show success message
+        alert(`Training invitation sent to ${playerName} successfully!`);
+      }
+    } catch (error: any) {
+      console.error('Error sending training invitation:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to send training invitation';
+      setError(errorMessage);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const isFormValid = () => {
+    return formData.teamName.trim() && 
+           formData.trainingLocation.trim() && 
+           formData.trainingDate && 
+           formData.trainingTime;
+  };
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <Dialog 
+        open={open} 
+        onClose={handleClose}
+        maxWidth="sm" 
+        fullWidth
+        disableEscapeKeyDown={sending}
+      >
+        <DialogTitle>
+          Send Training Invitation to {playerName}
+        </DialogTitle>
+        
+        <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Team Name"
+                value={formData.teamName}
+                onChange={(e) => setFormData(prev => ({ ...prev, teamName: e.target.value }))}
+                required
+                disabled={sending}
+                helperText="The name of your team"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Training Location"
+                value={formData.trainingLocation}
+                onChange={(e) => setFormData(prev => ({ ...prev, trainingLocation: e.target.value }))}
+                required
+                disabled={sending}
+                helperText="Where the training session will take place"
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <DatePicker
+                label="Training Date"
+                value={formData.trainingDate}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    setFormData(prev => ({ ...prev, trainingDate: newValue }));
+                  }
+                }}
+                disabled={sending}
+                minDate={new Date()}
+                sx={{ width: '100%' }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TimePicker
+                label="Training Time"
+                value={formData.trainingTime}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    setFormData(prev => ({ ...prev, trainingTime: newValue }));
+                  }
+                }}
+                disabled={sending}
+                sx={{ width: '100%' }}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Expires In (Days)"
+                type="number"
+                value={formData.expiresInDays}
+                onChange={(e) => {
+                  const days = parseInt(e.target.value);
+                  if (days >= 1 && days <= 30) {
+                    setFormData(prev => ({ ...prev, expiresInDays: days }));
+                  }
+                }}
+                inputProps={{ min: 1, max: 30 }}
+                disabled={sending}
+                helperText="How many days the player has to respond (1-30 days)"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Personal Message (Optional)"
+                multiline
+                rows={3}
+                value={formData.message}
+                onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
+                disabled={sending}
+                helperText="Add a personal message to encourage the player to join"
+                inputProps={{ maxLength: 500 }}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3 }}>
+          <Button 
+            onClick={handleClose} 
+            disabled={sending}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            variant="contained"
+            disabled={!isFormValid() || sending}
+            startIcon={sending ? <CircularProgress size={16} /> : null}
+          >
+            {sending ? 'Sending...' : 'Send Invitation'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </LocalizationProvider>
+  );
+};
+
+export default TrainingInviteDialog;

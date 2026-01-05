@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google Maps API Configuration Test</h1>
+        <p>This page will help you verify your Google Maps API setup for The Grassroots Hub.</p>
+        
+        <div id="test-results">
+            <div id="api-key-test" class="test-result warning">
+                🔄 Testing API Key Configuration...
+            </div>
+            <div id="billing-test" class="test-result warning">
+                🔄 Testing Billing Status...
+            </div>
+            <div id="apis-test" class="test-result warning">
+                🔄 Testing Required APIs...
+            </div>
+        </div>
+
+        <div id="map-container">
+            <div id="map" class="loading">
+                <div>Loading Google Maps...</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Replace YOUR_API_KEY_HERE in the script src below with your actual Google Maps API key</li>
+                <li>Open this file in a web browser</li>
+                <li>Check the test results above</li>
+                <li>The map should load without errors if everything is configured correctly</li>
+            </ol>
+            
+            <h3>If you see errors:</h3>
+            <ul>
+                <li><strong>BillingNotEnabledMapError:</strong> You need to enable billing in Google Cloud Console</li>
+                <li><strong>ApiNotActivatedMapError:</strong> You need to enable the required APIs</li>
+                <li><strong>InvalidKeyMapError:</strong> Check your API key is correct</li>
+                <li><strong>RefererNotAllowedMapError:</strong> Add localhost to your API key restrictions</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Replace YOUR_API_KEY_HERE with your actual API key
+        const API_KEY = 'YOUR_API_KEY_HERE';
+        
+        function updateTestResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = `test-result ${type}`;
+            element.innerHTML = message;
+        }
+
+        function initMap() {
+            try {
+                updateTestResult('api-key-test', '✅ API Key: Loaded successfully', 'success');
+                updateTestResult('billing-test', '✅ Billing: Enabled', 'success');
+                updateTestResult('apis-test', '✅ APIs: Required APIs are active', 'success');
+
+                // Create map centered on London (default for Grassroots Hub)
+                const map = new google.maps.Map(document.getElementById('map'), {
+                    zoom: 10,
+                    center: { lat: 51.5074, lng: -0.1278 },
+                    mapTypeControl: false,
+                    streetViewControl: false
+                });
+
+                // Add a marker to test Places API
+                const marker = new google.maps.Marker({
+                    position: { lat: 51.5074, lng: -0.1278 },
+                    map: map,
+                    title: 'London - Default Location for Grassroots Hub'
+                });
+
+                // Test Places service
+                const service = new google.maps.places.PlacesService(map);
+                console.log('Places service created successfully');
+
+            } catch (error) {
+                console.error('Map initialization error:', error);
+                document.getElementById('map').innerHTML = 
+                    `<div style="padding: 20px; color: red; text-align: center;">
+                        <strong>Map Failed to Load</strong><br>
+                        Error: ${error.message}<br>
+                        Check browser console for more details
+                    </div>`;
+            }
+        }
+
+        function handleMapsError(error) {
+            console.error('Google Maps error:', error);
+            
+            if (error.includes('BillingNotEnabledMapError')) {
+                updateTestResult('billing-test', '❌ Billing: Not enabled - Go to Google Cloud Console and enable billing', 'error');
+            } else if (error.includes('ApiNotActivatedMapError')) {
+                updateTestResult('apis-test', '❌ APIs: Required APIs not enabled - Enable Maps JavaScript API, Places API, etc.', 'error');
+            } else if (error.includes('InvalidKeyMapError')) {
+                updateTestResult('api-key-test', '❌ API Key: Invalid - Check your API key is correct', 'error');
+            } else if (error.includes('RefererNotAllowedMapError')) {
+                updateTestResult('api-key-test', '❌ API Key: Referrer not allowed - Add localhost to API key restrictions', 'error');
+            }
+
+            document.getElementById('map').innerHTML = 
+                `<div style="padding: 20px; color: red; text-align: center;">
+                    <strong>Google Maps Error</strong><br>
+                    ${error}<br><br>
+                    See test results above for resolution steps
+                </div>`;
+        }
+
+        // Listen for global errors
+        window.addEventListener('error', function(e) {
+            if (e.message && e.message.includes('Google Maps')) {
+                handleMapsError(e.message);
+            }
+        });
+
+        // Check if API key is set
+        if (API_KEY === 'YOUR_API_KEY_HERE') {
+            updateTestResult('api-key-test', '❌ API Key: Not configured - Replace YOUR_API_KEY_HERE with your actual API key', 'error');
+            document.getElementById('map').innerHTML = 
+                `<div style="padding: 20px; color: orange; text-align: center;">
+                    <strong>API Key Required</strong><br>
+                    Please set your Google Maps API key in this file
+                </div>`;
+        }
+    </script>
+
+    <!-- Replace YOUR_API_KEY_HERE with your actual API key -->
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&libraries=places&callback=initMap">
+    </script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { User } from '../types';
+import { authAPI, RegisterData } from '../services/api';
+import { storage } from '../utils/storage';
+import { isApiError } from '../utils/errorHandling';
+
+interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => Promise<boolean>;
+  logout: () => void;
+  isLoading: boolean;
+  impersonateUser: (userType: 'Coach' | 'Player' | 'Parent/Guardian') => void;
+  stopImpersonation: () => void;
+  isImpersonating: boolean;
+  originalUser: User | null;
+  storageWarning: string | null;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [originalUser, setOriginalUser] = useState<User | null>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check for stored user session
+    const initializeAuth = async () => {
+      console.log('[AuthContext] Initializing authentication...');
+      
+      // Check storage availability and set warning if needed
+      const warning = storage.getStorageWarning();
+      setStorageWarning(warning);
+      
+      const token = storage.getItem('token');
+      console.log('[AuthContext] Token found:', token ? 'Yes' : 'No');
+      
+      if (token) {
+        try {
+          // Use localStorage user data for mobile compatibility
+          const storedUserStr = storage.getItem('user');
+          if (storedUserStr) {
+            const storedUser = JSON.parse(storedUserStr);
+            console.log('[AuthContext] User restored from storage:', storedUser.email);
+            setUser(storedUser);
+          } else {
+            console.warn('[AuthContext] Token exists but no user data found');
+            storage.removeItem('token'); // Clean up orphaned token
+          }
+        } catch (error) {
+          console.error('[AuthContext] Failed to restore user session:', error);
+          storage.removeItem('token');
+          storage.removeItem('user');
+        }
+      } else {
+        console.log('[AuthContext] No existing session found');
+      }
+      
+      console.log('[AuthContext] Initialization complete');
+      setIsLoading(false);
+    };
+
+    initializeAuth();
+  }, []);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('[AuthContext] Login attempt for:', email);
+    setIsLoading(true);
+    try {
+      const response = await authAPI.login(email, password);
+      console.log('[AuthContext] Login response received:', response.user ? 'Success' : 'Failed');
+      
+      if (response.user && response.token) {
+        console.log('[AuthContext] Storing user session...');
+        setUser(response.user);
+        storage.setItem('token', response.token);
+        storage.setItem('user', JSON.stringify(response.user));
+        
+        // Check if this user was marked as new during registration
+        const isPendingNewUser = localStorage.getItem('pending_new_user');
+        if (isPendingNewUser) {
+          storage.setItem(`new_user_${response.user.id}`, 'true');
+          localStorage.removeItem('pending_new_user');
+        }
+        
+        console.log('[AuthContext] Login successful');
+        return true;
+      }
+      console.warn('[AuthContext] Login failed - invalid response');
+      return false;
+    } catch (error: unknown) {
+      console.error('[AuthContext] Login error:', error);
+      
+      // Handle email verification requirement
+      if (isApiError(error) && error.response?.status === 403 && error.response?.data?.requiresVerification) {
+        // Store email for verification resend and rethrow with special flag
+        localStorage.setItem('pendingVerificationEmail', email);
+        throw { ...error, requiresVerification: true };
+      }
+      
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (userData: Omit<User, 'id' | 'createdAt'> & { password: string; dateOfBirth?: string }): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const registerData: RegisterData = {
+        email: userData.email,
+        password: userData.password,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: userData.role,
+      };
+
+      // Include date of birth if provided
+      if (userData.dateOfBirth) {
+        registerData.dateOfBirth = userData.dateOfBirth;
+      }
+      
+      const response = await authAPI.register(registerData);
+      
+      // Check if email verification is required (new backend behavior)
+      if (response.requiresVerification) {
+        // Store email for verification resend and mark as new user for when they log in
+        localStorage.setItem('pendingVerificationEmail', userData.email);
+        localStorage.setItem('pending_new_user', 'true');
+        return true; // Success but needs verification
+      }
+      
+      // Old flow - immediate login (fallback for non-verification flow)
+      if (response.user && response.tempToken) {
+        setUser(response.user);
+        storage.setItem('token', response.tempToken);
+        storage.setItem('user', JSON.stringify(response.user));
+        // Mark user as new for onboarding
+        storage.setItem(`new_user_${response.user.id}`, 'true');
+      }
+      return true;
+    } catch (error: unknown) {
+      console.error('Registration error:', error);
+      
+      // Handle age restriction errors
+      if (isApiError(error) && error.response?.data?.ageRestriction) {
+        // Let the component handle this specific error
+        throw error;
+      }
+
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    setOriginalUser(null);
+    setIsImpersonating(false);
+    storage.removeItem('token');
+    storage.removeItem('user');
+  };
+
+  const impersonateUser = useCallback((userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
+    console.log('🔄 AuthContext: impersonateUser called with:', userType);
+    console.log('👤 Current user:', user);
+    console.log('🔐 Current isImpersonating:', isImpersonating);
+    
+    if (!user || user.role !== 'Admin') {
+      console.error('❌ AuthContext: User is not admin or not logged in');
+      return;
+    }
+    
+    try {
+      // Save original user if not already impersonating
+      if (!isImpersonating) {
+        console.log('💾 Saving original user for impersonation');
+        setOriginalUser(user);
+      }
+      
+      // Create a mock user for testing purposes
+      const mockUser: User = {
+        ...user,
+        role: userType,
+        firstName: `Test ${userType}`,
+        lastName: `User`,
+        email: `test.${userType.toLowerCase().replace('/', '.').replace(' ', '.')}@example.com`,
+      };
+      
+      console.log('👤 Created mock user:', mockUser);
+      
+      setUser(mockUser);
+      setIsImpersonating(true);
+      
+      console.log('✅ AuthContext: Impersonation successful');
+    } catch (error) {
+      console.error('❌ AuthContext: Error during impersonation:', error);
+    }
+  }, [user, isImpersonating]);
+
+  const stopImpersonation = useCallback(() => {
+    console.log('🔄 AuthContext: stopImpersonation called');
+    console.log('👤 Original user:', originalUser);
+    console.log('🔐 Is impersonating:', isImpersonating);
+    
+    if (originalUser && isImpersonating) {
+      console.log('🔄 Restoring original user');
+      setUser(originalUser);
+      setOriginalUser(null);
+      setIsImpersonating(false);
+      console.log('✅ AuthContext: Impersonation stopped successfully');
+    } else {
+      console.warn('⚠️ AuthContext: Cannot stop impersonation - no original user or not impersonating');
+    }
+  }, [originalUser, isImpersonating]);
+
+  const value = {
+    user,
+    login,
+    register,
+    logout,
+    isLoading,
+    impersonateUser,
+    stopImpersonation,
+    isImpersonating,
+    originalUser,
+    storageWarning,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
