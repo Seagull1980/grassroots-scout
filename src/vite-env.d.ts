@@ -9,6 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_WEATHER_API_KEY?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_OUTLOOK_CLIENT_ID?: string;
+  readonly DEV?: boolean;
+  readonly MODE?: string;
+  readonly PROD?: boolean;
+  readonly SSR?: boolean;
 }
 
 interface ImportMeta {
@@ -136,6 +140,7 @@ declare namespace google {
         background: string;
         borderColor: string;
         glyphColor: string;
+        element: HTMLElement;
       }
       
       enum CollisionBehavior {
@@ -195,7 +200,7 @@ declare namespace google {
       }
 
       class PlaceAutocompleteElement extends HTMLElement {
-        constructor();
+        constructor(options?: any);
         addEventListener(type: string, listener: EventListener): void;
       }
 
@@ -329,3 +334,8 @@ interface Window {
   google: typeof google;
 }
 
+// NodeJS namespace for timers
+declare namespace NodeJS {
+  interface Timeout {}
+  interface Timer {}
+}

@@ -75,6 +75,8 @@ interface TeamVacancy {
   contactInfo?: string;
   status: string;
   teamGender?: string; // Add missing teamGender property
+  hasMatchRecording?: boolean;
+  hasPathwayToSenior?: boolean;
   createdAt: string;
   firstName: string;
   lastName: string;
@@ -177,9 +179,10 @@ const SearchPage: React.FC = () => {
   const { recentSearches, addRecentSearch } = useRecentSearches();
   
   // Contact dialog state
-  // Removed unused dialog state pending future training invite feature
-  // const [trainingInviteOpen, setTrainingInviteOpen] = useState(false);
-  // const [selectedPlayer, setSelectedPlayer] = useState<{ id: number; name: string } | null>(null);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [selectedVacancy, setSelectedVacancy] = useState<TeamVacancy | null>(null);
+  const [message, setMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Quick add to trial dialog state
   const [quickAddTrialOpen, setQuickAddTrialOpen] = useState(false);
