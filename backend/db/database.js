@@ -2,12 +2,22 @@ const sqlite3 = require('sqlite3').verbose();
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Singleton instance
+let instance = null;
+
 class Database {
   constructor() {
+    // Implement singleton pattern to prevent multiple instances
+    if (instance) {
+      return instance;
+    }
+    
     this.dbType = process.env.DB_TYPE || 'sqlite';
     this.pool = null;
     this.db = null;
     this.init();
+    
+    instance = this;
   }
 
   init() {
@@ -144,6 +154,7 @@ class Database {
   }
 
   async close() {
+    console.trace('⚠️  WARNING: Database.close() was called from:');
     if (this.dbType === 'postgresql' && this.pool) {
       await this.pool.end();
       console.log('🔒 PostgreSQL connection pool closed');
@@ -667,8 +678,15 @@ class Database {
         // For SQLite, check if the column exists in the pragma result
         const hasMaxSquadSize = result.rows.some(row => row.name === 'maxSquadSize');
         if (!hasMaxSquadSize) {
-          await this.query('ALTER TABLE team_rosters ADD COLUMN maxSquadSize INTEGER');
-          console.log('✅ Added maxSquadSize column to team_rosters table');
+          try {
+            await this.query('ALTER TABLE team_rosters ADD COLUMN maxSquadSize INTEGER');
+            console.log('✅ Added maxSquadSize column to team_rosters table');
+          } catch (err) {
+            // Column might already exist, ignore duplicate column error
+            if (!err.message.includes('duplicate column')) {
+              throw err;
+            }
+          }
         }
       }
 
@@ -694,16 +712,27 @@ class Database {
         const hasPathwayToSenior = vacancyResult.rows.some(row => row.name === 'hasPathwayToSenior');
         
         if (!hasMatchRecording) {
-          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasMatchRecording BOOLEAN DEFAULT 0');
-          console.log('✅ Added hasMatchRecording column to team_vacancies table');
+          try {
+            await this.query('ALTER TABLE team_vacancies ADD COLUMN hasMatchRecording BOOLEAN DEFAULT 0');
+            console.log('✅ Added hasMatchRecording column to team_vacancies table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
         }
         if (!hasPathwayToSenior) {
-          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0');
-          console.log('✅ Added hasPathwayToSenior column to team_vacancies table');
+          try {
+            await this.query('ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0');
+            console.log('✅ Added hasPathwayToSenior column to team_vacancies table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
         }
       }
     } catch (error) {
-      console.warn('Migration warning:', error.message);
+      // Only log non-duplicate column errors
+      if (!error.message.includes('duplicate column')) {
+        console.warn('Migration warning:', error.message);
+      }
     }
   }
 

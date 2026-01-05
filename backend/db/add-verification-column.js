@@ -28,9 +28,8 @@ async function addVerificationColumn() {
     console.log('✅ Verification system ready!');
   } catch (error) {
     console.error('❌ Error adding verification column:', error);
-  } finally {
-    await db.close();
   }
+  // Don't close the database - it's a singleton shared across the app
 }
 
 addVerificationColumn();

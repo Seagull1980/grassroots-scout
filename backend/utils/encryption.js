@@ -5,7 +5,17 @@ require('dotenv').config();
 class EncryptionService {
   constructor() {
     // Use environment variable or generate a strong key
-    this.encryptionKey = process.env.ENCRYPTION_KEY || this.generateEncryptionKey();
+    let rawKey = process.env.ENCRYPTION_KEY || this.generateEncryptionKey();
+    
+    // Ensure key is exactly 64 hex characters (32 bytes)
+    if (rawKey.length !== 64) {
+      console.warn(`⚠️  WARNING: ENCRYPTION_KEY should be 64 hex characters (32 bytes). Current length: ${rawKey.length}`);
+      // Truncate or pad the key to 64 characters
+      rawKey = rawKey.slice(0, 64).padEnd(64, '0');
+      console.warn('⚠️  Key has been adjusted to correct length.');
+    }
+    
+    this.encryptionKey = rawKey;
     this.algorithm = 'aes-256-gcm';
     
     if (!process.env.ENCRYPTION_KEY) {

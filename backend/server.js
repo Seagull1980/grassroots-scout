@@ -1429,7 +1429,7 @@ app.get('/api/analytics/user-activity', authenticateToken, requireAdmin, async (
 });
 
 // Analytics tracking endpoint
-app.post('/api/analytics/track', authenticateToken, requireBetaAccess, async (req, res) => {
+app.post('/api/analytics/track', async (req, res) => {
   try {
     const { events, sessionId, userId } = req.body;
     
@@ -1438,7 +1438,7 @@ app.post('/api/analytics/track', authenticateToken, requireBetaAccess, async (re
     }
 
     // For now, just log the events (you can extend this to store in database)
-    console.log(`📊 Analytics: Received ${events.length} events for user ${userId || req.user.userId}`);
+    console.log(`📊 Analytics: Received ${events.length} events${userId ? ` for user ${userId}` : ' (anonymous)'}`);
     
     // Process each event
     for (const event of events) {
@@ -4798,13 +4798,8 @@ const notificationServer = new NotificationServer(server, JWT_SECRET);
 // Make notification server available globally
 app.locals.notificationServer = notificationServer;
 
-// Graceful shutdown
+// Graceful shutdown - don't close singleton database, just exit cleanly
 process.on('SIGINT', () => {
-  db.close((err) => {
-    if (err) {
-      console.error(err.message);
-    }
-    console.log('Database connection closed.');
-    process.exit(0);
-  });
+  console.log('Shutting down gracefully...');
+  process.exit(0);
 });

@@ -3,9 +3,11 @@ const encryptionService = require('../utils/encryption.js');
 
 class EmailService {
   constructor() {
-    // Configure email transporter
+    // Configure email transporter - use port 465 for SSL (more likely to work on Render)
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // use SSL
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -28,7 +30,7 @@ class EmailService {
               <p>Thanks for joining The Grassroots Hub! To complete your registration and access all features, please verify your email address by clicking the button below:</p>
               
               <div style="text-align: center; margin: 40px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/verify-email/${data.token}" 
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
                   Verify My Email
                 </a>
@@ -36,7 +38,7 @@ class EmailService {
               
               <p style="color: #666; font-size: 14px;">
                 If the button above doesn't work, copy and paste this link into your browser:<br>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/verify-email/${data.token}">${process.env.FRONTEND_URL || 'http://localhost:5174'}/verify-email/${data.token}</a>
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}">${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}</a>
               </p>
               
               <p style="color: #666; font-size: 14px; margin-top: 30px;">
@@ -283,6 +285,8 @@ class EmailService {
   }
 
   async sendVerificationEmail(email, firstName, token) {
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
+    console.log('📧 Sending verification email with URL:', verificationUrl);
     return this.sendEmail(email, 'emailVerification', {
       firstName,
       token
