@@ -47,6 +47,20 @@ class Database {
         console.error('❌ Error opening SQLite database:', err.message);
       } else {
         console.log('✅ Connected to SQLite database');
+        // Enable WAL mode for better concurrency
+        this.db.run('PRAGMA journal_mode = WAL;', (err) => {
+          if (err) {
+            console.error('Failed to enable WAL mode:', err);
+          } else {
+            console.log('✅ WAL mode enabled');
+          }
+        });
+        // Set busy timeout to 5 seconds
+        this.db.run('PRAGMA busy_timeout = 5000;', (err) => {
+          if (err) {
+            console.error('Failed to set busy timeout:', err);
+          }
+        });
       }
     });
   }
@@ -80,6 +94,10 @@ class Database {
 
   querySQLite(sql, params = []) {
     return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject(new Error('Database not initialized'));
+      }
+      
       if (sql.trim().toUpperCase().startsWith('SELECT')) {
         this.db.all(sql, params, (err, rows) => {
           if (err) {
