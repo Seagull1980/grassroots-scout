@@ -48,7 +48,10 @@
     "serve": "^14.2.1",
     "sqlite3": "^5.1.6",
     "uuid": "^13.0.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.1.1"
   },
   "devDependencies": {
     "@types/google.maps": "^3.58.1",
@@ -57,12 +60,9 @@
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
-    "@vitejs/plugin-react": "^4.1.1",
     "concurrently": "^8.2.2",
     "eslint": "^8.53.0",
     "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.4",
-    "typescript": "^5.2.2",
-    "vite": "^5.0.0"
+    "eslint-plugin-react-refresh": "^0.4.4"
   }
 }
