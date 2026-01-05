@@ -70,8 +70,8 @@ app.use('/api/saved-searches', savedSearchesRouter);
     cronService.init();
     cronService.start();
     
-    // Test email service connection
-    await emailService.testConnection();
+    // Test email service connection (disabled - SMTP blocked on Render)
+    // await emailService.testConnection();
     
   } catch (error) {
     console.error('❌ Failed to initialize database:', error);
