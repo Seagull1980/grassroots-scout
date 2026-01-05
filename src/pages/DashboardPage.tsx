@@ -57,7 +57,7 @@ const DashboardPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
-  const { user, logout, isImpersonating } = useAuth();
+  const { user, isImpersonating } = useAuth();
 
   const [stats, setStats] = useState<DashboardStats>({
     totalViews: 0,

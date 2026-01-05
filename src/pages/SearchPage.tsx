@@ -176,7 +176,7 @@ const SearchPage: React.FC = () => {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [savedSearchesOpen, setSavedSearchesOpen] = useState(false);
-  const { recentSearches, addRecentSearch } = useRecentSearches();
+  // const { recentSearches, addRecentSearch } = useRecentSearches();
   
   // Contact dialog state
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
