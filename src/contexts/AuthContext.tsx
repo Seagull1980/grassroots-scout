@@ -142,18 +142,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Store email for verification resend and mark as new user for when they log in
         localStorage.setItem('pendingVerificationEmail', userData.email);
         localStorage.setItem('pending_new_user', 'true');
+        // DO NOT set user state - they need to verify email first
         return true; // Success but needs verification
+      } else {
+        // Old flow - immediate login (fallback for non-verification flow)
+        if (response.user && response.tempToken) {
+          setUser(response.user);
+          storage.setItem('token', response.tempToken);
+          storage.setItem('user', JSON.stringify(response.user));
+          // Mark user as new for onboarding
+          storage.setItem(`new_user_${response.user.id}`, 'true');
+        }
+        return true;
       }
-      
-      // Old flow - immediate login (fallback for non-verification flow)
-      if (response.user && response.tempToken) {
-        setUser(response.user);
-        storage.setItem('token', response.tempToken);
-        storage.setItem('user', JSON.stringify(response.user));
-        // Mark user as new for onboarding
-        storage.setItem(`new_user_${response.user.id}`, 'true');
-      }
-      return true;
     } catch (error: unknown) {
       console.error('Registration error:', error);
       
