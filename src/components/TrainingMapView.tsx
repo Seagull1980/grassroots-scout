@@ -157,7 +157,8 @@ const TrainingMapView: React.FC<TrainingMapViewProps> = ({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3001/api/calendar/training-locations', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const response = await axios.get(`${apiUrl}/calendar/training-locations`, {
         params: {
           latitude: userLocation.latitude,
           longitude: userLocation.longitude,

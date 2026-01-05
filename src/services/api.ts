@@ -19,8 +19,8 @@ const getRosterAPIUrl = () => {
     return import.meta.env.VITE_ROSTER_API_URL;
   }
   
-  // Default to localhost:3001 for local development (team roster server)
-  return 'http://localhost:3001/api';
+  // Default to localhost:3000 for local development (main server)
+  return 'http://localhost:3000/api';
 };
 
 const API_URL = getAPIUrl();
@@ -590,7 +590,7 @@ export const getTeamVacanciesWithLocationType = async (params: {
   hasVacancies?: boolean;
 }): Promise<{ trainingLocations: any[] }> => {
   try {
-    const response = await axios.get('http://localhost:3001/api/calendar/training-locations', {
+    const response = await axios.get(`${API_URL}/calendar/training-locations`, {
       params,
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token') || ''}`

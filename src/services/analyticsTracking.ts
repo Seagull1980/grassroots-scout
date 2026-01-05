@@ -8,7 +8,7 @@ const getAPIUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL.replace('/api', ''); // Remove /api suffix as we'll add it in the endpoint
   }
-  return 'http://localhost:3001';
+  return 'http://localhost:3000';
 };
 
 const API_BASE_URL = getAPIUrl();
