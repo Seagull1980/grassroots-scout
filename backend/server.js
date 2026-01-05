@@ -4756,6 +4756,17 @@ app.get('/api/analytics/monthly-matches', authenticateToken, requireBetaAccess, 
   }
 });
 
+// Serve static files from the React app build (for production)
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+  
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist', 'index.html'));
+  });
+}
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on all interfaces at port ${PORT}`);
   console.log(`📱 Local access: http://localhost:${PORT}`);
