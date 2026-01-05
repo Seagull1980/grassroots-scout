@@ -2,8 +2,9 @@ const cron = require('node-cron');
 const alertService = require('./alertService.js');
 
 class CronService {
-  constructor() {
+  constructor(db = null) {
     this.jobs = [];
+    this.db = db;
   }
 
   // Initialize all cron jobs
@@ -78,32 +79,34 @@ class CronService {
 
   // Clean up old data to maintain database performance
   async cleanupOldData() {
-    const Database = require('../db/database.js');
-    const db = new Database();
+    if (!this.db) {
+      console.error('❌ No database instance available for cleanup');
+      return;
+    }
 
     try {
       // Delete old page views (older than 6 months)
-      await db.query(
+      await this.db.query(
         "DELETE FROM page_views WHERE timestamp < datetime('now', '-6 months')"
       );
 
       // Delete old user sessions (older than 3 months)
-      await db.query(
+      await this.db.query(
         "DELETE FROM user_sessions WHERE startTime < datetime('now', '-3 months')"
       );
 
       // Delete old search history (older than 1 year)
-      await db.query(
+      await this.db.query(
         "DELETE FROM user_search_history WHERE searchedAt < datetime('now', '-1 year')"
       );
 
       // Delete processed notification queue items (older than 1 month)
-      await db.query(
+      await this.db.query(
         "DELETE FROM notification_queue WHERE status = 'processed' AND processedAt < datetime('now', '-1 month')"
       );
 
       // Delete old alert logs (older than 1 year)
-      await db.query(
+      await this.db.query(
         "DELETE FROM alert_logs WHERE sentAt < datetime('now', '-1 year')"
       );
 
@@ -116,14 +119,17 @@ class CronService {
 
   // Send re-engagement emails to inactive users
   async sendReengagementEmails() {
-    const Database = require('../db/database.js');
+    if (!this.db) {
+      console.error('❌ No database instance available for re-engagement');
+      return;
+    }
+
     const emailService = require('./emailService.js');
     const encryptionService = require('../utils/encryption.js');
-    const db = new Database();
 
     try {
       // Find users who haven't logged in for 30 days but have alert preferences
-      const inactiveUsers = await db.query(`
+      const inactiveUsers = await this.db.query(`
         SELECT DISTINCT u.id, u.email, u.firstName, u.role
         FROM users u
         JOIN user_alert_preferences uap ON u.id = uap.userId

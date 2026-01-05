@@ -65,7 +65,8 @@ app.use('/api/saved-searches', savedSearchesRouter);
     await db.createTables();
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
     
-    // Initialize and start cron jobs
+    // Initialize and start cron jobs with shared database instance
+    cronService.db = db;
     cronService.init();
     cronService.start();
     
