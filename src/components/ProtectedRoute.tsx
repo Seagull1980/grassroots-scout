@@ -50,7 +50,6 @@ const ProtectedRoute = ({
   // Check beta access for logged-in users (except on beta-access-denied page and admin routes)
   if (requireAuth && user) {
     const isBetaAccessDeniedPage = location.pathname === '/beta-access-denied';
-    const isAdminRoute = location.pathname.startsWith('/admin');
     const isAdmin = user.role === 'Admin';
     const hasBetaAccess = user.betaAccess === true || isAdmin;
 

@@ -11,7 +11,6 @@ import {
   Chip,
 } from '@mui/material';
 import {
-  TrendingUp,
   People,
   CheckCircle,
   Visibility,

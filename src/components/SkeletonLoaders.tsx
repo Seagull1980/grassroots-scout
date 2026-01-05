@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skeleton, Card, CardContent, Box, Grid } from '@mui/material';
+import { Skeleton, Card, CardContent, Box } from '@mui/material';
 
 export const SearchCardSkeleton: React.FC = () => (
   <Card sx={{ mb: 2 }}>

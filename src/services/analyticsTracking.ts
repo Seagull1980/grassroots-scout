@@ -295,7 +295,7 @@ class AnalyticsTrackingService {
 
   private setupUserEngagement(): void {
     let isActive = true;
-    let idleTimer: NodeJS.Timeout;
+    let idleTimer: ReturnType<typeof setTimeout>;
     
     const resetIdleTimer = () => {
       clearTimeout(idleTimer);

@@ -13,12 +13,10 @@ import {
   IconButton,
   Box,
   Typography,
-  Chip,
   Divider
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
-  Search as SearchIcon,
   Bookmark as BookmarkIcon,
   BookmarkBorder as BookmarkBorderIcon
 } from '@mui/icons-material';

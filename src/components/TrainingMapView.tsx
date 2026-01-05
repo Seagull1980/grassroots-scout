@@ -21,7 +21,6 @@ import {
 } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
-  FilterList as FilterIcon,
   Close as CloseIcon,
   DirectionsRun as DirectionsRunIcon,
   CheckCircle as CheckCircleIcon

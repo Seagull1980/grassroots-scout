@@ -131,7 +131,7 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     initializeRealTimeData();

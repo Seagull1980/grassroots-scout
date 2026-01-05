@@ -28,8 +28,7 @@ import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   CalendarToday as CalendarIcon,
-  AdminPanelSettings as AdminIcon,
-  Assessment as AssessmentIcon
+  AdminPanelSettings as AdminIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';

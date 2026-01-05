@@ -334,8 +334,7 @@ interface Window {
   google: typeof google;
 }
 
-// NodeJS namespace for timers
-declare namespace NodeJS {
-  interface Timeout {}
-  interface Timer {}
+// React DOM client module declaration
+declare module 'react-dom/client' {
+  export * from 'react-dom/client';
 }

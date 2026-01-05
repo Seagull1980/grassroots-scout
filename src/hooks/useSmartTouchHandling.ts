@@ -20,8 +20,8 @@ interface SmartTouchOptions {
 export const useSmartTouchHandling = (options: SmartTouchOptions = {}) => {
   const touchStateRef = useRef<TouchState | null>(null);
   const elementRef = useRef<HTMLElement | null>(null);
-  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     onTap,
