@@ -32,6 +32,8 @@ import {
   Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
   Person as PersonIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost } from '../types';
@@ -163,7 +165,10 @@ const Forum: React.FC = () => {
       const response = await fetch(`${FORUM_API}/posts/${postId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(user.id) }),
+        body: JSON.stringify({ 
+          user_id: parseInt(user.id),
+          user_role: user.role 
+        }),
       });
 
       if (!response.ok) {
@@ -176,6 +181,38 @@ const Forum: React.FC = () => {
     } catch (error: any) {
       console.error('Error deleting post:', error);
       showSnackbar(error.message || 'Failed to delete post', 'error');
+    }
+  };
+
+  const handleToggleLock = async (postId: string, currentlyLocked: boolean) => {
+    if (!user || user.role !== 'Admin') {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${FORUM_API}/posts/${postId}/lock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          user_id: parseInt(user.id),
+          user_role: user.role,
+          is_locked: !currentlyLocked
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update thread lock status');
+      }
+
+      showSnackbar(
+        currentlyLocked ? 'Thread unlocked successfully' : 'Thread locked successfully',
+        'success'
+      );
+      fetchPosts();
+    } catch (error: any) {
+      console.error('Error toggling lock:', error);
+      showSnackbar(error.message || 'Failed to update thread lock status', 'error');
     }
   };
 
@@ -310,11 +347,19 @@ const Forum: React.FC = () => {
                       variant="outlined"
                       sx={{ fontWeight: 500 }}
                     />
+                    {post.is_locked && (
+                      <Chip
+                        icon={<LockIcon />}
+                        label="Locked"
+                        size="small"
+                        color="warning"
+                      />
+                    )}
                     <Typography variant="caption" color="text.secondary">
                       • {formatDate(post.created_at)}
                     </Typography>
                   </Box>
-                  {user && user.id === post.user_id.toString() && (
+                  {user && (user.id === post.user_id.toString() || user.role === 'Admin') && (
                     <IconButton
                       size="small"
                       onClick={(e) => {
@@ -349,17 +394,19 @@ const Forum: React.FC = () => {
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
-        <MenuItem
-          onClick={() => {
-            if (selectedPost) {
-              handleOpenDialog(selectedPost);
-            }
-            handleMenuClose();
-          }}
-        >
-          <EditIcon sx={{ mr: 1 }} fontSize="small" />
-          Edit
-        </MenuItem>
+        {selectedPost && user && user.id === selectedPost.user_id.toString() && (
+          <MenuItem
+            onClick={() => {
+              if (selectedPost) {
+                handleOpenDialog(selectedPost);
+              }
+              handleMenuClose();
+            }}
+          >
+            <EditIcon sx={{ mr: 1 }} fontSize="small" />
+            Edit
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             if (selectedPost) {
@@ -371,6 +418,28 @@ const Forum: React.FC = () => {
           <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
           Delete
         </MenuItem>
+        {selectedPost && user && user.role === 'Admin' && (
+          <MenuItem
+            onClick={() => {
+              if (selectedPost) {
+                handleToggleLock(selectedPost.id, !!selectedPost.is_locked);
+              }
+              handleMenuClose();
+            }}
+          >
+            {selectedPost.is_locked ? (
+              <>
+                <LockOpenIcon sx={{ mr: 1 }} fontSize="small" />
+                Unlock Thread
+              </>
+            ) : (
+              <>
+                <LockIcon sx={{ mr: 1 }} fontSize="small" />
+                Lock Thread
+              </>
+            )}
+          </MenuItem>
+        )}
       </Menu>
 
       {/* Create/Edit Dialog */}

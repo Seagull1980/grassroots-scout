@@ -24,6 +24,7 @@ import {
   Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
   Reply as ReplyIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost, ForumReply } from '../types';
@@ -138,7 +139,10 @@ const ForumPostDetail: React.FC = () => {
       const response = await fetch(`${FORUM_API}/replies/${replyId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(user.id) }),
+        body: JSON.stringify({ 
+          user_id: parseInt(user.id),
+          user_role: user.role 
+        }),
       });
 
       if (!response.ok) {
@@ -230,7 +234,7 @@ const ForumPostDetail: React.FC = () => {
       {/* Original Post */}
       <Card elevation={2} sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
             <PersonIcon color="action" />
             <Typography variant="subtitle2" color="text.secondary">
               {post.author_name}
@@ -240,6 +244,14 @@ const ForumPostDetail: React.FC = () => {
               size="small"
               color={getRoleBadgeColor(post.user_role)}
             />
+            {post.is_locked && (
+              <Chip
+                icon={<LockIcon />}
+                label="Locked"
+                size="small"
+                color="warning"
+              />
+            )}
             <Typography variant="caption" color="text.secondary">
               • {formatDate(post.created_at)}
             </Typography>
@@ -309,7 +321,7 @@ const ForumPostDetail: React.FC = () => {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
-                  {user && (
+                  {user && !post?.is_locked && (
                     <IconButton
                       size="small"
                       onClick={() => {
@@ -321,7 +333,7 @@ const ForumPostDetail: React.FC = () => {
                       <ReplyIcon fontSize="small" />
                     </IconButton>
                   )}
-                  {user && user.id === reply.user_id.toString() && (
+                  {user && (user.id === reply.user_id.toString() || user.role === 'Admin') && (
                     <IconButton
                       size="small"
                       onClick={(e) => handleMenuClick(e, reply)}
@@ -343,7 +355,7 @@ const ForumPostDetail: React.FC = () => {
       </Box>
 
       {/* Reply Form */}
-      {user ? (
+      {user && !post?.is_locked ? (
         <Paper sx={{ p: 3 }} id="reply-form">
           <Typography variant="h6" gutterBottom>
             {replyingTo ? `Reply to ${replyingTo.author_name}` : 'Add a Reply'}
@@ -402,6 +414,10 @@ const ForumPostDetail: React.FC = () => {
             Post Reply
           </Button>
         </Paper>
+      ) : post?.is_locked ? (
+        <Alert severity="warning" icon={<LockIcon />}>
+          This thread has been locked by an administrator. No new replies can be added.
+        </Alert>
       ) : (
         <Alert severity="info">
           Please log in to reply to this post.

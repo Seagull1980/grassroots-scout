@@ -29,6 +29,7 @@ db.exec(`
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     category TEXT DEFAULT 'General Discussions',
+    is_locked INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_deleted INTEGER DEFAULT 0
@@ -39,6 +40,14 @@ db.exec(`
 try {
   db.exec(`ALTER TABLE forum_posts ADD COLUMN category TEXT DEFAULT 'General Discussions'`);
   console.log('✅ Category column added to forum_posts');
+} catch (error) {
+  // Column already exists, ignore error
+}
+
+// Add is_locked column if it doesn't exist (migration)
+try {
+  db.exec(`ALTER TABLE forum_posts ADD COLUMN is_locked INTEGER DEFAULT 0`);
+  console.log('✅ is_locked column added to forum_posts');
 } catch (error) {
   // Column already exists, ignore error
 }
@@ -253,9 +262,9 @@ app.put('/api/forum/posts/:id', (req, res) => {
 app.delete('/api/forum/posts/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const { user_id, user_role } = req.body;
     
-    // Check if post exists and belongs to user
+    // Check if post exists
     const existingPost = db.prepare(`
       SELECT * FROM forum_posts WHERE id = ? AND is_deleted = 0
     `).get(id);
@@ -264,7 +273,8 @@ app.delete('/api/forum/posts/:id', (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
     
-    if (existingPost.user_id !== user_id) {
+    // Allow deletion if user is admin OR post owner
+    if (user_role !== 'Admin' && existingPost.user_id !== user_id) {
       return res.status(403).json({ error: 'You can only delete your own posts' });
     }
     
@@ -279,6 +289,45 @@ app.delete('/api/forum/posts/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting post:', error);
     res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// PATCH /api/forum/posts/:id/lock - Lock/unlock thread (admin only)
+app.patch('/api/forum/posts/:id/lock', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_role, is_locked } = req.body;
+    
+    // Check if user is admin
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can lock/unlock threads' });
+    }
+    
+    // Check if post exists
+    const existingPost = db.prepare(`
+      SELECT * FROM forum_posts WHERE id = ? AND is_deleted = 0
+    `).get(id);
+    
+    if (!existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    // Update locked status
+    db.prepare(`
+      UPDATE forum_posts 
+      SET is_locked = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(is_locked ? 1 : 0, id);
+    
+    // Get updated post
+    const updatedPost = db.prepare(`
+      SELECT * FROM forum_posts WHERE id = ?
+    `).get(id);
+    
+    res.json(updatedPost);
+  } catch (error) {
+    console.error('Error locking/unlocking thread:', error);
+    res.status(500).json({ error: 'Failed to lock/unlock thread' });
   }
 });
 
@@ -333,13 +382,18 @@ app.post('/api/forum/posts/:postId/replies', (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Check if post exists
+    // Check if post exists and is not locked
     const post = db.prepare(`
-      SELECT id FROM forum_posts WHERE id = ? AND is_deleted = 0
+      SELECT id, is_locked FROM forum_posts WHERE id = ? AND is_deleted = 0
     `).get(postId);
     
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    // Check if thread is locked
+    if (post.is_locked) {
+      return res.status(403).json({ error: 'This thread has been locked by an administrator' });
     }
     
     // If replying to a reply, check if parent reply exists
@@ -388,7 +442,7 @@ app.post('/api/forum/posts/:postId/replies', (req, res) => {
 app.delete('/api/forum/replies/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const { user_id, user_role } = req.body;
     
     // Check if reply exists and belongs to user
     const existingReply = db.prepare(`
@@ -399,7 +453,8 @@ app.delete('/api/forum/replies/:id', (req, res) => {
       return res.status(404).json({ error: 'Reply not found' });
     }
     
-    if (existingReply.user_id !== user_id) {
+    // Allow deletion if admin or if it's the user's own reply
+    if (user_role !== 'Admin' && existingReply.user_id !== user_id) {
       return res.status(403).json({ error: 'You can only delete your own replies' });
     }
     
