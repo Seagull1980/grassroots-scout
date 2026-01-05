@@ -70,8 +70,12 @@ app.use('/api/saved-searches', savedSearchesRouter);
       const hasEmailHash = checkEmailHash.rows.some(row => row.name === 'emailHash');
       if (!hasEmailHash) {
         console.log('⚠️  emailHash column missing - adding now...');
-        await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR UNIQUE');
+        // SQLite doesn't allow adding UNIQUE columns to existing tables - add without UNIQUE first
+        await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
         console.log('✅ Added emailHash column to users table');
+        // Create unique index separately
+        await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailhash ON users(emailHash)');
+        console.log('✅ Created unique index on emailHash column');
       } else {
         console.log('✅ emailHash column exists');
       }

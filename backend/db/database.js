@@ -679,7 +679,9 @@ class Database {
         const hasEmailHash = emailHashResult.rows.some(row => row.name === 'emailHash');
         if (!hasEmailHash) {
           try {
-            await this.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR UNIQUE');
+            // SQLite doesn't allow adding UNIQUE columns - add column first, then index
+            await this.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
+            await this.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailhash ON users(emailHash)');
             console.log('✅ Added emailHash column to users table');
           } catch (err) {
             // Column might already exist, ignore duplicate column error
