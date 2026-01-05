@@ -239,10 +239,6 @@ class Database {
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (postedBy) REFERENCES users (id)
       )`,
-      
-      // Migration: Add new columns if they don't exist
-      `ALTER TABLE team_vacancies ADD COLUMN hasMatchRecording BOOLEAN DEFAULT 0`,
-      `ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0`,
 
       `CREATE TABLE IF NOT EXISTS player_availability (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -673,6 +669,37 @@ class Database {
         if (!hasMaxSquadSize) {
           await this.query('ALTER TABLE team_rosters ADD COLUMN maxSquadSize INTEGER');
           console.log('✅ Added maxSquadSize column to team_rosters table');
+        }
+      }
+
+      // Migration 2: Add hasMatchRecording and hasPathwayToSenior to team_vacancies
+      const checkVacancyColumns = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies'`
+        : `PRAGMA table_info(team_vacancies)`;
+      
+      const vacancyResult = await this.query(checkVacancyColumns);
+      
+      if (this.dbType === 'postgresql') {
+        const columnNames = vacancyResult.rows.map(row => row.column_name);
+        if (!columnNames.includes('hasmatchrecording')) {
+          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasMatchRecording BOOLEAN DEFAULT 0');
+          console.log('✅ Added hasMatchRecording column to team_vacancies table');
+        }
+        if (!columnNames.includes('haspathwaytosenior')) {
+          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0');
+          console.log('✅ Added hasPathwayToSenior column to team_vacancies table');
+        }
+      } else {
+        const hasMatchRecording = vacancyResult.rows.some(row => row.name === 'hasMatchRecording');
+        const hasPathwayToSenior = vacancyResult.rows.some(row => row.name === 'hasPathwayToSenior');
+        
+        if (!hasMatchRecording) {
+          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasMatchRecording BOOLEAN DEFAULT 0');
+          console.log('✅ Added hasMatchRecording column to team_vacancies table');
+        }
+        if (!hasPathwayToSenior) {
+          await this.query('ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0');
+          console.log('✅ Added hasPathwayToSenior column to team_vacancies table');
         }
       }
     } catch (error) {
