@@ -111,8 +111,6 @@ class CronService {
     } catch (error) {
       console.error('❌ Data cleanup failed:', error);
       throw error;
-    } finally {
-      await db.close();
     }
   }
 
@@ -192,8 +190,6 @@ class CronService {
     } catch (error) {
       console.error('❌ Re-engagement email job failed:', error);
       throw error;
-    } finally {
-      await db.close();
     }
   }
 
