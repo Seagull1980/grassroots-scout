@@ -662,6 +662,34 @@ class Database {
 
   async runMigrations() {
     try {
+      // Migration 0: Add emailHash column to users table if it doesn't exist
+      const checkEmailHashColumn = this.dbType === 'postgresql' 
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'emailhash'`
+        : `PRAGMA table_info(users)`;
+        
+      const emailHashResult = await this.query(checkEmailHashColumn);
+      
+      if (this.dbType === 'postgresql') {
+        if (emailHashResult.rows.length === 0) {
+          await this.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR UNIQUE');
+          console.log('✅ Added emailHash column to users table');
+        }
+      } else {
+        // For SQLite, check if the column exists in the pragma result
+        const hasEmailHash = emailHashResult.rows.some(row => row.name === 'emailHash');
+        if (!hasEmailHash) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR UNIQUE');
+            console.log('✅ Added emailHash column to users table');
+          } catch (err) {
+            // Column might already exist, ignore duplicate column error
+            if (!err.message.includes('duplicate column')) {
+              throw err;
+            }
+          }
+        }
+      }
+
       // Migration 1: Add maxSquadSize column to team_rosters table if it doesn't exist
       const checkColumn = this.dbType === 'postgresql' 
         ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'team_rosters' AND column_name = 'maxsquadsize'`
