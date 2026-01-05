@@ -30,7 +30,7 @@ class EncryptionService {
 
     try {
       const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipherGCM('aes-256-gcm', Buffer.from(this.encryptionKey, 'hex'));
+      const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(this.encryptionKey, 'hex'), iv);
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -41,7 +41,7 @@ class EncryptionService {
       return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
     } catch (error) {
       console.error('Encryption error:', error);
-      return text; // Return original text if encryption fails
+      throw error; // Throw error instead of returning text so we can debug
     }
   }
 
@@ -70,7 +70,7 @@ class EncryptionService {
       const authTag = Buffer.from(parts[1], 'hex');
       const encrypted = parts[2];
       
-      const decipher = crypto.createDecipherGCM('aes-256-gcm', Buffer.from(this.encryptionKey, 'hex'));
+      const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(this.encryptionKey, 'hex'), iv);
       decipher.setAuthTag(authTag);
       
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
