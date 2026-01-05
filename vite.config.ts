@@ -34,8 +34,7 @@ export default defineConfig({
           ],
           'team-features': [
             'src/pages/TeamProfilePage.tsx',
-            'src/pages/TeamRosterPage.tsx',
-            'src/components/TrialManagement.tsx'
+            'src/pages/TeamRosterPage.tsx'
           ]
         }
       }
