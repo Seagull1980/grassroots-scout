@@ -53,6 +53,8 @@ declare namespace google {
       setMap(map: Map | null): void;
       getPath(): MVCArray<LatLng>;
       setPath(path: LatLng[] | LatLngLiteral[]): void;
+      setEditable(editable: boolean): void;
+      setDraggable(draggable: boolean): void;
     }
 
     class Polyline {
@@ -101,11 +103,16 @@ declare namespace google {
     namespace event {
       function addListener(instance: any, eventName: string, handler: Function): MapsEventListener;
       function removeListener(listener: MapsEventListener): void;
+      function clearInstanceListeners(instance: any): void;
     }
 
     namespace geometry {
       namespace spherical {
         function computeDistanceBetween(from: LatLng, to: LatLng): number;
+      }
+      namespace poly {
+        function containsLocation(point: LatLng, polygon: Polygon): boolean;
+        function isLocationOnEdge(point: LatLng, poly: Polygon | Polyline, tolerance?: number): boolean;
       }
     }
 
@@ -121,6 +128,14 @@ declare namespace google {
         constructor(options?: any);
         position: LatLng | LatLngLiteral;
         map: Map | null;
+        addListener(eventName: string, handler: Function): MapsEventListener;
+      }
+
+      class PinElement {
+        constructor(options?: any);
+        background: string;
+        borderColor: string;
+        glyphColor: string;
       }
       
       enum CollisionBehavior {
@@ -181,6 +196,7 @@ declare namespace google {
 
       class PlaceAutocompleteElement extends HTMLElement {
         constructor();
+        addEventListener(type: string, listener: EventListener): void;
       }
 
       interface PlaceResult {

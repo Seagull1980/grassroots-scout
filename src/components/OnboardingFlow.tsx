@@ -53,7 +53,7 @@ export const OnboardingFlow: React.FC = () => {
 
   // Development utility - add global function to reset onboarding
   useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
       (window as any).resetOnboarding = () => {
         if (user) {
           storage.removeItem(`onboarding_completed_${user.id}`);

@@ -233,7 +233,7 @@ const ProfilePage: React.FC = () => {
         <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>
           My Profile
         </Typography>
-        {user && <VerificationBadge isVerified={false} verifiedRole={user.role} />}
+        {user && <VerificationBadge isVerified={false} verifiedRole={user.role === 'Admin' ? 'Coach' : user.role} />}
       </Box>
       
       {/* Welcome message for new users */}

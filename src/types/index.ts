@@ -60,6 +60,8 @@ export interface PlayerAvailability {
   locationData?: Location;
   contactInfo: string;
   postedBy: string;
+  firstName?: string;
+  lastName?: string;
   createdAt: string;
   status: 'active' | 'inactive';
 }

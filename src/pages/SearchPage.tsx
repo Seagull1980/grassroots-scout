@@ -177,12 +177,6 @@ const SearchPage: React.FC = () => {
   const { recentSearches, addRecentSearch } = useRecentSearches();
   
   // Contact dialog state
-  const [contactDialogOpen, setContactDialogOpen] = useState(false);
-  const [selectedVacancy, setSelectedVacancy] = useState<TeamVacancy | null>(null);
-  const [message, setMessage] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
-
-  // Training invite dialog state
   // Removed unused dialog state pending future training invite feature
   // const [trainingInviteOpen, setTrainingInviteOpen] = useState(false);
   // const [selectedPlayer, setSelectedPlayer] = useState<{ id: number; name: string } | null>(null);
@@ -304,6 +298,8 @@ const SearchPage: React.FC = () => {
       trainingFrequency: '',
       availability: [],
       coachingLicense: '',
+      hasMatchRecording: false,
+      hasPathwayToSenior: false,
     });
     setPage(1);
   };
@@ -1353,7 +1349,12 @@ const SearchPage: React.FC = () => {
         open={savedSearchesOpen}
         onClose={() => setSavedSearchesOpen(false)}
         onApplySearch={(search) => {
-          setFilters(search.filters);
+          setFilters({
+            ...filters,
+            ...search.filters,
+            hasMatchRecording: search.filters.hasMatchRecording || false,
+            hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
+          });
           setTabValue(search.tabIndex);
         }}
         currentFilters={filters}

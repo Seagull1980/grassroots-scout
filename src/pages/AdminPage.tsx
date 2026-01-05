@@ -682,7 +682,7 @@ const AdminPage: React.FC = () => {
                               </IconButton>
                               <IconButton
                                 color={league.isActive ? "warning" : "success"}
-                                onClick={() => handleFreezeLeague(typeof league.id === 'string' ? parseInt(league.id) : league.id, league.isActive)}
+                                onClick={() => handleFreezeLeague(typeof league.id === 'string' ? parseInt(league.id) : league.id, league.isActive ?? false)}
                                 size="small"
                                 title={league.isActive ? "Freeze league" : "Unfreeze league"}
                               >
