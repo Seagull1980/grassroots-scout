@@ -26,6 +26,9 @@ const getRosterAPIUrl = () => {
 const API_URL = getAPIUrl();
 const ROSTER_API_URL = getRosterAPIUrl();
 
+// Ngrok headers for tunneling (empty object for production)
+export const ngrokHeaders = {};
+
 // Export the URLs for use in other components
 export { API_URL, ROSTER_API_URL };
 
