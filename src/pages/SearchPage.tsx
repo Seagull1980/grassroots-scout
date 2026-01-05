@@ -56,7 +56,7 @@ import LeagueRequestDialog from '../components/LeagueRequestDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsiveSpacing } from '../hooks/useResponsive';
 import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
-import { SavedSearchesDialog, useRecentSearches } from '../components/SavedSearches';
+import { SavedSearchesDialog } from '../components/SavedSearches';
 
 interface TabPanelProps {
   children?: React.ReactNode;
