@@ -380,6 +380,11 @@ export const authAPI = {
     const response = await api.get(`/auth/verify-email/${token}`);
     return response.data;
   },
+
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.put('/change-password', { currentPassword, newPassword });
+    return response.data;
+  },
 };
 
 // Profile API

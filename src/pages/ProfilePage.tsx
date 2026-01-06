@@ -21,10 +21,10 @@ import {
   CircularProgress,
   SelectChangeEvent,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History } from '@mui/icons-material';
+import { Save, Person, Work, ContactMail, History, Lock } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { profileAPI, UserProfile, ProfileUpdateData } from '../services/api';
+import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import VerificationBadge from '../components/VerificationBadge';
 
@@ -58,6 +58,14 @@ const ProfilePage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -217,6 +225,44 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async () => {
+    try {
+      setPasswordError('');
+      setPasswordSuccess(false);
+
+      // Validation
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        setPasswordError('All fields are required');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        setPasswordError('New password must be at least 8 characters');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setPasswordError('New passwords do not match');
+        return;
+      }
+
+      setIsChangingPassword(true);
+      await authAPI.changePassword(currentPassword, newPassword);
+      
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      setTimeout(() => setPasswordSuccess(false), 5000);
+    } catch (error: any) {
+      console.error('Password change error:', error);
+      setPasswordError(error.response?.data?.error || 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Container>
@@ -268,6 +314,7 @@ const ProfilePage: React.FC = () => {
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
             {user?.role === 'Player' && <Tab icon={<History />} label="Playing History" />}
             <Tab icon={<ContactMail />} label="Contact & Emergency" />
+            <Tab icon={<Lock />} label="Security" />
           </Tabs>
         </Box>
 
@@ -611,6 +658,69 @@ const ProfilePage: React.FC = () => {
                 placeholder="Any medical conditions, allergies, or important health information..."
                 helperText="This information will be kept confidential and used only for safety purposes"
               />
+            </Grid>
+          </Grid>
+        </TabPanel>
+
+        {/* Security Tab - Password Change */}
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : 3}>
+          <Typography variant="h6" gutterBottom>
+            Change Password
+          </Typography>
+          
+          {passwordSuccess && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              Password changed successfully!
+            </Alert>
+          )}
+          
+          {passwordError && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {passwordError}
+            </Alert>
+          )}
+
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                type="password"
+                label="Current Password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                type="password"
+                label="New Password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                helperText="Must be at least 8 characters"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                type="password"
+                label="Confirm New Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Button
+                variant="contained"
+                onClick={handleChangePassword}
+                disabled={isChangingPassword}
+                startIcon={isChangingPassword ? <CircularProgress size={20} /> : <Lock />}
+              >
+                {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+              </Button>
             </Grid>
           </Grid>
         </TabPanel>

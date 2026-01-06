@@ -741,6 +741,46 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
   }
 });
 
+// Change password
+app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAccess, [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Get current user with password
+    const userResult = await db.query('SELECT password FROM users WHERE id = ?', [req.user.userId]);
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.userId]);
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
 // Update user profile
 app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
   body('phone').optional().isLength({ min: 5, max: 20 }).withMessage('Phone number must be 5-20 characters'),
