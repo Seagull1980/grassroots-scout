@@ -606,8 +606,13 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
     
     console.log('Raw profile data:', row);
     
-    // Decrypt email
-    row.email = encryptionService.decrypt(row.email);
+    // Decrypt email (handle both encrypted and plaintext for old DB compatibility)
+    try {
+      row.email = encryptionService.decrypt(row.email);
+    } catch (decryptError) {
+      console.warn('[Profile] Email decryption failed, using plaintext:', decryptError.message);
+      // Email is already plaintext, keep as-is
+    }
     
     // Decrypt sensitive profile data
     const decryptedProfile = encryptionService.decryptProfileData(row);
