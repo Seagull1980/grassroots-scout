@@ -385,14 +385,7 @@ app.post('/api/auth/login', authLimiter, [
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      return res.status(403).json({ 
-        error: 'Please verify your email before logging in',
-        requiresVerification: true,
-        email: email
-      });
-    }
+    // Email verification disabled - skip check
 
     // Decrypt email for response
     const decryptedEmail = encryptionService.decrypt(user.email);
