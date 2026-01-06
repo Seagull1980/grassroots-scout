@@ -426,8 +426,8 @@ class Database {
       
       // Playing History table
       `CREATE TABLE IF NOT EXISTS playing_history (
-        id VARCHAR PRIMARY KEY,
-        playerId VARCHAR NOT NULL,
+        id SERIAL PRIMARY KEY,
+        playerId INTEGER NOT NULL,
         teamName VARCHAR NOT NULL,
         league VARCHAR NOT NULL,
         ageGroup VARCHAR NOT NULL,
