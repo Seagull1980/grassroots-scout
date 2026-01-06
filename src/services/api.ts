@@ -289,6 +289,7 @@ export interface RegisterResponse {
   message: string;
   requiresVerification?: boolean;
   tempToken?: string;
+  token?: string;
   user?: User;
 }
 
