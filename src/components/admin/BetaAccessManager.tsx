@@ -57,14 +57,17 @@ const BetaAccessManager: React.FC = () => {
   };
 
   const toggleBetaAccess = async (userId: number, currentStatus: boolean) => {
+    console.log('[BetaAccess] Toggle clicked for user:', userId, 'Current status:', currentStatus, 'Will set to:', !currentStatus);
     try {
       setUpdating(userId);
       const token = localStorage.getItem('token');
-      await axios.patch(
+      console.log('[BetaAccess] Making API call...');
+      const response = await axios.patch(
         `/api/admin/users/${userId}/beta-access`,
         { betaAccess: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      console.log('[BetaAccess] API response:', response.data);
       
       // Update local state
       setUsers(users.map(user => 
@@ -72,7 +75,9 @@ const BetaAccessManager: React.FC = () => {
           ? { ...user, betaAccess: !currentStatus }
           : user
       ));
+      console.log('[BetaAccess] State updated successfully');
     } catch (err: any) {
+      console.error('[BetaAccess] Error:', err);
       setError(err.response?.data?.error || 'Failed to update beta access');
     } finally {
       setUpdating(null);
