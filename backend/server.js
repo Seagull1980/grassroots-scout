@@ -108,12 +108,11 @@ app.use('/api/saved-searches', savedSearchesRouter);
         // Admin exists - update password to ensure we can login
         console.log('⚠️  Admin account found - updating password for access...');
         const hashedPassword = await bcrypt.hash(adminPassword, 12);
-        const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         
-        const adminUser = existingAdminCheck.rows[0];
+        // Update password for the admin with our email (cgill1980@hotmail.com)
         await db.query(
-          `UPDATE users SET password = ?, email = ?, role = 'Admin' WHERE id = ?`,
-          [hashedPassword, adminEmail, adminUser.id]
+          `UPDATE users SET password = ?, role = 'Admin' WHERE email = ?`,
+          [hashedPassword, adminEmail]
         );
         console.log('✅ Admin account updated: cgill1980@hotmail.com / GrassrootsAdmin2026!');
         console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
