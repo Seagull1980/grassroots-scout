@@ -146,8 +146,8 @@ const RegisterPage: React.FC = () => {
       const success = await register(registrationData);
 
       if (success) {
-        // Check if email verification is required
-        navigate('/email-verification-pending');
+        // Navigate directly to dashboard (email verification disabled)
+        navigate('/dashboard');
       } else {
         setError('Registration failed. Please try again.');
       }

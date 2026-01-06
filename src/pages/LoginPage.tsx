@@ -58,15 +58,7 @@ const LoginPage: React.FC = () => {
         setError('Invalid email or password');
       }
     } catch (error: any) {
-      if (error.requiresVerification) {
-        setError('Please verify your email before logging in. Check your email for a verification link.');
-        // Optionally redirect to verification pending page
-        setTimeout(() => {
-          navigate('/email-verification-pending');
-        }, 2000);
-      } else {
-        setError('Invalid email or password');
-      }
+      setError('Invalid email or password');
     }
   };
 
