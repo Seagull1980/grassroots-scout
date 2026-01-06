@@ -30,16 +30,28 @@ class Database {
 
   initPostgreSQL() {
     console.log('🐘 Initializing PostgreSQL connection...');
-    this.pool = new Pool({
-      user: process.env.DB_USER || 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'grassroots_hub',
-      password: process.env.DB_PASSWORD || 'password',
-      port: process.env.DB_PORT || 5432,
-      max: 20, // Maximum connections in pool
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    
+    // Use DATABASE_URL if available (Render, Heroku, etc.), otherwise use individual env vars
+    const config = process.env.DATABASE_URL 
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        }
+      : {
+          user: process.env.DB_USER || 'postgres',
+          host: process.env.DB_HOST || 'localhost',
+          database: process.env.DB_NAME || 'grassroots_hub',
+          password: process.env.DB_PASSWORD || 'password',
+          port: process.env.DB_PORT || 5432,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 2000,
+        };
+    
+    this.pool = new Pool(config);
 
     this.pool.on('connect', () => {
       console.log('✅ Connected to PostgreSQL database');
