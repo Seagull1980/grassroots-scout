@@ -655,6 +655,16 @@ class Database {
       )`
     ];
 
+    // TEMPORARY: Drop playing_history table if it has wrong schema (VARCHAR instead of INTEGER)
+    if (this.dbType === 'postgresql') {
+      try {
+        await this.query('DROP TABLE IF EXISTS playing_history CASCADE');
+        console.log('🔄 Dropped playing_history table for schema migration');
+      } catch (error) {
+        console.warn('⚠️  Could not drop playing_history:', error.message);
+      }
+    }
+
     for (const table of tables) {
       try {
         await this.query(table);
