@@ -71,8 +71,16 @@ app.use('/api/saved-searches', savedSearchesRouter);
       if (!hasEmailHash) {
         console.log('⚠️  emailHash column missing - adding now...');
         // SQLite doesn't allow adding UNIQUE columns to existing tables - add without UNIQUE first
-        await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
-        console.log('✅ Added emailHash column to users table');
+        try {
+          await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
+          console.log('✅ Added emailHash column to users table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ emailHash column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
         // Create unique index separately
         await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailhash ON users(emailHash)');
         console.log('✅ Created unique index on emailHash column');
@@ -80,7 +88,10 @@ app.use('/api/saved-searches', savedSearchesRouter);
         console.log('✅ emailHash column exists');
       }
     } catch (hashError) {
-      console.error('❌ Error checking/adding emailHash column:', hashError);
+      // Ignore duplicate column errors
+      if (!hashError.message || !hashError.message.includes('duplicate column')) {
+        console.error('❌ Error checking/adding emailHash column:', hashError);
+      }
     }
     
     // Auto-create admin account on production if none exists
