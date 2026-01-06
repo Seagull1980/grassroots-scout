@@ -614,8 +614,17 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
       // Email is already plaintext, keep as-is
     }
     
-    // Decrypt sensitive profile data
-    const decryptedProfile = encryptionService.decryptProfileData(row);
+    // Decrypt sensitive profile data (handle both encrypted and plaintext for old DB compatibility)
+    let decryptedProfile;
+    try {
+      decryptedProfile = encryptionService.decryptProfileData(row);
+      console.log('[Profile] Profile data decrypted successfully');
+    } catch (profileDecryptError) {
+      console.warn('[Profile] Profile data decryption failed, using row as-is:', profileDecryptError.message);
+      console.warn('[Profile] Error stack:', profileDecryptError.stack);
+      // Use row as-is if decryption fails (old DB or no profile data)
+      decryptedProfile = { ...row };
+    }
     
     // Parse JSON fields
     if (decryptedProfile.availability) {
