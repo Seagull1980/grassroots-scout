@@ -4797,22 +4797,26 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccess ? 1 : 0, id]);
     console.log(`[BetaAccess] SUCCESS - Access ${betaAccess ? 'granted' : 'revoked'} for user ${id}`);
     
-    // Optionally send email notification
-    if (betaAccess) {
-      try {
-        const userEmail = encryptionService.decrypt(user.email);
-        await emailService.sendBetaAccessGranted(userEmail, user.firstName);
-        console.log('[BetaAccess] Welcome email sent to:', userEmail);
-      } catch (emailError) {
-        console.error('[BetaAccess] Failed to send beta access email:', emailError.message);
-        // Don't fail the request if email fails
-      }
-    }
-    
+    // Send response immediately, don't wait for email
     res.json({ 
-      message: `Beta access ${betaAccess ? 'granted' : 'revoked'} successfully`,
+      message: betaAccess ? 'Beta access granted successfully' : 'Beta access revoked successfully',
       betaAccess 
     });
+    
+    // Send email notification asynchronously (don't block the response)
+    if (betaAccess) {
+      // Fire and forget - don't await
+      (async () => {
+        try {
+          const userEmail = encryptionService.decrypt(user.email);
+          await emailService.sendBetaAccessGranted(userEmail, user.firstName);
+          console.log('[BetaAccess] Welcome email sent to:', userEmail);
+        } catch (emailError) {
+          console.error('[BetaAccess] Failed to send beta access email:', emailError.message);
+          // Don't fail the request if email fails
+        }
+      })();
+    }
   } catch (error) {
     console.error('[BetaAccess] Error updating beta access:', error);
     res.status(500).json({ error: 'Failed to update beta access' });
