@@ -83,6 +83,30 @@ app.use('/api/saved-searches', savedSearchesRouter);
       console.error('❌ Error checking/adding emailHash column:', hashError);
     }
     
+    // Auto-create admin account on production if none exists
+    try {
+      const adminCheck = await db.query("SELECT id FROM users WHERE role = 'Admin'");
+      if (!adminCheck.rows || adminCheck.rows.length === 0) {
+        console.log('⚠️  No admin account found - creating default admin...');
+        const adminEmail = 'cgill1980@hotmail.com';
+        const adminPassword = 'GrassrootsAdmin2026!'; // CHANGE THIS AFTER FIRST LOGIN
+        const hashedPassword = await bcrypt.hash(adminPassword, 12);
+        const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
+        
+        await db.query(
+          `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, betaAccess)
+           VALUES (?, ?, ?, ?, ?, 'Admin', 1, 1)`,
+          [adminEmail, emailHash, hashedPassword, 'Chris', 'Gill']
+        );
+        console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
+        console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
+      } else {
+        console.log('✅ Admin account exists');
+      }
+    } catch (adminError) {
+      console.error('❌ Error checking/creating admin account:', adminError);
+    }
+    
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
     
     // Initialize and start cron jobs with shared database instance
