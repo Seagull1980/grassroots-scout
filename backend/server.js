@@ -2063,23 +2063,32 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
   try {
     const { type = 'all', limit = 10 } = req.query;
     
-    // Get user's recent interactions to understand preferences
-    const interactionsResult = await db.query(`
-      SELECT actionType, targetType, metadata
-      FROM user_interactions
-      WHERE userId = ? AND createdAt > datetime('now', '-30 days')
-      ORDER BY createdAt DESC
-      LIMIT 50
-    `, [req.user.userId]);
-
-    const interactions = interactionsResult.rows;
+    // Get user's recent interactions to understand preferences (with error handling)
+    let interactions = [];
+    try {
+      const interactionsResult = await db.query(`
+        SELECT actionType, targetType, metadata
+        FROM user_interactions
+        WHERE userId = ? AND createdAt > datetime('now', '-30 days')
+        ORDER BY createdAt DESC
+        LIMIT 50
+      `, [req.user.userId]);
+      interactions = interactionsResult.rows || [];
+    } catch (interactionError) {
+      console.warn('user_interactions table not available:', interactionError.message);
+    }
     
-    // Get user profile to understand preferences
-    const profileResult = await db.query(`
-      SELECT position, preferredTeamGender, experienceLevel, ageGroupsCoached
-      FROM user_profiles
-      WHERE userId = ?
-    `, [req.user.userId]);
+    // Get user profile to understand preferences (with error handling)
+    let profileResult = { rows: [] };
+    try {
+      profileResult = await db.query(`
+        SELECT position, preferredTeamGender, experienceLevel, ageGroupsCoached
+        FROM user_profiles
+        WHERE userId = ?
+      `, [req.user.userId]);
+    } catch (profileError) {
+      console.warn('user_profiles query failed:', profileError.message);
+    }
 
     let recommendations = [];
 
