@@ -91,9 +91,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         storage.setItem('token', response.token);
         storage.setItem('user', JSON.stringify(response.user));
         
-        // Check if this user was marked as new during registration
+        // Check if this is their first successful login after registration
         const isPendingNewUser = localStorage.getItem('pending_new_user');
-        if (isPendingNewUser) {
+        const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${response.user.id}`);
+        // Only mark as new user if they registered recently AND haven't seen onboarding
+        if (isPendingNewUser && !hasCompletedOnboarding) {
           storage.setItem(`new_user_${response.user.id}`, 'true');
           localStorage.removeItem('pending_new_user');
         }
@@ -142,8 +144,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(response.user);
         storage.setItem('token', response.token);
         storage.setItem('user', JSON.stringify(response.user));
-        // Mark user as new for onboarding
-        storage.setItem(`new_user_${response.user.id}`, 'true');
+        // Store pending new user flag - will be converted to new_user flag on first successful login
+        localStorage.setItem('pending_new_user', 'true');
       }
       return true;
     } catch (error: unknown) {

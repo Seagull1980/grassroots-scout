@@ -86,10 +86,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const connectWebSocket = useCallback(() => {
     if (!user) return;
 
-    // Skip WebSocket connection if using external URLs (production deployment)
-    if (import.meta.env.VITE_API_URL?.includes('railway') || 
-        import.meta.env.VITE_API_URL?.includes('render') ||
-        import.meta.env.VITE_API_URL?.includes('vercel')) {
+    // Skip WebSocket connection if in production (not localhost)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       console.log('🔔 WebSocket disabled for production deployment');
       setConnectionStatus('disconnected');
       return;
