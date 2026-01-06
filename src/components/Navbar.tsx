@@ -134,7 +134,7 @@ const Navbar: React.FC = () => {
       <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid rgba(0,0,0,0.12)' }}>
         {/* Logo removed temporarily */}
         <Typography variant="h6" sx={{ fontWeight: 800 }}>The Grassroots Scout</Typography>
-        <Typography variant="caption" color="text.secondary">Discover. Connect. Develop</Typography>
+        <Typography variant="caption" sx={{ color: 'text.primary', opacity: 0.7 }}>Discover. Connect. Develop</Typography>
       </Box>
       <List>
         {navigationItems.map((item) => (

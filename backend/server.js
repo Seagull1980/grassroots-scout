@@ -226,20 +226,29 @@ const trackPageView = async (req, res, next) => {
     const sessionId = req.headers['x-session-id'] || `session_${Date.now()}_${Math.random()}`;
     
     try {
-      await db.query(`INSERT INTO page_views (userId, page, sessionId, ipAddress, userAgent) 
-              VALUES (?, ?, ?, ?, ?)`, 
-             [req.user.userId, req.path, sessionId, req.ip, req.get('User-Agent')]);
+      // Check if analytics tables exist before attempting to track
+      const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('page_views', 'user_sessions')");
+      
+      if (tableCheck.rows && tableCheck.rows.length >= 2) {
+        await db.query(`INSERT INTO page_views (userId, page, sessionId, ipAddress, userAgent) 
+                VALUES (?, ?, ?, ?, ?)`, 
+               [req.user.userId, req.path, sessionId, req.ip, req.get('User-Agent')]);
 
-      // Update or create user session
-      await db.query(`INSERT OR REPLACE INTO user_sessions 
-              (userId, sessionId, startTime, pageViews, ipAddress, userAgent)
-              VALUES (?, ?, 
-                      COALESCE((SELECT startTime FROM user_sessions WHERE sessionId = ?), ?),
-                      COALESCE((SELECT pageViews FROM user_sessions WHERE sessionId = ?), 0) + 1,
-                      ?, ?)`,
-             [req.user.userId, sessionId, sessionId, new Date().toISOString(), sessionId, req.ip, req.get('User-Agent')]);
+        // Update or create user session
+        await db.query(`INSERT OR REPLACE INTO user_sessions 
+                (userId, sessionId, startTime, pageViews, ipAddress, userAgent)
+                VALUES (?, ?, 
+                        COALESCE((SELECT startTime FROM user_sessions WHERE sessionId = ?), ?),
+                        COALESCE((SELECT pageViews FROM user_sessions WHERE sessionId = ?), 0) + 1,
+                        ?, ?)`,
+               [req.user.userId, sessionId, sessionId, new Date().toISOString(), sessionId, req.ip, req.get('User-Agent')]);
+      } else {
+        // Analytics tables not yet created - skip tracking silently
+        console.log('📊 Analytics tables not available - skipping page view tracking');
+      }
     } catch (error) {
-      console.error('Error tracking page view:', error);
+      // Silently fail - don't block requests if analytics fails
+      console.warn('Error tracking page view:', error.message);
     }
   }
   next();
