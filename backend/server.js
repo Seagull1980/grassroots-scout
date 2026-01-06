@@ -164,27 +164,17 @@ app.use('/api/saved-searches', savedSearchesRouter);
     try {
       console.log('🔍 Checking for admin account...');
       const adminEmail = 'cgill1980@hotmail.com';
-      const adminPassword = 'GrassrootsAdmin2026!'; // CHANGE THIS AFTER FIRST LOGIN
       
-      // Check if admin with this email exists
+      // Check if admin account exists
       const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin'", [adminEmail]);
       console.log('📊 Admin query result:', existingAdminCheck.rows);
       
       if (existingAdminCheck.rows && existingAdminCheck.rows.length > 0) {
-        // Admin exists - update password to ensure we can login
-        console.log('⚠️  Admin account found - updating password for access...');
-        const hashedPassword = await bcrypt.hash(adminPassword, 12);
-        
-        // Update password for the admin with our email (cgill1980@hotmail.com)
-        await db.query(
-          `UPDATE users SET password = ?, role = 'Admin' WHERE email = ?`,
-          [hashedPassword, adminEmail]
-        );
-        console.log('✅ Admin account updated: cgill1980@hotmail.com / GrassrootsAdmin2026!');
-        console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
+        console.log('✅ Admin account exists');
       } else {
         console.log('⚠️  No admin account found - creating default admin...');
-        const hashedPassword = await bcrypt.hash(adminPassword, 12);
+        const tempPassword = 'GrassrootsAdmin2026!'; // Temporary - user must change on first login
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
         
