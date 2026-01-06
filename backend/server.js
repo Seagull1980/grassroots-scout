@@ -122,7 +122,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
         }
         console.log('✅ Added betaAccess column to users table (default: disabled)');
         // Grant beta access to existing users (grandfather them in)
-        await db.query('UPDATE users SET betaAccess = 1 WHERE id IS NOT NULL');
+        await db.query('UPDATE users SET betaAccess = TRUE WHERE id IS NOT NULL');
         console.log('✅ Granted beta access to all existing users');
       } else {
         console.log('✅ betaAccess column exists');
@@ -1408,7 +1408,7 @@ app.get('/api/leagues', (req, res, next) => {
     const { includePending = false } = req.query;
     
     // Get approved leagues (ultra-simplified for old DB compatibility - only guaranteed columns)
-    let query = 'SELECT id, name, \'approved\' as status FROM leagues WHERE isActive = 1';
+    let query = 'SELECT id, name, \'approved\' as status FROM leagues WHERE isActive = TRUE';
     let params = [];
 
     // If user wants pending leagues and is authenticated
@@ -1519,7 +1519,7 @@ app.delete('/api/leagues/:id', authenticateToken, requireAdmin, (req, res) => {
   const leagueId = req.params.id;
 
   db.run(
-    'UPDATE leagues SET isActive = 0 WHERE id = ?',
+    'UPDATE leagues SET isActive = FALSE WHERE id = ?',
     [leagueId],
     function(err) {
       if (err) {
@@ -4794,7 +4794,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     }
     
     // Update beta access
-    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccess ? 1 : 0, id]);
+    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccess, id]);
     console.log(`[BetaAccess] SUCCESS - Access ${betaAccess ? 'granted' : 'revoked'} for user ${id}`);
     
     // Send response immediately, don't wait for email
