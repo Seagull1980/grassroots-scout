@@ -103,11 +103,12 @@ app.use('/api/saved-searches', savedSearchesRouter);
         const adminPassword = 'GrassrootsAdmin2026!'; // CHANGE THIS AFTER FIRST LOGIN
         const hashedPassword = await bcrypt.hash(adminPassword, 12);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
+        const encryptedEmail = encryptionService.encrypt(adminEmail);
         
         await db.query(
           `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, betaAccess)
            VALUES (?, ?, ?, ?, ?, 'Admin', 1, 1)`,
-          [adminEmail, emailHash, hashedPassword, 'Chris', 'Gill']
+          [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
         );
         console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
         console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
@@ -422,8 +423,15 @@ app.post('/api/auth/login', authLimiter, [
 
     // Email verification disabled - skip check
 
-    // Decrypt email for response
-    const decryptedEmail = encryptionService.decrypt(user.email);
+    // Decrypt email for response (handle both encrypted and plaintext for old DBs)
+    let decryptedEmail;
+    try {
+      decryptedEmail = encryptionService.decrypt(user.email);
+    } catch (decryptError) {
+      // Email might be plaintext in old database
+      console.warn('[Login] Email decryption failed, using plaintext:', decryptError.message);
+      decryptedEmail = user.email;
+    }
 
     const token = jwt.sign(
       { userId: user.id, email: decryptedEmail, role: user.role },
