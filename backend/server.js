@@ -110,6 +110,55 @@ app.use('/api/saved-searches', savedSearchesRouter);
         console.error('❌ Error checking/adding betaAccess column:', betaError);
       }
     }
+
+    // Add missing user_profiles columns (for old production databases)
+    try {
+      const profileColumns = await db.query('PRAGMA table_info(user_profiles)');
+      const existingColumns = new Set(profileColumns.rows.map(row => row.name));
+      
+      const requiredColumns = [
+        { name: 'preferredTeamGender', type: "VARCHAR DEFAULT 'Mixed'" },
+        { name: 'preferredFoot', type: 'VARCHAR' },
+        { name: 'height', type: 'INTEGER' },
+        { name: 'weight', type: 'INTEGER' },
+        { name: 'experienceLevel', type: 'VARCHAR' },
+        { name: 'coachingLicense', type: 'VARCHAR' },
+        { name: 'yearsExperience', type: 'INTEGER' },
+        { name: 'specializations', type: 'VARCHAR' },
+        { name: 'trainingLocation', type: 'VARCHAR' },
+        { name: 'matchLocation', type: 'VARCHAR' },
+        { name: 'trainingDays', type: 'VARCHAR' },
+        { name: 'ageGroupsCoached', type: 'VARCHAR' },
+        { name: 'emergencyContact', type: 'VARCHAR' },
+        { name: 'emergencyPhone', type: 'VARCHAR' },
+        { name: 'medicalInfo', type: 'VARCHAR' },
+        { name: 'profilePicture', type: 'VARCHAR' },
+        { name: 'isProfileComplete', type: 'BOOLEAN DEFAULT FALSE' },
+        { name: 'lastUpdated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+      ];
+      
+      let addedColumns = [];
+      for (const column of requiredColumns) {
+        if (!existingColumns.has(column.name)) {
+          try {
+            await db.query(`ALTER TABLE user_profiles ADD COLUMN ${column.name} ${column.type}`);
+            addedColumns.push(column.name);
+          } catch (alterError) {
+            if (!alterError.message || !alterError.message.includes('duplicate column')) {
+              console.error(`❌ Error adding ${column.name}:`, alterError.message);
+            }
+          }
+        }
+      }
+      
+      if (addedColumns.length > 0) {
+        console.log(`✅ Added missing user_profiles columns: ${addedColumns.join(', ')}`);
+      } else {
+        console.log('✅ All user_profiles columns exist');
+      }
+    } catch (profileError) {
+      console.error('❌ Error checking user_profiles schema:', profileError);
+    }
     
     // Auto-create admin account on production if none exists
     try {
