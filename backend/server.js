@@ -97,13 +97,28 @@ app.use('/api/saved-searches', savedSearchesRouter);
     // Auto-create admin account on production if none exists
     try {
       console.log('🔍 Checking for admin account...');
-      const adminCheck = await db.query("SELECT id, email, role FROM users WHERE role = 'Admin'");
-      console.log('📊 Admin query result:', adminCheck.rows);
+      const adminEmail = 'cgill1980@hotmail.com';
+      const adminPassword = 'GrassrootsAdmin2026!'; // CHANGE THIS AFTER FIRST LOGIN
       
-      if (!adminCheck.rows || adminCheck.rows.length === 0) {
+      // Check if admin with this email exists
+      const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin'", [adminEmail]);
+      console.log('📊 Admin query result:', existingAdminCheck.rows);
+      
+      if (existingAdminCheck.rows && existingAdminCheck.rows.length > 0) {
+        // Admin exists - update password to ensure we can login
+        console.log('⚠️  Admin account found - updating password for access...');
+        const hashedPassword = await bcrypt.hash(adminPassword, 12);
+        const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
+        
+        const adminUser = existingAdminCheck.rows[0];
+        await db.query(
+          `UPDATE users SET password = ?, email = ?, role = 'Admin' WHERE id = ?`,
+          [hashedPassword, adminEmail, adminUser.id]
+        );
+        console.log('✅ Admin account updated: cgill1980@hotmail.com / GrassrootsAdmin2026!');
+        console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
+      } else {
         console.log('⚠️  No admin account found - creating default admin...');
-        const adminEmail = 'cgill1980@hotmail.com';
-        const adminPassword = 'GrassrootsAdmin2026!'; // CHANGE THIS AFTER FIRST LOGIN
         const hashedPassword = await bcrypt.hash(adminPassword, 12);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
@@ -129,8 +144,6 @@ app.use('/api/saved-searches', savedSearchesRouter);
           console.log('✅ Admin account created (fallback mode): cgill1980@hotmail.com / GrassrootsAdmin2026!');
         }
         console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
-      } else {
-        console.log('✅ Admin account exists');
       }
     } catch (adminError) {
       console.error('❌ Error checking/creating admin account:', adminError);
