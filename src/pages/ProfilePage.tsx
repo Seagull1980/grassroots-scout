@@ -20,8 +20,10 @@ import {
   Tab,
   CircularProgress,
   SelectChangeEvent,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History, Lock } from '@mui/icons-material';
+import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -66,6 +68,9 @@ const ProfilePage: React.FC = () => {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -684,32 +689,68 @@ const ProfilePage: React.FC = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                type="password"
+                type={showCurrentPassword ? "text" : "password"}
                 label="Current Password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        edge="end"
+                      >
+                        {showCurrentPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                type="password"
+                type={showNewPassword ? "text" : "password"}
                 label="New Password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 helperText="Must be at least 8 characters"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        edge="end"
+                      >
+                        {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                type="password"
+                type={showConfirmPassword ? "text" : "password"}
                 label="Confirm New Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        edge="end"
+                      >
+                        {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Grid>
             <Grid item xs={12}>
