@@ -116,13 +116,24 @@ export const OnboardingFlow: React.FC = () => {
   useEffect(() => {
     if (user) {
       const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
-      const lastShownVersion = storage.getItem('onboarding_version');
-      const currentVersion = '1.0.0';
       const isNewUser = storage.getItem(`new_user_${user.id}`);
       
-      // Only show onboarding for new users who haven't completed it
-      // This prevents the popup from showing to existing users on every visit
-      if (isNewUser && (!hasCompletedOnboarding || lastShownVersion !== currentVersion)) {
+      // Check if account was created within the last 24 hours
+      const accountCreatedAt = new Date(user.createdAt);
+      const now = new Date();
+      const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
+      const isRecentlyCreated = hoursSinceCreation < 24;
+      
+      // Clean up stale flags for accounts older than 24 hours
+      if (!isRecentlyCreated) {
+        storage.removeItem(`new_user_${user.id}`);
+        localStorage.removeItem('pending_new_user');
+        return;
+      }
+      
+      // Only show onboarding for new users who haven't completed it AND account is less than 24 hours old
+      // This prevents the popup from showing to existing users
+      if (isNewUser && !hasCompletedOnboarding && isRecentlyCreated) {
         // Show onboarding after a short delay
         setTimeout(() => setOpen(true), 1000);
         // Clear the new user flag after showing onboarding to prevent showing again
@@ -134,7 +145,6 @@ export const OnboardingFlow: React.FC = () => {
   const handleSkipOnboarding = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
-      storage.setItem('onboarding_version', '1.0.0');
     }
     setOpen(false);
   };
@@ -142,7 +152,6 @@ export const OnboardingFlow: React.FC = () => {
   const handleComplete = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
-      storage.setItem('onboarding_version', '1.0.0');
       
       // Apply user preferences
       if (userData.location && userData.searchRadius) {

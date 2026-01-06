@@ -94,10 +94,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Check if this is their first successful login after registration
         const isPendingNewUser = localStorage.getItem('pending_new_user');
         const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${response.user.id}`);
-        // Only mark as new user if they registered recently AND haven't seen onboarding
-        if (isPendingNewUser && !hasCompletedOnboarding) {
+        
+        // Check if account was created within the last 24 hours
+        const accountCreatedAt = new Date(response.user.createdAt);
+        const now = new Date();
+        const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
+        const isRecentlyCreated = hoursSinceCreation < 24;
+        
+        // Only mark as new user if they registered recently AND haven't seen onboarding AND account is less than 24 hours old
+        if (isPendingNewUser && !hasCompletedOnboarding && isRecentlyCreated) {
           storage.setItem(`new_user_${response.user.id}`, 'true');
           localStorage.removeItem('pending_new_user');
+        } else if (!isRecentlyCreated) {
+          // Clean up stale flags for old accounts
+          localStorage.removeItem('pending_new_user');
+          storage.removeItem(`new_user_${response.user.id}`);
         }
         
         console.log('[AuthContext] Login successful');
