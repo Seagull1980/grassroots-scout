@@ -1214,8 +1214,8 @@ app.get('/api/leagues', (req, res, next) => {
   try {
     const { includePending = false } = req.query;
     
-    // Get approved leagues (simplified for old DB compatibility)
-    let query = 'SELECT id, name, url, \'approved\' as status FROM leagues WHERE isActive = 1';
+    // Get approved leagues (ultra-simplified for old DB compatibility - only guaranteed columns)
+    let query = 'SELECT id, name, \'approved\' as status FROM leagues WHERE isActive = 1';
     let params = [];
 
     // If user wants pending leagues and is authenticated
@@ -1225,7 +1225,6 @@ app.get('/api/leagues', (req, res, next) => {
         SELECT 
           CAST(('pending_' || id) as TEXT) as id, 
           name, 
-          url, 
           'pending' as status 
         FROM league_requests 
         WHERE status = 'pending' AND submittedBy = ?
