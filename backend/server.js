@@ -185,14 +185,10 @@ app.post('/api/auth/register', authLimiter, [
     // Hash password with increased rounds for better security
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate email verification token (not used but kept for future)
-    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    // Insert user with encrypted email - AUTO-VERIFY for now (betaAccess = 0 for new users, requires admin approval)
+    // Insert user with encrypted email - simplified for compatibility with older DBs
     const insertResult = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, emailVerificationToken, emailVerificationExpires, isEmailVerified, betaAccess) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role, emailVerificationToken, emailVerificationExpires.toISOString(), 1, 0]
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role]
     );
 
     const userId = insertResult.lastID;
@@ -216,16 +212,14 @@ app.post('/api/auth/register', authLimiter, [
     });
 
     res.status(201).json({
-      message: 'Registration successful! Your account is pending admin approval for beta access.',
+      message: 'Registration successful! You can now login.',
       token,
       user: {
         id: userId,
         email,
         firstName,
         lastName,
-        role,
-        isEmailVerified: true,
-        betaAccess: 0
+        role
       }
     });
   } catch (error) {
