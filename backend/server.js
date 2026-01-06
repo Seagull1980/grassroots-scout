@@ -100,8 +100,11 @@ app.use('/api/saved-searches', savedSearchesRouter);
       const hasBetaAccess = checkBetaAccess.rows.some(row => row.name === 'betaAccess');
       if (!hasBetaAccess) {
         console.log('⚠️  betaAccess column missing - adding now...');
-        await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 1');
-        console.log('✅ Added betaAccess column to users table (default: enabled)');
+        await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
+        console.log('✅ Added betaAccess column to users table (default: disabled)');
+        // Grant beta access to existing users (grandfather them in)
+        await db.query('UPDATE users SET betaAccess = 1 WHERE id IS NOT NULL');
+        console.log('✅ Granted beta access to all existing users');
       } else {
         console.log('✅ betaAccess column exists');
       }
@@ -317,7 +320,7 @@ app.post('/api/auth/register', authLimiter, [
 
     // Insert user with encrypted email - simplified for compatibility with older DBs
     const insertResult = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, betaAccess) VALUES (?, ?, ?, ?, ?, ?, 0)',
       [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role]
     );
 
