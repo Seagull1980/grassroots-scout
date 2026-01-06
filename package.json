@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "railway:build": "npm install && npm run build",
     "railway:start": "node start-production.js",
-    "start": "node start-production.js"
+    "start": "node start-production.js",
+    "setup-admin": "cd backend && node create-production-admin.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
