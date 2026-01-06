@@ -521,7 +521,9 @@ app.post('/api/auth/login', authLimiter, [
     
     console.log('[Login] User found, checking password...');
     const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('[Login] Password check result:', isValidPassword ? 'VALID' : 'INVALID');
     if (!isValidPassword) {
+      console.log('[Login] PASSWORD INVALID - login failed for:', email);
       auditLogger('login_failed', user.id, {
         email,
         reason: 'invalid_password',
