@@ -105,12 +105,24 @@ app.use('/api/saved-searches', savedSearchesRouter);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
         
-        await db.query(
-          `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, betaAccess)
-           VALUES (?, ?, ?, ?, ?, 'Admin', 1, 1)`,
-          [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
-        );
-        console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
+        // Try with minimal columns first (guaranteed to exist)
+        try {
+          await db.query(
+            `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified)
+             VALUES (?, ?, ?, ?, ?, 'Admin', 1)`,
+            [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
+          );
+          console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
+        } catch (insertError) {
+          console.error('❌ Failed to create admin with minimal columns:', insertError.message);
+          // Try with plaintext email as fallback
+          await db.query(
+            `INSERT INTO users (email, password, firstName, lastName, role)
+             VALUES (?, ?, ?, ?, 'Admin')`,
+            [adminEmail, hashedPassword, 'Chris', 'Gill']
+          );
+          console.log('✅ Admin account created (fallback mode): cgill1980@hotmail.com / GrassrootsAdmin2026!');
+        }
         console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
       } else {
         console.log('✅ Admin account exists');
