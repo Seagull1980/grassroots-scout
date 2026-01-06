@@ -93,6 +93,23 @@ app.use('/api/saved-searches', savedSearchesRouter);
         console.error('❌ Error checking/adding emailHash column:', hashError);
       }
     }
+
+    // Add betaAccess column if missing (for old production databases)
+    try {
+      const checkBetaAccess = await db.query('PRAGMA table_info(users)');
+      const hasBetaAccess = checkBetaAccess.rows.some(row => row.name === 'betaAccess');
+      if (!hasBetaAccess) {
+        console.log('⚠️  betaAccess column missing - adding now...');
+        await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 1');
+        console.log('✅ Added betaAccess column to users table (default: enabled)');
+      } else {
+        console.log('✅ betaAccess column exists');
+      }
+    } catch (betaError) {
+      if (!betaError.message || !betaError.message.includes('duplicate column')) {
+        console.error('❌ Error checking/adding betaAccess column:', betaError);
+      }
+    }
     
     // Auto-create admin account on production if none exists
     try {
