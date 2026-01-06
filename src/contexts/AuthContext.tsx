@@ -137,24 +137,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       const response = await authAPI.register(registerData);
       
-      // Check if email verification is required (new backend behavior)
-      if (response.requiresVerification) {
-        // Store email for verification resend and mark as new user for when they log in
-        localStorage.setItem('pendingVerificationEmail', userData.email);
-        localStorage.setItem('pending_new_user', 'true');
-        // DO NOT set user state - they need to verify email first
-        return true; // Success but needs verification
-      } else {
-        // Old flow - immediate login (fallback for non-verification flow)
-        if (response.user && response.tempToken) {
-          setUser(response.user);
-          storage.setItem('token', response.tempToken);
-          storage.setItem('user', JSON.stringify(response.user));
-          // Mark user as new for onboarding
-          storage.setItem(`new_user_${response.user.id}`, 'true');
-        }
-        return true;
+      // Registration successful - log the user in directly (email verification disabled)
+      if (response.user && response.token) {
+        setUser(response.user);
+        storage.setItem('token', response.token);
+        storage.setItem('user', JSON.stringify(response.user));
+        // Mark user as new for onboarding
+        storage.setItem(`new_user_${response.user.id}`, 'true');
       }
+      return true;
     } catch (error: unknown) {
       console.error('Registration error:', error);
       
