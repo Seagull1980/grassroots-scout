@@ -663,7 +663,7 @@ const ProfilePage: React.FC = () => {
         </TabPanel>
 
         {/* Security Tab - Password Change */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : 3}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 3 : 2)}>
           <Typography variant="h6" gutterBottom>
             Change Password
           </Typography>
