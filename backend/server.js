@@ -406,11 +406,17 @@ app.post('/api/auth/login', authLimiter, [
 
     const { email, password } = req.body;
 
-    // Create searchable hash for email lookup
+    // Try emailHash lookup first (modern schema)
     const emailHash = encryptionService.hashForSearch(email);
-
-    const result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
-    const user = result.rows[0];
+    let result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
+    let user = result.rows[0];
+    
+    // Fallback: try plaintext email lookup (old schema or fallback admin creation)
+    if (!user) {
+      console.log('[Login] EmailHash lookup failed, trying plaintext email for:', email);
+      result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+      user = result.rows[0];
+    }
     
     if (!user) {
       auditLogger('login_failed', null, {
