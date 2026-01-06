@@ -4750,7 +4750,10 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     const { id } = req.params;
     const { betaAccess } = req.body;
     
+    console.log(`[BetaAccess] Request to ${betaAccess ? 'GRANT' : 'REVOKE'} access for user ID: ${id}`);
+    
     if (typeof betaAccess !== 'boolean') {
+      console.log('[BetaAccess] Invalid betaAccess type:', typeof betaAccess);
       return res.status(400).json({ error: 'betaAccess must be a boolean' });
     }
     
@@ -4758,26 +4761,31 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     const userResult = await db.query('SELECT email, firstName, role FROM users WHERE id = ?', [id]);
     
     if (userResult.rows.length === 0) {
+      console.log('[BetaAccess] User not found:', id);
       return res.status(404).json({ error: 'User not found' });
     }
     
     const user = userResult.rows[0];
+    console.log('[BetaAccess] User found:', { id, role: user.role, betaAccess });
     
     // Prevent removing beta access from admins
     if (user.role === 'Admin' && !betaAccess) {
+      console.log('[BetaAccess] Attempted to remove admin access - blocked');
       return res.status(400).json({ error: 'Cannot remove beta access from admin users' });
     }
     
     // Update beta access
     await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccess ? 1 : 0, id]);
+    console.log(`[BetaAccess] SUCCESS - Access ${betaAccess ? 'granted' : 'revoked'} for user ${id}`);
     
     // Optionally send email notification
     if (betaAccess) {
       try {
         const userEmail = encryptionService.decrypt(user.email);
         await emailService.sendBetaAccessGranted(userEmail, user.firstName);
+        console.log('[BetaAccess] Welcome email sent to:', userEmail);
       } catch (emailError) {
-        console.error('Failed to send beta access email:', emailError);
+        console.error('[BetaAccess] Failed to send beta access email:', emailError.message);
         // Don't fail the request if email fails
       }
     }
@@ -4787,7 +4795,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
       betaAccess 
     });
   } catch (error) {
-    console.error('Error updating beta access:', error);
+    console.error('[BetaAccess] Error updating beta access:', error);
     res.status(500).json({ error: 'Failed to update beta access' });
   }
 });
