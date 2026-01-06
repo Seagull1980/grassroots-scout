@@ -96,7 +96,10 @@ app.use('/api/saved-searches', savedSearchesRouter);
     
     // Auto-create admin account on production if none exists
     try {
-      const adminCheck = await db.query("SELECT id FROM users WHERE role = 'Admin'");
+      console.log('🔍 Checking for admin account...');
+      const adminCheck = await db.query("SELECT id, email, role FROM users WHERE role = 'Admin'");
+      console.log('📊 Admin query result:', adminCheck.rows);
+      
       if (!adminCheck.rows || adminCheck.rows.length === 0) {
         console.log('⚠️  No admin account found - creating default admin...');
         const adminEmail = 'cgill1980@hotmail.com';
@@ -104,6 +107,8 @@ app.use('/api/saved-searches', savedSearchesRouter);
         const hashedPassword = await bcrypt.hash(adminPassword, 12);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
+        
+        console.log('🔐 Password hashed, emailHash created:', emailHash.substring(0, 10) + '...');
         
         // Try with minimal columns first (guaranteed to exist)
         try {
@@ -405,20 +410,26 @@ app.post('/api/auth/login', authLimiter, [
     }
 
     const { email, password } = req.body;
+    
+    console.log('[Login] Attempting login for:', email);
 
     // Try emailHash lookup first (modern schema)
     const emailHash = encryptionService.hashForSearch(email);
+    console.log('[Login] EmailHash:', emailHash.substring(0, 10) + '...');
     let result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
     let user = result.rows[0];
+    console.log('[Login] EmailHash lookup result:', user ? 'FOUND' : 'NOT FOUND');
     
     // Fallback: try plaintext email lookup (old schema or fallback admin creation)
     if (!user) {
       console.log('[Login] EmailHash lookup failed, trying plaintext email for:', email);
       result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       user = result.rows[0];
+      console.log('[Login] Plaintext email lookup result:', user ? 'FOUND' : 'NOT FOUND');
     }
     
     if (!user) {
+      console.log('[Login] USER NOT FOUND - login failed for:', email);
       auditLogger('login_failed', null, {
         email,
         reason: 'user_not_found',
@@ -427,7 +438,8 @@ app.post('/api/auth/login', authLimiter, [
       });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-
+    
+    console.log('[Login] User found, checking password...');
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       auditLogger('login_failed', user.id, {
