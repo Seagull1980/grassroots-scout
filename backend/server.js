@@ -25,6 +25,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
 
+// Trust proxy for Render/Heroku (enables proper rate limiting and IP detection)
+app.set('trust proxy', 1);
+
 // Middleware
 // app.use(securityHeaders); // Temporarily disable security headers for testing
 // app.use(generalLimiter); // General rate limiting - temporarily disabled for debugging
@@ -96,11 +99,27 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
     // Add betaAccess column if missing (for old production databases)
     try {
-      const checkBetaAccess = await db.query('PRAGMA table_info(users)');
-      const hasBetaAccess = checkBetaAccess.rows.some(row => row.name === 'betaAccess');
+      let hasBetaAccess = false;
+      
+      if (db.dbType === 'postgresql') {
+        // PostgreSQL: Check information_schema (column names are lowercase)
+        const checkBetaAccess = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccess'"
+        );
+        hasBetaAccess = checkBetaAccess.rows && checkBetaAccess.rows.length > 0;
+      } else {
+        // SQLite: Use PRAGMA
+        const checkBetaAccess = await db.query('PRAGMA table_info(users)');
+        hasBetaAccess = checkBetaAccess.rows.some(row => row.name === 'betaAccess');
+      }
+      
       if (!hasBetaAccess) {
         console.log('⚠️  betaAccess column missing - adding now...');
-        await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
+        if (db.dbType === 'postgresql') {
+          await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
+        } else {
+          await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
+        }
         console.log('✅ Added betaAccess column to users table (default: disabled)');
         // Grant beta access to existing users (grandfather them in)
         await db.query('UPDATE users SET betaAccess = 1 WHERE id IS NOT NULL');
