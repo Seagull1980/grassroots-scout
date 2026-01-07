@@ -4842,6 +4842,33 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
   }
 });
 
+// DEBUG: Check user's beta access status (Admin only)
+app.get('/api/admin/users/:id/beta-status', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query('SELECT id, email, firstName, lastName, role, betaAccess FROM users WHERE id = ?', [id]);
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    res.json({
+      userId: user.id,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`,
+      role: user.role,
+      betaAccess: user.betaAccess,
+      betaAccessType: typeof user.betaAccess,
+      betaAccessValue: user.betaAccess,
+      willPass: user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || user.role === 'Admin'
+    });
+  } catch (error) {
+    console.error('[BetaAccess] Error checking beta status:', error);
+    res.status(500).json({ error: 'Failed to check beta status', details: error.message });
+  }
+});
+
 // User Verification Management Routes (Admin only)
 
 // Update user's verification status
