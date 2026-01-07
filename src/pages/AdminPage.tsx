@@ -853,6 +853,28 @@ const AdminPage: React.FC = () => {
                     <Card>
                       <CardContent>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <SupervisorIcon sx={{ mr: 2, color: 'info.main' }} />
+                          <Typography variant="h6">User Management</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Manage users, grant beta access, view user details, and moderate accounts.
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          startIcon={<SupervisorIcon />}
+                          onClick={() => navigate('/admin/users')}
+                          fullWidth
+                        >
+                          Manage Users
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                           <AnalyticsIcon sx={{ mr: 2, color: 'success.main' }} />
                           <Typography variant="h6">Site Activity & Traffic</Typography>
                         </Box>
