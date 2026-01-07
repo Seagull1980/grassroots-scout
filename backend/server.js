@@ -4789,12 +4789,10 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     const { id } = req.params;
     const { betaAccess } = req.body;
     
-    console.log(`[BetaAccess] Request to ${betaAccess ? 'GRANT' : 'REVOKE'} access for user ID: ${id}`);
+    // Convert string to boolean if needed
+    const betaAccessBool = betaAccess === true || betaAccess === 'true';
     
-    if (typeof betaAccess !== 'boolean') {
-      console.log('[BetaAccess] Invalid betaAccess type:', typeof betaAccess);
-      return res.status(400).json({ error: 'betaAccess must be a boolean' });
-    }
+    console.log(`[BetaAccess] Request to ${betaAccessBool ? 'GRANT' : 'REVOKE'} access for user ID: ${id}`);
     
     // Get user info before update
     const userResult = await db.query('SELECT email, firstName, role FROM users WHERE id = ?', [id]);
@@ -4805,22 +4803,23 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     }
     
     const user = userResult.rows[0];
-    console.log('[BetaAccess] User found:', { id, role: user.role, betaAccess });
+    console.log('[BetaAccess] User found:', { id, role: user.role, betaAccess: betaAccessBool });
     
     // Prevent removing beta access from admins
-    if (user.role === 'Admin' && !betaAccess) {
+    if (user.role === 'Admin' && !betaAccessBool) {
       console.log('[BetaAccess] Attempted to remove admin access - blocked');
       return res.status(400).json({ error: 'Cannot remove beta access from admin users' });
     }
     
-    // Update beta access
-    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccess, id]);
-    console.log(`[BetaAccess] SUCCESS - Access ${betaAccess ? 'granted' : 'revoked'} for user ${id}`);
+    // Update beta access - convert boolean to 1/0 for SQLite, use boolean for PostgreSQL
+    const boolValue = db.dbType === 'postgresql' ? betaAccessBool : (betaAccessBool ? 1 : 0);
+    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [boolValue, id]);
+    console.log(`[BetaAccess] SUCCESS - Access ${betaAccessBool ? 'granted' : 'revoked'} for user ${id}`);
     
     // Send response immediately, don't wait for email
     res.json({ 
-      message: betaAccess ? 'Beta access granted successfully' : 'Beta access revoked successfully',
-      betaAccess 
+      message: betaAccessBool ? 'Beta access granted successfully' : 'Beta access revoked successfully',
+      betaAccess: betaAccessBool 
     });
     
     // Send email notification asynchronously (don't block the response)
