@@ -301,7 +301,7 @@ const ForumPostDetail: React.FC = () => {
             {user && (
               <IconButton
                 size="small"
-                onClick={() => handleFlagContent('post', post.id)}
+                onClick={() => handleFlagContent('post', parseInt(post.id))}
                 title="Flag inappropriate content"
                 color="warning"
               >
@@ -389,7 +389,7 @@ const ForumPostDetail: React.FC = () => {
                   {user && (user.id !== reply.user_id.toString() || user.role === 'Admin') && (
                     <IconButton
                       size="small"
-                      onClick={() => handleFlagContent('reply', reply.id)}
+                      onClick={() => handleFlagContent('reply', parseInt(reply.id))}
                       title="Flag inappropriate content"
                       color="warning"
                     >
