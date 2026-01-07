@@ -51,7 +51,14 @@ const ProtectedRoute = ({
   if (requireAuth && user) {
     const isBetaAccessDeniedPage = location.pathname === '/beta-access-denied';
     const isAdmin = user.role === 'Admin';
-    const hasBetaAccess = user.betaAccess === true || isAdmin;
+    const hasBetaAccess = user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || isAdmin;
+
+    console.log('[ProtectedRoute] Beta access check:', {
+      betaAccess: user.betaAccess,
+      betaAccessType: typeof user.betaAccess,
+      isAdmin,
+      hasBetaAccess
+    });
 
     // Redirect to beta access denied if user doesn't have access
     if (!isBetaAccessDeniedPage && !hasBetaAccess) {

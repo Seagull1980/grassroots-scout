@@ -664,9 +664,9 @@ app.get('/api/dev/admin-login', async (req, res) => {
 });
 
 // Get current user
-app.get('/api/auth/me', authenticateToken, requireBetaAccess, async (req, res) => {
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, firstName, lastName, role, createdAt FROM users WHERE id = ?', 
+    const result = await db.query('SELECT id, email, firstName, lastName, role, betaAccess, createdAt FROM users WHERE id = ?', 
       [req.user.userId]);
     const user = result.rows[0];
     
@@ -677,10 +677,14 @@ app.get('/api/auth/me', authenticateToken, requireBetaAccess, async (req, res) =
     // Decrypt email for response
     const decryptedEmail = encryptionService.decrypt(user.email);
     
+    // Check beta access and return appropriate response
+    const hasBetaAccess = user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || user.role === 'Admin';
+    
     res.json({ 
       user: {
         ...user,
-        email: decryptedEmail
+        email: decryptedEmail,
+        betaAccess: hasBetaAccess
       }
     });
   } catch (error) {
