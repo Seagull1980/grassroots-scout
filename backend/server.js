@@ -4823,7 +4823,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     });
     
     // Send email notification asynchronously (don't block the response)
-    if (betaAccess) {
+    if (betaAccessBool) {
       // Fire and forget - don't await
       (async () => {
         try {
@@ -4838,7 +4838,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     }
   } catch (error) {
     console.error('[BetaAccess] Error updating beta access:', error);
-    res.status(500).json({ error: 'Failed to update beta access' });
+    res.status(500).json({ error: 'Failed to update beta access', details: error.message });
   }
 });
 
