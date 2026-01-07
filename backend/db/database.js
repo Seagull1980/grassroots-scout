@@ -191,6 +191,7 @@ class Database {
         firstName VARCHAR NOT NULL,
         lastName VARCHAR NOT NULL,
         role VARCHAR NOT NULL CHECK(role IN ('Coach', 'Player', 'Parent/Guardian', 'Admin')),
+        betaAccess BOOLEAN DEFAULT FALSE,
         isEmailVerified BOOLEAN DEFAULT FALSE,
         emailVerificationToken VARCHAR,
         emailVerificationExpires TIMESTAMP,
@@ -822,6 +823,30 @@ class Database {
           try {
             await this.query('ALTER TABLE team_vacancies ADD COLUMN hasPathwayToSenior BOOLEAN DEFAULT 0');
             console.log('✅ Added hasPathwayToSenior column to team_vacancies table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      // Migration 3: Add betaAccess column to users table if it doesn't exist
+      const checkBetaAccessColumn = this.dbType === 'postgresql' 
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccess'`
+        : `PRAGMA table_info(users)`;
+        
+      const betaAccessResult = await this.query(checkBetaAccessColumn);
+      
+      if (this.dbType === 'postgresql') {
+        if (betaAccessResult.rows.length === 0) {
+          await this.query('ALTER TABLE users ADD COLUMN betaAccess BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added betaAccess column to users table');
+        }
+      } else {
+        const hasBetaAccess = betaAccessResult.rows.some(row => row.name === 'betaAccess');
+        if (!hasBetaAccess) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN betaAccess BOOLEAN DEFAULT 0');
+            console.log('✅ Added betaAccess column to users table');
           } catch (err) {
             if (!err.message.includes('duplicate column')) throw err;
           }
