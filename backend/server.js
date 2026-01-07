@@ -5081,7 +5081,7 @@ app.get('/api/forum/posts', async (req, res) => {
     
     query += ' ORDER BY created_at DESC';
     const result = await db.query(query, params);
-    res.json(result.rows);
+    res.json(result.rows || []);
   } catch (error) {
     console.error('Error fetching forum posts:', error);
     res.status(500).json({ error: 'Failed to fetch posts' });
@@ -5097,7 +5097,7 @@ app.get('/api/forum/posts/:id', async (req, res) => {
       [id]
     );
     
-    if (!result.rows || result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
     
@@ -5276,7 +5276,7 @@ app.get('/api/forum/posts/:postId/replies', async (req, res) => {
        ORDER BY r.created_at ASC`,
       [postId]
     );
-    res.json(result.rows);
+    res.json(result.rows || []);
   } catch (error) {
     console.error('Error fetching replies:', error);
     res.status(500).json({ error: 'Failed to fetch replies' });
@@ -5472,7 +5472,7 @@ app.get('/api/forum/flags', async (req, res) => {
     query += ' ORDER BY f.created_at DESC';
     
     const result = await db.query(query, params);
-    res.json(result.rows);
+    res.json(result.rows || []);
   } catch (error) {
     console.error('Error fetching flags:', error);
     res.status(500).json({ error: 'Failed to fetch flags' });
