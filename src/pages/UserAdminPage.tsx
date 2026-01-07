@@ -315,6 +315,7 @@ const UserAdminPage: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>ID</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
@@ -326,6 +327,9 @@ const UserAdminPage: React.FC = () => {
             <TableBody>
               {paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
+                  <TableCell>
+                    <Chip label={user.id} size="small" variant="outlined" />
+                  </TableCell>
                   <TableCell>
                     {user.firstName} {user.lastName}
                   </TableCell>
