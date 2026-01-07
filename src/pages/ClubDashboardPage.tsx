@@ -397,7 +397,7 @@ const ClubDashboardPage: React.FC = () => {
                 <Box key={idx}>
                   <ListItem>
                     <ListItemAvatar>
-                      <Avatar>{coach.coachName.split(' ').map(n => n[0]).join('')}</Avatar>
+                      <Avatar>{coach.coachName?.split(' ').map(n => n?.[0] || '').join('') || '?'}</Avatar>
                     </ListItemAvatar>
                     <ListItemText
                       primary={coach.coachName}
@@ -449,7 +449,7 @@ const ClubDashboardPage: React.FC = () => {
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Avatar>
-                          {update.firstName[0]}{update.lastName[0]}
+                          {update.firstName?.[0] || ''}{update.lastName?.[0] || ''}
                         </Avatar>
                         <Box>
                           <Typography variant="subtitle1">

@@ -314,7 +314,7 @@ const DashboardPage: React.FC = () => {
         <Grid container spacing={2} alignItems="center">
           <Grid item>
             <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-              {user.firstName[0]}{user.lastName[0]}
+              {user.firstName?.[0] || ''}{user.lastName?.[0] || ''}
             </Avatar>
           </Grid>
           <Grid item xs>
