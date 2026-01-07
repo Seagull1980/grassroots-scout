@@ -4,7 +4,7 @@ export interface User {
   firstName: string;
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
-  betaAccess?: boolean;
+  betaAccess?: boolean | number | string;
   isVerified?: boolean;
   createdAt: string;
 }

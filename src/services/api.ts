@@ -99,6 +99,7 @@ export interface User {
   firstName: string;
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
+  betaAccess?: boolean | number | string;
   createdAt: string;
 }
 
