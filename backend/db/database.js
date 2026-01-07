@@ -192,6 +192,7 @@ class Database {
         lastName VARCHAR NOT NULL,
         role VARCHAR NOT NULL CHECK(role IN ('Coach', 'Player', 'Parent/Guardian', 'Admin')),
         betaAccess BOOLEAN DEFAULT FALSE,
+        isBlocked BOOLEAN DEFAULT FALSE,
         isEmailVerified BOOLEAN DEFAULT FALSE,
         emailVerificationToken VARCHAR,
         emailVerificationExpires TIMESTAMP,
@@ -243,6 +244,25 @@ class Database {
         createdBy INTEGER,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (createdBy) REFERENCES users (id)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS league_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR NOT NULL,
+        region VARCHAR,
+        ageGroup VARCHAR,
+        country VARCHAR DEFAULT 'England',
+        url VARCHAR,
+        description VARCHAR,
+        status VARCHAR DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+        submittedBy INTEGER NOT NULL,
+        submitterEmail VARCHAR,
+        reviewedBy INTEGER,
+        reviewedAt TIMESTAMP,
+        rejectionReason VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (submittedBy) REFERENCES users (id),
+        FOREIGN KEY (reviewedBy) REFERENCES users (id)
       )`,
 
       `CREATE TABLE IF NOT EXISTS team_vacancies (
@@ -847,6 +867,30 @@ class Database {
           try {
             await this.query('ALTER TABLE users ADD COLUMN betaAccess BOOLEAN DEFAULT 0');
             console.log('✅ Added betaAccess column to users table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      // Migration 4: Add isBlocked column to users table if it doesn't exist
+      const checkIsBlockedColumn = this.dbType === 'postgresql' 
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'isblocked'`
+        : `PRAGMA table_info(users)`;
+        
+      const isBlockedResult = await this.query(checkIsBlockedColumn);
+      
+      if (this.dbType === 'postgresql') {
+        if (isBlockedResult.rows.length === 0) {
+          await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added isBlocked column to users table');
+        }
+      } else {
+        const hasIsBlocked = isBlockedResult.rows.some(row => row.name === 'isBlocked');
+        if (!hasIsBlocked) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT 0');
+            console.log('✅ Added isBlocked column to users table');
           } catch (err) {
             if (!err.message.includes('duplicate column')) throw err;
           }
