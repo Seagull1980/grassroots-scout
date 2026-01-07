@@ -39,14 +39,23 @@ const requireBetaAccess = async (req, res, next) => {
     }
 
     if (!user || !user.rows || user.rows.length === 0) {
+      console.log('[BetaAccess] User not found in database, userId:', req.user.userId);
       return res.status(404).json({ 
         error: 'User not found',
         betaAccessRequired: true 
       });
     }
 
+    console.log('[BetaAccess] Checking access for user:', {
+      userId: req.user.userId,
+      role: user.rows[0].role,
+      betaAccess: user.rows[0].betaAccess,
+      betaAccessType: typeof user.rows[0].betaAccess
+    });
+
     // Admins always have beta access
     if (user.rows[0].role === 'Admin') {
+      console.log('[BetaAccess] ✅ Admin access granted');
       return next();
     }
 
@@ -55,7 +64,17 @@ const requireBetaAccess = async (req, res, next) => {
                           user.rows[0].betaAccess === 1 || 
                           user.rows[0].betaAccess === '1';
     
+    console.log('[BetaAccess] Access check:', {
+      hasBetaAccess,
+      checks: {
+        'strict_true': user.rows[0].betaAccess === true,
+        'strict_1': user.rows[0].betaAccess === 1,
+        'strict_string_1': user.rows[0].betaAccess === '1'
+      }
+    });
+    
     if (!hasBetaAccess) {
+      console.log('[BetaAccess] ❌ Access DENIED for user', req.user.userId);
       return res.status(403).json({ 
         error: 'Beta access required',
         message: 'Your account does not have beta access. Please contact an administrator.',
@@ -63,6 +82,7 @@ const requireBetaAccess = async (req, res, next) => {
       });
     }
 
+    console.log('[BetaAccess] ✅ Access granted for user', req.user.userId);
     next();
   } catch (error) {
     console.error('Error checking beta access:', error);
