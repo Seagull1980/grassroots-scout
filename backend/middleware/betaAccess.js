@@ -50,8 +50,12 @@ const requireBetaAccess = async (req, res, next) => {
       return next();
     }
 
-    // Check if user has beta access enabled
-    if (!user.rows[0].betaAccess) {
+    // Check if user has beta access enabled (handle both boolean and integer values)
+    const hasBetaAccess = user.rows[0].betaAccess === true || 
+                          user.rows[0].betaAccess === 1 || 
+                          user.rows[0].betaAccess === '1';
+    
+    if (!hasBetaAccess) {
       return res.status(403).json({ 
         error: 'Beta access required',
         message: 'Your account does not have beta access. Please contact an administrator.',
