@@ -69,8 +69,20 @@ app.use('/api/saved-searches', savedSearchesRouter);
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
-      const checkEmailHash = await db.query('PRAGMA table_info(users)');
-      const hasEmailHash = checkEmailHash.rows.some(row => row.name === 'emailHash');
+      let hasEmailHash = false;
+      
+      if (db.dbType === 'postgresql') {
+        // PostgreSQL: Check information_schema
+        const checkEmailHash = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'emailhash'"
+        );
+        hasEmailHash = checkEmailHash.rows && checkEmailHash.rows.length > 0;
+      } else {
+        // SQLite: Use PRAGMA
+        const checkEmailHash = await db.query('PRAGMA table_info(users)');
+        hasEmailHash = checkEmailHash.rows.some(row => row.name === 'emailHash');
+      }
+      
       if (!hasEmailHash) {
         console.log('⚠️  emailHash column missing - adding now...');
         // SQLite doesn't allow adding UNIQUE columns to existing tables - add without UNIQUE first
@@ -135,8 +147,16 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
     // Add missing user_profiles columns (for old production databases)
     try {
-      const profileColumns = await db.query('PRAGMA table_info(user_profiles)');
-      const existingColumns = new Set(profileColumns.rows.map(row => row.name));
+      let existingColumns;
+      if (db.dbType === 'postgresql') {
+        const profileColumns = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'user_profiles'"
+        );
+        existingColumns = new Set(profileColumns.rows.map(row => row.column_name));
+      } else {
+        const profileColumns = await db.query('PRAGMA table_info(user_profiles)');
+        existingColumns = new Set(profileColumns.rows.map(row => row.name));
+      }
       
       const requiredColumns = [
         { name: 'preferredTeamGender', type: "VARCHAR DEFAULT 'Mixed'" },
@@ -206,7 +226,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
         try {
           await db.query(
             `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified)
-             VALUES (?, ?, ?, ?, ?, 'Admin', 1)`,
+             VALUES (?, ?, ?, ?, ?, 'Admin', TRUE)`,
             [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
           );
           console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
