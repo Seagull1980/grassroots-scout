@@ -652,6 +652,53 @@ class Database {
         isRead BOOLEAN DEFAULT FALSE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      // Forum tables
+      `CREATE TABLE IF NOT EXISTS forum_posts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        user_role VARCHAR NOT NULL,
+        author_name VARCHAR NOT NULL,
+        title VARCHAR NOT NULL,
+        content TEXT NOT NULL,
+        category VARCHAR DEFAULT 'General Discussions',
+        is_locked BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS forum_replies (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL,
+        parent_reply_id INTEGER,
+        user_id INTEGER NOT NULL,
+        user_role VARCHAR NOT NULL,
+        author_name VARCHAR NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (post_id) REFERENCES forum_posts (id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_reply_id) REFERENCES forum_replies (id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS content_flags (
+        id SERIAL PRIMARY KEY,
+        content_type VARCHAR NOT NULL CHECK(content_type IN ('post', 'reply')),
+        content_id INTEGER NOT NULL,
+        flagged_by_user_id INTEGER NOT NULL,
+        flagged_by_name VARCHAR NOT NULL,
+        reason TEXT,
+        status VARCHAR DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'dismissed')),
+        reviewed_by_user_id INTEGER,
+        reviewed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (flagged_by_user_id) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE SET NULL
       )`
     ];
 

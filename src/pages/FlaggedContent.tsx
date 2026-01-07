@@ -28,7 +28,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const FORUM_API = import.meta.env.VITE_FORUM_API_URL || 'http://localhost:3004/api/forum';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 interface ContentFlag {
   id: number;
@@ -78,7 +78,7 @@ const FlaggedContent: React.FC = () => {
       setError('');
       const statusParam = selectedTab === 'pending' ? '?status=pending' : '';
       const response = await fetch(
-        `${FORUM_API}/flags?user_role=${user?.role}${statusParam}`
+        `${API_URL}/forum/flags?user_role=${user?.role}${statusParam}`
       );
       
       if (!response.ok) {
@@ -107,7 +107,7 @@ const FlaggedContent: React.FC = () => {
 
   const handleFlagAction = async (flagId: number, status: string, action?: string) => {
     try {
-      const response = await fetch(`${FORUM_API}/flags/${flagId}`, {
+      const response = await fetch(`${API_URL}/forum/flags/${flagId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

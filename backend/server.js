@@ -5044,6 +5044,487 @@ app.get('/api/analytics/monthly-matches', authenticateToken, requireBetaAccess, 
   }
 });
 
+// ========== FORUM ENDPOINTS ==========
+
+// Profanity filter
+const profanityList = [
+  'damn', 'hell', 'crap', 'bastard', 'bitch', 'ass', 'asshole',
+  'shit', 'fuck', 'fucking', 'motherfucker', 'dick', 'cock', 
+  'pussy', 'cunt', 'whore', 'slut', 'piss', 'nigger', 'nigga',
+  'fag', 'faggot', 'retard', 'retarded', 'idiot', 'moron',
+  'kill yourself', 'kys', 'die', 'hate you', 'loser', 'pathetic'
+];
+
+function containsProfanity(text) {
+  const lowerText = text.toLowerCase();
+  for (const word of profanityList) {
+    const regex = new RegExp(`\\\\b${word.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\\\b`, 'i');
+    if (regex.test(lowerText)) return true;
+    const pattern = word.split('').join('[*@!#$%^&]?');
+    const variationRegex = new RegExp(pattern, 'i');
+    if (variationRegex.test(lowerText)) return true;
+  }
+  return false;
+}
+
+// GET /api/forum/posts - Get all posts
+app.get('/api/forum/posts', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE';
+    const params = [];
+    
+    if (category) {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching forum posts:', error);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// GET /api/forum/posts/:id - Get single post
+app.get('/api/forum/posts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+      [id]
+    );
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching forum post:', error);
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+});
+
+// POST /api/forum/posts - Create new post
+app.post('/api/forum/posts', async (req, res) => {
+  try {
+    const { user_id, user_role, author_name, title, content, category } = req.body;
+    
+    if (!user_id || !user_role || !author_name || !title || !content) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
+    const postCategory = category && validCategories.includes(category) ? category : 'General Discussions';
+    
+    if (containsProfanity(title) || containsProfanity(content)) {
+      return res.status(400).json({ 
+        error: 'Your post contains inappropriate language. Please revise and try again.',
+        profanityDetected: true
+      });
+    }
+    
+    const result = await db.query(
+      `INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
+      [user_id, user_role, author_name, title, content, postCategory]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating forum post:', error);
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+});
+
+// PUT /api/forum/posts/:id - Update post
+app.put('/api/forum/posts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, user_id, category } = req.body;
+    
+    const existingResult = await db.query(
+      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+      [id]
+    );
+    
+    if (!existingResult.rows || existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const existingPost = existingResult.rows[0];
+    if (existingPost.user_id !== user_id) {
+      return res.status(403).json({ error: 'You can only edit your own posts' });
+    }
+    
+    const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
+    const postCategory = category && validCategories.includes(category) ? category : existingPost.category;
+    
+    if (containsProfanity(title) || containsProfanity(content)) {
+      return res.status(400).json({ 
+        error: 'Your post contains inappropriate language. Please revise and try again.',
+        profanityDetected: true
+      });
+    }
+    
+    const result = await db.query(
+      `UPDATE forum_posts 
+       SET title = ?, content = ?, category = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? RETURNING *`,
+      [title, content, postCategory, id]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating forum post:', error);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// DELETE /api/forum/posts/:id - Soft delete post
+app.delete('/api/forum/posts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, user_role } = req.body;
+    
+    const existingResult = await db.query(
+      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+      [id]
+    );
+    
+    if (!existingResult.rows || existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const existingPost = existingResult.rows[0];
+    if (user_role !== 'Admin' && existingPost.user_id !== user_id) {
+      return res.status(403).json({ error: 'You can only delete your own posts' });
+    }
+    
+    await db.query(
+      'UPDATE forum_posts SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [id]
+    );
+    
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting forum post:', error);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// PATCH /api/forum/posts/:id/lock - Lock/unlock thread (admin only)
+app.patch('/api/forum/posts/:id/lock', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_role, is_locked } = req.body;
+    
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can lock/unlock threads' });
+    }
+    
+    const existingResult = await db.query(
+      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+      [id]
+    );
+    
+    if (!existingResult.rows || existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const result = await db.query(
+      `UPDATE forum_posts 
+       SET is_locked = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? RETURNING *`,
+      [is_locked, id]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error locking/unlocking thread:', error);
+    res.status(500).json({ error: 'Failed to lock/unlock thread' });
+  }
+});
+
+// GET /api/forum/posts/user/:userId - Get posts by user
+app.get('/api/forum/posts/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await db.query(
+      'SELECT * FROM forum_posts WHERE user_id = ? AND is_deleted = FALSE ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching user posts:', error);
+    res.status(500).json({ error: 'Failed to fetch user posts' });
+  }
+});
+
+// GET /api/forum/posts/:postId/replies - Get all replies for a post
+app.get('/api/forum/posts/:postId/replies', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const result = await db.query(
+      `SELECT r.*, parent.author_name as parent_author_name
+       FROM forum_replies r
+       LEFT JOIN forum_replies parent ON r.parent_reply_id = parent.id
+       WHERE r.post_id = ? AND r.is_deleted = FALSE
+       ORDER BY r.created_at ASC`,
+      [postId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching replies:', error);
+    res.status(500).json({ error: 'Failed to fetch replies' });
+  }
+});
+
+// POST /api/forum/posts/:postId/replies - Create a reply
+app.post('/api/forum/posts/:postId/replies', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { user_id, user_role, author_name, content, parent_reply_id } = req.body;
+    
+    if (!user_id || !user_role || !author_name || !content) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const postResult = await db.query(
+      'SELECT id, is_locked FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+      [postId]
+    );
+    
+    if (!postResult.rows || postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    if (postResult.rows[0].is_locked) {
+      return res.status(403).json({ error: 'This thread has been locked by an administrator' });
+    }
+    
+    if (parent_reply_id) {
+      const parentResult = await db.query(
+        'SELECT id FROM forum_replies WHERE id = ? AND post_id = ? AND is_deleted = FALSE',
+        [parent_reply_id, postId]
+      );
+      if (!parentResult.rows || parentResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Parent reply not found' });
+      }
+    }
+    
+    if (containsProfanity(content)) {
+      return res.status(400).json({ 
+        error: 'Your reply contains inappropriate language. Please revise and try again.',
+        profanityDetected: true
+      });
+    }
+    
+    const result = await db.query(
+      `INSERT INTO forum_replies (post_id, parent_reply_id, user_id, user_role, author_name, content)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
+      [postId, parent_reply_id || null, user_id, user_role, author_name, content]
+    );
+    
+    const newReply = result.rows[0];
+    
+    if (parent_reply_id) {
+      const parentResult = await db.query(
+        'SELECT author_name FROM forum_replies WHERE id = ?',
+        [parent_reply_id]
+      );
+      if (parentResult.rows && parentResult.rows.length > 0) {
+        newReply.parent_author_name = parentResult.rows[0].author_name;
+      }
+    }
+    
+    res.status(201).json(newReply);
+  } catch (error) {
+    console.error('Error creating reply:', error);
+    res.status(500).json({ error: 'Failed to create reply' });
+  }
+});
+
+// DELETE /api/forum/replies/:id - Delete a reply
+app.delete('/api/forum/replies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, user_role } = req.body;
+    
+    const existingResult = await db.query(
+      'SELECT * FROM forum_replies WHERE id = ? AND is_deleted = FALSE',
+      [id]
+    );
+    
+    if (!existingResult.rows || existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reply not found' });
+    }
+    
+    const existingReply = existingResult.rows[0];
+    if (user_role !== 'Admin' && existingReply.user_id !== user_id) {
+      return res.status(403).json({ error: 'You can only delete your own replies' });
+    }
+    
+    await db.query(
+      'UPDATE forum_replies SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [id]
+    );
+    
+    res.json({ message: 'Reply deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting reply:', error);
+    res.status(500).json({ error: 'Failed to delete reply' });
+  }
+});
+
+// POST /api/forum/flag - Flag content as inappropriate
+app.post('/api/forum/flag', async (req, res) => {
+  try {
+    const { content_type, content_id, user_id, user_name, reason } = req.body;
+    
+    if (!content_type || !content_id || !user_id || !user_name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    if (!['post', 'reply'].includes(content_type)) {
+      return res.status(400).json({ error: 'Invalid content type' });
+    }
+    
+    if (content_type === 'post') {
+      const postResult = await db.query(
+        'SELECT id FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
+        [content_id]
+      );
+      if (!postResult.rows || postResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+    } else {
+      const replyResult = await db.query(
+        'SELECT id FROM forum_replies WHERE id = ? AND is_deleted = FALSE',
+        [content_id]
+      );
+      if (!replyResult.rows || replyResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Reply not found' });
+      }
+    }
+    
+    const existingResult = await db.query(
+      'SELECT id FROM content_flags WHERE content_type = ? AND content_id = ? AND flagged_by_user_id = ?',
+      [content_type, content_id, user_id]
+    );
+    
+    if (existingResult.rows && existingResult.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already flagged this content' });
+    }
+    
+    const result = await db.query(
+      `INSERT INTO content_flags (content_type, content_id, flagged_by_user_id, flagged_by_name, reason)
+       VALUES (?, ?, ?, ?, ?) RETURNING *`,
+      [content_type, content_id, user_id, user_name, reason || 'No reason provided']
+    );
+    
+    res.status(201).json({ message: 'Content flagged successfully', flag: result.rows[0] });
+  } catch (error) {
+    console.error('Error flagging content:', error);
+    res.status(500).json({ error: 'Failed to flag content' });
+  }
+});
+
+// GET /api/forum/flags - Get all flags (admin only)
+app.get('/api/forum/flags', async (req, res) => {
+  try {
+    const { user_role, status } = req.query;
+    
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can view flags' });
+    }
+    
+    let query = `
+      SELECT 
+        f.*,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.title
+          WHEN f.content_type = 'reply' THEN SUBSTRING(r.content, 1, 100)
+        END as content_preview,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.author_name
+          WHEN f.content_type = 'reply' THEN r.author_name
+        END as content_author,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.user_id
+          WHEN f.content_type = 'reply' THEN r.user_id
+        END as content_author_id
+      FROM content_flags f
+      LEFT JOIN forum_posts p ON f.content_type = 'post' AND f.content_id = p.id
+      LEFT JOIN forum_replies r ON f.content_type = 'reply' AND f.content_id = r.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    if (status) {
+      query += ' AND f.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY f.created_at DESC';
+    
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching flags:', error);
+    res.status(500).json({ error: 'Failed to fetch flags' });
+  }
+});
+
+// PATCH /api/forum/flags/:id - Update flag status (admin only)
+app.patch('/api/forum/flags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_role, user_id, status, action } = req.body;
+    
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can review flags' });
+    }
+    
+    if (!['pending', 'reviewed', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    
+    const flagResult = await db.query('SELECT * FROM content_flags WHERE id = ?', [id]);
+    
+    if (!flagResult.rows || flagResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Flag not found' });
+    }
+    
+    const flag = flagResult.rows[0];
+    
+    if (action === 'delete') {
+      if (flag.content_type === 'post') {
+        await db.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id = ?', [flag.content_id]);
+      } else {
+        await db.query('UPDATE forum_replies SET is_deleted = TRUE WHERE id = ?', [flag.content_id]);
+      }
+    }
+    
+    const result = await db.query(
+      `UPDATE content_flags 
+       SET status = ?, reviewed_by_user_id = ?, reviewed_at = CURRENT_TIMESTAMP
+       WHERE id = ? RETURNING *`,
+      [status, user_id, id]
+    );
+    
+    res.json({ message: 'Flag updated successfully', flag: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating flag:', error);
+    res.status(500).json({ error: 'Failed to update flag' });
+  }
+});
+
+// ========== END FORUM ENDPOINTS ==========
+
 // Serve static files from the React app build (for production)
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {

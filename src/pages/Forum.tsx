@@ -38,7 +38,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost } from '../types';
 
-const FORUM_API = import.meta.env.VITE_FORUM_API_URL || 'http://localhost:3004/api/forum';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 type Category = 'General Discussions' | 'Website Discussions' | 'Grassroots Discussions';
 
@@ -66,8 +66,8 @@ const Forum: React.FC = () => {
     try {
       setLoading(true);
       const url = selectedCategory === 'All' 
-        ? `${FORUM_API}/posts`
-        : `${FORUM_API}/posts?category=${encodeURIComponent(selectedCategory)}`;
+        ? `${API_URL}/forum/posts`
+        : `${API_URL}/forum/posts?category=${encodeURIComponent(selectedCategory)}`;
       
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch posts');
@@ -113,8 +113,8 @@ const Forum: React.FC = () => {
 
     try {
       const url = editingPost
-        ? `${FORUM_API}/posts/${editingPost.id}`
-        : `${FORUM_API}/posts`;
+        ? `${API_URL}/forum/posts/${editingPost.id}`
+        : `${API_URL}/forum/posts`;
       
       const method = editingPost ? 'PUT' : 'POST';
       
@@ -162,7 +162,7 @@ const Forum: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${FORUM_API}/posts/${postId}`, {
+      const response = await fetch(`${API_URL}/forum/posts/${postId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -190,7 +190,7 @@ const Forum: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${FORUM_API}/posts/${postId}/lock`, {
+      const response = await fetch(`${API_URL}/forum/posts/${postId}/lock`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

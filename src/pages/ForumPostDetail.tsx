@@ -30,7 +30,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost, ForumReply } from '../types';
 
-const FORUM_API = import.meta.env.VITE_FORUM_API_URL || 'http://localhost:3004/api/forum';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const ForumPostDetail: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
@@ -56,7 +56,7 @@ const ForumPostDetail: React.FC = () => {
 
   const fetchPost = async () => {
     try {
-      const response = await fetch(`${FORUM_API}/posts/${postId}`);
+      const response = await fetch(`${API_URL}/forum/posts/${postId}`);
       if (response.status === 404) {
         setPost(null);
         setLoading(false);
@@ -75,7 +75,7 @@ const ForumPostDetail: React.FC = () => {
 
   const fetchReplies = async () => {
     try {
-      const response = await fetch(`${FORUM_API}/posts/${postId}/replies`);
+      const response = await fetch(`${API_URL}/forum/posts/${postId}/replies`);
       if (!response.ok) throw new Error('Failed to fetch replies');
       const data = await response.json();
       setReplies(data);
@@ -97,7 +97,7 @@ const ForumPostDetail: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${FORUM_API}/posts/${postId}/replies`, {
+      const response = await fetch(`${API_URL}/forum/posts/${postId}/replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,7 +137,7 @@ const ForumPostDetail: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${FORUM_API}/replies/${replyId}`, {
+      const response = await fetch(`${API_URL}/forum/replies/${replyId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -183,7 +183,7 @@ const ForumPostDetail: React.FC = () => {
     if (reason === null) return;
 
     try {
-      const response = await fetch(`${FORUM_API}/flag`, {
+      const response = await fetch(`${API_URL}/forum/flag`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
