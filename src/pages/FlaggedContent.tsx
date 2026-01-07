@@ -93,9 +93,9 @@ const FlaggedContent: React.FC = () => {
       setFlags(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Error fetching flags:', err);
-      // Handle network errors (forum server down)
+      // Handle network errors (server down or table doesn't exist)
       if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-        setError('Forum server is currently offline. Please try again later.');
+        setError('Unable to load flagged content. The forum may still be initializing.');
       } else {
         setError(err.message || 'Failed to load flagged content');
       }

@@ -72,10 +72,11 @@ const Forum: React.FC = () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch posts');
       const data = await response.json();
-      setPosts(data);
+      setPosts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching posts:', error);
       showSnackbar('Failed to load posts', 'error');
+      setPosts([]);
     } finally {
       setLoading(false);
     }

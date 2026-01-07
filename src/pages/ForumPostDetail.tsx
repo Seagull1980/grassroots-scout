@@ -78,10 +78,11 @@ const ForumPostDetail: React.FC = () => {
       const response = await fetch(`${API_URL}/forum/posts/${postId}/replies`);
       if (!response.ok) throw new Error('Failed to fetch replies');
       const data = await response.json();
-      setReplies(data);
+      setReplies(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching replies:', error);
       showSnackbar('Failed to load replies', 'error');
+      setReplies([]);
     }
   };
 
