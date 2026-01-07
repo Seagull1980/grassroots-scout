@@ -67,7 +67,23 @@ db.exec(`
   )
 `);
 
-console.log('✅ Forum posts and replies tables created/verified');
+// Create content_flags table for flagging inappropriate content
+db.exec(`
+  CREATE TABLE IF NOT EXISTS content_flags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_type TEXT NOT NULL,
+    content_id INTEGER NOT NULL,
+    flagged_by_user_id INTEGER NOT NULL,
+    flagged_by_name TEXT NOT NULL,
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
+    reviewed_by_user_id INTEGER,
+    reviewed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+console.log('✅ Forum posts, replies, and content_flags tables created/verified');
 
 // Profanity filter - list of inappropriate words
 const profanityList = [
@@ -475,6 +491,156 @@ app.delete('/api/forum/replies/:id', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'forum-server' });
+});
+
+// POST /api/forum/flag - Flag content as inappropriate
+app.post('/api/forum/flag', (req, res) => {
+  try {
+    const { content_type, content_id, user_id, user_name, reason } = req.body;
+    
+    // Validate required fields
+    if (!content_type || !content_id || !user_id || !user_name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate content_type
+    if (!['post', 'reply'].includes(content_type)) {
+      return res.status(400).json({ error: 'Invalid content type' });
+    }
+    
+    // Check if content exists
+    if (content_type === 'post') {
+      const post = db.prepare('SELECT id FROM forum_posts WHERE id = ? AND is_deleted = 0').get(content_id);
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+    } else {
+      const reply = db.prepare('SELECT id FROM forum_replies WHERE id = ? AND is_deleted = 0').get(content_id);
+      if (!reply) {
+        return res.status(404).json({ error: 'Reply not found' });
+      }
+    }
+    
+    // Check if user already flagged this content
+    const existingFlag = db.prepare(`
+      SELECT id FROM content_flags 
+      WHERE content_type = ? AND content_id = ? AND flagged_by_user_id = ?
+    `).get(content_type, content_id, user_id);
+    
+    if (existingFlag) {
+      return res.status(400).json({ error: 'You have already flagged this content' });
+    }
+    
+    // Create flag
+    const result = db.prepare(`
+      INSERT INTO content_flags (content_type, content_id, flagged_by_user_id, flagged_by_name, reason)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(content_type, content_id, user_id, user_name, reason || 'No reason provided');
+    
+    const newFlag = db.prepare('SELECT * FROM content_flags WHERE id = ?').get(result.lastInsertRowid);
+    
+    res.status(201).json({ message: 'Content flagged successfully', flag: newFlag });
+  } catch (error) {
+    console.error('Error flagging content:', error);
+    res.status(500).json({ error: 'Failed to flag content' });
+  }
+});
+
+// GET /api/forum/flags - Get all flags (admin only)
+app.get('/api/forum/flags', (req, res) => {
+  try {
+    const { user_role, status } = req.query;
+    
+    // Check if user is admin
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can view flags' });
+    }
+    
+    let query = `
+      SELECT 
+        f.*,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.title
+          WHEN f.content_type = 'reply' THEN SUBSTR(r.content, 1, 100)
+        END as content_preview,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.author_name
+          WHEN f.content_type = 'reply' THEN r.author_name
+        END as content_author,
+        CASE 
+          WHEN f.content_type = 'post' THEN p.user_id
+          WHEN f.content_type = 'reply' THEN r.user_id
+        END as content_author_id
+      FROM content_flags f
+      LEFT JOIN forum_posts p ON f.content_type = 'post' AND f.content_id = p.id
+      LEFT JOIN forum_replies r ON f.content_type = 'reply' AND f.content_id = r.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    if (status) {
+      query += ` AND f.status = ?`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY f.created_at DESC`;
+    
+    const flags = db.prepare(query).all(...params);
+    
+    res.json(flags);
+  } catch (error) {
+    console.error('Error fetching flags:', error);
+    res.status(500).json({ error: 'Failed to fetch flags' });
+  }
+});
+
+// PATCH /api/forum/flags/:id - Update flag status (admin only)
+app.patch('/api/forum/flags/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_role, user_id, status, action } = req.body;
+    
+    // Check if user is admin
+    if (user_role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can review flags' });
+    }
+    
+    // Validate status
+    if (!['pending', 'reviewed', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    
+    // Get the flag to check content
+    const flag = db.prepare('SELECT * FROM content_flags WHERE id = ?').get(id);
+    
+    if (!flag) {
+      return res.status(404).json({ error: 'Flag not found' });
+    }
+    
+    // If action is 'delete', delete the flagged content
+    if (action === 'delete') {
+      if (flag.content_type === 'post') {
+        db.prepare('UPDATE forum_posts SET is_deleted = 1 WHERE id = ?').run(flag.content_id);
+      } else {
+        db.prepare('UPDATE forum_replies SET is_deleted = 1 WHERE id = ?').run(flag.content_id);
+      }
+    }
+    
+    // Update flag status
+    db.prepare(`
+      UPDATE content_flags 
+      SET status = ?, reviewed_by_user_id = ?, reviewed_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(status, user_id, id);
+    
+    const updatedFlag = db.prepare('SELECT * FROM content_flags WHERE id = ?').get(id);
+    
+    res.json({ message: 'Flag updated successfully', flag: updatedFlag });
+  } catch (error) {
+    console.error('Error updating flag:', error);
+    res.status(500).json({ error: 'Failed to update flag' });
+  }
 });
 
 app.listen(PORT, () => {

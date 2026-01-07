@@ -38,6 +38,7 @@ import CalendarPage from './pages/CalendarPage.tsx';
 import UserAdminPage from './pages/UserAdminPage.tsx';
 import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
+import FlaggedContent from './pages/FlaggedContent.tsx';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
@@ -264,6 +265,11 @@ function App() {
               } />
               <Route path="/forum/:postId" element={
                 <ForumPostDetail />
+              } />
+              <Route path="/admin/flagged-content" element={
+                <ProtectedRoute>
+                  <FlaggedContent />
+                </ProtectedRoute>
               } />
               {/* <Route path="/trial-management" element={
                 <ProtectedRoute>

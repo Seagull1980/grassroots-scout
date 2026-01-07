@@ -25,6 +25,7 @@ import {
   MoreVert as MoreVertIcon,
   Reply as ReplyIcon,
   Lock as LockIcon,
+  Flag as FlagIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost, ForumReply } from '../types';
@@ -168,6 +169,46 @@ const ForumPostDetail: React.FC = () => {
     setSelectedReply(null);
   };
 
+  const handleFlagContent = async (contentType: 'post' | 'reply', contentId: number) => {
+    if (!user) {
+      showSnackbar('You must be logged in to flag content', 'error');
+      return;
+    }
+
+    const reason = window.prompt(
+      'Please provide a reason for flagging this content (optional):'
+    );
+
+    // User clicked cancel
+    if (reason === null) return;
+
+    try {
+      const response = await fetch(`${FORUM_API}/flag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content_type: contentType,
+          content_id: contentId,
+          user_id: parseInt(user.id),
+          user_name: `${user.firstName} ${user.lastName}`,
+          reason: reason.trim() || 'No reason provided',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to flag content');
+      }
+
+      showSnackbar('Content flagged successfully. An admin will review it.', 'success');
+      handleMenuClose();
+    } catch (error: any) {
+      console.error('Error flagging content:', error);
+      showSnackbar(error.message || 'Failed to flag content', 'error');
+    }
+  };
+
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -234,27 +275,39 @@ const ForumPostDetail: React.FC = () => {
       {/* Original Post */}
       <Card elevation={2} sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-            <PersonIcon color="action" />
-            <Typography variant="subtitle2" color="text.secondary">
-              {post.author_name}
-            </Typography>
-            <Chip
-              label={post.user_role}
-              size="small"
-              color={getRoleBadgeColor(post.user_role)}
-            />
-            {post.is_locked && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <PersonIcon color="action" />
+              <Typography variant="subtitle2" color="text.secondary">
+                {post.author_name}
+              </Typography>
               <Chip
-                icon={<LockIcon />}
-                label="Locked"
+                label={post.user_role}
                 size="small"
-                color="warning"
+                color={getRoleBadgeColor(post.user_role)}
               />
+              {post.is_locked && (
+                <Chip
+                  icon={<LockIcon />}
+                  label="Locked"
+                  size="small"
+                  color="warning"
+                />
+              )}
+              <Typography variant="caption" color="text.secondary">
+                • {formatDate(post.created_at)}
+              </Typography>
+            </Box>
+            {user && (
+              <IconButton
+                size="small"
+                onClick={() => handleFlagContent('post', post.id)}
+                title="Flag inappropriate content"
+                color="warning"
+              >
+                <FlagIcon fontSize="small" />
+              </IconButton>
             )}
-            <Typography variant="caption" color="text.secondary">
-              • {formatDate(post.created_at)}
-            </Typography>
           </Box>
 
           <Typography variant="h5" gutterBottom fontWeight="bold">
@@ -331,6 +384,16 @@ const ForumPostDetail: React.FC = () => {
                       title="Reply to this comment"
                     >
                       <ReplyIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                  {user && (user.id !== reply.user_id.toString() || user.role === 'Admin') && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleFlagContent('reply', reply.id)}
+                      title="Flag inappropriate content"
+                      color="warning"
+                    >
+                      <FlagIcon fontSize="small" />
                     </IconButton>
                   )}
                   {user && (user.id === reply.user_id.toString() || user.role === 'Admin') && (

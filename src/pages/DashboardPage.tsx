@@ -28,7 +28,8 @@ import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   CalendarToday as CalendarIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  Flag as FlagIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -154,6 +155,9 @@ const DashboardPage: React.FC = () => {
         break;
       case 'admin':
         navigate('/admin');
+        break;
+      case 'flagged-content':
+        navigate('/admin/flagged-content');
         break;
       case 'team-profile':
         navigate('/team-profile');
@@ -403,17 +407,31 @@ const DashboardPage: React.FC = () => {
               <Grid container spacing={2}>
                 {/* Role-specific actions */}
                 {user.role === 'Admin' && (
-                  <Grid item xs={6}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      startIcon={<AdminIcon />}
-                      onClick={() => handleQuickAction('admin')}
-                      sx={{ py: 2 }}
-                    >
-                      Admin Panel
-                    </Button>
-                  </Grid>
+                  <>
+                    <Grid item xs={6}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<AdminIcon />}
+                        onClick={() => handleQuickAction('admin')}
+                        sx={{ py: 2 }}
+                      >
+                        Admin Panel
+                      </Button>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="warning"
+                        startIcon={<FlagIcon />}
+                        onClick={() => handleQuickAction('flagged-content')}
+                        sx={{ py: 2 }}
+                      >
+                        Flagged Content
+                      </Button>
+                    </Grid>
+                  </>
                 )}
                 
                 {user.role === 'Coach' && (
