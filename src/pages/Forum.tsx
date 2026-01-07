@@ -38,7 +38,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost } from '../types';
 
-const FORUM_API = 'http://localhost:3004/api/forum';
+const FORUM_API = import.meta.env.VITE_FORUM_API_URL || 'http://localhost:3004/api/forum';
 
 type Category = 'General Discussions' | 'Website Discussions' | 'Grassroots Discussions';
 

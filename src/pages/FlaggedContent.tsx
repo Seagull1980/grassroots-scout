@@ -28,7 +28,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const FORUM_API = 'http://localhost:3004/api/forum';
+const FORUM_API = import.meta.env.VITE_FORUM_API_URL || 'http://localhost:3004/api/forum';
 
 interface ContentFlag {
   id: number;
@@ -82,14 +82,24 @@ const FlaggedContent: React.FC = () => {
       );
       
       if (!response.ok) {
+        // If forum server is not running, show friendly message
+        if (response.status === 404 || response.status === 0) {
+          throw new Error('Forum server is not available. Please contact support.');
+        }
         throw new Error('Failed to fetch flags');
       }
       
       const data = await response.json();
-      setFlags(data);
+      setFlags(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Error fetching flags:', err);
-      setError(err.message || 'Failed to load flagged content');
+      // Handle network errors (forum server down)
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('Forum server is currently offline. Please try again later.');
+      } else {
+        setError(err.message || 'Failed to load flagged content');
+      }
+      setFlags([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
