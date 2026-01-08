@@ -438,7 +438,6 @@ class EmailService {
       // Don't throw - allow the beta access to proceed without email
       return { error: error.message, sent: false };
     }
-    }
   }
 
   async testConnection() {
