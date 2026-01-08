@@ -115,6 +115,40 @@ const sanitizeString = (str, maxLength = 500) => {
   return sanitized.substring(0, maxLength).trim();
 };
 
+/**
+ * Validate password strength
+ * @param {string} password - Password to validate
+ * @returns {object} - { isValid: boolean, errors: string[] }
+ */
+const validatePasswordStrength = (password) => {
+  const errors = [];
+  
+  if (!password || password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
+  }
+  
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  
+  if (!/\d/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  
+  if (!/[@$!%*?&]/.test(password)) {
+    errors.push('Password must contain at least one special character (@$!%*?&)');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
 // Security audit logging
 const auditLogger = (action, userId, details = {}) => {
   const logEntry = {
@@ -139,5 +173,6 @@ module.exports = {
   validateEmail,
   validatePhone,
   sanitizeString,
+  validatePasswordStrength,
   auditLogger
 };

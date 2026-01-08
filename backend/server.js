@@ -28,8 +28,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
 // Trust proxy for Render/Heroku (enables proper rate limiting and IP detection)
 app.set('trust proxy', 1);
 
-// Middleware
-// app.use(securityHeaders); // Temporarily disable security headers for testing
+// Middleware - Security First!
+app.use(securityHeaders); // Security headers (CSP, HSTS, etc.)
 // app.use(generalLimiter); // General rate limiting - temporarily disabled for debugging
 app.use(sanitizeRequest); // Request sanitization
 app.use(cors({
@@ -327,7 +327,9 @@ const requireAdmin = (req, res, next) => {
 // Register
 app.post('/api/auth/register', authLimiter, [
   body('email').isEmail().withMessage('Valid email is required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-zA-Z\d@$!%*?&]/).withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
   body('firstName').notEmpty().withMessage('First name is required'),
   body('lastName').notEmpty().withMessage('Last name is required'),
   body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required')
