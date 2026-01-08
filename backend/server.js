@@ -4823,25 +4823,38 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     
     // Update beta access - use actual boolean for PostgreSQL, 1/0 for SQLite
     // PostgreSQL has native BOOLEAN type, SQLite uses INTEGER
-    const boolValue = betaAccessBool; // Just use the boolean directly
-    console.log(`[BetaAccess] About to UPDATE with value: ${boolValue} (type: ${typeof boolValue})`);
-    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [boolValue, id]);
-    console.log(`[BetaAccess] UPDATE executed with value: ${boolValue}`);
+    console.log(`[BetaAccess] About to UPDATE with value: ${betaAccessBool} (type: ${typeof betaAccessBool})`);
+    
+    try {
+      await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccessBool, id]);
+      console.log(`[BetaAccess] UPDATE executed successfully`);
+    } catch (updateError) {
+      console.error('[BetaAccess] UPDATE failed:', updateError);
+      throw updateError;
+    }
     
     // Verify the update
     const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      console.error('[BetaAccess] Verification failed - user not found after update');
+      return res.status(500).json({ error: 'Failed to verify beta access update' });
+    }
+    
     const actualValue = verifyResult.rows[0].betaAccess;
     console.log('[BetaAccess] User AFTER update:', {
       id,
       betaAccess: actualValue,
       type: typeof actualValue,
+      rawValue: JSON.stringify(actualValue),
       willPass: actualValue === true || actualValue === 1 || actualValue === '1'
     });
     
     console.log(`[BetaAccess] SUCCESS - Access ${betaAccessBool ? 'granted' : 'revoked'} for user ${id}`);
     
     // Send response with the actual database value (converted to boolean)
-    const finalBetaAccessValue = actualValue === 1 || actualValue === true;
+    // PostgreSQL returns true/false, SQLite returns 1/0
+    const finalBetaAccessValue = actualValue === 1 || actualValue === true || actualValue === '1';
     res.json({ 
       message: betaAccessBool ? 'Beta access granted successfully' : 'Beta access revoked successfully',
       betaAccess: finalBetaAccessValue
