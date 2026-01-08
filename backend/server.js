@@ -4823,24 +4823,27 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     
     // Update beta access - use 1/0 for both SQLite and PostgreSQL (works with both INTEGER and BOOLEAN types)
     const boolValue = betaAccessBool ? 1 : 0;
+    console.log(`[BetaAccess] About to UPDATE with value: ${boolValue} (type: ${typeof boolValue})`);
     await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [boolValue, id]);
     console.log(`[BetaAccess] UPDATE executed with value: ${boolValue}`);
     
     // Verify the update
     const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const actualValue = verifyResult.rows[0].betaAccess;
     console.log('[BetaAccess] User AFTER update:', {
       id,
-      betaAccess: verifyResult.rows[0].betaAccess,
-      type: typeof verifyResult.rows[0].betaAccess,
-      willPass: verifyResult.rows[0].betaAccess === true || verifyResult.rows[0].betaAccess === 1 || verifyResult.rows[0].betaAccess === '1'
+      betaAccess: actualValue,
+      type: typeof actualValue,
+      willPass: actualValue === true || actualValue === 1 || actualValue === '1'
     });
     
     console.log(`[BetaAccess] SUCCESS - Access ${betaAccessBool ? 'granted' : 'revoked'} for user ${id}`);
     
-    // Send response
+    // Send response with the actual database value (converted to boolean)
+    const finalBetaAccessValue = actualValue === 1 || actualValue === true;
     res.json({ 
       message: betaAccessBool ? 'Beta access granted successfully' : 'Beta access revoked successfully',
-      betaAccess: betaAccessBool 
+      betaAccess: finalBetaAccessValue
     });
   } catch (error) {
     console.error('[BetaAccess] Error updating beta access:', error);
