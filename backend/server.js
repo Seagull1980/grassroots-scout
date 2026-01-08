@@ -4767,8 +4767,9 @@ app.post('/api/admin/users/:id/message', authenticateToken, requireAdmin, async 
 // Get all users with beta access status
 app.get('/api/admin/users/beta-access', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    // PostgreSQL uses lowercase column names for unquoted identifiers
     const result = await db.query(`
-      SELECT id, email, firstName, lastName, role, betaAccess, createdAt
+      SELECT id, email, firstName, lastName, role, betaaccess, createdAt
       FROM users
       ORDER BY createdAt DESC
     `);
@@ -4777,7 +4778,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, requireAdmin, async (
     const users = result.rows.map(user => ({
       ...user,
       email: encryptionService.decrypt(user.email),
-      betaAccess: user.betaAccess === 1 || user.betaAccess === true
+      betaAccess: user.betaaccess === 1 || user.betaaccess === true
     }));
     
     res.json(users);
@@ -4799,7 +4800,8 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     console.log(`[BetaAccess] Request to ${betaAccessBool ? 'GRANT' : 'REVOKE'} access for user ID: ${id}`);
     
     // Get user info before update
-    const userResult = await db.query('SELECT email, firstName, role, betaAccess FROM users WHERE id = ?', [id]);
+    // NOTE: PostgreSQL converts unquoted identifiers to lowercase, so use lowercase column names
+    const userResult = await db.query('SELECT email, firstName, role, betaaccess FROM users WHERE id = ?', [id]);
     
     if (userResult.rows.length === 0) {
       console.log('[BetaAccess] User not found:', id);
@@ -4810,8 +4812,8 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     console.log('[BetaAccess] User BEFORE update:', { 
       id, 
       role: user.role, 
-      currentBetaAccess: user.betaAccess,
-      currentType: typeof user.betaAccess,
+      currentBetaAccess: user.betaaccess,
+      currentType: typeof user.betaaccess,
       requestedAccess: betaAccessBool 
     });
     
@@ -4827,7 +4829,8 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     console.log(`[BetaAccess] About to UPDATE with value: ${boolValue} (type: ${typeof boolValue})`);
     
     try {
-      await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [boolValue, id]);
+      // PostgreSQL lowercase column name
+      await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', [boolValue, id]);
       console.log(`[BetaAccess] UPDATE executed successfully`);
     } catch (updateError) {
       console.error('[BetaAccess] UPDATE failed:', updateError);
@@ -4835,13 +4838,13 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     }
     
     // Verify the update
-    const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const verifyResult = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
     
     if (!verifyResult.rows || verifyResult.rows.length === 0) {
       console.error('[BetaAccess] Verification failed - user not found after update');
       return res.status(500).json({ error: 'Failed to verify beta access update' });
     }
-    
+    a
     const actualValue = verifyResult.rows[0].betaAccess;
     console.log('[BetaAccess] User AFTER update:', {
       id,
