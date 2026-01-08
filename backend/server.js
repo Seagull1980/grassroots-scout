@@ -4844,8 +4844,8 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
       console.error('[BetaAccess] Verification failed - user not found after update');
       return res.status(500).json({ error: 'Failed to verify beta access update' });
     }
-    a
-    const actualValue = verifyResult.rows[0].betaAccess;
+    
+    const actualValue = verifyResult.rows[0].betaaccess;
     console.log('[BetaAccess] User AFTER update:', {
       id,
       betaAccess: actualValue,
