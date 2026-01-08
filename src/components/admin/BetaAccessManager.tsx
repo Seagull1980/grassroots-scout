@@ -72,13 +72,10 @@ const BetaAccessManager: React.FC = () => {
       );
       console.log('[BetaAccess] API response:', response.data);
       
-      // Update local state
-      setUsers(users.map(user => 
-        user.id === userId 
-          ? { ...user, betaAccess: !currentStatus }
-          : user
-      ));
-      console.log('[BetaAccess] State updated successfully');
+      // Refetch all users to get the actual database state
+      console.log('[BetaAccess] Refetching users to verify update...');
+      await fetchUsers();
+      console.log('[BetaAccess] Users refetched successfully');
     } catch (err: any) {
       console.error('[BetaAccess] Error:', err);
       console.error('[BetaAccess] Error details:', err.message, err.response?.status);
