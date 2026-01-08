@@ -15,23 +15,24 @@ const requireBetaAccess = async (req, res, next) => {
 
   try {
     // Try to get betaAccess, but handle missing column gracefully
+    // PostgreSQL uses lowercase column names for unquoted identifiers
     let user;
     try {
       user = await db.query(
-        'SELECT betaAccess, role FROM users WHERE id = ?',
+        'SELECT betaaccess, role FROM users WHERE id = ?',
         [req.user.userId]
       );
     } catch (dbError) {
       // If betaAccess column doesn't exist yet, just check role
-      if (dbError.message && dbError.message.includes('no such column: betaAccess')) {
-        console.warn('[BetaAccess] betaAccess column missing, checking role only');
+      if (dbError.message && dbError.message.includes('no such column') || dbError.message.includes('betaaccess')) {
+        console.warn('[BetaAccess] betaaccess column missing, checking role only');
         user = await db.query(
           'SELECT role FROM users WHERE id = ?',
           [req.user.userId]
         );
         // Default to granting access during migration period
         if (user && user.rows && user.rows.length > 0) {
-          user.rows[0].betaAccess = 1; // Grant access to all existing users during migration
+          user.rows[0].betaaccess = 1; // Grant access to all existing users during migration
         }
       } else {
         throw dbError;
@@ -49,8 +50,8 @@ const requireBetaAccess = async (req, res, next) => {
     console.log('[BetaAccess] Checking access for user:', {
       userId: req.user.userId,
       role: user.rows[0].role,
-      betaAccess: user.rows[0].betaAccess,
-      betaAccessType: typeof user.rows[0].betaAccess
+      betaAccess: user.rows[0].betaaccess,
+      betaAccessType: typeof user.rows[0].betaaccess
     });
 
     // Admins always have beta access
@@ -60,16 +61,16 @@ const requireBetaAccess = async (req, res, next) => {
     }
 
     // Check if user has beta access enabled (handle both boolean and integer values)
-    const hasBetaAccess = user.rows[0].betaAccess === true || 
-                          user.rows[0].betaAccess === 1 || 
-                          user.rows[0].betaAccess === '1';
+    const hasBetaAccess = user.rows[0].betaaccess === true || 
+                          user.rows[0].betaaccess === 1 || 
+                          user.rows[0].betaaccess === '1';
     
     console.log('[BetaAccess] Access check:', {
       hasBetaAccess,
       checks: {
-        'strict_true': user.rows[0].betaAccess === true,
-        'strict_1': user.rows[0].betaAccess === 1,
-        'strict_string_1': user.rows[0].betaAccess === '1'
+        'strict_true': user.rows[0].betaaccess === true,
+        'strict_1': user.rows[0].betaaccess === 1,
+        'strict_string_1': user.rows[0].betaaccess === '1'
       }
     });
     

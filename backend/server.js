@@ -134,7 +134,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
         }
         console.log('✅ Added betaAccess column to users table (default: disabled)');
         // Grant beta access to existing users (grandfather them in)
-        await db.query('UPDATE users SET betaAccess = TRUE WHERE id IS NOT NULL');
+        await db.query('UPDATE users SET betaaccess = 1 WHERE id IS NOT NULL');
         console.log('✅ Granted beta access to all existing users');
       } else {
         console.log('✅ betaAccess column exists');
@@ -666,7 +666,7 @@ app.get('/api/dev/admin-login', async (req, res) => {
 // Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, firstName, lastName, role, betaAccess, createdAt FROM users WHERE id = ?', 
+    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess, createdAt FROM users WHERE id = ?', 
       [req.user.userId]);
     const user = result.rows[0];
     
@@ -677,8 +677,8 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     // Decrypt email for response
     const decryptedEmail = encryptionService.decrypt(user.email);
     
-    // Check beta access and return appropriate response
-    const hasBetaAccess = user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || user.role === 'Admin';
+    // Check beta access and return appropriate response (PostgreSQL uses lowercase column name)
+    const hasBetaAccess = user.betaaccess === true || user.betaaccess === 1 || user.betaaccess === '1' || user.role === 'Admin';
     
     res.json({ 
       user: {
@@ -4873,7 +4873,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
 app.get('/api/admin/users/:id/beta-status', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query('SELECT id, email, firstName, lastName, role, betaAccess FROM users WHERE id = ?', [id]);
+    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess FROM users WHERE id = ?', [id]);
     
     if (!result.rows || result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -4885,10 +4885,10 @@ app.get('/api/admin/users/:id/beta-status', authenticateToken, requireAdmin, asy
       email: user.email,
       name: `${user.firstName} ${user.lastName}`,
       role: user.role,
-      betaAccess: user.betaAccess,
-      betaAccessType: typeof user.betaAccess,
-      betaAccessValue: user.betaAccess,
-      willPass: user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || user.role === 'Admin'
+      betaAccess: user.betaaccess,
+      betaAccessType: typeof user.betaaccess,
+      betaAccessValue: user.betaaccess,
+      willPass: user.betaaccess === true || user.betaaccess === 1 || user.betaaccess === '1' || user.role === 'Admin'
     });
   } catch (error) {
     console.error('[BetaAccess] Error checking beta status:', error);
