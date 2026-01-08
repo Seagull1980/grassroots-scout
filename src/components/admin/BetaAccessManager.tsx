@@ -42,14 +42,20 @@ const BetaAccessManager: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
+      console.log('[BetaAccess] Fetching users...');
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get('/api/admin/users/beta-access', {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('[BetaAccess] Received users data:', response.data);
+      console.log('[BetaAccess] First 3 users betaAccess values:', 
+        response.data.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, type: typeof u.betaAccess }))
+      );
       setUsers(response.data);
       setError('');
     } catch (err: any) {
+      console.error('[BetaAccess] Error fetching users:', err);
       setError(err.response?.data?.error || 'Failed to load users');
     } finally {
       setLoading(false);
@@ -64,21 +70,28 @@ const BetaAccessManager: React.FC = () => {
       console.log('[BetaAccess] Getting token...');
       const token = localStorage.getItem('token');
       console.log('[BetaAccess] Token exists:', !!token);
-      console.log('[BetaAccess] Making API call...');
+      console.log('[BetaAccess] Making API call to PATCH /api/admin/users/' + userId + '/beta-access');
+      console.log('[BetaAccess] Request body:', { betaAccess: !currentStatus });
+      
       const response = await axios.patch(
         `/api/admin/users/${userId}/beta-access`,
         { betaAccess: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       console.log('[BetaAccess] API response:', response.data);
+      console.log('[BetaAccess] Response betaAccess value:', response.data.betaAccess, 'Type:', typeof response.data.betaAccess);
       
       // Refetch all users to get the actual database state
       console.log('[BetaAccess] Refetching users to verify update...');
       await fetchUsers();
       console.log('[BetaAccess] Users refetched successfully');
+      
+      // Verify the user was actually updated
+      const updatedUser = users.find(u => u.id === userId);
+      console.log('[BetaAccess] Updated user in state:', updatedUser);
     } catch (err: any) {
       console.error('[BetaAccess] Error:', err);
-      console.error('[BetaAccess] Error details:', err.message, err.response?.status);
+      console.error('[BetaAccess] Error details:', err.message, err.response?.status, err.response?.data);
       setError(err.response?.data?.error || 'Failed to update beta access');
     } finally {
       console.log('[BetaAccess] Clearing updating state...');
