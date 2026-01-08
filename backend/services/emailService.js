@@ -3,15 +3,22 @@ const encryptionService = require('../utils/encryption.js');
 
 class EmailService {
   constructor() {
-    // Configure email transporter - use port 465 for SSL (more likely to work on Render)
+    // Configure email transporter with timeout and retry settings
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // use SSL
+      port: 587, // Use TLS port instead of SSL for better compatibility
+      secure: false, // use STARTTLS
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      }
+      },
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certificates
+        ciphers: 'SSLv3'
+      },
+      connectionTimeout: 10000, // 10 second timeout
+      greetingTimeout: 10000,
+      socketTimeout: 10000
     });
 
     // Email templates
@@ -420,7 +427,17 @@ class EmailService {
       return result;
     } catch (error) {
       console.error(`❌ Failed to send beta access email to ${userEmail}:`, error);
-      throw error;
+      // Log specific error details for troubleshooting
+      if (error.code === 'ETIMEDOUT') {
+        console.error('  ⏱️  SMTP Connection Timeout - Check firewall/network settings');
+      } else if (error.code === 'EAUTH') {
+        console.error('  🔐 SMTP Authentication Failed - Check EMAIL_USER and EMAIL_PASS');
+      } else if (error.code === 'ECONNECTION') {
+        console.error('  🌐 Cannot connect to SMTP server - Check host/port');
+      }
+      // Don't throw - allow the beta access to proceed without email
+      return { error: error.message, sent: false };
+    }
     }
   }
 

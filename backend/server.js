@@ -4837,26 +4837,11 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     
     console.log(`[BetaAccess] SUCCESS - Access ${betaAccessBool ? 'granted' : 'revoked'} for user ${id}`);
     
-    // Send response immediately, don't wait for email
+    // Send response
     res.json({ 
       message: betaAccessBool ? 'Beta access granted successfully' : 'Beta access revoked successfully',
       betaAccess: betaAccessBool 
     });
-    
-    // Send email notification asynchronously (don't block the response)
-    if (betaAccessBool) {
-      // Fire and forget - don't await
-      (async () => {
-        try {
-          const userEmail = encryptionService.decrypt(user.email);
-          await emailService.sendBetaAccessGranted(userEmail, user.firstName);
-          console.log('[BetaAccess] Welcome email sent to:', userEmail);
-        } catch (emailError) {
-          console.error('[BetaAccess] Failed to send beta access email:', emailError.message);
-          // Don't fail the request if email fails
-        }
-      })();
-    }
   } catch (error) {
     console.error('[BetaAccess] Error updating beta access:', error);
     res.status(500).json({ error: 'Failed to update beta access', details: error.message });
