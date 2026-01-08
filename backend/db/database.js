@@ -850,16 +850,28 @@ class Database {
       }
 
       // Migration 3: Add betaAccess column to users table if it doesn't exist
+      console.log('🔍 Checking if betaAccess column exists...');
       const checkBetaAccessColumn = this.dbType === 'postgresql' 
         ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccess'`
         : `PRAGMA table_info(users)`;
         
       const betaAccessResult = await this.query(checkBetaAccessColumn);
+      console.log('📊 BetaAccess column check result:', betaAccessResult.rows);
       
       if (this.dbType === 'postgresql') {
         if (betaAccessResult.rows.length === 0) {
-          await this.query('ALTER TABLE users ADD COLUMN betaAccess BOOLEAN DEFAULT FALSE');
-          console.log('✅ Added betaAccess column to users table');
+          console.log('➕ Adding betaAccess column to users table...');
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN betaAccess BOOLEAN DEFAULT FALSE');
+            console.log('✅ Added betaAccess column to users table');
+          } catch (err) {
+            console.error('❌ Error adding betaAccess column:', err.message);
+            if (!err.message.includes('already exists')) {
+              throw err;
+            }
+          }
+        } else {
+          console.log('✅ betaAccess column already exists');
         }
       } else {
         const hasBetaAccess = betaAccessResult.rows.some(row => row.name === 'betaAccess');
@@ -874,16 +886,28 @@ class Database {
       }
 
       // Migration 4: Add isBlocked column to users table if it doesn't exist
+      console.log('🔍 Checking if isBlocked column exists...');
       const checkIsBlockedColumn = this.dbType === 'postgresql' 
         ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'isblocked'`
         : `PRAGMA table_info(users)`;
         
       const isBlockedResult = await this.query(checkIsBlockedColumn);
+      console.log('📊 isBlocked column check result:', isBlockedResult.rows);
       
       if (this.dbType === 'postgresql') {
         if (isBlockedResult.rows.length === 0) {
-          await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT FALSE');
-          console.log('✅ Added isBlocked column to users table');
+          console.log('➕ Adding isBlocked column to users table...');
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT FALSE');
+            console.log('✅ Added isBlocked column to users table');
+          } catch (err) {
+            console.error('❌ Error adding isBlocked column:', err.message);
+            if (!err.message.includes('already exists')) {
+              throw err;
+            }
+          }
+        } else {
+          console.log('✅ isBlocked column already exists');
         }
       } else {
         const hasIsBlocked = isBlockedResult.rows.some(row => row.name === 'isBlocked');
