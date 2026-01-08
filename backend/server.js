@@ -682,6 +682,15 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     // Check beta access and return appropriate response (PostgreSQL uses lowercase column name)
     const hasBetaAccess = user.betaaccess === true || user.betaaccess === 1 || user.betaaccess === '1' || user.role === 'Admin';
     
+    console.log('[/api/auth/me] User data:', {
+      userId: user.id,
+      email: decryptedEmail,
+      role: user.role,
+      betaaccess_raw: user.betaaccess,
+      betaaccess_type: typeof user.betaaccess,
+      hasBetaAccess
+    });
+    
     res.json({ 
       user: {
         ...user,
