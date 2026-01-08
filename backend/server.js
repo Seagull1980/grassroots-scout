@@ -4821,12 +4821,13 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
       return res.status(400).json({ error: 'Cannot remove beta access from admin users' });
     }
     
-    // Update beta access - use actual boolean for PostgreSQL, 1/0 for SQLite
-    // PostgreSQL has native BOOLEAN type, SQLite uses INTEGER
-    console.log(`[BetaAccess] About to UPDATE with value: ${betaAccessBool} (type: ${typeof betaAccessBool})`);
+    // Update beta access
+    // Even for PostgreSQL, the column is INTEGER (not BOOLEAN), so we need to use 1/0
+    const boolValue = betaAccessBool ? 1 : 0;
+    console.log(`[BetaAccess] About to UPDATE with value: ${boolValue} (type: ${typeof boolValue})`);
     
     try {
-      await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [betaAccessBool, id]);
+      await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', [boolValue, id]);
       console.log(`[BetaAccess] UPDATE executed successfully`);
     } catch (updateError) {
       console.error('[BetaAccess] UPDATE failed:', updateError);
