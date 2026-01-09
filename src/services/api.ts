@@ -3,24 +3,21 @@ import { storage } from '../utils/storage';
 import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory } from '../types';
 
 // Dynamic API URL configuration for different environments
+
 const getAPIUrl = () => {
-  // Use environment variable if available (for production deployment)
+  // Require environment variable for all environments
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
-  // Default to localhost:3000 for local development (main backend server)
-  return 'http://localhost:3000/api';
+  throw new Error('VITE_API_URL environment variable must be set.');
 };
 
+
 const getRosterAPIUrl = () => {
-  // Use environment variable if available (for production deployment)
   if (import.meta.env.VITE_ROSTER_API_URL) {
     return import.meta.env.VITE_ROSTER_API_URL;
   }
-  
-  // Default to localhost:3000 for local development (main server)
-  return 'http://localhost:3000/api';
+  throw new Error('VITE_ROSTER_API_URL environment variable must be set.');
 };
 
 const API_URL = getAPIUrl();
