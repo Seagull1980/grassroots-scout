@@ -4712,10 +4712,10 @@ app.get('/api/team-profiles', async (req, res) => {
 app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdAt, 
+      SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdat as createdAt, 
              u.isEmailVerified, u.isBlocked
       FROM users u
-      ORDER BY u.createdAt DESC
+      ORDER BY u.createdat DESC
     `);
     
     // Decrypt emails
@@ -4819,9 +4819,9 @@ app.get('/api/admin/users/beta-access', authenticateToken, requireAdmin, async (
   try {
     // PostgreSQL uses lowercase column names for unquoted identifiers
     const result = await db.query(`
-      SELECT id, email, firstName, lastName, role, betaaccess, createdAt
+      SELECT id, email, firstName, lastName, role, betaaccess, createdat as createdAt
       FROM users
-      ORDER BY createdAt DESC
+      ORDER BY createdat DESC
     `);
     
     // Decrypt emails
