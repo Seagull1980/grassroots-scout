@@ -101,8 +101,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
         const isRecentlyCreated = hoursSinceCreation < 24;
         
-        // Only mark as new user if they registered recently AND haven't seen onboarding AND account is less than 24 hours old
-        if (isPendingNewUser && !hasCompletedOnboarding && isRecentlyCreated) {
+        // Mark as new user if:
+        // 1. They have the pending flag from registration (normal flow), OR
+        // 2. Account is less than 24 hours old AND they haven't completed onboarding (handles users who registered during beta lockdown)
+        if (!hasCompletedOnboarding && isRecentlyCreated) {
           storage.setItem(`new_user_${response.user.id}`, 'true');
           localStorage.removeItem('pending_new_user');
         } else if (!isRecentlyCreated) {
