@@ -788,7 +788,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     } finally {
       setLoading(false);
     }
-  }, [searchType, selectedLeague, selectedAgeGroup]);
+  }, [searchType, selectedLeague, selectedAgeGroup, locationType]);
 
   const searchInDrawnArea = useCallback(async (polygon: google.maps.Polygon) => {
     setLoading(true);
@@ -856,7 +856,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     if (!useDrawnArea) {
       searchInArea(mapCenter, searchRadius);
     }
-  }, [searchType, selectedLeague, selectedAgeGroup, locationType]); // Re-search when filters change
+  }, [searchType, selectedLeague, selectedAgeGroup, locationType, searchRadius, mapCenter, useDrawnArea, searchInArea]); // Re-search when filters change
 
   const handleStartDrawing = () => {
     setDrawingState(prev => ({ ...prev, isActive: true, mode: 'draw' }));
