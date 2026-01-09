@@ -2209,10 +2209,13 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
     // Get user's recent interactions to understand preferences (with error handling)
     let interactions = [];
     try {
+      const dateThreshold = process.env.DATABASE_URL 
+        ? `NOW() - INTERVAL '30 days'` 
+        : `datetime('now', '-30 days')`;
       const interactionsResult = await db.query(`
         SELECT actionType, targetType, metadata
         FROM user_interactions
-        WHERE userId = ? AND createdAt > datetime('now', '-30 days')
+        WHERE userId = ${process.env.DATABASE_URL ? '$1' : '?'} AND createdAt > ${dateThreshold}
         ORDER BY createdAt DESC
         LIMIT 50
       `, [req.user.userId]);
@@ -2224,10 +2227,11 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
     // Get user profile to understand preferences (with error handling)
     let profileResult = { rows: [] };
     try {
+      const placeholder = process.env.DATABASE_URL ? '$1' : '?';
       profileResult = await db.query(`
         SELECT position, preferredTeamGender, experienceLevel, ageGroupsCoached
         FROM user_profiles
-        WHERE userId = ?
+        WHERE userId = ${placeholder}
       `, [req.user.userId]);
     } catch (profileError) {
       console.warn('user_profiles query failed:', profileError.message);
@@ -2237,6 +2241,8 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
 
     if (req.user.role === 'Player' || req.user.role === 'Parent/Guardian') {
       // Recommend team vacancies
+      const placeholder1 = process.env.DATABASE_URL ? '$1' : '?';
+      const placeholder2 = process.env.DATABASE_URL ? '$2' : '?';
       let vacancyQuery = `
         SELECT v.*, u.firstName, u.lastName,
           CASE 
@@ -2245,7 +2251,7 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
           END as hasInteracted
         FROM team_vacancies v
         JOIN users u ON v.postedBy = u.id
-        LEFT JOIN user_interactions ui ON ui.targetId = v.id AND ui.targetType = 'vacancy' AND ui.userId = ?
+        LEFT JOIN user_interactions ui ON ui.targetId = v.id AND ui.targetType = 'vacancy' AND ui.userId = ${placeholder1}
         WHERE v.status = 'active' AND ui.targetId IS NULL
       `;
 
@@ -2257,7 +2263,7 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
         }
       }
 
-      vacancyQuery += ` ORDER BY v.createdAt DESC LIMIT ?`;
+      vacancyQuery += ` ORDER BY v.createdAt DESC LIMIT ${placeholder2}`;
       
       const vacanciesResult = await db.query(vacancyQuery, [req.user.userId, limit]);
       recommendations = recommendations.concat(
@@ -2280,6 +2286,8 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
 
     if (req.user.role === 'Coach') {
       // Recommend available players
+      const placeholder1 = process.env.DATABASE_URL ? '$1' : '?';
+      const placeholder2 = process.env.DATABASE_URL ? '$2' : '?';
       let playerQuery = `
         SELECT p.*, u.firstName, u.lastName,
           CASE 
@@ -2288,10 +2296,10 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
           END as hasInteracted
         FROM player_availability p
         JOIN users u ON p.postedBy = u.id
-        LEFT JOIN user_interactions ui ON ui.targetId = p.id AND ui.targetType = 'player_availability' AND ui.userId = ?
+        LEFT JOIN user_interactions ui ON ui.targetId = p.id AND ui.targetType = 'player_availability' AND ui.userId = ${placeholder1}
         WHERE p.status = 'active' AND ui.targetId IS NULL
         ORDER BY p.createdAt DESC 
-        LIMIT ?
+        LIMIT ${placeholder2}
       `;
       
       const playersResult = await db.query(playerQuery, [req.user.userId, limit]);
