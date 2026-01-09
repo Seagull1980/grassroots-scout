@@ -91,8 +91,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         storage.setItem('token', response.token);
         storage.setItem('user', JSON.stringify(response.user));
         
-        // Check if this is their first successful login after registration
-        const isPendingNewUser = localStorage.getItem('pending_new_user');
         const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${response.user.id}`);
         
         // Check if account was created within the last 24 hours
