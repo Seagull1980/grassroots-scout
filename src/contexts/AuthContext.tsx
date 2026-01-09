@@ -87,22 +87,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (response.user && response.token) {
         console.log('[AuthContext] Storing user session...');
-        setUser(response.user);
+        const user = response.user as User;
+        setUser(user);
         storage.setItem('token', response.token);
-        storage.setItem('user', JSON.stringify(response.user));
+        storage.setItem('user', JSON.stringify(user));
         
-        const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${response.user.id}`);
+        const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
         
         // Check if account was created within the last 24 hours
-        const accountCreatedAt = new Date(response.user.createdAt);
+        const accountCreatedAt = new Date(user.createdAt);
         const now = new Date();
         const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
         const isRecentlyCreated = hoursSinceCreation < 24;
         
         // Check if beta access was granted in the last 24 hours
         let isBetaAccessRecent = false;
-        if (response.user.betaAccessGrantedAt) {
-          const betaGrantedAt = new Date(response.user.betaAccessGrantedAt);
+        if (user.betaAccessGrantedAt) {
+          const betaGrantedAt = new Date(user.betaAccessGrantedAt);
           const hoursSinceBetaGrant = (now.getTime() - betaGrantedAt.getTime()) / (1000 * 60 * 60);
           isBetaAccessRecent = hoursSinceBetaGrant < 24;
         }
@@ -112,12 +113,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 2. Account is less than 24 hours old AND they haven't completed onboarding, OR
         // 3. Beta access was granted in the last 24 hours AND they haven't completed onboarding
         if (!hasCompletedOnboarding && (isRecentlyCreated || isBetaAccessRecent)) {
-          storage.setItem(`new_user_${response.user.id}`, 'true');
+          storage.setItem(`new_user_${user.id}`, 'true');
           localStorage.removeItem('pending_new_user');
         } else if (!isRecentlyCreated && !isBetaAccessRecent) {
           // Clean up stale flags for old accounts
           localStorage.removeItem('pending_new_user');
-          storage.removeItem(`new_user_${response.user.id}`);
+          storage.removeItem(`new_user_${user.id}`);
         }
         
         console.log('[AuthContext] Login successful');
