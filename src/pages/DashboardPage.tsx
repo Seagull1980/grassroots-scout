@@ -20,8 +20,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
-  Notifications as NotificationsIcon,
   Person as PersonIcon,
   Group as GroupIcon,
   Settings as SettingsIcon,

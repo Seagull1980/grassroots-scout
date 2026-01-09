@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  Avatar,
   IconButton,
   useTheme,
   useMediaQuery,
@@ -19,8 +18,6 @@ import {
   Skeleton
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
-  Notifications as NotificationsIcon,
   Person as PersonIcon,
   Group as GroupIcon,
   Settings as SettingsIcon,
@@ -157,56 +154,58 @@ const EnhancedDashboard: React.FC = () => {
     return `${timeGreeting}, ${user?.firstName}!`;
   };
 
-  const renderActivityItem = (activity: RecentActivity) => (
-    <Card key={activity.id} sx={{ mb: 2 }}>
-      <CardContent sx={{ py: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <Chip
-                label={activity.type === 'vacancy' ? 'Team Vacancy' : 'Player Available'}
-                size="small"
-                color={activity.type === 'vacancy' ? 'primary' : 'secondary'}
-                sx={{ mr: 1 }}
-              />
-              {activity.status && (
+  const renderActivityItem = (activity: RecentActivity) => {
+    return (
+      <Card key={activity.id} sx={{ mb: 2 }}>
+        <CardContent sx={{ py: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ flex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <Chip
-                  label={activity.status}
+                  label={activity.type === 'vacancy' ? 'Team Vacancy' : 'Player Available'}
                   size="small"
-                  variant="outlined"
+                  color={activity.type === 'vacancy' ? 'primary' : 'secondary'}
+                  sx={{ mr: 1 }}
                 />
-              )}
+                {activity.status && (
+                  <Chip
+                    label={activity.status}
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
+              </Box>
+              <Typography variant="body1" fontWeight="medium">
+                {activity.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {activity.description}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {new Date(activity.createdAt).toLocaleDateString()}
+              </Typography>
             </Box>
-            <Typography variant="body1" fontWeight="medium">
-              {activity.title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {activity.description}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {new Date(activity.createdAt).toLocaleDateString()}
-            </Typography>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', ml: 2 }}>
+              <IconButton
+                size="small"
+                onClick={() => navigate(`/search?tab=${activity.type}s&id=${activity.id}`)}
+              >
+                <SearchIcon />
+              </IconButton>
+              <SocialShare
+                shareType={activity.type === 'vacancy' ? 'vacancy' : 'player_availability'}
+                targetId={activity.id}
+                title={activity.title}
+                description={activity.description}
+                size="small"
+              />
+            </Box>
           </Box>
-          
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', ml: 2 }}>
-            <IconButton
-              size="small"
-              onClick={() => navigate(`/search?tab=${activity.type}s&id=${activity.id}`)}
-            >
-              <SearchIcon />
-            </IconButton>
-            <SocialShare
-              shareType={activity.type === 'vacancy' ? 'vacancy' : 'player_availability'}
-              targetId={activity.id}
-              title={activity.title}
-              description={activity.description}
-              size="small"
-            />
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const speedDialActions = [
     { 
@@ -249,7 +248,7 @@ const EnhancedDashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* Main Content Grid */
+      {/* Main Content Grid */}
       <Grid container spacing={3}>
         {/* Recent Activity */}
         <Grid item xs={12} md={6}>

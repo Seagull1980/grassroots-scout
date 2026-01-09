@@ -306,6 +306,7 @@ const SearchPage: React.FC = () => {
       coachingLicense: '',
       hasMatchRecording: false,
       hasPathwayToSenior: false,
+      playingTimePolicy: [],
     });
     setPage(1);
   };
