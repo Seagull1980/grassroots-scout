@@ -74,6 +74,8 @@ const ProfilePage: React.FC = () => {
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
+    firstName: '',
+    lastName: '',
     phone: '',
     dateOfBirth: '',
     location: '',
@@ -147,6 +149,8 @@ const ProfilePage: React.FC = () => {
       // Parse JSON fields and populate form
       const profileResponse = response.profile;
       setProfileData({
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
         phone: profileResponse.phone || '',
         dateOfBirth: profileResponse.dateOfBirth || '',
         location: profileResponse.location || '',
@@ -332,18 +336,18 @@ const ProfilePage: React.FC = () => {
               <TextField
                 fullWidth
                 label="First Name"
-                value={user?.firstName || ''}
-                disabled
-                helperText="Contact support to change your name"
+                value={profileData.firstName}
+                onChange={handleInputChange('firstName')}
+                required
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Last Name"
-                value={user?.lastName || ''}
-                disabled
-                helperText="Contact support to change your name"
+                value={profileData.lastName}
+                onChange={handleInputChange('lastName')}
+                required
               />
             </Grid>
             <Grid item xs={12} sm={6}>

@@ -169,6 +169,8 @@ export interface EmailAlert {
 }
 
 export interface ProfileUpdateData {
+  firstName?: string;
+  lastName?: string;
   phone?: string;
   dateOfBirth?: string;
   location?: string;

@@ -907,6 +907,8 @@ app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAc
 
 // Update user profile
 app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
+  body('firstName').optional().isLength({ min: 1, max: 50 }).withMessage('First name must be 1-50 characters'),
+  body('lastName').optional().isLength({ min: 1, max: 50 }).withMessage('Last name must be 1-50 characters'),
   body('phone').optional().isLength({ min: 5, max: 20 }).withMessage('Phone number must be 5-20 characters'),
   body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth required'),
   body('location').optional().notEmpty().withMessage('Location cannot be empty'),
@@ -923,11 +925,28 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
 
   try {
     const {
+      firstName, lastName,
       phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
       experienceLevel, availability, coachingLicense, yearsExperience, specializations,
       trainingLocation, matchLocation, trainingDays, ageGroupsCoached,
       emergencyContact, emergencyPhone, medicalInfo, profilePicture
     } = req.body;
+
+    // Update user's name if provided
+    if (firstName || lastName) {
+      const updateFields = [];
+      const updateValues = [];
+      if (firstName) {
+        updateFields.push('firstName = ?');
+        updateValues.push(firstName);
+      }
+      if (lastName) {
+        updateFields.push('lastName = ?');
+        updateValues.push(lastName);
+      }
+      updateValues.push(req.user.userId);
+      await db.query(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+    }
 
     // Encrypt sensitive profile data
     const encryptedData = encryptionService.encryptProfileData({
@@ -1517,21 +1536,40 @@ app.get('/api/leagues', (req, res, next) => {
   try {
     const { includePending = false } = req.query;
     
-    // Get approved leagues (ultra-simplified for old DB compatibility - only guaranteed columns)
-    let query = 'SELECT id, name, \'approved\' as status FROM leagues WHERE isActive = TRUE';
+    // Get approved leagues (compatible with both SQLite and PostgreSQL)
+    const isPostgres = !!process.env.DATABASE_URL;
+    const trueValue = isPostgres ? 'TRUE' : '1';
+    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = ${trueValue}`;
     let params = [];
 
     // If user wants pending leagues and is authenticated
     if (includePending === 'true' && req.user) {
-      query += ` 
-        UNION ALL 
-        SELECT 
-          CAST(('pending_' || id) as TEXT) as id, 
-          name, 
-          'pending' as status 
-        FROM league_requests 
-        WHERE status = 'pending' AND submittedBy = ?
-      `;
+      const concatOp = isPostgres ? 'CONCAT' : '||';
+      const castFunc = isPostgres 
+        ? `CONCAT('pending_', id::TEXT)` 
+        : `CAST(('pending_' || id) as TEXT)`;
+      
+      if (isPostgres) {
+        query += ` 
+          UNION ALL 
+          SELECT 
+            CONCAT('pending_', id::TEXT) as id, 
+            name, 
+            'pending' as status 
+          FROM league_requests 
+          WHERE status = 'pending' AND submittedBy = $1
+        `;
+      } else {
+        query += ` 
+          UNION ALL 
+          SELECT 
+            CAST(('pending_' || id) as TEXT) as id, 
+            name, 
+            'pending' as status 
+          FROM league_requests 
+          WHERE status = 'pending' AND submittedBy = ?
+        `;
+      }
       params.push(req.user.userId);
     }
 
