@@ -346,6 +346,251 @@ const teamVacancies = [
       postcode: 'CV6 6GE',
       facilities: ['Modern stadium', 'Professional facilities', 'Parking']
     }
+  },
+  // Tamworth Area - New additions
+  {
+    title: 'Tamworth FC U14 Central Midfielder',
+    description: 'Dynamic midfielder needed for ambitious youth team. Regular training and competitive fixtures.',
+    position: 'Midfielder',
+    ageGroup: 'U14',
+    trainingLocation: {
+      address: 'Castle Grounds, Tamworth, UK',
+      latitude: 52.6339,
+      longitude: -1.6951,
+      postcode: 'B79 7NA',
+      facilities: ['Grass pitches', 'Changing rooms', 'Parking', 'Floodlights']
+    },
+    matchLocation: {
+      address: 'The Lamb Ground, Tamworth, UK',
+      latitude: 52.6357,
+      longitude: -1.6858,
+      postcode: 'B79 7NT',
+      facilities: ['Stadium pitch', 'Changing facilities', 'Spectator seating', 'Parking']
+    }
+  },
+  {
+    title: 'Tamworth Youth Academy U12 Striker',
+    description: 'Fast striker wanted for developing academy team. Focus on technical development.',
+    position: 'Forward',
+    ageGroup: 'U12',
+    trainingLocation: {
+      address: 'Wigginton Park, Tamworth, UK',
+      latitude: 52.6225,
+      longitude: -1.6889,
+      postcode: 'B79 8NP',
+      facilities: ['Training pitches', 'Pavilion', 'Parking', 'Cafe']
+    },
+    matchLocation: {
+      address: 'The Lamb Ground, Tamworth, UK',
+      latitude: 52.6357,
+      longitude: -1.6858,
+      postcode: 'B79 7NT',
+      facilities: ['Stadium pitch', 'Changing facilities', 'Spectator seating']
+    }
+  },
+  {
+    title: 'Tamworth Rangers U15 Goalkeeper',
+    description: 'Goalkeeper needed for competitive league team. Excellent coaching available.',
+    position: 'Goalkeeper',
+    ageGroup: 'U15',
+    trainingLocation: {
+      address: 'Anker Valley, Tamworth, UK',
+      latitude: 52.6289,
+      longitude: -1.6745,
+      postcode: 'B77 2LS',
+      facilities: ['Multiple pitches', 'Changing rooms', 'Parking']
+    },
+    matchLocation: {
+      address: 'Kettlebrook Community Centre, Tamworth, UK',
+      latitude: 52.6178,
+      longitude: -1.6534,
+      postcode: 'B77 1QS',
+      facilities: ['Community pitch', 'Changing facilities', 'Refreshments']
+    }
+  },
+  {
+    title: 'Tamworth Spartans U13 Defender',
+    description: 'Solid defender required for well-established youth team.',
+    position: 'Defender',
+    ageGroup: 'U13',
+    trainingLocation: {
+      address: 'Dosthill Park, Tamworth, UK',
+      latitude: 52.6445,
+      longitude: -1.6623,
+      postcode: 'B77 1LG',
+      facilities: ['Grass pitches', 'Changing rooms', 'Parking']
+    },
+    matchLocation: {
+      address: 'The Lamb Ground, Tamworth, UK',
+      latitude: 52.6357,
+      longitude: -1.6858,
+      postcode: 'B79 7NT',
+      facilities: ['Stadium pitch', 'Full facilities', 'Spectator areas']
+    }
+  },
+  // Lichfield (near Tamworth)
+  {
+    title: 'Lichfield City U14 Winger',
+    description: 'Pacey winger needed for attacking team style.',
+    position: 'Midfielder',
+    ageGroup: 'U14',
+    trainingLocation: {
+      address: 'Beacon Park, Lichfield, UK',
+      latitude: 52.6825,
+      longitude: -1.8267,
+      postcode: 'WS13 7DU',
+      facilities: ['Training pitches', 'Changing facilities', 'Parking', 'Cafe']
+    },
+    matchLocation: {
+      address: 'Brownsfield Park, Lichfield, UK',
+      latitude: 52.6889,
+      longitude: -1.8156,
+      postcode: 'WS14 9BG',
+      facilities: ['Competition pitch', 'Changing rooms', 'Parking']
+    }
+  },
+  {
+    title: 'Lichfield Youth U16 Centre Back',
+    description: 'Strong centre back wanted for high-level youth football.',
+    position: 'Defender',
+    ageGroup: 'U16',
+    trainingLocation: {
+      address: 'Stowe Pool, Lichfield, UK',
+      latitude: 52.6801,
+      longitude: -1.8245,
+      postcode: 'WS13 6DQ',
+      facilities: ['Grass pitches', 'Pavilion', 'Parking']
+    },
+    matchLocation: {
+      address: 'Lichfield Cathedral School Pitches, Lichfield, UK',
+      latitude: 52.6734,
+      longitude: -1.8298,
+      postcode: 'WS13 7LH',
+      facilities: ['Quality pitches', 'Changing facilities', 'Parking']
+    }
+  },
+  // Burton upon Trent (near Tamworth)
+  {
+    title: 'Burton Albion Academy U13 Striker',
+    description: 'Goal scorer needed for professional academy setup.',
+    position: 'Forward',
+    ageGroup: 'U13',
+    trainingLocation: {
+      address: 'Stapenhill Recreation Ground, Burton upon Trent, UK',
+      latitude: 52.8067,
+      longitude: -1.6423,
+      postcode: 'DE15 9AE',
+      facilities: ['Multiple pitches', 'Changing rooms', 'Parking', 'Floodlights']
+    },
+    matchLocation: {
+      address: 'Pirelli Stadium, Burton upon Trent, UK',
+      latitude: 52.8221,
+      longitude: -1.6264,
+      postcode: 'DE13 0AR',
+      facilities: ['Professional stadium', 'Full facilities', 'Medical support', 'Parking']
+    }
+  },
+  {
+    title: 'Burton Youth U15 Attacking Midfielder',
+    description: 'Creative midfielder wanted for technical development squad.',
+    position: 'Midfielder',
+    ageGroup: 'U15',
+    trainingLocation: {
+      address: 'Shobnall Leisure Complex, Burton upon Trent, UK',
+      latitude: 52.8134,
+      longitude: -1.6289,
+      postcode: 'DE14 2BB',
+      facilities: ['Indoor facilities', 'Grass pitches', 'Changing rooms', 'Gym']
+    },
+    matchLocation: {
+      address: 'Pirelli Stadium, Burton upon Trent, UK',
+      latitude: 52.8221,
+      longitude: -1.6264,
+      postcode: 'DE13 0AR',
+      facilities: ['Professional stadium', 'Full facilities', 'Spectator seating']
+    }
+  },
+  // Nuneaton (near Tamworth)
+  {
+    title: 'Nuneaton Borough U14 Full Back',
+    description: 'Versatile full back needed for competitive youth team.',
+    position: 'Defender',
+    ageGroup: 'U14',
+    trainingLocation: {
+      address: 'Pingles Stadium, Nuneaton, UK',
+      latitude: 52.5234,
+      longitude: -1.4689,
+      postcode: 'CV11 4AA',
+      facilities: ['Athletic track', 'Grass pitches', 'Changing rooms', 'Parking']
+    },
+    matchLocation: {
+      address: 'Liberty Way Stadium, Nuneaton, UK',
+      latitude: 52.5345,
+      longitude: -1.4723,
+      postcode: 'CV10 0PN',
+      facilities: ['Stadium pitch', 'Changing facilities', 'Parking']
+    }
+  },
+  {
+    title: 'Nuneaton Town U12 Midfielder',
+    description: 'Energetic midfielder for friendly youth team.',
+    position: 'Midfielder',
+    ageGroup: 'U12',
+    trainingLocation: {
+      address: 'Riversley Park, Nuneaton, UK',
+      latitude: 52.5289,
+      longitude: -1.4623,
+      postcode: 'CV11 5TY',
+      facilities: ['Training pitches', 'Changing rooms', 'Parking', 'Playground']
+    },
+    matchLocation: {
+      address: 'Liberty Way Stadium, Nuneaton, UK',
+      latitude: 52.5345,
+      longitude: -1.4723,
+      postcode: 'CV10 0PN',
+      facilities: ['Stadium pitch', 'Full facilities', 'Spectator areas']
+    }
+  },
+  // Sutton Coldfield (near Tamworth)
+  {
+    title: 'Sutton Coldfield Town U15 Central Defender',
+    description: 'Commanding centre back needed for organized youth team.',
+    position: 'Defender',
+    ageGroup: 'U15',
+    trainingLocation: {
+      address: 'Sutton Park, Sutton Coldfield, UK',
+      latitude: 52.5634,
+      longitude: -1.8423,
+      postcode: 'B74 2YT',
+      facilities: ['Large park', 'Multiple pitches', 'Changing facilities', 'Parking']
+    },
+    matchLocation: {
+      address: 'Central Ground, Sutton Coldfield, UK',
+      latitude: 52.5678,
+      longitude: -1.8201,
+      postcode: 'B73 6LN',
+      facilities: ['Stadium pitch', 'Changing rooms', 'Spectator seating']
+    }
+  },
+  {
+    title: 'Sutton United U13 Winger',
+    description: 'Fast winger wanted for exciting youth setup.',
+    position: 'Midfielder',
+    ageGroup: 'U13',
+    trainingLocation: {
+      address: 'Powell\'s Pool, Sutton Coldfield, UK',
+      latitude: 52.5723,
+      longitude: -1.8267,
+      postcode: 'B75 7RY',
+      facilities: ['Grass pitches', 'Pavilion', 'Parking']
+    },
+    matchLocation: {
+      address: 'Coles Lane, Sutton Coldfield, UK',
+      latitude: 52.5534,
+      longitude: -1.8156,
+      postcode: 'B72 1NL',
+      facilities: ['Community pitch', 'Changing facilities', 'Parking']
+    }
   }
 ];
 
