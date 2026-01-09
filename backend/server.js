@@ -172,6 +172,33 @@ app.use('/api/saved-searches', savedSearchesRouter);
       }
     }
 
+    // Add playingTimePolicy column to team_vacancies if missing
+    try {
+      let hasPlayingTimePolicy = false;
+      
+      if (db.dbType === 'postgresql') {
+        const checkColumn = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies' AND column_name = 'playingtimepolicy'"
+        );
+        hasPlayingTimePolicy = checkColumn.rows && checkColumn.rows.length > 0;
+      } else {
+        const checkColumn = await db.query('PRAGMA table_info(team_vacancies)');
+        hasPlayingTimePolicy = checkColumn.rows.some(row => row.name === 'playingTimePolicy');
+      }
+      
+      if (!hasPlayingTimePolicy) {
+        console.log('⚠️  playingTimePolicy column missing - adding now...');
+        await db.query('ALTER TABLE team_vacancies ADD COLUMN playingTimePolicy VARCHAR(50) NULL');
+        console.log('✅ Added playingTimePolicy column to team_vacancies table');
+      } else {
+        console.log('✅ playingTimePolicy column exists');
+      }
+    } catch (policyError) {
+      if (!policyError.message || !policyError.message.includes('duplicate column')) {
+        console.error('❌ Error checking/adding playingTimePolicy column:', policyError);
+      }
+    }
+
     // Add missing user_profiles columns (for old production databases)
     try {
       let existingColumns;
@@ -969,7 +996,7 @@ app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { title, description, league, ageGroup, position, location, contactInfo, locationData, hasMatchRecording, hasPathwayToSenior } = req.body;
+  const { title, description, league, ageGroup, position, location, contactInfo, locationData, hasMatchRecording, hasPathwayToSenior, playingTimePolicy } = req.body;
 
   // Encrypt contact information for privacy
   const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
@@ -991,11 +1018,11 @@ app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
     `INSERT INTO team_vacancies (
       title, description, league, ageGroup, position, location, contactInfo, postedBy,
       locationAddress, locationLatitude, locationLongitude, locationPlaceId,
-      hasMatchRecording, hasPathwayToSenior
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      hasMatchRecording, hasPathwayToSenior, playingTimePolicy
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [title, description, league, ageGroup, position, location, encryptedContactInfo, req.user.userId,
      locationAddress, locationLatitude, locationLongitude, locationPlaceId,
-     matchRecording, pathwayToSenior],
+     matchRecording, pathwayToSenior, playingTimePolicy || null],
     async function(err) {
       if (err) {
         return res.status(500).json({ error: 'Failed to create vacancy' });
@@ -1052,6 +1079,7 @@ app.get('/api/vacancies', async (req, res) => {
     coachingLicense,
     hasMatchRecording,
     hasPathwayToSenior,
+    playingTimePolicy,
     // Location-based filtering
     centerLat,
     centerLng
@@ -1133,6 +1161,14 @@ app.get('/api/vacancies', async (req, res) => {
   // Filter by pathway to senior team
   if (hasPathwayToSenior === 'true' || hasPathwayToSenior === '1') {
     query += ' AND v.hasPathwayToSenior = 1';
+  }
+
+  // Filter by playing time policy
+  if (playingTimePolicy) {
+    const policies = playingTimePolicy.split(',');
+    const placeholders = policies.map(() => '?').join(',');
+    query += ` AND v.playingTimePolicy IN (${placeholders})`;
+    params.push(...policies);
   }
 
   if (availability) {

@@ -49,6 +49,7 @@ const PostAdvertPage: React.FC = () => {
     contactInfo: '',
     hasMatchRecording: false,
     hasPathwayToSenior: false,
+    playingTimePolicy: '',
   });
 
   const [locationData, setLocationData] = useState<Location | null>(null);
@@ -155,6 +156,7 @@ const PostAdvertPage: React.FC = () => {
         contactInfo: '',
         hasMatchRecording: false,
         hasPathwayToSenior: false,
+        playingTimePolicy: '',
       });
       setLocationData(null);
 
@@ -496,6 +498,23 @@ const PostAdvertPage: React.FC = () => {
                   <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, fontWeight: 500 }}>
                     Team Facilities & Opportunities
                   </Typography>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Playing Time Policy</InputLabel>
+                    <Select
+                      name="playingTimePolicy"
+                      value={formData.playingTimePolicy}
+                      label="Playing Time Policy"
+                      onChange={handleSelectChange}
+                    >
+                      <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
+                      <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
+                      <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
+                    </Select>
+                    <FormHelperText>Helps players and parents understand your approach</FormHelperText>
+                  </FormControl>
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>

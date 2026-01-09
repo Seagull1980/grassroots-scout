@@ -24,6 +24,8 @@ import {
   Alert,
   Slider,
   Checkbox,
+  FormGroup,
+  FormControlLabel,
   ListItemText,
   OutlinedInput,
   Accordion,
@@ -143,6 +145,7 @@ const SearchPage: React.FC = () => {
     coachingLicense: '',
     hasMatchRecording: false,
     hasPathwayToSenior: false,
+    playingTimePolicy: [] as string[],
   });
 
   // Handle URL parameters on component mount
@@ -328,6 +331,7 @@ const SearchPage: React.FC = () => {
         coachingLicense: filters.coachingLicense || undefined,
         hasMatchRecording: filters.hasMatchRecording || undefined,
         hasPathwayToSenior: filters.hasPathwayToSenior || undefined,
+        playingTimePolicy: filters.playingTimePolicy?.length > 0 ? filters.playingTimePolicy.join(',') : undefined,
         // Location data for distance calculation (if available)
         centerLat: undefined, // Could be set from user's location
         centerLng: undefined, // Could be set from user's location
@@ -964,6 +968,56 @@ const SearchPage: React.FC = () => {
                 {/* Team Facilities & Opportunities (for team vacancy searches) */}
                 {tabValue === 0 && (
                   <>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" sx={{ mt: 1, mb: 1, fontWeight: 500 }}>
+                        Playing Time Policy
+                      </Typography>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.playingTimePolicy.includes('equal')}
+                              onChange={(e) => {
+                                const newPolicies = e.target.checked
+                                  ? [...filters.playingTimePolicy, 'equal']
+                                  : filters.playingTimePolicy.filter(p => p !== 'equal');
+                                setFilters({ ...filters, playingTimePolicy: newPolicies });
+                              }}
+                            />
+                          }
+                          label="Equal Playing Time"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.playingTimePolicy.includes('merit')}
+                              onChange={(e) => {
+                                const newPolicies = e.target.checked
+                                  ? [...filters.playingTimePolicy, 'merit']
+                                  : filters.playingTimePolicy.filter(p => p !== 'merit');
+                                setFilters({ ...filters, playingTimePolicy: newPolicies });
+                              }}
+                            />
+                          }
+                          label="Merit Based Playing Time"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.playingTimePolicy.includes('dependent')}
+                              onChange={(e) => {
+                                const newPolicies = e.target.checked
+                                  ? [...filters.playingTimePolicy, 'dependent']
+                                  : filters.playingTimePolicy.filter(p => p !== 'dependent');
+                                setFilters({ ...filters, playingTimePolicy: newPolicies });
+                              }}
+                            />
+                          }
+                          label="Dependent on Circumstances"
+                        />
+                      </FormGroup>
+                    </Grid>
+
                     <Grid item xs={12}>
                       <Typography variant="subtitle2" sx={{ mt: 1, mb: 1, fontWeight: 500 }}>
                         Team Facilities & Opportunities
