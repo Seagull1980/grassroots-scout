@@ -144,8 +144,6 @@ export const OnboardingFlow: React.FC = () => {
       if (isNewUser && !hasCompletedOnboarding && (isRecentlyCreated || isBetaAccessRecent)) {
         // Show onboarding after a short delay
         setTimeout(() => setOpen(true), 1000);
-        // Clear the new user flag after showing onboarding to prevent showing again
-        storage.removeItem(`new_user_${user.id}`);
       }
     }
   }, [user]);
@@ -153,6 +151,7 @@ export const OnboardingFlow: React.FC = () => {
   const handleSkipOnboarding = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
+      storage.removeItem(`new_user_${user.id}`);
     }
     setOpen(false);
   };
@@ -160,6 +159,7 @@ export const OnboardingFlow: React.FC = () => {
   const handleComplete = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
+      storage.removeItem(`new_user_${user.id}`);
       
       // Apply user preferences
       if (userData.location && userData.searchRadius) {
@@ -549,7 +549,7 @@ export const OnboardingFlow: React.FC = () => {
           </Button>
           
           <Button onClick={handleSkipOnboarding} color="inherit">
-            Skip for now
+            I'll complete my profile myself
           </Button>
           
           {currentStep === steps.length - 1 ? (
