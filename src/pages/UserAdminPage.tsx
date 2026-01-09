@@ -358,7 +358,7 @@ const UserAdminPage: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell align="right">
                     <IconButton

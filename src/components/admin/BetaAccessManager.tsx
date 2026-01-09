@@ -49,8 +49,9 @@ const BetaAccessManager: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('[BetaAccess] Received users data:', response.data);
+      console.log('[BetaAccess] First user full data:', response.data[0]);
       console.log('[BetaAccess] First 3 users betaAccess values:', 
-        response.data.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, type: typeof u.betaAccess }))
+        response.data.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, createdAt: u.createdAt, type: typeof u.betaAccess }))
       );
       setUsers(response.data);
       setError('');
@@ -187,7 +188,7 @@ const BetaAccessManager: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  {new Date(user.createdAt).toLocaleDateString()}
+                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                 </TableCell>
                 <TableCell align="center">
                   {user.role === 'Admin' ? (
