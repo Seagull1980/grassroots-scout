@@ -707,7 +707,7 @@ app.get('/api/dev/admin-login', async (req, res) => {
 // Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess, createdAt FROM users WHERE id = ?', 
+    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess, createdat as createdAt FROM users WHERE id = ?', 
       [req.user.userId]);
     const user = result.rows[0];
     
@@ -747,7 +747,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) => {
   console.log('Profile GET request from user:', req.user.userId);
   const query = `
-    SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdAt,
+    SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdat as createdAt,
            p.phone, p.dateOfBirth, p.location, p.bio, p.position, p.preferredTeamGender,
            p.preferredFoot, p.height, p.weight, p.experienceLevel, p.availability, 
            p.coachingLicense, p.yearsExperience, p.specializations, p.trainingLocation, 
