@@ -1619,7 +1619,8 @@ app.get('/api/leagues', (req, res, next) => {
     // Use column name with quotes for PostgreSQL, without for SQLite
     const idCol = isPostgres ? '"id"' : 'id';
     const nameCol = isPostgres ? '"name"' : 'name';
-    const isActiveCol = isPostgres ? '"isActive"' : 'isActive';
+    // Use lowercase for PostgreSQL column name
+    const isActiveCol = isPostgres ? '"isactive"' : 'isActive';
     
     // PostgreSQL may use boolean or integer for isActive, handle both
     const activeCheck = isPostgres ? `(${isActiveCol} = true OR ${isActiveCol} = 1)` : `${isActiveCol} = 1`;
