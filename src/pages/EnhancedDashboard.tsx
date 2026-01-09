@@ -44,14 +44,6 @@ import api from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
 
-interface DashboardStats {
-  totalViews: number;
-  totalActions: number;
-  bookmarksCount: number;
-  alertsCount: number;
-  weeklyGrowth: number;
-}
-
 interface RecentActivity {
   id: number;
   type: 'vacancy' | 'player_availability' | 'trial' | 'bookmark';
@@ -67,14 +59,6 @@ const EnhancedDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [stats, setStats] = useState<DashboardStats>({
-    totalViews: 0,
-    totalActions: 0,
-    bookmarksCount: 0,
-    alertsCount: 0,
-    weeklyGrowth: 0
-  });
-  
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -103,21 +87,8 @@ const EnhancedDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      // Load user stats and recent activity in parallel
-      const [, , bookmarksResponse] = await Promise.all([
-        api.get('/analytics/user-stats'),
-        api.get('/user/recent-activity'),
-        api.get('/bookmarks?limit=5')
-      ]);
-
-      // Mock stats for now - replace with actual API response
-      setStats({
-        totalViews: Math.floor(Math.random() * 100) + 20,
-        totalActions: Math.floor(Math.random() * 50) + 10,
-        bookmarksCount: bookmarksResponse.data.pagination?.total || 0,
-        alertsCount: Math.floor(Math.random() * 10),
-        weeklyGrowth: Math.floor(Math.random() * 30) + 5
-      });
+      // Load recent bookmarks
+      const bookmarksResponse = await api.get('/bookmarks?limit=5');
 
       // Transform bookmarks to recent activity format
       const bookmarkActivities = bookmarksResponse.data.bookmarks.map((bookmark: BookmarkData) => ({
@@ -189,34 +160,6 @@ const EnhancedDashboard: React.FC = () => {
     
     return `${timeGreeting}, ${user?.firstName}!`;
   };
-
-  const renderStatsCard = (title: string, value: number, icon: React.ReactNode, trend?: number) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography color="textSecondary" gutterBottom variant="overline">
-              {title}
-            </Typography>
-            <Typography variant="h4" component="div">
-              {loading ? <Skeleton width={60} /> : value}
-            </Typography>
-            {trend && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <TrendingUpIcon sx={{ fontSize: 16, mr: 0.5, color: 'success.main' }} />
-                <Typography variant="body2" sx={{ color: 'success.main' }}>
-                  +{trend}% this week
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
 
   const renderActivityItem = (activity: RecentActivity) => (
     <Card key={activity.id} sx={{ mb: 2 }}>
@@ -310,23 +253,7 @@ const EnhancedDashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* Stats Overview */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          {renderStatsCard('Profile Views', stats.totalViews, <PersonIcon />, stats.weeklyGrowth)}
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          {renderStatsCard('Actions Taken', stats.totalActions, <TrendingUpIcon />)}
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          {renderStatsCard('Bookmarks', stats.bookmarksCount, <BookmarkIcon />)}
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          {renderStatsCard('Active Alerts', stats.alertsCount, <NotificationsIcon />)}
-        </Grid>
-      </Grid>
-
-      {/* Main Content Grid */}
+      {/* Main Content Grid */
       <Grid container spacing={3}>
         {/* Recent Activity */}
         <Grid item xs={12} md={6}>
