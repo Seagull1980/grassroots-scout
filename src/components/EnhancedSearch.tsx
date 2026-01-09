@@ -75,7 +75,9 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
   const [showHistory, setShowHistory] = useState(false);
 
   // Available options
-  const leagues = ['Premier League', 'Championship', 'League One', 'League Two', 'National League', 'Sunday League'];
+  // Use static FA Full-Time leagues for filter
+  import { TOP_FA_LEAGUES } from '../config/leagues';
+  const leagues = TOP_FA_LEAGUES.map(l => l.name);
   const ageGroups = [
     'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10', 'Under 11',
     'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16', 'Under 17',
