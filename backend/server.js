@@ -1593,8 +1593,13 @@ app.get('/api/leagues', (req, res, next) => {
     
     // Get approved leagues (compatible with both SQLite and PostgreSQL)
     const isPostgres = !!process.env.DATABASE_URL;
-    // In both DBs, isActive is stored as integer 0/1
-    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = 1`;
+    
+    // Use column name with quotes for PostgreSQL, without for SQLite
+    const idCol = isPostgres ? '"id"' : 'id';
+    const nameCol = isPostgres ? '"name"' : 'name';
+    const isActiveCol = isPostgres ? '"isActive"' : 'isActive';
+    
+    let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${isActiveCol} = 1`;
     let params = [];
 
     // If user wants pending leagues and is authenticated
@@ -1603,11 +1608,11 @@ app.get('/api/leagues', (req, res, next) => {
         query += ` 
           UNION ALL 
           SELECT 
-            CONCAT('pending_', id::TEXT) as id, 
-            name, 
+            CONCAT('pending_', "id"::TEXT) as id, 
+            "name", 
             'pending' as status 
           FROM league_requests 
-          WHERE status = 'pending' AND "submittedBy" = $1
+          WHERE "status" = 'pending' AND "submittedBy" = $1
         `;
       } else {
         query += ` 

@@ -94,6 +94,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const [selectedResult, setSelectedResult] = useState<MapSearchResult | null>(null);
   const [, setLoading] = useState(false);
   const [map, setMap] = useState<google.maps.Map>();
+  const [radiusCircle, setRadiusCircle] = useState<google.maps.Circle | null>(null);
   
   // Enhanced drawing functionality
   const [drawingState, setDrawingState] = useState<DrawingState>({
@@ -858,6 +859,38 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     }
   }, [searchType, selectedLeague, selectedAgeGroup, locationType, searchRadius, mapCenter, useDrawnArea, searchInArea]); // Re-search when filters change
 
+  // Manage radius circle visualization
+  useEffect(() => {
+    if (!map || useDrawnArea) {
+      // Remove circle if map not ready or using drawn area
+      if (radiusCircle) {
+        radiusCircle.setMap(null);
+        setRadiusCircle(null);
+      }
+      return;
+    }
+
+    // Update or create circle
+    if (radiusCircle) {
+      // Update existing circle
+      radiusCircle.setCenter(mapCenter);
+      radiusCircle.setRadius(searchRadius * 1000); // Convert km to meters
+    } else {
+      // Create new circle
+      const circle = new google.maps.Circle({
+        strokeColor: '#2196F3',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#2196F3',
+        fillOpacity: 0.1,
+        map,
+        center: mapCenter,
+        radius: searchRadius * 1000 // Convert km to meters
+      });
+      setRadiusCircle(circle);
+    }
+  }, [map, mapCenter, searchRadius, useDrawnArea]);
+
   const handleStartDrawing = () => {
     setDrawingState(prev => ({ ...prev, isActive: true, mode: 'draw' }));
     setIsDrawingMode(true);
@@ -1539,7 +1572,21 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                   </Box>
                 </Box>
               </Grid>
-              <Grid item xs={12} md={8}>
+              <Grid item xs={12} md={4}>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Typography variant="body2">Map Zoom:</Typography>
+                  <Box sx={{ width: 150 }}>
+                    <Slider
+                      value={mapZoom}
+                      onChange={(_, value) => setMapZoom(value as number)}
+                      min={6}
+                      max={16}
+                      valueLabelDisplay="auto"
+                    />
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
                 <Typography variant="body2" color="textSecondary">
                   {drawingState.isActive 
                     ? 'Click on the map to start drawing a search area. Double-click to finish.'
@@ -1561,25 +1608,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
             style={{ height: '500px', width: '100%' }}
           >
             {renderMarkers()}
-            {/* Search radius circle - only show when not using drawn area */}
-            {map && !useDrawnArea && (
-              <div
-                ref={(ref) => {
-                  if (ref && map) {
-                    new google.maps.Circle({
-                      strokeColor: '#2196F3',
-                      strokeOpacity: 0.8,
-                      strokeWeight: 2,
-                      fillColor: '#2196F3',
-                      fillOpacity: 0.1,
-                      map,
-                      center: mapCenter,
-                      radius: searchRadius * 1000 // Convert km to meters
-                    });
-                  }
-                }}
-              />
-            )}
           </Map>
         </Paper>
 

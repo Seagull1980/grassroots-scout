@@ -375,7 +375,7 @@ const ChildrenManagementPage: React.FC = () => {
                       <Box display="flex" alignItems="flex-start">
                         <MedicalIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary', mt: 0.5 }} />
                         <Typography variant="body2" color="text.secondary">
-                          Medical: {child.medicalInfo.length > 50 
+                          Medical: {(child.medicalInfo?.length || 0) > 50 
                             ? `${child.medicalInfo.substring(0, 50)}...` 
                             : child.medicalInfo}
                         </Typography>
