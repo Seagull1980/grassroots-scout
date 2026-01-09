@@ -907,62 +907,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         });
       }
 
-      // If no real data found, use test data for demonstration
-      if (searchResults.length === 0) {
-        const testData = generateTestMapData();
-        
-        // Filter test data based on current search criteria
-        const filteredTestData = testData.filter(result => {
-          // Apply search type filter
-          if (searchType === 'vacancies' && result.type !== 'vacancy') return false;
-          if (searchType === 'availability' && result.type !== 'availability') return false;
-          
-          // Apply league filter
-          if (selectedLeague) {
-            if (result.type === 'vacancy') {
-              const vacancy = result.item as TeamVacancy;
-              if (vacancy.league !== selectedLeague) return false;
-            } else {
-              const player = result.item as any;
-              if (!player.preferredLeagues?.includes(selectedLeague)) return false;
-            }
-          }
-          
-          // Apply age group filter
-          if (selectedAgeGroup) {
-            if (result.item.ageGroup !== selectedAgeGroup) return false;
-          }
-          
-          // Apply distance filter (recalculate distance from current center)
-          if (result.item.locationData) {
-            const distance = calculateDistance(
-              center,
-              { lat: result.item.locationData.latitude, lng: result.item.locationData.longitude }
-            );
-            if (distance > radius) return false;
-            
-            // Update distance in result
-            result.distance = distance;
-          }
-          
-          return true;
-        });
-        
-        // Sort by distance
-        filteredTestData.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-        setResults(filteredTestData);
-        
-        // Show info message about test data
-        setSnackbar({
-          open: true,
-          message: `Showing ${filteredTestData.length} test results. Add real data through the dashboard to see actual listings.`,
-          severity: 'success'
-        });
-      } else {
-        // Sort real results by distance
-        searchResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-        setResults(searchResults);
-      }
+      // Sort results by distance
+      searchResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      setResults(searchResults);
     } catch (error) {
       console.error('❌ Error searching area:', error);
     } finally {
@@ -1023,58 +970,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         });
       }
 
-      // If no real data found, use test data for demonstration
-      if (searchResults.length === 0) {
-        const testData = generateTestMapData();
-        
-        // Filter test data based on drawn area and search criteria
-        const filteredTestData = testData.filter(result => {
-          // Apply search type filter
-          if (searchType === 'vacancies' && result.type !== 'vacancy') return false;
-          if (searchType === 'availability' && result.type !== 'availability') return false;
-          
-          // Apply league filter
-          if (selectedLeague) {
-            if (result.type === 'vacancy') {
-              const vacancy = result.item as TeamVacancy;
-              if (vacancy.league !== selectedLeague) return false;
-            } else {
-              const player = result.item as any;
-              if (!player.preferredLeagues?.includes(selectedLeague)) return false;
-            }
-          }
-          
-          // Apply age group filter
-          if (selectedAgeGroup) {
-            if (result.item.ageGroup !== selectedAgeGroup) return false;
-          }
-          
-          // Check if point is within drawn polygon
-          if (result.item.locationData) {
-            const point = new google.maps.LatLng(
-              result.item.locationData.latitude,
-              result.item.locationData.longitude
-            );
-            
-            if (!google.maps.geometry.poly.containsLocation(point, polygon)) {
-              return false;
-            }
-          }
-          
-          return true;
-        });
-        
-        setResults(filteredTestData);
-        
-        // Show info message about test data
-        setSnackbar({
-          open: true,
-          message: `Showing ${filteredTestData.length} test results in drawn area. Add real data through the dashboard to see actual listings.`,
-          severity: 'success'
-        });
-      } else {
-        setResults(searchResults);
-      }
+      setResults(searchResults);
     } catch (error) {
       console.error('❌ Error searching drawn area:', error);
     } finally {
