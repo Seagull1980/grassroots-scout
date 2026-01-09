@@ -1599,7 +1599,10 @@ app.get('/api/leagues', (req, res, next) => {
     const nameCol = isPostgres ? '"name"' : 'name';
     const isActiveCol = isPostgres ? '"isActive"' : 'isActive';
     
-    let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${isActiveCol} = 1`;
+    // PostgreSQL may use boolean or integer for isActive, handle both
+    const activeCheck = isPostgres ? `(${isActiveCol} = true OR ${isActiveCol} = 1)` : `${isActiveCol} = 1`;
+    
+    let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${activeCheck}`;
     let params = [];
 
     // If user wants pending leagues and is authenticated
