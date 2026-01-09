@@ -1594,6 +1594,28 @@ app.get('/api/leagues', (req, res, next) => {
     // Get approved leagues (compatible with both SQLite and PostgreSQL)
     const isPostgres = !!process.env.DATABASE_URL;
     
+    console.log('Fetching leagues - isPostgres:', isPostgres);
+    
+    // For PostgreSQL, check if table exists first
+    if (isPostgres) {
+      try {
+        const tableCheck = await db.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'leagues'
+          )
+        `);
+        console.log('Leagues table exists:', tableCheck.rows[0]?.exists);
+        
+        if (!tableCheck.rows[0]?.exists) {
+          console.log('Leagues table does not exist, returning empty array');
+          return res.json({ leagues: [] });
+        }
+      } catch (tableCheckError) {
+        console.error('Error checking for leagues table:', tableCheckError);
+      }
+    }
+    
     // Use column name with quotes for PostgreSQL, without for SQLite
     const idCol = isPostgres ? '"id"' : 'id';
     const nameCol = isPostgres ? '"name"' : 'name';
@@ -1604,6 +1626,8 @@ app.get('/api/leagues', (req, res, next) => {
     
     let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${activeCheck}`;
     let params = [];
+    
+    console.log('Running query:', query);
 
     // If user wants pending leagues and is authenticated
     if (includePending === 'true' && req.user) {
@@ -1634,6 +1658,8 @@ app.get('/api/leagues', (req, res, next) => {
     query += ' ORDER BY status, name ASC';
     
     const result = await db.query(query, params);
+    console.log('Query result rows:', result.rows?.length || 0);
+    
     const leagues = result.rows.map(league => ({
       ...league,
       isPending: league.status === 'pending'

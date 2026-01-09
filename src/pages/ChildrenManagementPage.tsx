@@ -103,10 +103,11 @@ const ChildrenManagementPage: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/api/children');
-      setChildren(response.data.children);
+      setChildren(response.data.children || []);
     } catch (err: any) {
       console.error('Error loading children:', err);
       setError('Failed to load children information');
+      setChildren([]); // Ensure children is always an array
     } finally {
       setLoading(false);
     }
