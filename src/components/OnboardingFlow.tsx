@@ -74,6 +74,7 @@ export const OnboardingFlow: React.FC = () => {
     location: '',
     preferredLeagues: [] as string[],
     searchRadius: 10,
+    playingTimePolicy: '' as string,
     notifications: {
       newVacancies: true,
       matchUpdates: true,
@@ -250,6 +251,67 @@ export const OnboardingFlow: React.FC = () => {
         </Box>
       )
     },
+    // Coach-specific step for playing time policy
+    ...(user?.role === 'Coach' ? [{
+      id: 'playing-time-policy',
+      title: 'Playing Time Policy',
+      description: 'Help players and parents understand your team\'s approach',
+      component: (
+        <Box py={2}>
+          <Typography variant="h6" gutterBottom>
+            What's your team's playing time policy?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            This helps players and parents find teams that match their expectations
+          </Typography>
+          
+          <Stack spacing={2}>
+            {[
+              { 
+                value: 'equal', 
+                label: 'Equal Playing Time', 
+                description: 'All players get roughly equal time on the pitch'
+              },
+              { 
+                value: 'merit', 
+                label: 'Merit Based Playing Time', 
+                description: 'Playing time earned through performance and effort'
+              },
+              { 
+                value: 'dependent', 
+                label: 'Dependent on Circumstances', 
+                description: 'Varies based on match situation, opponent, training attendance, etc.'
+              }
+            ].map((policy) => (
+              <Card
+                key={policy.value}
+                sx={{
+                  cursor: 'pointer',
+                  border: userData.playingTimePolicy === policy.value ? 2 : 1,
+                  borderColor: userData.playingTimePolicy === policy.value ? 'primary.main' : 'divider',
+                  '&:hover': { borderColor: 'primary.main' }
+                }}
+                onClick={() => {
+                  setUserData(prev => ({
+                    ...prev,
+                    playingTimePolicy: policy.value
+                  }));
+                }}
+              >
+                <CardContent>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    {policy.label}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {policy.description}
+                  </Typography>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+        </Box>
+      )
+    }] : []),
     {
       id: 'location-setup',
       title: 'Set your location',
