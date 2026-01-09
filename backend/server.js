@@ -599,6 +599,17 @@ app.post('/api/auth/login', authLimiter, [
       userAgent: req.get('User-Agent')
     });
 
+    // Check beta access (PostgreSQL uses lowercase column name)
+    const hasBetaAccess = user.betaaccess === 1 || user.betaaccess === true || user.role === 'Admin';
+    
+    console.log('[Login] Beta access check:', {
+      userId: user.id,
+      betaaccess_raw: user.betaaccess,
+      betaaccess_type: typeof user.betaaccess,
+      role: user.role,
+      hasBetaAccess
+    });
+
     res.json({
       message: 'Login successful',
       token,
@@ -608,7 +619,7 @@ app.post('/api/auth/login', authLimiter, [
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        betaAccess: user.betaAccess === 1 || user.betaAccess === true || user.role === 'Admin',
+        betaAccess: hasBetaAccess,
         createdAt: user.createdAt
       }
     });
