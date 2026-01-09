@@ -124,16 +124,24 @@ export const OnboardingFlow: React.FC = () => {
       const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
       const isRecentlyCreated = hoursSinceCreation < 24;
       
-      // Clean up stale flags for accounts older than 24 hours
-      if (!isRecentlyCreated) {
+      // Check if beta access was granted in the last 24 hours
+      let isBetaAccessRecent = false;
+      if (user.betaAccessGrantedAt) {
+        const betaGrantedAt = new Date(user.betaAccessGrantedAt);
+        const hoursSinceBetaGrant = (now.getTime() - betaGrantedAt.getTime()) / (1000 * 60 * 60);
+        isBetaAccessRecent = hoursSinceBetaGrant < 24;
+      }
+      
+      // Clean up stale flags for accounts older than 24 hours (unless beta access is recent)
+      if (!isRecentlyCreated && !isBetaAccessRecent) {
         storage.removeItem(`new_user_${user.id}`);
         localStorage.removeItem('pending_new_user');
         return;
       }
       
-      // Only show onboarding for new users who haven't completed it AND account is less than 24 hours old
+      // Only show onboarding for new users who haven't completed it AND (account is recent OR beta access is recent)
       // This prevents the popup from showing to existing users
-      if (isNewUser && !hasCompletedOnboarding && isRecentlyCreated) {
+      if (isNewUser && !hasCompletedOnboarding && (isRecentlyCreated || isBetaAccessRecent)) {
         // Show onboarding after a short delay
         setTimeout(() => setOpen(true), 1000);
         // Clear the new user flag after showing onboarding to prevent showing again

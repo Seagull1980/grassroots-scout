@@ -5,6 +5,7 @@ export interface User {
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
   betaAccess?: boolean | number | string;
+  betaAccessGrantedAt?: string;
   isVerified?: boolean;
   createdAt: string;
 }

@@ -145,6 +145,33 @@ app.use('/api/saved-searches', savedSearchesRouter);
       }
     }
 
+    // Add betaAccessGrantedAt column if missing
+    try {
+      let hasBetaAccessGrantedAt = false;
+      
+      if (db.dbType === 'postgresql') {
+        const checkColumn = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccessgrantedat'"
+        );
+        hasBetaAccessGrantedAt = checkColumn.rows && checkColumn.rows.length > 0;
+      } else {
+        const checkColumn = await db.query('PRAGMA table_info(users)');
+        hasBetaAccessGrantedAt = checkColumn.rows.some(row => row.name === 'betaAccessGrantedAt');
+      }
+      
+      if (!hasBetaAccessGrantedAt) {
+        console.log('⚠️  betaAccessGrantedAt column missing - adding now...');
+        await db.query('ALTER TABLE users ADD COLUMN betaAccessGrantedAt TIMESTAMP NULL');
+        console.log('✅ Added betaAccessGrantedAt column to users table');
+      } else {
+        console.log('✅ betaAccessGrantedAt column exists');
+      }
+    } catch (grantedAtError) {
+      if (!grantedAtError.message || !grantedAtError.message.includes('duplicate column')) {
+        console.error('❌ Error checking/adding betaAccessGrantedAt column:', grantedAtError);
+      }
+    }
+
     // Add missing user_profiles columns (for old production databases)
     try {
       let existingColumns;
@@ -620,6 +647,7 @@ app.post('/api/auth/login', authLimiter, [
         lastName: user.lastName,
         role: user.role,
         betaAccess: hasBetaAccess,
+        betaAccessGrantedAt: user.betaaccessgrantedat || user.betaAccessGrantedAt,
         createdAt: user.createdAt
       }
     });
@@ -4852,7 +4880,16 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, a
     
     try {
       // PostgreSQL lowercase column name
-      await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', [boolValue, id]);
+      if (betaAccessBool) {
+        // When granting beta access, set the timestamp
+        await db.query(
+          'UPDATE users SET betaaccess = ?, betaAccessGrantedAt = CURRENT_TIMESTAMP WHERE id = ?',
+          [boolValue, id]
+        );
+      } else {
+        // When revoking, just update the betaaccess flag
+        await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', [boolValue, id]);
+      }
       console.log(`[BetaAccess] UPDATE executed successfully`);
     } catch (updateError) {
       console.error('[BetaAccess] UPDATE failed:', updateError);
