@@ -108,8 +108,8 @@ const BetaAccessManager: React.FC = () => {
 
   const stats = {
     total: users.length,
-    withAccess: users.filter(u => u.betaAccess).length,
-    pending: users.filter(u => !u.betaAccess).length,
+    withAccess: users.filter(u => u.betaAccess || u.role === 'Admin').length,
+    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length,
   };
 
   if (loading) {
