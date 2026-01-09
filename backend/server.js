@@ -1622,8 +1622,8 @@ app.get('/api/leagues', (req, res, next) => {
     // Use lowercase for PostgreSQL column name
     const isActiveCol = isPostgres ? '"isactive"' : 'isActive';
     
-    // PostgreSQL may use boolean or integer for isActive, handle both
-    const activeCheck = isPostgres ? `(${isActiveCol} = true OR ${isActiveCol} = 1)` : `${isActiveCol} = 1`;
+    // PostgreSQL: only check for true (boolean)
+    const activeCheck = isPostgres ? `(${isActiveCol} = true)` : `${isActiveCol} = 1`;
     
     let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${activeCheck}`;
     let params = [];
