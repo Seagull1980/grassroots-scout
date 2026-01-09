@@ -1516,6 +1516,61 @@ app.get('/api/player-availability', async (req, res) => {
   }
 });
 
+// Children management endpoints (for Parent/Guardian users)
+
+// Get children for authenticated parent
+app.get('/api/children', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    // Return empty array for now - this feature needs children table implementation
+    res.json({ children: [] });
+  } catch (error) {
+    console.error('Error fetching children:', error);
+    res.status(500).json({ error: 'Failed to fetch children' });
+  }
+});
+
+// Get child player availability for authenticated parent
+app.get('/api/child-player-availability', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    // Return empty array for now - this feature needs child_player_availability table implementation
+    res.json({ availability: [] });
+  } catch (error) {
+    console.error('Error fetching child availability:', error);
+    res.status(500).json({ error: 'Failed to fetch availability' });
+  }
+});
+
+// Create child player availability
+app.post('/api/child-player-availability', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    // Return success for now - this feature needs full implementation
+    res.status(201).json({ message: 'Child availability will be created when feature is implemented' });
+  } catch (error) {
+    console.error('Error creating child availability:', error);
+    res.status(500).json({ error: 'Failed to create availability' });
+  }
+});
+
+// Update child player availability
+app.put('/api/child-player-availability/:id', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    res.json({ message: 'Child availability will be updated when feature is implemented' });
+  } catch (error) {
+    console.error('Error updating child availability:', error);
+    res.status(500).json({ error: 'Failed to update availability' });
+  }
+});
+
+// Delete child player availability
+app.delete('/api/child-player-availability/:id', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    res.json({ message: 'Child availability will be deleted when feature is implemented' });
+  } catch (error) {
+    console.error('Error deleting child availability:', error);
+    res.status(500).json({ error: 'Failed to delete availability' });
+  }
+});
+
 // League management endpoints
 
 // Get all leagues (includes user's pending requests if authenticated)
@@ -1538,17 +1593,12 @@ app.get('/api/leagues', (req, res, next) => {
     
     // Get approved leagues (compatible with both SQLite and PostgreSQL)
     const isPostgres = !!process.env.DATABASE_URL;
-    const trueValue = isPostgres ? 'TRUE' : '1';
-    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = ${trueValue}`;
+    // In both DBs, isActive is stored as integer 0/1
+    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = 1`;
     let params = [];
 
     // If user wants pending leagues and is authenticated
     if (includePending === 'true' && req.user) {
-      const concatOp = isPostgres ? 'CONCAT' : '||';
-      const castFunc = isPostgres 
-        ? `CONCAT('pending_', id::TEXT)` 
-        : `CAST(('pending_' || id) as TEXT)`;
-      
       if (isPostgres) {
         query += ` 
           UNION ALL 
@@ -1557,7 +1607,7 @@ app.get('/api/leagues', (req, res, next) => {
             name, 
             'pending' as status 
           FROM league_requests 
-          WHERE status = 'pending' AND submittedBy = $1
+          WHERE status = 'pending' AND "submittedBy" = $1
         `;
       } else {
         query += ` 

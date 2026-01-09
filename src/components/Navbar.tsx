@@ -107,7 +107,7 @@ const Navbar: React.FC = () => {
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [
       { path: '/children', label: 'Manage Children', icon: <FamilyRestroom /> },
-      { path: '/child-player-availability', label: 'Child Availability', icon: <ChildCare /> }
+      { path: '/child-player-availability', label: 'Parent View', icon: <ChildCare /> }
     ] : []),
     ...(user && (user.role === 'Coach' || user.role === 'Player') ? [{ path: '/training-invitations', label: 'Training Invites', icon: <Schedule /> }] : []),
     // ...(user?.role === 'Coach' ? [{ path: '/trial-management', label: 'Trial Management', icon: <Assessment /> }] : []),
