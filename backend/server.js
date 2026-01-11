@@ -63,9 +63,12 @@ app.use('/api/verification', verificationRouter);
 app.use('/api/saved-searches', savedSearchesRouter);
 
 // Initialize database tables on startup
-// (async () => {
-//   try {
-//     await db.createTables();
+(async () => {
+  console.log('⚠️  Database initialization disabled for debugging');
+  // Database initialization code commented out
+  /*
+  try {
+    await db.createTables();
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
@@ -420,7 +423,8 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
     return; // Exit the IIFE without starting cron jobs
   }
-// })();
+  */
+})();
 
 // Start server without database initialization
 console.log('🚀 Starting server without database initialization...');
