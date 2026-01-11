@@ -956,7 +956,6 @@ class Database {
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
       'CREATE INDEX IF NOT EXISTS idx_team_vacancies_location ON team_vacancies USING GIN(locationData)',
-      'CREATE INDEX IF NOT EXISTS idx_player_availability_location ON player_availability USING GIN(locationData)',
       'CREATE INDEX IF NOT EXISTS idx_email_alerts_user ON email_alerts(userId)',
       'CREATE INDEX IF NOT EXISTS idx_email_alerts_active ON email_alerts(isActive)',
       'CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(date)',

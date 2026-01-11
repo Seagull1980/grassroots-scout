@@ -213,29 +213,30 @@ app.use('/api/saved-searches', savedSearchesRouter);
       }
       
       const requiredColumns = [
-        { name: 'preferredTeamGender', type: "VARCHAR DEFAULT 'Mixed'" },
-        { name: 'preferredFoot', type: 'VARCHAR' },
-        { name: 'height', type: 'INTEGER' },
-        { name: 'weight', type: 'INTEGER' },
-        { name: 'experienceLevel', type: 'VARCHAR' },
-        { name: 'coachingLicense', type: 'VARCHAR' },
-        { name: 'yearsExperience', type: 'INTEGER' },
-        { name: 'specializations', type: 'VARCHAR' },
-        { name: 'trainingLocation', type: 'VARCHAR' },
-        { name: 'matchLocation', type: 'VARCHAR' },
-        { name: 'trainingDays', type: 'VARCHAR' },
-        { name: 'ageGroupsCoached', type: 'VARCHAR' },
-        { name: 'emergencyContact', type: 'VARCHAR' },
-        { name: 'emergencyPhone', type: 'VARCHAR' },
-        { name: 'medicalInfo', type: 'VARCHAR' },
-        { name: 'profilePicture', type: 'VARCHAR' },
-        { name: 'isProfileComplete', type: 'BOOLEAN DEFAULT FALSE' },
-        { name: 'lastUpdated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+        { name: 'preferredTeamGender', pgName: 'preferredteamgender', type: "VARCHAR DEFAULT 'Mixed'" },
+        { name: 'preferredFoot', pgName: 'preferredfoot', type: 'VARCHAR' },
+        { name: 'height', pgName: 'height', type: 'INTEGER' },
+        { name: 'weight', pgName: 'weight', type: 'INTEGER' },
+        { name: 'experienceLevel', pgName: 'experiencelevel', type: 'VARCHAR' },
+        { name: 'coachingLicense', pgName: 'coachinglicense', type: 'VARCHAR' },
+        { name: 'yearsExperience', pgName: 'yearsexperience', type: 'INTEGER' },
+        { name: 'specializations', pgName: 'specializations', type: 'VARCHAR' },
+        { name: 'trainingLocation', pgName: 'traininglocation', type: 'VARCHAR' },
+        { name: 'matchLocation', pgName: 'matchlocation', type: 'VARCHAR' },
+        { name: 'trainingDays', pgName: 'trainingdays', type: 'VARCHAR' },
+        { name: 'ageGroupsCoached', pgName: 'agegroupscoached', type: 'VARCHAR' },
+        { name: 'emergencyContact', pgName: 'emergencycontact', type: 'VARCHAR' },
+        { name: 'emergencyPhone', pgName: 'emergencyphone', type: 'VARCHAR' },
+        { name: 'medicalInfo', pgName: 'medicalinfo', type: 'VARCHAR' },
+        { name: 'profilePicture', pgName: 'profilepicture', type: 'VARCHAR' },
+        { name: 'isProfileComplete', pgName: 'isprofilecomplete', type: 'BOOLEAN DEFAULT FALSE' },
+        { name: 'lastUpdated', pgName: 'lastupdated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
       ];
       
       let addedColumns = [];
       for (const column of requiredColumns) {
-        if (!existingColumns.has(column.name)) {
+        const checkName = db.dbType === 'postgresql' ? column.pgName : column.name;
+        if (!existingColumns.has(checkName)) {
           try {
             await db.query(`ALTER TABLE user_profiles ADD COLUMN ${column.name} ${column.type}`);
             addedColumns.push(column.name);
