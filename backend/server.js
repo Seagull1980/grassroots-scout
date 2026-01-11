@@ -64,9 +64,6 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
 // Initialize database tables on startup
 (async () => {
-  console.log('⚠️  Database initialization temporarily disabled for debugging');
-  // Database initialization code disabled
-  /*
   try {
     await db.createTables();
     
@@ -423,44 +420,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
     return; // Exit the IIFE without starting cron jobs
   }
-  */
 })();
-
-// Start server without database initialization
-console.log('🚀 Starting server without database initialization...');
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on all interfaces at port ${PORT}`);
-  console.log(`📱 Local access: http://localhost:${PORT}`);
-  console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
-});
-
-// Initialize WebSocket notification server (may fail)
-try {
-  console.log('🔧 Initializing notification server...');
-  const notificationServer = new NotificationServer(server, JWT_SECRET);
-  console.log('✅ Notification server initialized');
-  app.locals.notificationServer = notificationServer;
-} catch (wsError) {
-  console.warn('⚠️  WebSocket server initialization failed:', wsError.message);
-}
-
-console.log('🚀 Server started successfully');
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
 
 // Analytics middleware to track page views
 const trackPageView = async (req, res, next) => {
@@ -2180,12 +2140,23 @@ app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res)
       createdBy = null;
     }
 
-    const insertResult = await db.query(
-      'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, region || null, ageGroup || null, country || 'England', url || null, description || null, createdBy]
-    );
+    // Use different query syntax for PostgreSQL vs SQLite
+    let insertQuery, selectQuery;
+    if (process.env.DATABASE_URL) {
+      // PostgreSQL
+      insertQuery = 'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
+      selectQuery = 'SELECT * FROM leagues WHERE id = $1';
+    } else {
+      // SQLite
+      insertQuery = 'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)';
+      selectQuery = 'SELECT * FROM leagues WHERE id = ?';
+    }
+
+    const insertResult = await db.query(insertQuery, [name, region || null, ageGroup || null, country || 'England', url || null, description || null, createdBy]);
     
-    const leagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [insertResult.lastID]);
+    // Get the inserted league
+    const leagueId = insertResult.rows[0]?.id || insertResult.lastID;
+    const leagueResult = await db.query(selectQuery, [leagueId]);
     const league = leagueResult.rows[0];
     
     res.json({ league, message: 'League created successfully' });
