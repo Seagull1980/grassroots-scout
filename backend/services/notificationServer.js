@@ -4,16 +4,23 @@ const { v4: uuidv4 } = require('uuid');
 
 class NotificationServer {
   constructor(server, jwtSecret) {
-    this.wss = new WebSocket.Server({ 
-      port: 8080,
-      verifyClient: this.verifyClient.bind(this)
-    });
-    this.jwtSecret = jwtSecret;
-    this.connections = new Map(); // userId -> Set of connections
-    this.userSessions = new Map(); // connectionId -> user info
-    
-    this.setupEventHandlers();
-    console.log('🔔 Notification WebSocket server started on port 8080');
+    try {
+      this.wss = new WebSocket.Server({ 
+        server: server, // Use the existing HTTP server
+        path: '/ws', // WebSocket path
+        verifyClient: this.verifyClient.bind(this)
+      });
+      this.jwtSecret = jwtSecret;
+      this.connections = new Map(); // userId -> Set of connections
+      this.userSessions = new Map(); // connectionId -> user info
+      
+      this.setupEventHandlers();
+      console.log('🔔 Notification WebSocket server started on HTTP server at /ws');
+    } catch (error) {
+      console.warn('⚠️  Failed to start WebSocket server:', error.message);
+      console.warn('WebSocket notifications will be disabled');
+      this.wss = null;
+    }
   }
 
   verifyClient(info) {
