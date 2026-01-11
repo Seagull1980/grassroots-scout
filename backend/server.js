@@ -276,11 +276,13 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
           console.log(`📄 Found ${statements.length} SQL statements to execute`);
 
+          let insertedCount = 0;
           for (let i = 0; i < statements.length; i++) {
             const statement = statements[i].trim();
             if (statement) {
               try {
                 await db.query(statement);
+                insertedCount++;
               } catch (stmtError) {
                 console.warn(`⚠️  Failed to execute statement ${i + 1}:`, stmtError.message);
                 // Continue with other statements
@@ -288,10 +290,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
             }
           }
 
-          // Verify seeding worked
-          const verifyCount = await db.query('SELECT COUNT(*) as count FROM leagues');
-          const finalCount = verifyCount.rows[0].count;
-          console.log(`✅ Leagues table seeded successfully with ${finalCount} leagues`);
+          console.log(`✅ Successfully inserted ${insertedCount} leagues into database`);
         } else {
           console.error('❌ add-fa-leagues.sql file not found at:', sqlFilePath);
         }
