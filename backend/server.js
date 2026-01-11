@@ -5903,13 +5903,26 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 // Initialize WebSocket notification server
+console.log('🔧 Initializing notification server...');
 const notificationServer = new NotificationServer(server, JWT_SECRET);
+console.log('✅ Notification server initialized');
 
 // Make notification server available globally
 app.locals.notificationServer = notificationServer;
+console.log('🚀 Server fully initialized and ready to accept connections');
 
 // Graceful shutdown - don't close singleton database, just exit cleanly
 process.on('SIGINT', () => {
   console.log('Shutting down gracefully...');
   process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
