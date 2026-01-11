@@ -355,8 +355,41 @@ app.use('/api/saved-searches', savedSearchesRouter);
     // Test email service connection (disabled - SMTP blocked on Render)
     // await emailService.testConnection();
     
+    // Start the server only after database is fully initialized
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on all interfaces at port ${PORT}`);
+      console.log(`📱 Local access: http://localhost:${PORT}`);
+      console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
+    });
+
+    // Initialize WebSocket notification server
+    console.log('🔧 Initializing notification server...');
+    const notificationServer = new NotificationServer(server, JWT_SECRET);
+    console.log('✅ Notification server initialized');
+
+    // Make notification server available globally
+    app.locals.notificationServer = notificationServer;
+    console.log('🚀 Server fully initialized and ready to accept connections');
+
+    // Graceful shutdown - don't close singleton database, just exit cleanly
+    process.on('SIGINT', () => {
+      console.log('Shutting down gracefully...');
+      process.exit(0);
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('❌ Uncaught Exception:', error);
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+      process.exit(1);
+    });
+    
   } catch (error) {
-    console.error('❌ Failed to initialize database:', error);
+    console.error('❌ Failed to initialize database and start server:', error);
+    console.error('Stack trace:', error.stack);
     process.exit(1);
   }
 })();
@@ -5896,33 +5929,4 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on all interfaces at port ${PORT}`);
-  console.log(`📱 Local access: http://localhost:${PORT}`);
-  console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
-});
 
-// Initialize WebSocket notification server
-console.log('🔧 Initializing notification server...');
-const notificationServer = new NotificationServer(server, JWT_SECRET);
-console.log('✅ Notification server initialized');
-
-// Make notification server available globally
-app.locals.notificationServer = notificationServer;
-console.log('🚀 Server fully initialized and ready to accept connections');
-
-// Graceful shutdown - don't close singleton database, just exit cleanly
-process.on('SIGINT', () => {
-  console.log('Shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
