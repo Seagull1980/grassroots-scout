@@ -62,21 +62,24 @@ import SiteActivityDashboard from '../components/SiteActivityDashboard';
 
 const AdminPage: React.FC = () => {
   console.log('🔍 AdminPage render start');
-  
+
   // Get user information first - this hook must always be called
   console.log('🔗 Hook 1: useAuth');
   const { impersonateUser, stopImpersonation, isImpersonating, user } = useAuth();
-  
+
   console.log('🔗 Hook 2: useNavigate');
   const navigate = useNavigate();
-  
+
   console.log('🔗 Hook 3: useTheme');
   const theme = useTheme();
-  
+
   console.log('🔗 Hook 4: useMediaQuery');
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
-  console.log('🔗 Hook 5-19: useState hooks');
+
+  // State for live analytics
+  const [analytics, setAnalytics] = useState<{ totalUsers: number; totalMatches: number }>({ totalUsers: 0, totalMatches: 0 });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
   // All state hooks must be declared BEFORE any conditional returns
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(false);
@@ -113,7 +116,6 @@ const AdminPage: React.FC = () => {
       if (!user || user.role !== 'Admin') {
         return;
       }
-      
       try {
         setLoading(true);
         const response = await leaguesAPI.getAll();
@@ -124,9 +126,30 @@ const AdminPage: React.FC = () => {
         setLoading(false);
       }
     };
-    
     fetchLeagues();
-  }, [user]); // Add user as dependency
+  }, [user]);
+
+  // Fetch analytics overview for live stats
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!user || user.role !== 'Admin') return;
+      setAnalyticsLoading(true);
+      try {
+        const response = await fetch('/api/analytics/overview', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        if (!response.ok) throw new Error('Failed to fetch analytics');
+        const data = await response.json();
+        setAnalytics({
+          totalUsers: data.overview?.totalUsers ?? 0,
+          totalMatches: data.overview?.totalMatches ?? 0,
+        });
+      } catch (err) {
+        setAnalytics({ totalUsers: 0, totalMatches: 0 });
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [user]);
 
   // Check user permissions AFTER all hooks are declared
   if (!user) {
@@ -512,7 +535,7 @@ const AdminPage: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography variant="h4" fontWeight="bold">
-                      1,247
+                      {analyticsLoading ? <CircularProgress size={28} color="inherit" /> : analytics.totalUsers}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
                       Total Users
@@ -532,7 +555,7 @@ const AdminPage: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
                     <Typography variant="h4" fontWeight="bold">
-                      342
+                      {analyticsLoading ? <CircularProgress size={28} color="inherit" /> : analytics.totalMatches}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
                       Active Matches
