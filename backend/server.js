@@ -1095,6 +1095,10 @@ app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
       });
     }
   );
+  } catch (error) {
+    console.error('Error creating vacancy:', error);
+    return res.status(500).json({ error: 'Failed to create vacancy' });
+  }
 });
 
 // Get team vacancies
