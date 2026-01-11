@@ -1813,62 +1813,29 @@ app.get('/api/leagues', (req, res, next) => {
   try {
     const { includePending = false } = req.query;
     
-    // Get approved leagues (compatible with both SQLite and PostgreSQL)
-    const isPostgres = !!process.env.DATABASE_URL;
+    // Get approved leagues (simplified query for compatibility)
+    console.log('Fetching leagues...');
     
-    console.log('Fetching leagues - isPostgres:', isPostgres);
-    
-    // For PostgreSQL, check if table exists first
-    if (isPostgres) {
-      try {
-        const tableCheck = await db.query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_name = 'leagues'
-          )
-        `);
-        console.log('Leagues table exists:', tableCheck.rows[0]?.exists);
-        
-        if (!tableCheck.rows[0]?.exists) {
-          console.log('Leagues table does not exist, returning empty array');
-          return res.json({ leagues: [] });
-        }
-      } catch (tableCheckError) {
-        console.error('Error checking for leagues table:', tableCheckError);
-      }
-    }
-    
-    // Use column name with quotes for PostgreSQL, without for SQLite
-    const idCol = isPostgres ? '"id"' : 'id';
-    const nameCol = isPostgres ? '"name"' : 'name';
-    // Use lowercase for PostgreSQL column name
-    const isActiveCol = isPostgres ? '"isactive"' : 'isActive';
-    
-    // PostgreSQL: check for both boolean true and integer 1 (for backward compatibility)
-    const activeCheck = isPostgres ? `(${isActiveCol} = true OR ${isActiveCol} = 1)` : `${isActiveCol} = 1`;
-    
-    let query = `SELECT ${idCol}, ${nameCol}, 'approved' as status FROM leagues WHERE ${activeCheck}`;
+    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = true`;
     let params = [];
     
-    console.log('Running query:', query);
-
     // If user wants pending leagues and is authenticated
     if (includePending === 'true' && req.user) {
-      if (isPostgres) {
+      if (db.dbType === 'postgresql') {
         query += ` 
           UNION ALL 
           SELECT 
-            CONCAT('pending_', "id"::TEXT) as id, 
-            "name", 
+            CONCAT('pending_', id::TEXT) as id, 
+            name, 
             'pending' as status 
           FROM league_requests 
-          WHERE "status" = 'pending' AND "submittedBy" = $1
+          WHERE status = 'pending' AND submittedBy = $1
         `;
       } else {
         query += ` 
           UNION ALL 
           SELECT 
-            CAST(('pending_' || id) as TEXT) as id, 
+            ('pending_' || id) as id, 
             name, 
             'pending' as status 
           FROM league_requests 
@@ -1880,8 +1847,9 @@ app.get('/api/leagues', (req, res, next) => {
 
     query += ' ORDER BY status, name ASC';
     
+    console.log('Running leagues query:', query);
     const result = await db.query(query, params);
-    console.log('Query result rows:', result.rows?.length || 0);
+    console.log('Query returned', result.rows?.length || 0, 'rows');
     
     const leagues = result.rows.map(league => ({
       ...league,
