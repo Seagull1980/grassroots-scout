@@ -388,9 +388,37 @@ app.use('/api/saved-searches', savedSearchesRouter);
     });
     
   } catch (error) {
-    console.error('❌ Failed to initialize database and start server:', error);
+    console.error('❌ Failed to initialize database:', error);
     console.error('Stack trace:', error.stack);
-    process.exit(1);
+    console.warn('⚠️  Continuing with server startup despite database initialization failure');
+    console.warn('⚠️  Some features may not work correctly');
+    
+    // Start server anyway with limited functionality
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on all interfaces at port ${PORT} (with limited functionality)`);
+      console.log(`📱 Local access: http://localhost:${PORT}`);
+      console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
+    });
+
+    // Initialize WebSocket notification server (may fail)
+    try {
+      console.log('🔧 Initializing notification server...');
+      const notificationServer = new NotificationServer(server, JWT_SECRET);
+      console.log('✅ Notification server initialized');
+      app.locals.notificationServer = notificationServer;
+    } catch (wsError) {
+      console.warn('⚠️  WebSocket server initialization failed:', wsError.message);
+    }
+
+    console.log('🚀 Server started with limited functionality due to database issues');
+
+    // Graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('Shutting down gracefully...');
+      process.exit(0);
+    });
+
+    return; // Exit the IIFE without starting cron jobs
   }
 })();
 
