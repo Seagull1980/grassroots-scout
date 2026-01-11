@@ -241,9 +241,8 @@ class Database {
         hits INTEGER DEFAULT 0,
         description VARCHAR,
         isActive BOOLEAN DEFAULT TRUE,
-        createdBy INTEGER,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (createdBy) REFERENCES users (id)
+        createdBy INTEGER NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
 
       `CREATE TABLE IF NOT EXISTS league_requests (

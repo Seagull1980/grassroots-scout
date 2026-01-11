@@ -2127,9 +2127,22 @@ app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res)
       return res.status(400).json({ error: 'League name is required' });
     }
 
+    // Check if the user exists, if not, use NULL for createdBy
+    let createdBy = req.user.userId;
+    try {
+      const userCheck = await db.query('SELECT id FROM users WHERE id = ?', [req.user.userId]);
+      if (!userCheck.rows || userCheck.rows.length === 0) {
+        console.warn(`⚠️  User ${req.user.userId} not found in database, using NULL for createdBy`);
+        createdBy = null;
+      }
+    } catch (userCheckError) {
+      console.warn('⚠️  Error checking user existence:', userCheckError.message);
+      createdBy = null;
+    }
+
     const insertResult = await db.query(
       'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, region || null, ageGroup || null, country || 'England', url || null, description || null, req.user.userId]
+      [name, region || null, ageGroup || null, country || 'England', url || null, description || null, createdBy]
     );
     
     const leagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [insertResult.lastID]);
