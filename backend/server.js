@@ -63,9 +63,9 @@ app.use('/api/verification', verificationRouter);
 app.use('/api/saved-searches', savedSearchesRouter);
 
 // Initialize database tables on startup
-(async () => {
-  try {
-    await db.createTables();
+// (async () => {
+//   try {
+//     await db.createTables();
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
@@ -420,7 +420,43 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
     return; // Exit the IIFE without starting cron jobs
   }
-})();
+// })();
+
+// Start server without database initialization
+console.log('🚀 Starting server without database initialization...');
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on all interfaces at port ${PORT}`);
+  console.log(`📱 Local access: http://localhost:${PORT}`);
+  console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
+});
+
+// Initialize WebSocket notification server (may fail)
+try {
+  console.log('🔧 Initializing notification server...');
+  const notificationServer = new NotificationServer(server, JWT_SECRET);
+  console.log('✅ Notification server initialized');
+  app.locals.notificationServer = notificationServer;
+} catch (wsError) {
+  console.warn('⚠️  WebSocket server initialization failed:', wsError.message);
+}
+
+console.log('🚀 Server started successfully');
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
 // Analytics middleware to track page views
 const trackPageView = async (req, res, next) => {
