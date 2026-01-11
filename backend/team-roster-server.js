@@ -39,28 +39,38 @@ const authenticateToken = (req, res, next) => {
 
 // Team Roster API endpoints
 
-// Get all rosters for the authenticated coach
+// Get all rosters for teams the authenticated coach is a member of
 app.get('/api/team-rosters', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'Coach') {
       return res.status(403).json({ error: 'Only coaches can manage team rosters' });
     }
 
-    const rosters = await db.getAll(
-      'SELECT * FROM team_rosters WHERE coachId = ? ORDER BY createdAt DESC',
-      [req.user.userId]
-    );
+    const rosters = await db.query(`
+      SELECT tr.*, t.teamName, t.clubName, t.ageGroup, t.league, tm.role as userRole
+      FROM team_rosters tr
+      JOIN teams t ON tr.teamId = t.id
+      JOIN team_members tm ON t.id = tm.teamId
+      WHERE tm.userId = ? AND JSON_EXTRACT(tm.permissions, '$.canManageRoster') = true
+      ORDER BY tr.createdAt DESC
+    `, [req.user.userId]);
 
     // Get player counts for each roster
-    for (const roster of rosters) {
-      const playerCount = await db.getOne(
+    const rostersWithCounts = (rosters.rows || rosters).map(roster => ({
+      ...roster,
+      playerCount: 0 // We'll calculate this properly
+    }));
+
+    // Get player counts for each roster
+    for (const roster of rostersWithCounts) {
+      const playerCount = await db.query(
         'SELECT COUNT(*) as count FROM team_players WHERE teamId = ? AND isActive = ?',
         [roster.id, true]
       );
-      roster.playerCount = playerCount.count;
+      roster.playerCount = (playerCount.rows || playerCount)[0].count;
     }
 
-    res.json({ rosters });
+    res.json({ rosters: rostersWithCounts });
   } catch (error) {
     console.error('Error fetching team rosters:', error);
     res.status(500).json({ error: 'Failed to fetch team rosters' });
@@ -76,15 +86,20 @@ app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
 
     const { rosterId } = req.params;
 
-    // Get roster details
-    const roster = await db.getOne(
-      'SELECT * FROM team_rosters WHERE id = ? AND coachId = ?',
-      [rosterId, req.user.userId]
-    );
+    // Get roster details with team info and check permissions
+    const roster = await db.query(`
+      SELECT tr.*, t.teamName, t.clubName, t.ageGroup, t.league, tm.permissions
+      FROM team_rosters tr
+      JOIN teams t ON tr.teamId = t.id
+      JOIN team_members tm ON t.id = tm.teamId
+      WHERE tr.id = ? AND tm.userId = ? AND JSON_EXTRACT(tm.permissions, '$.canManageRoster') = true
+    `, [rosterId, req.user.userId]);
 
-    if (!roster) {
-      return res.status(404).json({ error: 'Team roster not found' });
+    if (!roster.rows || roster.rows.length === 0) {
+      return res.status(404).json({ error: 'Team roster not found or access denied' });
     }
+
+    const rosterData = roster.rows[0];
 
     // Get all players for this roster
     const players = await db.getAll(

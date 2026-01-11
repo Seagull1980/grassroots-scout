@@ -277,11 +277,13 @@ class Database {
         locationData JSONB,
         contactInfo VARCHAR,
         postedBy INTEGER NOT NULL,
+        teamId INTEGER,
         hasMatchRecording BOOLEAN DEFAULT 0,
         hasPathwayToSenior BOOLEAN DEFAULT 0,
         status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'filled', 'expired')),
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (postedBy) REFERENCES users (id)
+        FOREIGN KEY (postedBy) REFERENCES users (id),
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE SET NULL
       )`,
 
       `CREATE TABLE IF NOT EXISTS player_availability (
@@ -369,18 +371,41 @@ class Database {
         UNIQUE(eventId, userId)
       )`,
 
-      `CREATE TABLE IF NOT EXISTS team_rosters (
+      `CREATE TABLE IF NOT EXISTS teams (
         id SERIAL PRIMARY KEY,
-        coachId INTEGER NOT NULL,
         teamName VARCHAR NOT NULL,
         clubName VARCHAR,
         ageGroup VARCHAR NOT NULL,
         league VARCHAR NOT NULL,
         teamGender VARCHAR NOT NULL DEFAULT 'Mixed' CHECK(teamGender IN ('Boys', 'Girls', 'Mixed')),
+        location VARCHAR,
+        locationData JSONB,
+        contactEmail VARCHAR,
+        website VARCHAR,
+        socialMedia JSONB,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS team_members (
+        id SERIAL PRIMARY KEY,
+        teamId INTEGER NOT NULL,
+        userId INTEGER NOT NULL,
+        role VARCHAR NOT NULL DEFAULT 'Coach' CHECK(role IN ('Head Coach', 'Assistant Coach', 'Youth Coach', 'Goalkeeper Coach', 'Fitness Coach')),
+        permissions JSONB DEFAULT '{"canPostVacancies": true, "canManageRoster": true, "canEditTeam": false, "canDeleteTeam": false}',
+        joinedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE,
+        FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+        UNIQUE(teamId, userId)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS team_rosters (
+        id SERIAL PRIMARY KEY,
+        teamId INTEGER NOT NULL,
         maxSquadSize INTEGER,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (coachId) REFERENCES users (id) ON DELETE CASCADE
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE
       )`,
 
       `CREATE TABLE IF NOT EXISTS team_players (

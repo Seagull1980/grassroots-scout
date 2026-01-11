@@ -1008,17 +1008,33 @@ app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
   body('description').notEmpty().withMessage('Description is required'),
   body('league').notEmpty().withMessage('League is required'),
   body('ageGroup').notEmpty().withMessage('Age group is required'),
-  body('position').notEmpty().withMessage('Position is required')
-], (req, res) => {
+  body('position').notEmpty().withMessage('Position is required'),
+  body('teamId').optional().isInt().withMessage('Team ID must be a number')
+], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { title, description, league, ageGroup, position, location, contactInfo, locationData, hasMatchRecording, hasPathwayToSenior, playingTimePolicy } = req.body;
+  const { title, description, league, ageGroup, position, location, contactInfo, locationData, hasMatchRecording, hasPathwayToSenior, playingTimePolicy, teamId } = req.body;
 
-  // Encrypt contact information for privacy
-  const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
+  try {
+    // If teamId is provided, verify the user is a member of that team and has permission to post vacancies
+    if (teamId) {
+      const membership = await db.query(`
+        SELECT tm.permissions, t.teamName
+        FROM team_members tm
+        JOIN teams t ON tm.teamId = t.id
+        WHERE tm.teamId = ? AND tm.userId = ? AND JSON_EXTRACT(tm.permissions, '$.canPostVacancies') = true
+      `, [teamId, req.user.userId]);
+
+      if (!membership.rows || membership.rows.length === 0) {
+        return res.status(403).json({ error: 'You do not have permission to post vacancies for this team' });
+      }
+    }
+
+    // Encrypt contact information for privacy
+    const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
 
   // Handle location data if provided
   let locationAddress = null, locationLatitude = null, locationLongitude = null, locationPlaceId = null;
@@ -1035,11 +1051,11 @@ app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
 
   db.run(
     `INSERT INTO team_vacancies (
-      title, description, league, ageGroup, position, location, contactInfo, postedBy,
+      title, description, league, ageGroup, position, location, contactInfo, postedBy, teamId,
       locationAddress, locationLatitude, locationLongitude, locationPlaceId,
       hasMatchRecording, hasPathwayToSenior, playingTimePolicy
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, description, league, ageGroup, position, location, encryptedContactInfo, req.user.userId,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, description, league, ageGroup, position, location, encryptedContactInfo, req.user.userId, teamId || null,
      locationAddress, locationLatitude, locationLongitude, locationPlaceId,
      matchRecording, pathwayToSenior, playingTimePolicy || null],
     async function(err) {
@@ -2328,6 +2344,7 @@ app.post('/api/engagement/track', authenticateToken, requireBetaAccess, [
 app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req, res) => {
   try {
     const { type = 'all', limit = 10 } = req.query;
+    const parsedLimit = parseInt(limit) || 10;
     
     // Get user's recent interactions to understand preferences (with error handling)
     let interactions = [];
@@ -2366,6 +2383,7 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
       // Recommend team vacancies
       const placeholder1 = process.env.DATABASE_URL ? '$1' : '?';
       const placeholder2 = process.env.DATABASE_URL ? '$2' : '?';
+      const placeholder3 = process.env.DATABASE_URL ? '$3' : '?';
       let vacancyQuery = `
         SELECT v.*, u.firstName, u.lastName,
           CASE 
@@ -2378,17 +2396,23 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
         WHERE v.status = 'active' AND ui.targetId IS NULL
       `;
 
+      let queryParams = [req.user.userId];
+      let paramIndex = 2;
+
       // Add filters based on user interactions and profile
       if (profileResult.rows.length > 0) {
         const profile = profileResult.rows[0];
         if (profile.position) {
-          vacancyQuery += ` AND v.position = '${profile.position}'`;
+          vacancyQuery += ` AND v.position = ${process.env.DATABASE_URL ? '$' + paramIndex : '?'}`;
+          queryParams.push(profile.position);
+          paramIndex++;
         }
       }
 
-      vacancyQuery += ` ORDER BY v.createdAt DESC LIMIT ${placeholder2}`;
+      vacancyQuery += ` ORDER BY v.createdAt DESC LIMIT ${process.env.DATABASE_URL ? '$' + paramIndex : '?'}`;
+      queryParams.push(parsedLimit);
       
-      const vacanciesResult = await db.query(vacancyQuery, [req.user.userId, limit]);
+      const vacanciesResult = await db.query(vacancyQuery, queryParams);
       recommendations = recommendations.concat(
         vacanciesResult.rows.map(v => ({
           type: 'vacancy',
@@ -2425,7 +2449,7 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
         LIMIT ${placeholder2}
       `;
       
-      const playersResult = await db.query(playerQuery, [req.user.userId, limit]);
+      const playersResult = await db.query(playerQuery, [req.user.userId, parsedLimit]);
       recommendations = recommendations.concat(
         playersResult.rows.map(p => ({
           type: 'player',
@@ -2434,7 +2458,14 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
           description: p.description,
           metadata: {
             preferredLeagues: p.preferredLeagues,
-            positions: JSON.parse(p.positions || '[]'),
+            positions: (() => {
+              try {
+                return JSON.parse(p.positions || '[]');
+              } catch (e) {
+                console.warn('Failed to parse positions for player', p.id, e);
+                return [];
+              }
+            })(),
             ageGroup: p.ageGroup,
             location: p.location,
             postedBy: `${p.firstName} ${p.lastName}`
@@ -2448,12 +2479,13 @@ app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req
     recommendations.sort((a, b) => b.score - a.score);
 
     res.json({ 
-      recommendations: recommendations.slice(0, limit),
+      recommendations: recommendations.slice(0, parsedLimit),
       total: recommendations.length
     });
   } catch (error) {
     console.error('Error getting recommendations:', error);
-    res.status(500).json({ error: 'Failed to get recommendations' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to get recommendations', details: error.message });
   }
 });
 

@@ -29,6 +29,16 @@ import LocationInput from '../components/LocationInput';
 import LeagueRequestDialog from '../components/LeagueRequestDialog';
 import { Location } from '../types';
 
+interface Team {
+  id: number;
+  teamName: string;
+  clubName?: string;
+  userRole: string;
+  permissions: {
+    canPostVacancies: boolean;
+  };
+}
+
 const PostAdvertPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
@@ -37,6 +47,8 @@ const PostAdvertPage: React.FC = () => {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -50,6 +62,7 @@ const PostAdvertPage: React.FC = () => {
     hasMatchRecording: false,
     hasPathwayToSenior: false,
     playingTimePolicy: '',
+    teamId: '', // For team-based posting
   });
 
   const [locationData, setLocationData] = useState<Location | null>(null);
@@ -85,7 +98,7 @@ const PostAdvertPage: React.FC = () => {
     setError('');
   };
 
-  // Fetch leagues on component mount
+  // Fetch leagues and teams on component mount
   useEffect(() => {
     const fetchLeagues = async () => {
       try {
@@ -105,8 +118,32 @@ const PostAdvertPage: React.FC = () => {
       }
     };
 
+    const fetchTeams = async () => {
+      if (user?.role === 'Coach') {
+        try {
+          setLoadingTeams(true);
+          const response = await fetch('/api/teams', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setTeams(data.teams || []);
+          }
+        } catch (err) {
+          console.error('Error fetching teams:', err);
+        } finally {
+          setLoadingTeams(false);
+        }
+      }
+    };
+
     fetchLeagues();
-  }, []);
+    if (user?.role === 'Coach') {
+      fetchTeams();
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +162,7 @@ const PostAdvertPage: React.FC = () => {
       if (isCoach) {
         const submitData = {
           ...formData,
+          teamId: formData.teamId ? parseInt(formData.teamId) : undefined,
           locationData: locationData
         };
         await vacanciesAPI.create(submitData);
@@ -157,6 +195,7 @@ const PostAdvertPage: React.FC = () => {
         hasMatchRecording: false,
         hasPathwayToSenior: false,
         playingTimePolicy: '',
+        teamId: '',
       });
       setLocationData(null);
 
@@ -390,6 +429,38 @@ const PostAdvertPage: React.FC = () => {
                   return filtered;
                 }}
               />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Team</InputLabel>
+                <Select
+                  name="teamId"
+                  value={formData.teamId}
+                  label="Team"
+                  onChange={handleSelectChange}
+                  disabled={loadingTeams}
+                >
+                  {teams.map((team) => (
+                    <MenuItem key={team.id} value={team.id}>
+                      {team.teamName}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {loadingTeams && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Loading teams...
+                    </Typography>
+                  </Box>
+                )}
+                {teams.length === 0 && !loadingTeams && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    No teams found. Create a team first to post vacancies.
+                  </Typography>
+                )}
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} sm={6}>

@@ -40,6 +40,7 @@ import {
   Business,
   Analytics,
   MoreHoriz,
+  ManageAccounts,
   Feedback as FeedbackIcon,
   Forum as ForumIcon,
   LockOpen
@@ -103,6 +104,7 @@ const Navbar: React.FC = () => {
     ...(user?.role !== 'Admin' ? [{ path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> }] : []),
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
+      { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
       { path: '/team-profile', label: 'Team Profile', icon: <Business /> }
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [

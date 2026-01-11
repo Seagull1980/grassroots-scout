@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite",
     "backend": "cd backend && node server.js",
+    "team-management-server": "cd backend && node team-management-server.js",
     "team-roster-server": "cd backend && node team-roster-server.js",
     "playing-history-server": "cd backend && node playing-history-server.js",
     "forum-server": "cd backend && node forum-server.js",
-    "dev:full": "concurrently \"npm run backend\" \"npm run team-roster-server\" \"npm run playing-history-server\" \"npm run forum-server\" \"npm run dev\"",
+    "dev:full": "concurrently \"npm run backend\" \"npm run team-management-server\" \"npm run team-roster-server\" \"npm run playing-history-server\" \"npm run forum-server\" \"npm run dev\"",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

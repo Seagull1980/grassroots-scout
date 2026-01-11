@@ -51,6 +51,7 @@ const {
   AdminPage,
   TeamProfilePage,
   TeamRosterPage,
+  TeamManagementPage,
   ClubDashboardPage,
   MatchCompletionsPage,
   MyFeedbackPage,
@@ -178,6 +179,11 @@ function App() {
               <Route path="/team-roster" element={
                 <ProtectedRoute>
                   <TeamRosterPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/team-management" element={
+                <ProtectedRoute>
+                  <TeamManagementPage />
                 </ProtectedRoute>
               } />
               <Route path="/club-dashboard/:clubName" element={
