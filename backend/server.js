@@ -259,6 +259,94 @@ app.use('/api/saved-searches', savedSearchesRouter);
     // Seed leagues table if empty (critical for production deployments)
     try {
       console.log('🔍 Checking leagues table...');
+      
+      // First, ensure the region, ageGroup, url, and hits columns exist (added later in schema evolution)
+      let hasRegionColumn = false;
+      let hasAgeGroupColumn = false;
+      let hasUrlColumn = false;
+      let hasHitsColumn = false;
+      if (db.dbType === 'postgresql') {
+        const checkColumns = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues' AND column_name IN ('region', 'agegroup', 'url', 'hits')"
+        );
+        const existingColumns = checkColumns.rows.map(row => row.column_name);
+        hasRegionColumn = existingColumns.includes('region');
+        hasAgeGroupColumn = existingColumns.includes('agegroup');
+        hasUrlColumn = existingColumns.includes('url');
+        hasHitsColumn = existingColumns.includes('hits');
+      } else {
+        const checkColumns = await db.query('PRAGMA table_info(leagues)');
+        const existingColumns = checkColumns.rows.map(row => row.name);
+        hasRegionColumn = existingColumns.includes('region');
+        hasAgeGroupColumn = existingColumns.includes('ageGroup');
+        hasUrlColumn = existingColumns.includes('url');
+        hasHitsColumn = existingColumns.includes('hits');
+      }
+      
+      if (!hasRegionColumn) {
+        console.log('⚠️  region column missing from leagues table - adding now...');
+        try {
+          await db.query('ALTER TABLE leagues ADD COLUMN region VARCHAR');
+          console.log('✅ Added region column to leagues table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ region column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
+      } else {
+        console.log('✅ region column exists in leagues table');
+      }
+      
+      if (!hasAgeGroupColumn) {
+        console.log('⚠️  ageGroup column missing from leagues table - adding now...');
+        try {
+          await db.query('ALTER TABLE leagues ADD COLUMN ageGroup VARCHAR');
+          console.log('✅ Added ageGroup column to leagues table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ ageGroup column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
+      } else {
+        console.log('✅ ageGroup column exists in leagues table');
+      }
+      
+      if (!hasUrlColumn) {
+        console.log('⚠️  url column missing from leagues table - adding now...');
+        try {
+          await db.query('ALTER TABLE leagues ADD COLUMN url VARCHAR');
+          console.log('✅ Added url column to leagues table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ url column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
+      } else {
+        console.log('✅ url column exists in leagues table');
+      }
+      
+      if (!hasHitsColumn) {
+        console.log('⚠️  hits column missing from leagues table - adding now...');
+        try {
+          await db.query('ALTER TABLE leagues ADD COLUMN hits INTEGER DEFAULT 0');
+          console.log('✅ Added hits column to leagues table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ hits column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
+      } else {
+        console.log('✅ hits column exists in leagues table');
+      }
+      
       const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
       const count = leagueCount.rows[0].count;
 
@@ -278,8 +366,16 @@ app.use('/api/saved-searches', savedSearchesRouter);
 
           let insertedCount = 0;
           for (let i = 0; i < statements.length; i++) {
-            const statement = statements[i].trim();
+            let statement = statements[i].trim();
             if (statement) {
+              // Convert SQLite syntax to PostgreSQL if needed
+              if (db.dbType === 'postgresql') {
+                statement = statement.replace(/INSERT OR IGNORE/gi, 'INSERT');
+                // Add ON CONFLICT DO NOTHING for PostgreSQL
+                if (statement.toUpperCase().startsWith('INSERT')) {
+                  statement += ' ON CONFLICT DO NOTHING';
+                }
+              }
               try {
                 await db.query(statement);
                 insertedCount++;
