@@ -255,7 +255,53 @@ app.use('/api/saved-searches', savedSearchesRouter);
     } catch (profileError) {
       console.error('❌ Error checking user_profiles schema:', profileError);
     }
-    
+
+    // Seed leagues table if empty (critical for production deployments)
+    try {
+      console.log('🔍 Checking leagues table...');
+      const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
+      const count = leagueCount.rows[0].count;
+
+      if (count === 0) {
+        console.log('⚠️  Leagues table is empty - seeding with FA leagues data...');
+
+        // Read the SQL file and execute it
+        const fs = require('fs');
+        const path = require('path');
+        const sqlFilePath = path.join(__dirname, 'add-fa-leagues.sql');
+
+        if (fs.existsSync(sqlFilePath)) {
+          const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
+          const statements = sqlContent.split(';').filter(stmt => stmt.trim().length > 0);
+
+          console.log(`📄 Found ${statements.length} SQL statements to execute`);
+
+          for (let i = 0; i < statements.length; i++) {
+            const statement = statements[i].trim();
+            if (statement) {
+              try {
+                await db.query(statement);
+              } catch (stmtError) {
+                console.warn(`⚠️  Failed to execute statement ${i + 1}:`, stmtError.message);
+                // Continue with other statements
+              }
+            }
+          }
+
+          // Verify seeding worked
+          const verifyCount = await db.query('SELECT COUNT(*) as count FROM leagues');
+          const finalCount = verifyCount.rows[0].count;
+          console.log(`✅ Leagues table seeded successfully with ${finalCount} leagues`);
+        } else {
+          console.error('❌ add-fa-leagues.sql file not found at:', sqlFilePath);
+        }
+      } else {
+        console.log(`✅ Leagues table already has ${count} entries`);
+      }
+    } catch (leagueError) {
+      console.error('❌ Error checking/seeding leagues table:', leagueError);
+    }
+
     // Auto-create admin account on production if none exists
     try {
       console.log('🔍 Checking for admin account...');
