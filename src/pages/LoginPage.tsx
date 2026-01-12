@@ -117,9 +117,9 @@ const LoginPage: React.FC = () => {
           </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <div style={{ color: 'red', marginBottom: '16px', fontWeight: 'bold' }}>
               {error}
-            </Alert>
+            </div>
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
