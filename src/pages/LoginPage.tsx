@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_URL } from '../services/api';
 import {
   Container,
@@ -14,13 +14,14 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { storage } from '../utils/storage';
 import QuickUserSwitcher from '../components/QuickUserSwitcher';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -29,6 +30,13 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [devLoginLoading, setDevLoginLoading] = useState(false);
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'invalid') {
+      setError('Invalid email or password. Please check your credentials and try again.');
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -55,10 +63,10 @@ const LoginPage: React.FC = () => {
           navigate('/dashboard', { replace: true });
         }, 100);
       } else {
-        setError('Invalid email or password');
+        navigate('/login?error=invalid', { replace: true });
       }
     } catch (error: any) {
-      setError('Invalid email or password');
+      navigate('/login?error=invalid', { replace: true });
     }
   };
 
