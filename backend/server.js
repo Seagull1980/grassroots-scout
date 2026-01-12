@@ -528,7 +528,7 @@ async function initializeServer() {
 
     return; // Exit the function without starting cron jobs
   }
-})();
+}
 
 // Start the server
 initializeServer().catch(error => {
@@ -2528,7 +2528,13 @@ app.post('/api/training/sessions', authenticateToken, requireBetaAccess, [
   body('time').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Valid time is required'),
   body('location').notEmpty().withMessage('Location is required'),
   body('max_spaces').isInt({ min: 1 }).withMessage('Max spaces must be at least 1'),
-  body('price').optional().isFloat({ min: 0 }).withMessage('Price must be non-negative')
+  body('price').optional().isFloat({ min: 0 }).withMessage('Price must be non-negative'),
+  body('price_type').optional().isIn(['per_session', 'per_month', 'free']).withMessage('Invalid price type'),
+  body('includes_equipment').optional().isBoolean(),
+  body('includes_facilities').optional().isBoolean(),
+  body('payment_methods').optional(),
+  body('refund_policy').optional(),
+  body('special_offers').optional()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -2540,11 +2546,11 @@ app.post('/api/training/sessions', authenticateToken, requireBetaAccess, [
       return res.status(403).json({ error: 'Only coaches can create training sessions' });
     }
 
-    const { title, description, date, time, location, max_spaces, price = 0 } = req.body;
+    const { title, description, date, time, location, max_spaces, price = 0, price_type = 'per_session', includes_equipment = false, includes_facilities = false, payment_methods = 'cash,bank_transfer', refund_policy, special_offers } = req.body;
 
     const result = await db.query(
-      'INSERT INTO training_sessions (coach_id, title, description, date, time, location, max_spaces, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, title, description, date, time, location, max_spaces, price]
+      'INSERT INTO training_sessions (coach_id, title, description, date, time, location, max_spaces, price, price_type, includes_equipment, includes_facilities, payment_methods, refund_policy, special_offers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, title, description, date, time, location, max_spaces, price, price_type, includes_equipment, includes_facilities, payment_methods, refund_policy, special_offers]
     );
 
     res.status(201).json({ 
@@ -2588,7 +2594,13 @@ app.put('/api/training/sessions/:id', authenticateToken, requireBetaAccess, [
   body('time').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
   body('location').optional().notEmpty(),
   body('max_spaces').optional().isInt({ min: 1 }),
-  body('price').optional().isFloat({ min: 0 })
+  body('price').optional().isFloat({ min: 0 }),
+  body('price_type').optional().isIn(['per_session', 'per_month', 'free']),
+  body('includes_equipment').optional().isBoolean(),
+  body('includes_facilities').optional().isBoolean(),
+  body('payment_methods').optional(),
+  body('refund_policy').optional(),
+  body('special_offers').optional()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);

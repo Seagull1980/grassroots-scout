@@ -16,6 +16,12 @@ async function addTrainingSessions() {
       location TEXT NOT NULL,
       max_spaces INTEGER NOT NULL,
       price DECIMAL(10,2) DEFAULT 0,
+      price_type TEXT DEFAULT 'per_session', -- per_session, per_month, free
+      includes_equipment BOOLEAN DEFAULT FALSE,
+      includes_facilities BOOLEAN DEFAULT FALSE,
+      payment_methods TEXT DEFAULT 'cash,bank_transfer', -- comma-separated
+      refund_policy TEXT,
+      special_offers TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (coach_id) REFERENCES users(id)

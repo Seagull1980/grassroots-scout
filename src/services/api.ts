@@ -364,6 +364,12 @@ export interface TrainingSession {
   location: string;
   max_spaces: number;
   price: number;
+  price_type: 'per_session' | 'per_month' | 'free';
+  includes_equipment: boolean;
+  includes_facilities: boolean;
+  payment_methods: string;
+  refund_policy?: string;
+  special_offers?: string;
   coach_name?: string;
   created_at: string;
   updated_at: string;
@@ -881,6 +887,12 @@ export const trainingAPI = {
     location: string;
     max_spaces: number;
     price?: number;
+    price_type?: 'per_session' | 'per_month' | 'free';
+    includes_equipment?: boolean;
+    includes_facilities?: boolean;
+    payment_methods?: string;
+    refund_policy?: string;
+    special_offers?: string;
   }): Promise<{ id: number; message: string }> => {
     const response = await api.post('/training/sessions', sessionData);
     return response.data;
@@ -895,6 +907,12 @@ export const trainingAPI = {
     location: string;
     max_spaces: number;
     price: number;
+    price_type: 'per_session' | 'per_month' | 'free';
+    includes_equipment: boolean;
+    includes_facilities: boolean;
+    payment_methods: string;
+    refund_policy?: string;
+    special_offers?: string;
   }>): Promise<{ message: string }> => {
     const response = await api.put(`/training/sessions/${sessionId}`, updates);
     return response.data;
