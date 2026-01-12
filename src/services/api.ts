@@ -354,6 +354,31 @@ export interface PlayerAvailability {
   };
 }
 
+export interface TrainingSession {
+  id: number;
+  coach_id: number;
+  title: string;
+  description?: string;
+  date: string;
+  time: string;
+  location: string;
+  max_spaces: number;
+  price: number;
+  coach_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingBooking {
+  id: number;
+  session_id: number;
+  player_id: number;
+  status: string;
+  booked_at: string;
+  name: string;
+  email: string;
+}
+
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -837,6 +862,61 @@ export const playingHistoryAPI = {
     const response = await historyAPI.patch(`/playing-history/${historyId}/current-status`, { isCurrentTeam });
     return response.data;
   }
+};
+
+// Training API
+export const trainingAPI = {
+  // Get training sessions (coaches see their own, players see all)
+  getSessions: async (): Promise<{ sessions: TrainingSession[] }> => {
+    const response = await api.get('/training/sessions');
+    return response.data;
+  },
+
+  // Create training session (coaches only)
+  createSession: async (sessionData: {
+    title: string;
+    description?: string;
+    date: string;
+    time: string;
+    location: string;
+    max_spaces: number;
+    price?: number;
+  }): Promise<{ id: number; message: string }> => {
+    const response = await api.post('/training/sessions', sessionData);
+    return response.data;
+  },
+
+  // Update training session
+  updateSession: async (sessionId: number, updates: Partial<{
+    title: string;
+    description?: string;
+    date: string;
+    time: string;
+    location: string;
+    max_spaces: number;
+    price: number;
+  }>): Promise<{ message: string }> => {
+    const response = await api.put(`/training/sessions/${sessionId}`, updates);
+    return response.data;
+  },
+
+  // Delete training session
+  deleteSession: async (sessionId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/training/sessions/${sessionId}`);
+    return response.data;
+  },
+
+  // Book training session
+  bookSession: async (sessionId: number): Promise<{ message: string }> => {
+    const response = await api.post(`/training/sessions/${sessionId}/book`);
+    return response.data;
+  },
+
+  // Get bookings for a session (coach only)
+  getSessionBookings: async (sessionId: number): Promise<{ bookings: TrainingBooking[] }> => {
+    const response = await api.get(`/training/sessions/${sessionId}/bookings`);
+    return response.data;
+  },
 };
 
 export { api, rosterApi };

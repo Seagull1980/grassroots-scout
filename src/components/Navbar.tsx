@@ -38,6 +38,7 @@ import {
   SwapHoriz,
   StopCircle,
   Business,
+  FitnessCenter,
   Analytics,
   MoreHoriz,
   ManageAccounts,
@@ -105,6 +106,7 @@ const Navbar: React.FC = () => {
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
+      { path: '/training-sessions', label: 'Training Sessions', icon: <FitnessCenter /> },
       { path: '/team-profile', label: 'Team Profile', icon: <Business /> }
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [

@@ -63,7 +63,7 @@ app.use('/api/verification', verificationRouter);
 app.use('/api/saved-searches', savedSearchesRouter);
 
 // Initialize database tables on startup
-(async () => {
+async function initializeServer() {
   try {
     await db.createTables();
     
@@ -446,8 +446,9 @@ app.use('/api/saved-searches', savedSearchesRouter);
     
     // Initialize and start cron jobs with shared database instance
     cronService.db = db;
-    cronService.init();
-    cronService.start();
+    // Initialize cron jobs (temporarily disabled for debugging)
+    // cronService.init();
+    // cronService.start();
     
     // Test email service connection (disabled - SMTP blocked on Render)
     // await emailService.testConnection();
@@ -457,15 +458,25 @@ app.use('/api/saved-searches', savedSearchesRouter);
       console.log(`🚀 Server running on all interfaces at port ${PORT}`);
       console.log(`📱 Local access: http://localhost:${PORT}`);
       console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
+      console.log('🔧 Server listen callback executed successfully');
     });
 
-    // Initialize WebSocket notification server
-    console.log('🔧 Initializing notification server...');
-    const notificationServer = new NotificationServer(server, JWT_SECRET);
-    console.log('✅ Notification server initialized');
+    // Add error handler for server
+    server.on('error', (error) => {
+      console.error('❌ Server error:', error);
+    });
+
+    server.on('listening', () => {
+      console.log('✅ Server is now listening for connections');
+    });
+
+    // Initialize WebSocket notification server (temporarily disabled for debugging)
+    // console.log('🔧 Initializing notification server...');
+    // const notificationServer = new NotificationServer(server, JWT_SECRET);
+    // console.log('✅ Notification server initialized');
 
     // Make notification server available globally
-    app.locals.notificationServer = notificationServer;
+    // app.locals.notificationServer = notificationServer;
     console.log('🚀 Server fully initialized and ready to accept connections');
 
     // Graceful shutdown - don't close singleton database, just exit cleanly
@@ -515,9 +526,15 @@ app.use('/api/saved-searches', savedSearchesRouter);
       process.exit(0);
     });
 
-    return; // Exit the IIFE without starting cron jobs
+    return; // Exit the function without starting cron jobs
   }
 })();
+
+// Start the server
+initializeServer().catch(error => {
+  console.error('❌ Failed to initialize server:', error);
+  process.exit(1);
+});
 
 // Analytics middleware to track page views
 const trackPageView = async (req, res, next) => {
@@ -2498,6 +2515,214 @@ app.get('/api/alerts/history', authenticateToken, requireBetaAccess, async (req,
   } catch (error) {
     console.error('Error getting alert history:', error);
     res.status(500).json({ error: 'Failed to get alert history' });
+  }
+});
+
+// Training Sessions API
+
+// Create training session (coaches only)
+app.post('/api/training/sessions', authenticateToken, requireBetaAccess, [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('description').optional(),
+  body('date').isISO8601().withMessage('Valid date is required'),
+  body('time').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Valid time is required'),
+  body('location').notEmpty().withMessage('Location is required'),
+  body('max_spaces').isInt({ min: 1 }).withMessage('Max spaces must be at least 1'),
+  body('price').optional().isFloat({ min: 0 }).withMessage('Price must be non-negative')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can create training sessions' });
+    }
+
+    const { title, description, date, time, location, max_spaces, price = 0 } = req.body;
+
+    const result = await db.query(
+      'INSERT INTO training_sessions (coach_id, title, description, date, time, location, max_spaces, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, title, description, date, time, location, max_spaces, price]
+    );
+
+    res.status(201).json({ 
+      id: result.lastID,
+      message: 'Training session created successfully' 
+    });
+  } catch (error) {
+    console.error('Error creating training session:', error);
+    res.status(500).json({ error: 'Failed to create training session' });
+  }
+});
+
+// Get coach's training sessions
+app.get('/api/training/sessions', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    let query, params;
+
+    if (req.user.role === 'coach') {
+      // Coaches see their own sessions
+      query = 'SELECT * FROM training_sessions WHERE coach_id = ? ORDER BY date DESC, time DESC';
+      params = [req.user.userId];
+    } else {
+      // Players see all sessions
+      query = 'SELECT ts.*, u.name as coach_name FROM training_sessions ts JOIN users u ON ts.coach_id = u.id ORDER BY ts.date DESC, ts.time DESC';
+      params = [];
+    }
+
+    const result = await db.query(query, params);
+    res.json({ sessions: result.rows });
+  } catch (error) {
+    console.error('Error getting training sessions:', error);
+    res.status(500).json({ error: 'Failed to get training sessions' });
+  }
+});
+
+// Update training session
+app.put('/api/training/sessions/:id', authenticateToken, requireBetaAccess, [
+  body('title').optional().notEmpty(),
+  body('description').optional(),
+  body('date').optional().isISO8601(),
+  body('time').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  body('location').optional().notEmpty(),
+  body('max_spaces').optional().isInt({ min: 1 }),
+  body('price').optional().isFloat({ min: 0 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const sessionId = req.params.id;
+    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Training session not found' });
+    }
+
+    if (session.rows[0].coach_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only update your own sessions' });
+    }
+
+    const updates = req.body;
+    const fields = Object.keys(updates);
+    const values = Object.values(updates);
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const setClause = fields.map(field => `${field} = ?`).join(', ');
+    values.push(sessionId);
+
+    await db.query(
+      `UPDATE training_sessions SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      values
+    );
+
+    res.json({ message: 'Training session updated successfully' });
+  } catch (error) {
+    console.error('Error updating training session:', error);
+    res.status(500).json({ error: 'Failed to update training session' });
+  }
+});
+
+// Delete training session
+app.delete('/api/training/sessions/:id', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Training session not found' });
+    }
+
+    if (session.rows[0].coach_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only delete your own sessions' });
+    }
+
+    await db.query('DELETE FROM training_bookings WHERE session_id = ?', [sessionId]);
+    await db.query('DELETE FROM training_sessions WHERE id = ?', [sessionId]);
+
+    res.json({ message: 'Training session deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting training session:', error);
+    res.status(500).json({ error: 'Failed to delete training session' });
+  }
+});
+
+// Book training session
+app.post('/api/training/sessions/:id/book', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+
+    if (req.user.role !== 'player' && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Only players can book training sessions' });
+    }
+
+    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Training session not found' });
+    }
+
+    // Check if already booked
+    const existingBooking = await db.query(
+      'SELECT * FROM training_bookings WHERE session_id = ? AND player_id = ?',
+      [sessionId, req.user.userId]
+    );
+
+    if (existingBooking.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already booked this session' });
+    }
+
+    // Check available spaces
+    const bookingCount = await db.query(
+      'SELECT COUNT(*) as count FROM training_bookings WHERE session_id = ? AND status = "confirmed"',
+      [sessionId]
+    );
+
+    if (bookingCount.rows[0].count >= session.rows[0].max_spaces) {
+      return res.status(400).json({ error: 'This session is fully booked' });
+    }
+
+    await db.query(
+      'INSERT INTO training_bookings (session_id, player_id, status) VALUES (?, ?, "confirmed")',
+      [sessionId, req.user.userId]
+    );
+
+    res.json({ message: 'Training session booked successfully' });
+  } catch (error) {
+    console.error('Error booking training session:', error);
+    res.status(500).json({ error: 'Failed to book training session' });
+  }
+});
+
+// Get bookings for a session (coach only)
+app.get('/api/training/sessions/:id/bookings', authenticateToken, requireBetaAccess, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Training session not found' });
+    }
+
+    if (session.rows[0].coach_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only view bookings for your own sessions' });
+    }
+
+    const bookings = await db.query(
+      'SELECT tb.*, u.name, u.email FROM training_bookings tb JOIN users u ON tb.player_id = u.id WHERE tb.session_id = ? ORDER BY tb.booked_at DESC',
+      [sessionId]
+    );
+
+    res.json({ bookings: bookings.rows });
+  } catch (error) {
+    console.error('Error getting session bookings:', error);
+    res.status(500).json({ error: 'Failed to get session bookings' });
   }
 });
 

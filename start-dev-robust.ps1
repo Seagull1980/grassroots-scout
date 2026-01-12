@@ -85,7 +85,7 @@ foreach ($server in $jobs) {
     $name = $server.Name
     
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+        $null = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
         Write-Host "✓ $name (port $port): " -NoNewline -ForegroundColor Green
         Write-Host "RUNNING" -ForegroundColor Green
     } catch {

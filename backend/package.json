@@ -10,6 +10,7 @@
     "migrate": "node scripts/migrate.js",
     "migrate:down": "node scripts/migrate-down.js",
     "migrate:alerts": "node migrations/add-alert-system.js",
+    "migrate:training": "node migrations/add-training-sessions.js",
     "db:seed": "node scripts/seed.js",
     "test:email": "node test-email.js"
   },

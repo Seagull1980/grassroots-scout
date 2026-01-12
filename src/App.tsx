@@ -39,6 +39,7 @@ import UserAdminPage from './pages/UserAdminPage.tsx';
 import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
+import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
@@ -184,6 +185,11 @@ function App() {
               <Route path="/team-management" element={
                 <ProtectedRoute>
                   <TeamManagementPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/training-sessions" element={
+                <ProtectedRoute>
+                  <TrainingSessionsPage />
                 </ProtectedRoute>
               } />
               <Route path="/club-dashboard/:clubName" element={
