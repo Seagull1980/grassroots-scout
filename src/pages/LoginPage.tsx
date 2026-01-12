@@ -63,10 +63,10 @@ const LoginPage: React.FC = () => {
           navigate('/dashboard', { replace: true });
         }, 100);
       } else {
-        navigate('/login?error=invalid', { replace: true });
+        setError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
-      navigate('/login?error=invalid', { replace: true });
+      setError('Invalid email or password. Please check your credentials and try again.');
     }
   };
 
