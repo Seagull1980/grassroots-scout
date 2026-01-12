@@ -63,9 +63,11 @@ const LoginPage: React.FC = () => {
           navigate('/dashboard', { replace: true });
         }, 100);
       } else {
+        console.log('Login failed: setting error message');
         setError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
+      console.log('Login error caught:', error);
       setError('Invalid email or password. Please check your credentials and try again.');
     }
   };
