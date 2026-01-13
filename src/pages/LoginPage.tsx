@@ -30,6 +30,8 @@ const LoginPage: React.FC = () => {
   // Debug: Log error state changes
   useEffect(() => {
     console.log('[LoginPage] Error state changed to:', error);
+    console.log('[LoginPage] Error is truthy:', !!error);
+    console.log('[LoginPage] Error length:', error.length);
   }, [error]);
 
   useEffect(() => {
@@ -68,6 +70,7 @@ const LoginPage: React.FC = () => {
         }, 100);
       } else {
         console.log('[LoginPage] Login failed: setting error message');
+        console.log('[LoginPage] About to call setError with:', 'Invalid email or password. Please check your credentials and try again.');
         setError('Invalid email or password. Please check your credentials and try again.');
         console.log('[LoginPage] Error state set to:', 'Invalid email or password. Please check your credentials and try again.');
       }
@@ -101,6 +104,8 @@ const LoginPage: React.FC = () => {
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
+              <br />
+              <small style={{ opacity: 0.7 }}>Debug: Error state is set</small>
             </Alert>
           )}
 

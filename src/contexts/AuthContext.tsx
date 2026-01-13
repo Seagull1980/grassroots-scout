@@ -142,6 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw { ...error, requiresVerification: true };
       }
       
+      console.log('[AuthContext] Login failed due to error, returning false');
       return false;
     } finally {
       setIsLoading(false);
