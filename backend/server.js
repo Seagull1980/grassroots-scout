@@ -65,7 +65,14 @@ app.use('/api/saved-searches', savedSearchesRouter);
 // Initialize database tables on startup
 async function initializeServer() {
   try {
+    console.log('[INIT DEBUG] Starting database initialization...');
+    console.log('[INIT DEBUG] DB Type:', db.dbType);
+    console.log('[INIT DEBUG] NODE_ENV:', process.env.NODE_ENV);
+    console.log('[INIT DEBUG] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('[INIT DEBUG] JWT_SECRET exists:', !!process.env.JWT_SECRET);
+
     await db.createTables();
+    console.log('[INIT DEBUG] Database tables created successfully');
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
@@ -805,46 +812,38 @@ app.post('/api/auth/login', authLimiter, [
     }
 
     const { email, password } = req.body;
-    
-    console.log('[Login] Attempting login for:', email);
+
+    console.log('[LOGIN DEBUG] Login attempt for:', email);
+    console.log('[LOGIN DEBUG] DB Type:', db.dbType);
+    console.log('[LOGIN DEBUG] DB Connected:', db.db ? 'YES' : 'NO');
 
     // Try emailHash lookup first (modern schema)
     const emailHash = encryptionService.hashForSearch(email);
-    console.log('[Login] EmailHash:', emailHash.substring(0, 10) + '...');
+    console.log('[LOGIN DEBUG] EmailHash generated:', emailHash.substring(0, 10) + '...');
+
     let result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
     let user = result.rows[0];
-    console.log('[Login] EmailHash lookup result:', user ? 'FOUND' : 'NOT FOUND');
-    
+    console.log('[LOGIN DEBUG] EmailHash lookup result:', user ? 'USER FOUND' : 'USER NOT FOUND');
+
     // Fallback: try plaintext email lookup (old schema or fallback admin creation)
     if (!user) {
-      console.log('[Login] EmailHash lookup failed, trying plaintext email for:', email);
+      console.log('[LOGIN DEBUG] Trying plaintext email lookup');
       result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       user = result.rows[0];
-      console.log('[Login] Plaintext email lookup result:', user ? 'FOUND' : 'NOT FOUND');
+      console.log('[LOGIN DEBUG] Plaintext email lookup result:', user ? 'USER FOUND' : 'USER NOT FOUND');
     }
-    
+
     if (!user) {
-      console.log('[Login] USER NOT FOUND - login failed for:', email);
-      auditLogger('login_failed', null, {
-        email,
-        reason: 'user_not_found',
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
-      });
+      console.log('[LOGIN DEBUG] NO USER FOUND - returning 401');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-    
-    console.log('[Login] User found, checking password...');
+
+    console.log('[LOGIN DEBUG] User found, checking password...');
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('[Login] Password check result:', isValidPassword ? 'VALID' : 'INVALID');
+    console.log('[LOGIN DEBUG] Password validation result:', isValidPassword ? 'VALID' : 'INVALID');
+
     if (!isValidPassword) {
-      console.log('[Login] PASSWORD INVALID - login failed for:', email);
-      auditLogger('login_failed', user.id, {
-        email,
-        reason: 'invalid_password',
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
-      });
+      console.log('[LOGIN DEBUG] INVALID PASSWORD - returning 401');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -865,6 +864,9 @@ app.post('/api/auth/login', authLimiter, [
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    console.log('[LOGIN DEBUG] JWT token generated successfully');
+    console.log('[LOGIN DEBUG] JWT_SECRET length:', JWT_SECRET ? JWT_SECRET.length : 'UNDEFINED');
 
     // Audit log successful login
     auditLogger('login_success', user.id, {
