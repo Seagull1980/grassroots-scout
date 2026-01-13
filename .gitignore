@@ -5,3 +5,7 @@ node_modules
 .env.*.local
 backend/.env
 backend/.env.local
+dist/
+backend/database.sqlite
+backend/database.sqlite-*
+backend/*.log
