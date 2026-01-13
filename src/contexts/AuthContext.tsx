@@ -144,6 +144,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('[AuthContext] About to return false for login failure');
       console.log('[AuthContext] Login failed due to error, returning false');
+      // Add visual indicator that would show in LoginPage
+      console.log('[AuthContext] VISUAL INDICATOR: AuthContext returning false');
       return false;
     } finally {
       setIsLoading(false);
