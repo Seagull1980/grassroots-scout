@@ -10,6 +10,7 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
+  Alert,
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -25,6 +26,11 @@ const LoginPage: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Debug: Log error state changes
+  useEffect(() => {
+    console.log('[LoginPage] Error state changed to:', error);
+  }, [error]);
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -63,12 +69,14 @@ const LoginPage: React.FC = () => {
       } else {
         console.log('[LoginPage] Login failed: setting error message');
         setError('Invalid email or password. Please check your credentials and try again.');
+        console.log('[LoginPage] Error state set to:', 'Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
-      console.log('[LoginPage] Login error caught:', error);
+      console.log('[LoginPage] Login error caught (this should not happen):', error);
       console.log('[LoginPage] Error status:', error?.response?.status);
       console.log('[LoginPage] Error message:', error?.response?.data?.error);
       setError('Invalid email or password. Please check your credentials and try again.');
+      console.log('[LoginPage] Error state set in catch block');
     }
   };
 
@@ -91,9 +99,9 @@ const LoginPage: React.FC = () => {
           </Typography>
 
           {error && (
-            <div style={{ color: 'red', marginBottom: '16px', fontWeight: 'bold' }}>
+            <Alert severity="error" sx={{ mb: 2 }}>
               {error}
-            </div>
+            </Alert>
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
