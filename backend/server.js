@@ -920,53 +920,6 @@ app.post('/api/auth/login', authLimiter, [
   }
 });
 
-// DEV ONLY: Quick admin login endpoint (remove in production)
-app.get('/api/dev/admin-login', async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(404).json({ error: 'Not found' });
-  }
-
-  try {
-    // Find the admin user
-    const result = await db.query('SELECT * FROM users WHERE role = ? LIMIT 1', ['Admin']);
-    const user = result.rows[0];
-
-    if (!user) {
-      return res.status(404).json({ error: 'No admin user found. Create an admin account first.' });
-    }
-
-    // Decrypt email for response
-    const decryptedEmail = encryptionService.decrypt(user.email);
-
-    // Create JWT token
-    const token = jwt.sign(
-      { 
-        userId: user.id,
-        email: decryptedEmail,
-        role: user.role
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      message: 'Dev admin login successful',
-      token,
-      user: {
-        id: user.id,
-        email: decryptedEmail,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        createdAt: user.createdAt
-      }
-    });
-  } catch (error) {
-    console.error('Dev admin login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {

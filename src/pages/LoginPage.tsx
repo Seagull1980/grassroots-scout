@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { API_URL } from '../services/api';
 import {
   Container,
   Paper,
@@ -15,8 +14,6 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { storage } from '../utils/storage';
-import QuickUserSwitcher from '../components/QuickUserSwitcher';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,7 +25,6 @@ const LoginPage: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [devLoginLoading, setDevLoginLoading] = useState(false);
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -73,32 +69,6 @@ const LoginPage: React.FC = () => {
       console.log('[LoginPage] Error status:', error?.response?.status);
       console.log('[LoginPage] Error message:', error?.response?.data?.error);
       setError('Invalid email or password. Please check your credentials and try again.');
-    }
-  };
-
-  const handleDevAdminLogin = async () => {
-    setDevLoginLoading(true);
-    setError('');
-    
-    try {
-      const response = await fetch(`${API_URL}/dev/admin-login`);
-      if (!response.ok) {
-        throw new Error('Dev login failed');
-      }
-      
-      const data = await response.json();
-      
-      // Store token and user
-      storage.setItem('token', data.token);
-      storage.setItem('user', JSON.stringify(data.user));
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Dev admin login error:', error);
-      setError('Dev admin login failed');
-    } finally {
-      setDevLoginLoading(false);
     }
   };
 
@@ -195,33 +165,8 @@ const LoginPage: React.FC = () => {
                 Don't have an account? Sign Up
               </Link>
             </Box>
-
-            {/* DEV ONLY: Quick Admin Login - Always visible in development */}
-            <Box sx={{ mt: 3, pt: 3, borderTop: '1px dashed #ccc' }}>
-              <Typography variant="caption" color="text.secondary" align="center" display="block" sx={{ mb: 1 }}>
-                Development Only
-              </Typography>
-              <Button
-                fullWidth
-                variant="outlined"
-                color="secondary"
-                onClick={handleDevAdminLogin}
-                disabled={devLoginLoading}
-                size="small"
-              >
-                {devLoginLoading ? <CircularProgress size={20} /> : '🔧 Login as Admin (Dev)'}
-              </Button>
-            </Box>
           </Box>
         </Paper>
-
-        {/* Admin Quick Testing Panel */}
-        <QuickUserSwitcher 
-          compact={true}
-          showTitle={true}
-          title="Admin Testing Panel"
-          showForTesting={true}
-        />
       </Box>
     </Container>
   );
