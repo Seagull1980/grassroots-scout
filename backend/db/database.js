@@ -763,6 +763,7 @@ class Database {
         console.log('✅ Table created/verified');
       } catch (error) {
         console.error('❌ Error creating table:', error);
+        console.error('❌ Table SQL:', table.substring(0, 100) + '...');
         throw error;
       }
     }

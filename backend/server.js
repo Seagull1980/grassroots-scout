@@ -407,46 +407,52 @@ async function initializeServer() {
 
     // Auto-create admin account on production if none exists
     try {
-      console.log('🔍 Checking for admin account...');
+      console.log('[ADMIN DEBUG] Checking for admin account...');
       const adminEmail = 'cgill1980@hotmail.com';
-      
+
       // Check if admin account exists
-      const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin'", [adminEmail]);
-      console.log('📊 Admin query result:', existingAdminCheck.rows);
-      
+      const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin' OR emailHash = ?", [adminEmail, emailHash]);
+      console.log('[ADMIN DEBUG] Admin query result:', existingAdminCheck.rows);
+      console.log('[ADMIN DEBUG] Admin query row count:', existingAdminCheck.rows ? existingAdminCheck.rows.length : 0);
+
       if (existingAdminCheck.rows && existingAdminCheck.rows.length > 0) {
-        console.log('✅ Admin account exists');
+        console.log('[ADMIN DEBUG] Admin account exists');
       } else {
-        console.log('⚠️  No admin account found - creating default admin...');
+        console.log('[ADMIN DEBUG] No admin account found - creating default admin...');
         const tempPassword = 'GrassrootsAdmin2026!'; // Temporary - user must change on first login
         const hashedPassword = await bcrypt.hash(tempPassword, 12);
         const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
-        
-        console.log('🔐 Password hashed, emailHash created:', emailHash.substring(0, 10) + '...');
-        
+
+        console.log('[ADMIN DEBUG] Password hashed, emailHash created:', emailHash.substring(0, 10) + '...');
+        console.log('[ADMIN DEBUG] Encrypted email length:', encryptedEmail ? encryptedEmail.length : 'NULL');
+
         // Try with minimal columns first (guaranteed to exist)
         try {
-          await db.query(
+          const insertResult = await db.query(
             `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified)
              VALUES (?, ?, ?, ?, ?, 'Admin', TRUE)`,
             [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
           );
-          console.log('✅ Admin account created: cgill1980@hotmail.com / GrassrootsAdmin2026!');
+          console.log('[ADMIN DEBUG] Admin account created successfully:', insertResult);
         } catch (insertError) {
-          console.error('❌ Failed to create admin with minimal columns:', insertError.message);
+          console.error('[ADMIN DEBUG] Failed to create admin with minimal columns:', insertError.message);
           // Try with plaintext email as fallback
-          await db.query(
-            `INSERT INTO users (email, password, firstName, lastName, role)
-             VALUES (?, ?, ?, ?, 'Admin')`,
-            [adminEmail, hashedPassword, 'Chris', 'Gill']
-          );
-          console.log('✅ Admin account created (fallback mode): cgill1980@hotmail.com / GrassrootsAdmin2026!');
+          try {
+            const fallbackResult = await db.query(
+              `INSERT INTO users (email, password, firstName, lastName, role)
+               VALUES (?, ?, ?, ?, 'Admin')`,
+              [adminEmail, hashedPassword, 'Chris', 'Gill']
+            );
+            console.log('[ADMIN DEBUG] Admin account created (fallback mode):', fallbackResult);
+          } catch (fallbackError) {
+            console.error('[ADMIN DEBUG] Fallback admin creation also failed:', fallbackError.message);
+          }
         }
-        console.log('⚠️  CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
+        console.log('[ADMIN DEBUG] CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
       }
     } catch (adminError) {
-      console.error('❌ Error checking/creating admin account:', adminError);
+      console.error('[ADMIN DEBUG] Error checking/creating admin account:', adminError);
     }
     
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
@@ -831,6 +837,14 @@ app.post('/api/auth/login', authLimiter, [
       result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       user = result.rows[0];
       console.log('[LOGIN DEBUG] Plaintext email lookup result:', user ? 'USER FOUND' : 'USER NOT FOUND');
+    }
+
+    // Special fallback for admin user if ENCRYPTION_KEY changed
+    if (!user && email === 'cgill1980@hotmail.com') {
+      console.log('[LOGIN DEBUG] Admin user not found, checking all users with admin role');
+      result = await db.query("SELECT * FROM users WHERE role = 'Admin' LIMIT 1");
+      user = result.rows[0];
+      console.log('[LOGIN DEBUG] Admin role lookup result:', user ? 'ADMIN FOUND' : 'ADMIN NOT FOUND');
     }
 
     if (!user) {
