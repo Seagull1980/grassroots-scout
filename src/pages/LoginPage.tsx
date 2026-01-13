@@ -54,18 +54,24 @@ const LoginPage: React.FC = () => {
     }
 
     try {
+      console.log('[LoginPage] Attempting login for:', formData.email);
       const success = await login(formData.email, formData.password);
+      console.log('[LoginPage] Login result:', success);
+      
       if (success) {
+        console.log('[LoginPage] Login successful, navigating to dashboard');
         // Small delay to ensure state is updated before navigation
         setTimeout(() => {
           navigate('/dashboard', { replace: true });
         }, 100);
       } else {
-        console.log('Login failed: setting error message');
+        console.log('[LoginPage] Login failed: setting error message');
         setError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
-      console.log('Login error caught:', error);
+      console.log('[LoginPage] Login error caught:', error);
+      console.log('[LoginPage] Error status:', error?.response?.status);
+      console.log('[LoginPage] Error message:', error?.response?.data?.error);
       setError('Invalid email or password. Please check your credentials and try again.');
     }
   };

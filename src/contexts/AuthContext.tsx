@@ -82,11 +82,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('[AuthContext] Login attempt for:', email);
     setIsLoading(true);
     try {
+      console.log('[AuthContext] Calling authAPI.login...');
       const response = await authAPI.login(email, password);
-      console.log('[AuthContext] Login response received:', response.user ? 'Success' : 'Failed');
+      console.log('[AuthContext] Login API response received:', response);
       
       if (response.user && response.token) {
-        console.log('[AuthContext] Storing user session...');
+        console.log('[AuthContext] Login successful, user found:', response.user.email);
         const user = response.user as User;
         setUser(user);
         storage.setItem('token', response.token);
@@ -127,7 +128,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.warn('[AuthContext] Login failed - invalid response');
       return false;
     } catch (error: unknown) {
-      console.error('[AuthContext] Login error:', error);
+      console.error('[AuthContext] Login error caught:', error);
+      console.error('[AuthContext] Error type:', typeof error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        console.error('[AuthContext] Error status:', (error as any).response?.status);
+        console.error('[AuthContext] Error data:', (error as any).response?.data);
+      }
       
       // Handle email verification requirement
       if (isApiError(error) && error.response?.status === 403 && error.response?.data?.requiresVerification) {
