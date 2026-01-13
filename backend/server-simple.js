@@ -1066,6 +1066,29 @@ app.get('/api/public/child-player-availability', async (req, res) => {
   }
 });
 
+// Get public site statistics (for homepage display)
+app.get('/api/public/site-stats', async (req, res) => {
+  try {
+    // Get total active teams (from team_vacancies table)
+    const activeTeams = await db.query('SELECT COUNT(DISTINCT teamName) as count FROM team_vacancies WHERE status = "active"');
+    
+    // Get total registered players (from users table, excluding admins)
+    const registeredPlayers = await db.query('SELECT COUNT(*) as count FROM users WHERE role != "Admin"');
+    
+    // Get successful matches (confirmed match completions)
+    const successfulMatches = await db.query('SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"');
+
+    res.json({
+      activeTeams: activeTeams.rows[0].count,
+      registeredPlayers: registeredPlayers.rows[0].count,
+      successfulMatches: successfulMatches.rows[0].count
+    });
+  } catch (error) {
+    console.error('Get public site stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Match Completion Endpoints
 
 // Create a match completion (when a coach/player confirms a successful match)

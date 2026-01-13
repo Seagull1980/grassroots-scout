@@ -2,6 +2,7 @@
   "name": "grassroots-hub-backend",
   "version": "1.0.0",
   "description": "Backend API for The Grassroots Hub",
+  "type": "commonjs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

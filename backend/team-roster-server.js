@@ -2,17 +2,38 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
+const crypto = require('crypto');
+const expressValidator = require('express-validator');
+const { body, validationResult } = expressValidator;
 const DatabaseUtils = require('./utils/dbUtils.js');
+// const EncryptionService = require('./utils/encryption.js');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.TEAM_ROSTER_PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
 
+// Initialize encryption service
+// const encryptionService = EncryptionService;
+
 // Middleware
-app.use(cors());
-app.use(express.json());
+// app.use(cors());
+// app.use(express.json());
+
+// Test login endpoint
+app.get('/test', (req, res) => {
+  res.json({ message: 'Login endpoint working' });
+});
+
+// Login endpoint
+app.get('/login', (req, res) => {
+  const { email, password } = req.query;
+  res.json({
+    message: 'Login endpoint reached',
+    email,
+    passwordLength: password ? password.length : 0
+  });
+});
 
 // Database connection
 const db = new DatabaseUtils();
@@ -36,6 +57,200 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// Auth endpoints
+
+// Helper function to calculate age
+const calculateAge = (dateOfBirth) => {
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Email sending function (simplified for now)
+const sendVerificationEmail = async (email, firstName, token) => {
+  // This would normally send an email, but for now we'll just log it
+  console.log(`Verification email would be sent to ${email} with token ${token}`);
+};
+
+// Register endpoint
+app.post('/api/auth/register', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('lastName').notEmpty().withMessage('Last name is required'),
+  body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required for players')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password, firstName, lastName, role, dateOfBirth } = req.body;
+
+    // Age restriction check for players
+    if (role === 'Player') {
+      if (!dateOfBirth) {
+        return res.status(400).json({ 
+          error: 'Date of birth is required for player registration',
+          requiresDateOfBirth: true
+        });
+      }
+
+      const age = calculateAge(dateOfBirth);
+      if (age < 16) {
+        return res.status(400).json({ 
+          error: 'Players under 16 must be registered by a parent or guardian. Please use Parent/Guardian registration.',
+          ageRestriction: true,
+          suggestedRole: 'Parent/Guardian',
+          playerAge: age
+        });
+      }
+    }
+
+    // Prevent Admin registration through public endpoint
+    if (role === 'Admin') {
+      return res.status(403).json({ error: 'Admin accounts can only be created by existing administrators' });
+    }
+
+    // Check if user already exists
+    const emailHash = crypto.createHash('sha256').update(email).digest('hex');
+    const existingUserResult = await db.query('SELECT id FROM users WHERE emailHash = ?', [emailHash]);
+    if (existingUserResult.rows && existingUserResult.rows.length > 0) {
+      return res.status(400).json({ error: 'User already exists with this email' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Encrypt email for storage
+    // const encryptedEmail = encryptionService.encrypt(email);
+    const encryptedEmail = email; // Temporary: store plain email
+
+    // Insert user with email verification fields
+    const result = await db.query(
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [encryptedEmail, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
+    );
+
+    const userId = result.lastID;
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, firstName, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Continue with registration even if email fails - user can request resend
+    }
+
+    // Create user profile with date of birth if provided
+    if (dateOfBirth) {
+      await db.query(
+        'INSERT INTO user_profiles (userId, dateOfBirth) VALUES (?, ?)',
+        [userId, dateOfBirth]
+      );
+    }
+
+    res.status(201).json({
+      message: 'User created successfully. Please check your email to verify your account.',
+      emailVerificationRequired: true,
+      user: {
+        id: userId,
+        email,
+        firstName,
+        lastName,
+        role,
+        isEmailVerified: false,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login endpoint
+app.post('/api/auth/login', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('password').notEmpty().withMessage('Password is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+    
+    // Find user
+    const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    const user = userResult.rows[0];
+
+    // Check password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      return res.status(401).json({ 
+        error: 'Please verify your email before logging in. Check your email for the verification link.',
+        emailVerificationRequired: true,
+        canResendVerification: true
+      });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/test', (req, res) => {
+  try {
+    console.log('Test endpoint hit');
+    res.json({ message: 'test get' });
+  } catch (error) {
+    console.error('Error in test endpoint:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Team Roster API endpoints
 
@@ -1770,6 +1985,22 @@ app.get('/api/calendar/training-locations', async (req, res) => {
     console.error('Error fetching training locations:', error);
     res.status(500).json({ error: 'Failed to fetch training locations' });
   }
+});
+
+// Get public site statistics (for homepage display)
+app.get('/api/public/site-stats', async (req, res) => {
+  res.json({ message: 'Site stats working' });
+});
+
+// Error handling
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
 // Start server

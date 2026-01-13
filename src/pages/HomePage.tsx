@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -24,6 +25,31 @@ const HomePage: React.FC = () => {
   const { user } = useAuth();
   const { isMobile } = useResponsive();
   const { containerSpacing, sectionSpacing } = useResponsiveSpacing();
+
+  const [siteStats, setSiteStats] = useState({
+    activeTeams: 0,
+    registeredPlayers: 0,
+    successfulMatches: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSiteStats = async () => {
+      try {
+        const response = await fetch('/api/public/site-stats');
+        if (response.ok) {
+          const data = await response.json();
+          setSiteStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch site stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchSiteStats();
+  }, []);
 
   const features = [
     {
@@ -249,7 +275,7 @@ const HomePage: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              500+
+              {statsLoading ? '...' : `${siteStats.activeTeams}+`}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Active Teams
@@ -267,7 +293,7 @@ const HomePage: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              1,200+
+              {statsLoading ? '...' : `${siteStats.registeredPlayers}+`}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Registered Players
@@ -285,7 +311,7 @@ const HomePage: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              300+
+              {statsLoading ? '...' : `${siteStats.successfulMatches}+`}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Successful Matches
