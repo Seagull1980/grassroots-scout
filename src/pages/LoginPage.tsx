@@ -50,6 +50,7 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[LoginPage] handleSubmit called');
     setError('');
 
     if (!formData.email || !formData.password) {
@@ -57,10 +58,11 @@ const LoginPage: React.FC = () => {
       return;
     }
 
+    console.log('[LoginPage] About to call login method');
     try {
       console.log('[LoginPage] Attempting login for:', formData.email);
       const success = await login(formData.email, formData.password);
-      console.log('[LoginPage] Login result:', success);
+      console.log('[LoginPage] Login method returned, success =', success);
       
       if (success) {
         console.log('[LoginPage] Login successful, navigating to dashboard');
