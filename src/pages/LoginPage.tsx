@@ -51,10 +51,8 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('[LoginPage] handleSubmit called');
-    // Add visual indicator
-    setError('DEBUG: handleSubmit was called');
-    setTimeout(() => setError(''), 1000); // Clear after 1 second
     
+    // Clear any previous error
     setError('');
 
     if (!formData.email || !formData.password) {

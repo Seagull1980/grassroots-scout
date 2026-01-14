@@ -15,8 +15,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "railway:build": "npm install && npm run build",
-    "railway:start": "node start-production.js",
-    "start": "node start-production.js",
+    "railway:start": "node railway-server.js",
+    "start": "node railway-server.js",
     "setup-admin": "cd backend && node create-production-admin.js"
   },
   "dependencies": {
