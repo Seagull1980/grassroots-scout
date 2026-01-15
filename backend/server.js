@@ -1952,31 +1952,46 @@ app.get('/api/leagues', (req, res, next) => {
     
     let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = true`;
     let params = [];
+    let includePendingLeagues = false;
     
     // If user wants pending leagues and is authenticated
     if (includePending === 'true' && req.user) {
-      if (db.dbType === 'postgresql') {
-        query += ` 
-          UNION ALL 
-          SELECT 
-            CONCAT('pending_', id::TEXT) as id, 
-            name, 
-            'pending' as status 
-          FROM league_requests 
-          WHERE status = 'pending' AND submittedBy = $1
-        `;
-      } else {
-        query += ` 
-          UNION ALL 
-          SELECT 
-            ('pending_' || id) as id, 
-            name, 
-            'pending' as status 
-          FROM league_requests 
-          WHERE status = 'pending' AND submittedBy = ?
-        `;
+      // Check if league_requests table exists first
+      try {
+        if (db.dbType === 'postgresql') {
+          await db.query("SELECT 1 FROM league_requests LIMIT 1");
+        } else {
+          await db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='league_requests'");
+        }
+        includePendingLeagues = true;
+      } catch (tableCheckError) {
+        console.warn('⚠️  league_requests table does not exist, skipping pending leagues');
       }
-      params.push(req.user.userId);
+      
+      if (includePendingLeagues) {
+        if (db.dbType === 'postgresql') {
+          query += ` 
+            UNION ALL 
+            SELECT 
+              CONCAT('pending_', id::TEXT) as id, 
+              name, 
+              'pending' as status 
+            FROM league_requests 
+            WHERE status = 'pending' AND submittedBy = $1
+          `;
+        } else {
+          query += ` 
+            UNION ALL 
+            SELECT 
+              ('pending_' || id) as id, 
+              name, 
+              'pending' as status 
+            FROM league_requests 
+            WHERE status = 'pending' AND submittedBy = ?
+          `;
+        }
+        params.push(req.user.userId);
+      }
     }
 
     query += ' ORDER BY status, name ASC';
@@ -2093,6 +2108,38 @@ app.delete('/api/leagues/:id', authenticateToken, requireAdmin, (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Public site statistics (no authentication required)
+app.get('/api/public/site-stats', async (req, res) => {
+  try {
+    console.log('📊 Fetching public site stats...');
+    
+    // Get basic counts from existing tables
+    const totalUsersResult = await db.query('SELECT COUNT(*) as count FROM users WHERE isBlocked = FALSE');
+    const totalTeamsResult = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE status = "active"');
+    const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE status = "active"');
+    
+    // Handle different result formats (PostgreSQL vs SQLite)
+    const totalUsers = totalUsersResult.rows ? totalUsersResult.rows[0].count : totalUsersResult.rows[0].count;
+    const totalTeams = totalTeamsResult.rows ? totalTeamsResult.rows[0].count : totalTeamsResult.rows[0].count;
+    const totalPlayers = totalPlayersResult.rows ? totalPlayersResult.rows[0].count : totalPlayersResult.rows[0].count;
+    
+    // Return public stats
+    res.json({
+      activeTeams: parseInt(totalTeams) || 0,
+      registeredPlayers: parseInt(totalPlayers) || 0,
+      successfulMatches: 0 // TODO: Implement match tracking
+    });
+  } catch (error) {
+    console.error('Error fetching public site stats:', error);
+    // Return default values if database query fails
+    res.json({
+      activeTeams: 0,
+      registeredPlayers: 0,
+      successfulMatches: 0
+    });
+  }
 });
 
 // Analytics API endpoints
@@ -2447,6 +2494,72 @@ app.patch('/api/admin/leagues/:id/freeze', authenticateToken, requireAdmin, asyn
   } catch (error) {
     console.error('Error freezing/unfreezing league:', error);
     res.status(500).json({ error: 'Failed to update league status' });
+  }
+});
+
+// Create league_requests table if it doesn't exist
+app.post('/api/admin/create-league-requests-table', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('🚀 Creating league_requests table...');
+    
+    if (db.dbType === 'postgresql') {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS league_requests (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR NOT NULL,
+          region VARCHAR,
+          ageGroup VARCHAR,
+          country VARCHAR DEFAULT 'England',
+          url VARCHAR,
+          description VARCHAR,
+          status VARCHAR DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+          submittedBy INTEGER NOT NULL,
+          submitterEmail VARCHAR,
+          reviewedBy INTEGER,
+          reviewedAt TIMESTAMP,
+          rejectionReason VARCHAR,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (submittedBy) REFERENCES users (id),
+          FOREIGN KEY (reviewedBy) REFERENCES users (id)
+        )
+      `);
+    } else {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS league_requests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name VARCHAR NOT NULL,
+          region VARCHAR,
+          ageGroup VARCHAR,
+          country VARCHAR DEFAULT 'England',
+          url VARCHAR,
+          description VARCHAR,
+          status VARCHAR DEFAULT 'pending',
+          submittedBy INTEGER NOT NULL,
+          submitterEmail VARCHAR,
+          reviewedBy INTEGER,
+          reviewedAt TIMESTAMP,
+          rejectionReason VARCHAR,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (submittedBy) REFERENCES users (id),
+          FOREIGN KEY (reviewedBy) REFERENCES users (id)
+        )
+      `);
+    }
+    
+    // Create indexes
+    if (db.dbType === 'postgresql') {
+      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_status ON league_requests(status)');
+      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_submitted_by ON league_requests(submittedBy)');
+    } else {
+      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_status ON league_requests(status)');
+      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_submitted_by ON league_requests(submittedBy)');
+    }
+    
+    console.log('✅ League requests table created successfully');
+    res.json({ message: 'League requests table created successfully' });
+  } catch (error) {
+    console.error('Error creating league_requests table:', error);
+    res.status(500).json({ error: 'Failed to create league_requests table', details: error.message });
   }
 });
 

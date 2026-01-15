@@ -724,7 +724,7 @@ const AdminPage: React.FC = () => {
                         ))}
                         {leagues.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                            <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                               <Typography variant="body2" color="text.secondary">
                                 No leagues found. Create your first league to get started.
                               </Typography>
