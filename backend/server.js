@@ -454,7 +454,47 @@ async function initializeServer() {
     } catch (adminError) {
       console.error('[ADMIN DEBUG] Error checking/creating admin account:', adminError);
     }
-    
+
+    // Ensure engagement tracking tables exist (for production databases that may not have run migrations)
+    try {
+      console.log('🔄 Checking engagement tracking tables...');
+
+      // User interactions table for recommendations
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_interactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userId INTEGER NOT NULL,
+          actionType VARCHAR(50) NOT NULL,
+          targetId INTEGER,
+          targetType VARCHAR(50),
+          metadata TEXT,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ user_interactions table ready');
+
+      // User engagement metrics table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_engagement_metrics (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userId INTEGER NOT NULL,
+          sessionId VARCHAR(255),
+          pageViews INTEGER DEFAULT 0,
+          timeSpent INTEGER DEFAULT 0,
+          actionsCompleted INTEGER DEFAULT 0,
+          date DATE NOT NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE(userId, date)
+        )
+      `);
+      console.log('✅ user_engagement_metrics table ready');
+
+    } catch (engagementError) {
+      console.error('❌ Error creating engagement tracking tables:', engagementError);
+    }
+
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
     
     // Initialize and start cron jobs with shared database instance
