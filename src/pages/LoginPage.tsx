@@ -78,8 +78,6 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  console.log('[LoginPage] About to render, error state:', loginError);
-
   return (
     <Container component="main" maxWidth="sm">
       <Box
@@ -98,7 +96,6 @@ const LoginPage: React.FC = () => {
             Welcome back to The Grassroots Scout
           </Typography>
 
-          {console.log('[LoginPage] Rendering, error state:', loginError, 'truthy:', !!loginError)}
           {loginError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {loginError}
