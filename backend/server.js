@@ -598,8 +598,10 @@ async function initializeServer() {
       }
       
     } catch (populateError) {
-      console.error('❌ CRITICAL: League population failed, but server will continue:', populateError);
+      console.error('❌ CRITICAL: League population failed:', populateError.message);
+      console.error('❌ Full error:', populateError);
       // Don't throw - allow server to start even if league population fails
+      console.warn('⚠️  Server will continue without league data');
     }
     
     // Initialize and start cron jobs with shared database instance
