@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 /// <reference types="node" />
+/// <reference types="google.maps" />
 
 interface ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
@@ -23,6 +24,7 @@ interface ImportMeta {
 declare global {
   interface Window {
     gtag: (...args: any[]) => void;
+    google?: typeof google;
   }
 }
 
