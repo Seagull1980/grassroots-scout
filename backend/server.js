@@ -495,15 +495,29 @@ async function initializeServer() {
       console.error('❌ Error creating engagement tracking tables:', engagementError);
     }
 
-    // Check and populate FA leagues if database is empty
+    // Check and populate FA leagues if database is empty or incomplete
     try {
       console.log('🔄 Checking if leagues need to be populated...');
       
       const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
       const count = leagueCount.rows[0].count;
       
-      if (count === 0) {
-        console.log('⚠️  No leagues found, populating FA leagues...');
+      // Check if we have the Tamworth league specifically (our test case)
+      const tamworthCheck = await db.query('SELECT COUNT(*) as count FROM leagues WHERE name LIKE ?', ['%Tamworth%']);
+      const tamworthCount = tamworthCheck.rows[0].count;
+      
+      console.log(`📊 Current league count: ${count}, Tamworth leagues: ${tamworthCount}`);
+      
+      // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data)
+      if (count === 0 || tamworthCount === 0) {
+        console.log('⚠️  Leagues incomplete or missing, populating FA leagues...');
+        
+        // Clear existing leagues if any (to avoid duplicates)
+        if (count > 0) {
+          console.log('🧹 Clearing existing incomplete league data...');
+          await db.query('DELETE FROM leagues');
+          console.log('✅ Cleared existing leagues');
+        }
         
         const faLeagues = [
           { name: 'Central Warwickshire Youth Football League', region: 'Midlands', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 163137 },
@@ -537,8 +551,12 @@ async function initializeServer() {
         }
         
         console.log(`✅ Populated database with ${faLeagues.length} FA leagues`);
+        console.log('🎯 Key leagues added:');
+        console.log('  - Tamworth Junior Football League');
+        console.log('  - Central Warwickshire Youth Football League');
+        console.log('  - Northumberland Football League');
       } else {
-        console.log(`✅ Leagues already exist (${count} leagues found)`);
+        console.log(`✅ Leagues already complete (${count} leagues found, including Tamworth)`);
       }
       
     } catch (populateError) {
