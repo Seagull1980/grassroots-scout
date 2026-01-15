@@ -78,6 +78,10 @@ const Navbar: React.FC = () => {
     setMoreMenuAnchorEl(null);
   };
 
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
   // Handle focus management when drawer closes
   useEffect(() => {
     if (!mobileOpen && menuButtonRef.current) {
