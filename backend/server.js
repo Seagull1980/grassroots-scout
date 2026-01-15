@@ -473,6 +473,105 @@ async function initializeServer() {
       `);
       console.log('✅ user_engagement_metrics table ready');
 
+      // Messages table for messaging system
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          senderId INTEGER NOT NULL,
+          recipientId INTEGER NOT NULL,
+          subject VARCHAR(200) NOT NULL,
+          message TEXT NOT NULL,
+          messageType VARCHAR(50) DEFAULT 'general',
+          relatedVacancyId INTEGER,
+          relatedPlayerAvailabilityId INTEGER,
+          isRead BOOLEAN DEFAULT FALSE,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (senderId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (recipientId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (relatedVacancyId) REFERENCES team_vacancies(id) ON DELETE SET NULL,
+          FOREIGN KEY (relatedPlayerAvailabilityId) REFERENCES player_availability(id) ON DELETE SET NULL
+        )
+      `);
+      console.log('✅ messages table ready');
+
+      // Match completions table for tracking player-team matches
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS match_completions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          vacancyId INTEGER,
+          availabilityId INTEGER,
+          coachId INTEGER NOT NULL,
+          playerId INTEGER NOT NULL,
+          parentId INTEGER,
+          matchType VARCHAR(50) DEFAULT 'player_to_team',
+          playerName VARCHAR(100),
+          teamName VARCHAR(100),
+          position VARCHAR(50),
+          ageGroup VARCHAR(50),
+          league VARCHAR(100),
+          completionStatus VARCHAR(50) DEFAULT 'pending',
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (vacancyId) REFERENCES team_vacancies(id) ON DELETE SET NULL,
+          FOREIGN KEY (availabilityId) REFERENCES player_availability(id) ON DELETE SET NULL,
+          FOREIGN KEY (coachId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (playerId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (parentId) REFERENCES users(id) ON DELETE SET NULL
+        )
+      `);
+      console.log('✅ match_completions table ready');
+
+      // Player availability table for player postings
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS player_availability (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          preferredLeagues VARCHAR(100),
+          ageGroup VARCHAR(50),
+          positions TEXT,
+          location VARCHAR(100),
+          contactInfo TEXT,
+          postedBy INTEGER NOT NULL,
+          locationAddress VARCHAR(255),
+          locationLatitude REAL,
+          locationLongitude REAL,
+          locationPlaceId VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'active',
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (postedBy) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ player_availability table ready');
+
+      // Team vacancies table for team postings
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS team_vacancies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          league VARCHAR(100),
+          ageGroup VARCHAR(50),
+          position VARCHAR(50),
+          location VARCHAR(100),
+          contactInfo TEXT,
+          postedBy INTEGER NOT NULL,
+          teamId INTEGER,
+          locationAddress VARCHAR(255),
+          locationLatitude REAL,
+          locationLongitude REAL,
+          locationPlaceId VARCHAR(255),
+          hasMatchRecording BOOLEAN DEFAULT FALSE,
+          hasPathwayToSenior BOOLEAN DEFAULT FALSE,
+          playingTimePolicy VARCHAR(50),
+          status VARCHAR(50) DEFAULT 'active',
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (postedBy) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (teamId) REFERENCES teams(id) ON DELETE SET NULL
+        )
+      `);
+      console.log('✅ team_vacancies table ready');
+
     } catch (engagementError) {
       console.error('❌ Error creating engagement tracking tables:', engagementError);
     }
@@ -1929,10 +2028,31 @@ app.get('/api/leagues', (req, res, next) => {
   try {
     const { includePending = false } = req.query;
     
+    // Test database connection
+    console.log('Testing database connection...');
+    const testQuery = await db.query('SELECT 1 as test');
+    console.log('Database connection test result:', testQuery);
+    
+    // Check if leagues table exists
+    console.log('Checking if leagues table exists...');
+    let tableExists = false;
+    try {
+      if (db.dbType === 'postgresql') {
+        const tableCheck = await db.query("SELECT table_name FROM information_schema.tables WHERE table_name = 'leagues'");
+        tableExists = tableCheck.rows && tableCheck.rows.length > 0;
+      } else {
+        const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='leagues'");
+        tableExists = tableCheck.rows && tableCheck.rows.length > 0;
+      }
+      console.log('Leagues table exists:', tableExists);
+    } catch (tableError) {
+      console.error('Error checking leagues table:', tableError);
+    }
+    
     // Get approved leagues (simplified query for compatibility)
     console.log('Fetching leagues...');
     
-    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = true`;
+    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = 1`;
     let params = [];
     let includePendingLeagues = false;
     
@@ -1979,7 +2099,9 @@ app.get('/api/leagues', (req, res, next) => {
     query += ' ORDER BY status, name ASC';
     
     console.log('Running leagues query:', query);
+    console.log('Query params:', params);
     const result = await db.query(query, params);
+    console.log('Query result:', result);
     console.log('Query returned', result.rows?.length || 0, 'rows');
     
     const leagues = result.rows.map(league => ({
