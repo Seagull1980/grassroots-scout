@@ -1624,12 +1624,14 @@ app.get('/api/vacancies', async (req, res) => {
 
   // Filter by match recording facilities
   if (hasMatchRecording === 'true' || hasMatchRecording === '1') {
-    query += ' AND v.hasMatchRecording = 1';
+    const hasMatchRecordingCondition = db.dbType === 'postgresql' ? 'hasMatchRecording = true' : 'hasMatchRecording = 1';
+    query += ` AND v.${hasMatchRecordingCondition}`;
   }
 
   // Filter by pathway to senior team
   if (hasPathwayToSenior === 'true' || hasPathwayToSenior === '1') {
-    query += ' AND v.hasPathwayToSenior = 1';
+    const hasPathwayToSeniorCondition = db.dbType === 'postgresql' ? 'hasPathwayToSenior = true' : 'hasPathwayToSenior = 1';
+    query += ` AND v.${hasPathwayToSeniorCondition}`;
   }
 
   // Filter by playing time policy
@@ -2065,7 +2067,9 @@ app.get('/api/leagues', (req, res, next) => {
     // Get approved leagues (simplified query for compatibility)
     console.log('Fetching leagues...');
     
-    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE isActive = 1`;
+    // Use correct boolean comparison based on database type
+    const isActiveCondition = db.dbType === 'postgresql' ? 'isActive = true' : 'isActive = 1';
+    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE ${isActiveCondition}`;
     let params = [];
     let includePendingLeagues = false;
     
@@ -5760,7 +5764,8 @@ app.post('/api/admin/users/:id/block', authenticateToken, requireAdmin, async (r
       return res.status(400).json({ error: 'Cannot block your own account' });
     }
     
-    await db.query('UPDATE users SET isBlocked = ? WHERE id = ?', [blocked ? 1 : 0, id]);
+    const blockedValue = db.dbType === 'postgresql' ? blocked : (blocked ? 1 : 0);
+    await db.query('UPDATE users SET isBlocked = ? WHERE id = ?', [blockedValue, id]);
     
     res.json({ 
       message: `User ${blocked ? 'blocked' : 'unblocked'} successfully` 
@@ -5970,7 +5975,8 @@ app.patch('/api/admin/users/:id/verify', authenticateToken, requireAdmin, async 
     const user = userResult.rows[0];
     
     // Update verification status
-    await db.query('UPDATE users SET isVerified = ? WHERE id = ?', [isVerified ? 1 : 0, id]);
+    const verificationValue = db.dbType === 'postgresql' ? isVerified : (isVerified ? 1 : 0);
+    await db.query('UPDATE users SET isEmailVerified = ? WHERE id = ?', [verificationValue, id]);
     
     // Send email notification
     if (isVerified) {
