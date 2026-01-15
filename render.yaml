@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: grassroots-scout
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: grassroots-scout
+          property: host
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: grassroots-scout
+          property: host
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_OUTLOOK_CLIENT_ID
+        sync: false
+      - key: VITE_WEATHER_API_KEY
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: DATABASE_URL
+        sync: false

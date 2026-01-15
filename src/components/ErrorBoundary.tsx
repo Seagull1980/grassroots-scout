@@ -1,58 +1,214 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Typography, Button, Alert } from '@mui/material';
+import { Box, Typography, Button, Alert, Paper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { ExpandMore, Refresh, Home, BugReport } from '@mui/icons-material';
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface State {
   hasError: boolean;
   error?: Error;
   errorInfo?: ErrorInfo;
+  errorId?: string;
 }
 
 class ErrorBoundary extends Component<Props, State> {
+  private retryCount = 0;
+  private maxRetries = 3;
+
   public state: State = {
     hasError: false
   };
 
   public static getDerivedStateFromError(error: Error): State {
     console.error('🚨 ErrorBoundary caught an error:', error);
-    return { hasError: true, error };
+    const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return { hasError: true, error, errorId };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('🚨 ErrorBoundary - Uncaught error:', error, errorInfo);
+
+    // Report error to tracking service
+    this.reportError(error, errorInfo);
+
+    // Call custom error handler if provided
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
+
     this.setState({ error, errorInfo });
   }
 
+  private reportError = (error: Error, errorInfo: ErrorInfo) => {
+    try {
+      // Send error to analytics service
+      if (window.gtag) {
+        window.gtag('event', 'exception', {
+          description: error.message,
+          fatal: false,
+          custom_map: {
+            componentStack: errorInfo.componentStack,
+            errorId: this.state.errorId
+          }
+        });
+      }
+
+      // Log to console with structured data
+      console.error('🚨 Error Report:', {
+        errorId: this.state.errorId,
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        userAgent: navigator.userAgent,
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+        retryCount: this.retryCount
+      });
+
+      // Could send to external error tracking service here
+      // Example: Sentry, LogRocket, etc.
+    } catch (reportError) {
+      console.error('Failed to report error:', reportError);
+    }
+  };
+
+  private handleRetry = () => {
+    if (this.retryCount < this.maxRetries) {
+      this.retryCount++;
+      this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+    }
+  };
+
+  private handleGoHome = () => {
+    window.location.href = '/';
+  };
+
+  private handleReportIssue = () => {
+    const subject = encodeURIComponent(`Bug Report: ${this.state.error?.message || 'Unknown Error'}`);
+    const body = encodeURIComponent(`
+Error ID: ${this.state.errorId}
+Error: ${this.state.error?.message}
+URL: ${window.location.href}
+User Agent: ${navigator.userAgent}
+Timestamp: ${new Date().toISOString()}
+
+Please describe what you were doing when this error occurred:
+[Your description here]
+    `);
+    window.open(`mailto:support@grassrootshub.com?subject=${subject}&body=${body}`);
+  };
+
   public render() {
     if (this.state.hasError) {
+      // Custom fallback if provided
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <Box sx={{ p: 3, maxWidth: 600, mx: 'auto', mt: 4 }}>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Something went wrong
-            </Typography>
-            {this.state.error && (
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                <strong>Error:</strong> {this.state.error.message}
+        <Box sx={{
+          p: 3,
+          maxWidth: 800,
+          mx: 'auto',
+          mt: 4,
+          minHeight: '50vh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}>
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Alert severity="error" sx={{ mb: 3 }}>
+              <Typography variant="h5" gutterBottom color="error.main">
+                Oops! Something went wrong
               </Typography>
+              <Typography variant="body1">
+                We're sorry, but an unexpected error occurred. Our team has been notified.
+              </Typography>
+            </Alert>
+
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+              <Button
+                variant="contained"
+                startIcon={<Refresh />}
+                onClick={this.handleRetry}
+                disabled={this.retryCount >= this.maxRetries}
+              >
+                Try Again {this.retryCount > 0 && `(${this.retryCount}/${this.maxRetries})`}
+              </Button>
+
+              <Button
+                variant="outlined"
+                startIcon={<Home />}
+                onClick={this.handleGoHome}
+              >
+                Go Home
+              </Button>
+
+              <Button
+                variant="text"
+                startIcon={<BugReport />}
+                onClick={this.handleReportIssue}
+                color="secondary"
+              >
+                Report Issue
+              </Button>
+            </Box>
+
+            {/* Developer Details (only in development) */}
+            {process.env.NODE_ENV === 'development' && (
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMore />}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Technical Details (Development Only)
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Box sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Error ID: {this.state.errorId}
+                    </Typography>
+
+                    {this.state.error && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" color="error.main">
+                          Error Message:
+                        </Typography>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', bgcolor: 'grey.100', p: 1, borderRadius: 1 }}>
+                          {this.state.error.message}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {this.state.error?.stack && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" color="error.main">
+                          Stack Trace:
+                        </Typography>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', bgcolor: 'grey.100', p: 1, borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+                          {this.state.error.stack}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {this.state.errorInfo?.componentStack && (
+                      <Box>
+                        <Typography variant="subtitle2" color="error.main">
+                          Component Stack:
+                        </Typography>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', bgcolor: 'grey.100', p: 1, borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+                          {this.state.errorInfo.componentStack}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
             )}
-            {this.state.errorInfo && (
-              <details style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
-                <summary>Error Details</summary>
-                {this.state.error && this.state.error.stack}
-                {this.state.errorInfo.componentStack}
-              </details>
-            )}
-          </Alert>
-          <Button 
-            variant="contained" 
-            onClick={() => this.setState({ hasError: false, error: undefined, errorInfo: undefined })}
-          >
-            Try again
-          </Button>
+          </Paper>
         </Box>
       );
     }

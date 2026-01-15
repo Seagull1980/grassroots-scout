@@ -19,6 +19,15 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+// Google Analytics gtag function
+declare global {
+  interface Window {
+    gtag: (...args: any[]) => void;
+  }
+}
+
+export {};
+
 // Leaflet image module declarations
 declare module 'leaflet/dist/images/marker-icon.png' {
   const value: string;
@@ -345,4 +354,15 @@ declare module 'react-dom/client' {
   
   export function createRoot(container: Element | DocumentFragment): Root;
   export function hydrateRoot(container: Element | Document, children: ReactNode): Root;
+}
+
+// Google Analytics gtag function
+declare global {
+  interface Window {
+    gtag?: (
+      command: 'config' | 'event' | 'get' | 'set',
+      targetId: string,
+      config?: Record<string, any>
+    ) => void;
+  }
 }
