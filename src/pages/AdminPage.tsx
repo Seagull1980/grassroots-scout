@@ -29,7 +29,6 @@ import {
   Grid,
   Avatar,
   Menu,
-  MenuItem as MuiMenuItem,
   Divider,
   Tabs,
   Tab,
