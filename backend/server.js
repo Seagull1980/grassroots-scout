@@ -508,9 +508,13 @@ async function initializeServer() {
       
       console.log(`📊 Current league count: ${count}, Tamworth leagues: ${tamworthCount}`);
       
-      // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data)
-      if (count === 0 || tamworthCount === 0) {
-        console.log('⚠️  Leagues incomplete or missing, populating FA leagues...');
+      // FORCE repopulation for now to ensure we have the complete FA league set
+      // TODO: Remove this force flag after confirming it works
+      const forceRepopulate = true;
+      
+      // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data), or force flag is set
+      if (count === 0 || tamworthCount === 0 || forceRepopulate) {
+        console.log('⚠️  Leagues incomplete or force repopulation enabled, populating FA leagues...');
         
         // Clear existing leagues if any (to avoid duplicates)
         if (count > 0) {
