@@ -1,4 +1,5 @@
 import { TOP_FA_LEAGUES } from '../config/leagues';
+import { AGE_GROUP_OPTIONS, POSITION_OPTIONS, SORT_OPTIONS } from '../constants/options';
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -77,17 +78,9 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
 
   // Available options
   const leagues = TOP_FA_LEAGUES.map((l: { name: string }) => l.name);
-  const ageGroups = [
-    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10', 'Under 11',
-    'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16', 'Under 17',
-    'Under 18', 'Under 19', 'Under 20', 'Under 21', 'Senior', 'Veterans'
-  ];
-  const positions = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Winger', 'Striker'];
-  const sortOptions = [
-    { value: 'newest', label: 'Newest First' },
-    { value: 'oldest', label: 'Oldest First' },
-    { value: 'alphabetical', label: 'Alphabetical' }
-  ];
+  const ageGroups = AGE_GROUP_OPTIONS;
+  const positions = POSITION_OPTIONS;
+  const sortOptions = SORT_OPTIONS;
 
   useEffect(() => {
     loadSearchHistory();

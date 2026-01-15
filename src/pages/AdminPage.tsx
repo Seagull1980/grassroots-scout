@@ -16,6 +16,10 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   IconButton,
   Alert,
   CircularProgress,
@@ -25,7 +29,7 @@ import {
   Grid,
   Avatar,
   Menu,
-  MenuItem,
+  MenuItem as MuiMenuItem,
   Divider,
   Tabs,
   Tab,
@@ -59,6 +63,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { handleApiError } from '../utils/errorHandling';
 import SiteActivityDashboard from '../components/SiteActivityDashboard';
+
+// Age group options for league creation
+const AGE_GROUP_OPTIONS = [
+  'U6', 'U7', 'U8', 'U9', 'U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19', 'U20', 'U21',
+  'Open Age', 'Over 35'
+];
 
 const AdminPage: React.FC = () => {
   console.log('🔍 AdminPage render start');
@@ -960,16 +970,20 @@ const AdminPage: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, region: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Age Group"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={formData.ageGroup}
-            onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+            <InputLabel>Age Group</InputLabel>
+            <Select
+              value={formData.ageGroup}
+              label="Age Group"
+              onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
+            >
+              {AGE_GROUP_OPTIONS.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField
             margin="dense"
             label="Country"

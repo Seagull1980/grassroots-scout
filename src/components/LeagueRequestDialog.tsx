@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AGE_GROUP_OPTIONS } from '../constants/options';
 import {
   Dialog,
   DialogTitle,
@@ -51,29 +52,7 @@ const regions = [
   'National'
 ];
 
-const ageGroups = [
-  'Under 6',
-  'Under 7', 
-  'Under 8',
-  'Under 9',
-  'Under 10',
-  'Under 11',
-  'Under 12',
-  'Under 13',
-  'Under 14',
-  'Under 15',
-  'Under 16',
-  'Under 17',
-  'Under 18',
-  'Under 21',
-  'Junior',
-  'Youth',
-  'Senior',
-  'Adult',
-  'Veterans',
-  'Women\'s',
-  'Mixed'
-];
+const ageGroups = AGE_GROUP_OPTIONS;
 
 const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({ 
   open, 

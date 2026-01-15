@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS, POSITION_OPTIONS } from '../constants/options';
 import {
   Container,
   Typography,
@@ -497,13 +498,9 @@ const SearchPage: React.FC = () => {
   ]);
 
   // Age groups and team gender options
-  const ageGroups = [
-    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10', 'Under 11',
-    'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16', 'Under 17',
-    'Under 18', 'Under 19', 'Under 20', 'Under 21', 'Senior', 'Veterans'
-  ];
-  const teamGenders = ['Boys', 'Girls', 'Mixed'];
-  const positions = ['Goalkeeper', 'Right Back', 'Left Back', 'Centre Back', 'Defensive Midfielder', 'Central Midfielder', 'Attacking Midfielder', 'Right Winger', 'Left Winger', 'Striker', 'Any Position'];
+  const ageGroups = AGE_GROUP_OPTIONS;
+  const teamGenders = TEAM_GENDER_OPTIONS;
+  const positions = POSITION_OPTIONS;
 
   // Filter and search logic
   const filteredVacancies = (vacancies || []).filter((vacancy) => {

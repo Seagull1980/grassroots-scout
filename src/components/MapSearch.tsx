@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AGE_GROUP_OPTIONS } from '../constants/options';
 import {
   Box,
   Paper,
@@ -145,11 +146,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   
   // Available filter options
   const leagues = ['County League', 'Regional League', 'Youth League', 'Premier Youth League', 'Championship Youth', 'Local League'];
-  const ageGroups = [
-    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10', 'Under 11',
-    'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16', 'Under 17',
-    'Under 18', 'Under 19', 'Under 20', 'Under 21', 'Senior', 'Veterans'
-  ];
+  const ageGroups = AGE_GROUP_OPTIONS;
 
   // Load saved regions from localStorage
   useEffect(() => {
