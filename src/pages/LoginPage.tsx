@@ -19,27 +19,19 @@ import { useAuth } from '../contexts/AuthContext';
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, loginError, setLoginError } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
-  const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // Debug: Log error state changes
-  useEffect(() => {
-    console.log('[LoginPage] Error state changed to:', error);
-    console.log('[LoginPage] Error is truthy:', !!error);
-    console.log('[LoginPage] Error length:', error.length);
-  }, [error]);
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
     if (errorParam === 'invalid') {
-      setError('Invalid email or password. Please check your credentials and try again.');
+      setLoginError('Invalid email or password. Please check your credentials and try again.');
     }
-  }, [searchParams]);
+  }, [searchParams, setLoginError]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -53,10 +45,10 @@ const LoginPage: React.FC = () => {
     console.log('[LoginPage] handleSubmit called');
     
     // Clear any previous error
-    setError('');
+    setLoginError(null);
 
     if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
+      setLoginError('Please fill in all fields');
       return;
     }
 
@@ -65,27 +57,28 @@ const LoginPage: React.FC = () => {
       console.log('[LoginPage] Attempting login for:', formData.email);
       const success = await login(formData.email, formData.password);
       console.log('[LoginPage] Login method returned, success =', success);
-      
       if (success) {
         console.log('[LoginPage] Login successful, navigating to dashboard');
-        // Small delay to ensure state is updated before navigation
         setTimeout(() => {
           navigate('/dashboard', { replace: true });
         }, 100);
       } else {
-        console.log('[LoginPage] Login failed: setting error message');
-        console.log('[LoginPage] About to call setError with:', 'Invalid email or password. Please check your credentials and try again.');
-        setError('Invalid email or password. Please check your credentials and try again.');
-        console.log('[LoginPage] Error state set to:', 'Invalid email or password. Please check your credentials and try again.');
+        // Always show error for failed login
+        setLoginError('Invalid email or password. Please check your credentials and try again.');
+        console.log('[LoginPage] Error state set to: Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
-      console.log('[LoginPage] Login error caught (this should not happen):', error);
-      console.log('[LoginPage] Error status:', error?.response?.status);
-      console.log('[LoginPage] Error message:', error?.response?.data?.error);
-      setError('Invalid email or password. Please check your credentials and try again.');
-      console.log('[LoginPage] Error state set in catch block');
+      // Defensive: handle unexpected errors (network, server, etc.)
+      let message = 'An unexpected error occurred. Please try again.';
+      if (error?.response?.status === 401 || error?.response?.data?.error === 'Invalid email or password') {
+        message = 'Invalid email or password. Please check your credentials and try again.';
+      }
+      setLoginError(message);
+      console.log('[LoginPage] Error state set in catch block:', message);
     }
   };
+
+  console.log('[LoginPage] About to render, error state:', loginError);
 
   return (
     <Container component="main" maxWidth="sm">
@@ -105,11 +98,10 @@ const LoginPage: React.FC = () => {
             Welcome back to The Grassroots Scout
           </Typography>
 
-          {error && (
+          {console.log('[LoginPage] Rendering, error state:', loginError, 'truthy:', !!loginError)}
+          {loginError && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-              <br />
-              <small style={{ opacity: 0.7 }}>Debug: Error state is set</small>
+              {loginError}
             </Alert>
           )}
 

@@ -15,6 +15,8 @@ interface AuthContextType {
   isImpersonating: boolean;
   originalUser: User | null;
   storageWarning: string | null;
+  loginError: string | null;
+  setLoginError: (error: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [originalUser, setOriginalUser] = useState<User | null>(null);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check for stored user session
@@ -81,6 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     console.log('[AuthContext] Login attempt for:', email);
     setIsLoading(true);
+    setLoginError(null);
     try {
       console.log('[AuthContext] Calling authAPI.login...');
       const response = await authAPI.login(email, password);
@@ -126,6 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
       console.warn('[AuthContext] Login failed - invalid response');
+      setLoginError('Invalid email or password. Please check your credentials and try again.');
       return false;
     } catch (error: unknown) {
       console.error('[AuthContext] Login error caught:', error);
@@ -146,6 +151,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('[AuthContext] Login failed due to error, returning false');
       // Add visual indicator that would show in LoginPage
       console.log('[AuthContext] VISUAL INDICATOR: AuthContext returning false');
+      setLoginError('Invalid email or password. Please check your credentials and try again.');
       return false;
     } finally {
       setIsLoading(false);
@@ -266,6 +272,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isImpersonating,
     originalUser,
     storageWarning,
+    loginError,
+    setLoginError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
