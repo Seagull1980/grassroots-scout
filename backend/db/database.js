@@ -21,10 +21,23 @@ class Database {
   }
 
   init() {
-    if (this.dbType === 'postgresql') {
-      this.initPostgreSQL();
-    } else {
-      this.initSQLite();
+    try {
+      if (this.dbType === 'postgresql') {
+        this.initPostgreSQL();
+      } else {
+        this.initSQLite();
+      }
+    } catch (error) {
+      console.error('❌ CRITICAL: Database initialization failed:', error);
+      console.error('Falling back to SQLite...');
+      // Fallback to SQLite if PostgreSQL fails
+      this.dbType = 'sqlite';
+      try {
+        this.initSQLite();
+      } catch (sqliteError) {
+        console.error('❌ CRITICAL: SQLite fallback also failed:', sqliteError);
+        throw sqliteError;
+      }
     }
   }
 
@@ -182,7 +195,8 @@ class Database {
   }
 
   async createTables() {
-    const tables = [
+    try {
+      const tables = [
       `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email VARCHAR NOT NULL,
@@ -773,6 +787,11 @@ class Database {
 
     // Create indexes for better performance
     await this.createIndexes();
+    } catch (error) {
+      console.error('❌ CRITICAL: Table creation failed:', error);
+      console.error('Server will continue with existing tables...');
+      // Don't throw - allow server to start even if table creation fails
+    }
   }
 
   async runMigrations() {
