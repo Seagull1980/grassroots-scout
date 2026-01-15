@@ -2771,12 +2771,24 @@ app.post('/api/engagement/track', authenticateToken, requireBetaAccess, [
 
     // Update daily engagement metrics
     const today = new Date().toISOString().split('T')[0];
-    await db.query(`
-      INSERT INTO user_engagement_metrics (userId, date, actionsCompleted)
-      VALUES (?, ?, 1)
-      ON CONFLICT(userId, date) DO UPDATE SET
-        actionsCompleted = actionsCompleted + 1
-    `, [req.user.userId, today]);
+    
+    if (db.dbType === 'postgresql') {
+      // PostgreSQL syntax
+      await db.query(`
+        INSERT INTO user_engagement_metrics (userId, date, actionsCompleted)
+        VALUES ($1, $2, 1)
+        ON CONFLICT(userId, date) DO UPDATE SET
+          actionsCompleted = user_engagement_metrics.actionsCompleted + 1
+      `, [req.user.userId, today]);
+    } else {
+      // SQLite syntax
+      await db.query(`
+        INSERT INTO user_engagement_metrics (userId, date, actionsCompleted)
+        VALUES (?, ?, 1)
+        ON CONFLICT(userId, date) DO UPDATE SET
+          actionsCompleted = actionsCompleted + 1
+      `, [req.user.userId, today]);
+    }
 
     res.json({ message: 'Interaction tracked successfully' });
   } catch (error) {
