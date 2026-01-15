@@ -498,6 +498,7 @@ async function initializeServer() {
     // Check and populate FA leagues if database is empty or incomplete
     try {
       console.log('🔄 Checking if leagues need to be populated...');
+      console.log('🗄️  Database type:', db.dbType);
       
       const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
       const count = leagueCount.rows[0].count;
@@ -521,6 +522,17 @@ async function initializeServer() {
           console.log('🧹 Clearing existing incomplete league data...');
           await db.query('DELETE FROM leagues');
           console.log('✅ Cleared existing leagues');
+        }
+        
+        console.log(`📝 Preparing to insert ${faLeagues.length} FA leagues...`);
+        
+        // Verify table exists
+        try {
+          await db.query('SELECT COUNT(*) FROM leagues');
+          console.log('✅ Leagues table exists and is accessible');
+        } catch (tableError) {
+          console.error('❌ Leagues table error:', tableError);
+          throw tableError;
         }
         
         const faLeagues = [
@@ -548,10 +560,36 @@ async function initializeServer() {
         ];
 
         for (const league of faLeagues) {
-          await db.query(
-            'INSERT INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1]
-          );
+          try {
+            // Use INSERT OR IGNORE for SQLite, INSERT ... ON CONFLICT DO NOTHING for PostgreSQL
+            let insertSql, insertParams;
+            
+            if (db.dbType === 'postgresql') {
+              insertSql = `INSERT INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) 
+                          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+                          ON CONFLICT (name) DO NOTHING`;
+              insertParams = [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1];
+            } else {
+              insertSql = `INSERT OR IGNORE INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+              insertParams = [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1];
+            }
+            
+            const result = await db.query(insertSql, insertParams);
+            
+            if (db.dbType === 'postgresql') {
+              if (result.rowCount > 0) {
+                console.log(`✅ Inserted league: ${league.name}`);
+              } else {
+                console.log(`⚠️  Skipped duplicate league: ${league.name}`);
+              }
+            } else {
+              console.log(`✅ Inserted league: ${league.name}`);
+            }
+          } catch (insertError) {
+            console.error(`❌ Failed to insert league ${league.name}:`, insertError);
+            // Continue with other leagues
+          }
         }
         
         console.log(`✅ Populated database with ${faLeagues.length} FA leagues`);
