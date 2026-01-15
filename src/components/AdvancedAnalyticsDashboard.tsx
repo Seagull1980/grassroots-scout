@@ -116,6 +116,7 @@ const AdvancedAnalyticsDashboard: React.FC<AdvancedAnalyticsDashboardProps> = ({
   // UI States
   const [showCreateGoalDialog, setShowCreateGoalDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedMetric, setSelectedMetric] = useState('rating');
 
@@ -580,13 +581,41 @@ const AdvancedAnalyticsDashboard: React.FC<AdvancedAnalyticsDashboardProps> = ({
         targetId={targetId || user?.id || ''}
       />
 
+      <Dialog open={showSettingsDialog} onClose={() => setShowSettingsDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Dashboard Settings</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Configure your analytics dashboard preferences.
+          </Typography>
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Default Metric</InputLabel>
+            <Select
+              value={selectedMetric}
+              label="Default Metric"
+              onChange={(e) => setSelectedMetric(e.target.value)}
+            >
+              <MenuItem value="rating">Player Rating</MenuItem>
+              <MenuItem value="matches">Match Count</MenuItem>
+              <MenuItem value="goals">Goals Scored</MenuItem>
+              <MenuItem value="assists">Assists</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowSettingsDialog(false)}>Cancel</Button>
+          <Button onClick={() => setShowSettingsDialog(false)} variant="contained">
+            Save Settings
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Settings Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={() => setAnchorEl(null)}
       >
-        <MenuItem onClick={() => { /* TODO: Implement settings functionality */ }}>
+        <MenuItem onClick={() => { setShowSettingsDialog(true); setAnchorEl(null); }}>
           <Settings sx={{ mr: 1 }} /> Settings
         </MenuItem>
         <MenuItem onClick={() => {}}>

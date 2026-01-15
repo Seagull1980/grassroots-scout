@@ -65,14 +65,7 @@ app.use('/api/saved-searches', savedSearchesRouter);
 // Initialize database tables on startup
 async function initializeServer() {
   try {
-    console.log('[INIT DEBUG] Starting database initialization...');
-    console.log('[INIT DEBUG] DB Type:', db.dbType);
-    console.log('[INIT DEBUG] NODE_ENV:', process.env.NODE_ENV);
-    console.log('[INIT DEBUG] DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('[INIT DEBUG] JWT_SECRET exists:', !!process.env.JWT_SECRET);
-
     await db.createTables();
-    console.log('[INIT DEBUG] Database tables created successfully');
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
@@ -95,19 +88,15 @@ async function initializeServer() {
         // SQLite doesn't allow adding UNIQUE columns to existing tables - add without UNIQUE first
         try {
           await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
-          console.log('✅ Added emailHash column to users table');
         } catch (alterError) {
           if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ emailHash column already exists (duplicate error ignored)');
+            // Column already exists, continue
           } else {
             throw alterError;
           }
         }
         // Create unique index separately
         await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailhash ON users(emailHash)');
-        console.log('✅ Created unique index on emailHash column');
-      } else {
-        console.log('✅ emailHash column exists');
       }
     } catch (hashError) {
       // Ignore duplicate column errors
@@ -139,12 +128,8 @@ async function initializeServer() {
         } else {
           await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
         }
-        console.log('✅ Added betaAccess column to users table (default: disabled)');
         // Grant beta access to existing users (grandfather them in)
         await db.query('UPDATE users SET betaaccess = 1 WHERE id IS NOT NULL');
-        console.log('✅ Granted beta access to all existing users');
-      } else {
-        console.log('✅ betaAccess column exists');
       }
     } catch (betaError) {
       if (!betaError.message || !betaError.message.includes('duplicate column')) {
@@ -169,9 +154,6 @@ async function initializeServer() {
       if (!hasBetaAccessGrantedAt) {
         console.log('⚠️  betaAccessGrantedAt column missing - adding now...');
         await db.query('ALTER TABLE users ADD COLUMN betaAccessGrantedAt TIMESTAMP NULL');
-        console.log('✅ Added betaAccessGrantedAt column to users table');
-      } else {
-        console.log('✅ betaAccessGrantedAt column exists');
       }
     } catch (grantedAtError) {
       if (!grantedAtError.message || !grantedAtError.message.includes('duplicate column')) {

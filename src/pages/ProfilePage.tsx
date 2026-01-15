@@ -365,7 +365,7 @@ const ProfilePage: React.FC = () => {
                 label="Phone Number"
                 value={profileData.phone}
                 onChange={handleInputChange('phone')}
-                placeholder="+44 7XXX XXXXXX"
+                placeholder="+1 (555) 123-4567"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -653,7 +653,7 @@ const ProfilePage: React.FC = () => {
                 label="Emergency Contact Phone"
                 value={profileData.emergencyPhone}
                 onChange={handleInputChange('emergencyPhone')}
-                placeholder="+44 7XXX XXXXXX"
+                placeholder="+1 (555) 123-4567"
               />
             </Grid>
             <Grid item xs={12}>
