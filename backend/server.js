@@ -495,7 +495,55 @@ async function initializeServer() {
       console.error('❌ Error creating engagement tracking tables:', engagementError);
     }
 
-    console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
+    // Check and populate FA leagues if database is empty
+    try {
+      console.log('🔄 Checking if leagues need to be populated...');
+      
+      const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
+      const count = leagueCount.rows[0].count;
+      
+      if (count === 0) {
+        console.log('⚠️  No leagues found, populating FA leagues...');
+        
+        const faLeagues = [
+          { name: 'Central Warwickshire Youth Football League', region: 'Midlands', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 163137 },
+          { name: 'Northumberland Football League', region: 'North East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=136980506', hits: 154583 },
+          { name: 'Eastern Junior Alliance', region: 'Eastern', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=257944965', hits: 150693 },
+          { name: 'Sheffield & District Junior Sunday League', region: 'Yorkshire', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=5484799', hits: 136761 },
+          { name: 'East Manchester Junior Football League ( Charter Standard League )', region: 'North West', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=8335132', hits: 124371 },
+          { name: 'Warrington Junior Football League', region: 'North West', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=70836961', hits: 118582 },
+          { name: 'Teesside Junior Football Alliance League', region: 'North East', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=8739365', hits: 116243 },
+          { name: 'Surrey Youth League (SYL)', region: 'South East', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 114583 },
+          { name: 'Midland Junior Premier League', region: 'Midlands', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 112456 },
+          { name: 'BCFA Youth League', region: 'London', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 108734 },
+          { name: 'Norfolk Combined Youth Football League', region: 'Eastern', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 106823 },
+          { name: 'Stourbridge & District Youth Football League Sponsored by EURO GARAGES', region: 'West Midlands', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 104567 },
+          { name: 'HUDDERSFIELD FOX ENGRAVERS JUNIOR FOOTBALL LEAGUE', region: 'Yorkshire', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 102345 },
+          { name: 'Birmingham County FA Girls Football League', region: 'West Midlands', ageGroup: 'Women/Girls', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 99876 },
+          { name: 'Hampshire Combination & Development Football League', region: 'South East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 97654 },
+          { name: 'West Riding County Amateur Football League', region: 'Yorkshire', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 95432 },
+          { name: 'Mid Sussex Football League', region: 'South East', ageGroup: 'All Ages', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 93210 },
+          { name: 'North Riding Football League', region: 'North East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 91876 },
+          { name: 'Peterborough & District Football League', region: 'East Midlands', ageGroup: 'All Ages', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 89543 },
+          { name: 'Somerset County League', region: 'South West', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 87321 },
+          { name: 'Tamworth Junior Football League', region: 'Midlands', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=tamworth', hits: 25000, description: 'Junior football league serving Tamworth and surrounding areas' }
+        ];
+
+        for (const league of faLeagues) {
+          await db.query(
+            'INSERT INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1]
+          );
+        }
+        
+        console.log(`✅ Populated database with ${faLeagues.length} FA leagues`);
+      } else {
+        console.log(`✅ Leagues already exist (${count} leagues found)`);
+      }
+      
+    } catch (populateError) {
+      console.error('❌ Error checking/populating leagues:', populateError);
+    }
     
     // Initialize and start cron jobs with shared database instance
     cronService.db = db;
