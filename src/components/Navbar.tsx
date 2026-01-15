@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -58,6 +58,9 @@ const Navbar: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
+  
+  // Ref for the mobile menu button to manage focus
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -75,9 +78,16 @@ const Navbar: React.FC = () => {
     setMoreMenuAnchorEl(null);
   };
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  // Handle focus management when drawer closes
+  useEffect(() => {
+    if (!mobileOpen && menuButtonRef.current) {
+      // Small delay to ensure drawer has closed
+      const timer = setTimeout(() => {
+        menuButtonRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [mobileOpen]);
 
   const handleLogout = () => {
     logout();
@@ -544,6 +554,7 @@ const Navbar: React.FC = () => {
 
                 {/* Mobile Menu Button */}
                 <IconButton
+                  ref={menuButtonRef}
                   color="inherit"
                   aria-label="open drawer"
                   edge="end"
@@ -642,6 +653,8 @@ const Navbar: React.FC = () => {
         onClose={handleDrawerToggle}
         ModalProps={{
           keepMounted: true,
+          disableAutoFocus: true,
+          disableEnforceFocus: true,
         }}
         sx={{
           display: { xs: 'block', md: 'none' },
