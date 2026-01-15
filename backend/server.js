@@ -65,7 +65,20 @@ app.use('/api/saved-searches', savedSearchesRouter);
 // Initialize database tables on startup
 async function initializeServer() {
   try {
+    console.log('🚀 Starting server initialization...');
+    console.log('📊 Database type:', db.dbType);
+    console.log('🔗 Database URL exists:', !!process.env.DATABASE_URL);
+    
     await db.createTables();
+    console.log('✅ Database tables created successfully');
+    
+    // Test database connection
+    try {
+      const testResult = await db.query('SELECT 1 as test');
+      console.log('🧪 Database connection test successful:', testResult.rows[0]);
+    } catch (testError) {
+      console.error('❌ Database connection test failed:', testError);
+    }
     
     // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
     try {
