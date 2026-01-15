@@ -511,7 +511,7 @@ async function initializeServer() {
       
       // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data)
       if (count === 0 || tamworthCount === 0) {
-        console.log('⚠️  Leagues incomplete or force repopulation enabled, populating FA leagues...');
+        console.log('⚠️  Leagues incomplete or missing, populating FA leagues...');
         
         // Clear existing leagues if any (to avoid duplicates)
         if (count > 0) {
@@ -598,7 +598,8 @@ async function initializeServer() {
       }
       
     } catch (populateError) {
-      console.error('❌ Error checking/populating leagues:', populateError);
+      console.error('❌ CRITICAL: League population failed, but server will continue:', populateError);
+      // Don't throw - allow server to start even if league population fails
     }
     
     // Initialize and start cron jobs with shared database instance
