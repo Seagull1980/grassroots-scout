@@ -1339,7 +1339,6 @@ app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAc
 app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
   body('firstName').notEmpty().withMessage('First name is required').isLength({ min: 1, max: 50 }).withMessage('First name must be 1-50 characters'),
   body('lastName').notEmpty().withMessage('Last name is required').isLength({ min: 1, max: 50 }).withMessage('Last name must be 1-50 characters'),
-  body('phone').optional().isLength({ min: 5, max: 20 }).withMessage('Phone number must be 5-20 characters'),
   body('dateOfBirth').notEmpty().withMessage('Date of birth is required').isISO8601().withMessage('Valid date of birth required'),
   body('location').optional().notEmpty().withMessage('Location cannot be empty'),
   body('bio').optional().isLength({ max: 500 }).withMessage('Bio must be less than 500 characters'),
@@ -1356,7 +1355,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
   try {
     const {
       firstName, lastName,
-      phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
+      dateOfBirth, location, bio, position, preferredFoot, height, weight,
       experienceLevel, availability, coachingLicense, yearsExperience, specializations,
       trainingLocation, matchLocation, trainingDays, ageGroupsCoached,
       emergencyContact, emergencyPhone, medicalInfo, profilePicture
@@ -1380,7 +1379,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
 
     // Encrypt sensitive profile data
     const encryptedData = encryptionService.encryptProfileData({
-      phone, dateOfBirth, location, bio, emergencyContact, 
+      dateOfBirth, location, bio, emergencyContact, 
       emergencyPhone, medicalInfo, trainingLocation, matchLocation
     });
 
@@ -1389,7 +1388,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
     const existingProfile = existingResult.rows[0];
 
     const profileData = [
-      encryptedData.phone, encryptedData.dateOfBirth, encryptedData.location, encryptedData.bio, 
+      encryptedData.dateOfBirth, encryptedData.location, encryptedData.bio, 
       position, preferredFoot, height, weight, experienceLevel, JSON.stringify(availability), 
       coachingLicense, yearsExperience, JSON.stringify(specializations), 
       encryptedData.trainingLocation, encryptedData.matchLocation,
@@ -1402,7 +1401,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       // Update existing profile
       const updateQuery = `
         UPDATE user_profiles SET
-          phone = ?, dateOfBirth = ?, location = ?, bio = ?, position = ?, preferredFoot = ?,
+          dateOfBirth = ?, location = ?, bio = ?, position = ?, preferredFoot = ?,
           height = ?, weight = ?, experienceLevel = ?, availability = ?, coachingLicense = ?,
           yearsExperience = ?, specializations = ?, trainingLocation = ?, matchLocation = ?,
           trainingDays = ?, ageGroupsCoached = ?, emergencyContact = ?, emergencyPhone = ?,
@@ -1416,11 +1415,11 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       // Create new profile
       const insertQuery = `
         INSERT INTO user_profiles (
-          phone, dateOfBirth, location, bio, position, preferredFoot, height, weight,
+          dateOfBirth, location, bio, position, preferredFoot, height, weight,
           experienceLevel, availability, coachingLicense, yearsExperience, specializations,
           trainingLocation, matchLocation, trainingDays, ageGroupsCoached, emergencyContact, 
           emergencyPhone, medicalInfo, profilePicture, isProfileComplete, lastUpdated, userId
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       await db.query(insertQuery, [...profileData, req.user.userId]);

@@ -76,7 +76,6 @@ const ProfilePage: React.FC = () => {
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
     firstName: '',
     lastName: '',
-    phone: '',
     dateOfBirth: '',
     location: '',
     bio: '',
@@ -151,7 +150,6 @@ const ProfilePage: React.FC = () => {
       setProfileData({
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
-        phone: profileResponse.phone || '',
         dateOfBirth: profileResponse.dateOfBirth || '',
         location: profileResponse.location || '',
         bio: profileResponse.bio || '',
@@ -379,15 +377,6 @@ const ProfilePage: React.FC = () => {
                 value={user?.email || ''}
                 disabled
                 helperText="Contact support to change your email"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Phone Number"
-                value={profileData.phone}
-                onChange={handleInputChange('phone')}
-                placeholder="+1 (555) 123-4567"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
