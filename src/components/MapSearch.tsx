@@ -258,7 +258,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     const polygon = new google.maps.Polygon({
       paths: drawingPath,
       strokeColor: '#2196F3',
-      strokeOpacity: 0.8,
       strokeWeight: 3,
       fillColor: '#2196F3',
       fillOpacity: 0.2,
@@ -649,7 +648,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     const polygon = new google.maps.Polygon({
       paths: region.coordinates,
       strokeColor: '#2196F3',
-      strokeOpacity: 0.8,
       strokeWeight: 3,
       fillColor: '#2196F3',
       fillOpacity: 0.2,

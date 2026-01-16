@@ -365,3 +365,5 @@ declare module 'leaflet/dist/images/marker-shadow.png' {
   const value: string;
   export default value;
 }
+
+declare module 'react-dom/client';
