@@ -220,9 +220,14 @@ const ProfilePage: React.FC = () => {
       setIsSaving(true);
       setError('');
       
-      // Filter out empty strings and undefined values for optional fields
+      // Filter out empty strings and undefined values for optional fields only
+      // Required fields: firstName, lastName, dateOfBirth
+      const requiredFields = ['firstName', 'lastName', 'dateOfBirth'];
       const cleanedProfileData = Object.fromEntries(
-        Object.entries(profileData).filter(([, value]) => {
+        Object.entries(profileData).filter(([key, value]) => {
+          // Always include required fields
+          if (requiredFields.includes(key)) return true;
+          // Filter out empty/undefined optional fields
           if (value === undefined || value === '') return false;
           if (Array.isArray(value) && value.length === 0) return false;
           return true;
