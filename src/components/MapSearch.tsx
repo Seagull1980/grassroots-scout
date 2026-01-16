@@ -264,7 +264,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       editable: true,
       draggable: true,
       map: map
-    });
+    } as any);
     
     setDrawnPolygon(polygon);
     setDrawingState(prev => ({ ...prev, isActive: false, mode: 'edit', currentPolygon: polygon }));
@@ -654,7 +654,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       editable: true,
       draggable: true,
       map: map
-    });
+    } as any);
     
     setDrawnPolygon(polygon);
     setUseDrawnArea(true);
