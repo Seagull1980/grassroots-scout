@@ -220,7 +220,17 @@ const ProfilePage: React.FC = () => {
       setIsSaving(true);
       setError('');
       
-      await profileAPI.update(profileData);
+      // Filter out empty strings and undefined values for optional fields
+      const cleanedProfileData = Object.fromEntries(
+        Object.entries(profileData).filter(([, value]) => {
+          if (value === undefined || value === '') return false;
+          if (Array.isArray(value) && value.length === 0) return false;
+          return true;
+        })
+      );
+      
+      console.log('Sending profile data:', cleanedProfileData);
+      await profileAPI.update(cleanedProfileData);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       
@@ -228,7 +238,14 @@ const ProfilePage: React.FC = () => {
       await loadProfile();
     } catch (error: any) {
       console.error('Error saving profile:', error);
-      setError(`Failed to save profile: ${error.response?.data?.error || error.message}`);
+      console.error('Error response:', error.response);
+      console.error('Error data:', error.response?.data);
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.errors?.[0]?.msg || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Unknown error occurred';
+      setError(`Failed to save profile: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
