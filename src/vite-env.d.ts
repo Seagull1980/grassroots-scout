@@ -26,6 +26,11 @@ declare global {
     gtag: (...args: any[]) => void;
   }
 
+  // React DOM types
+  declare module 'react-dom/client' {
+    export * from 'react-dom';
+  }
+
   namespace google {
     namespace maps {
       // Core classes
@@ -84,7 +89,7 @@ declare global {
           getPlace(): PlaceResult;
         }
 
-        class PlaceAutocompleteElement {
+        class PlaceAutocompleteElement extends HTMLElement {
           constructor(opts?: any);
         }
 
@@ -145,6 +150,7 @@ declare global {
 
         class PinElement {
           constructor(opts?: any);
+          element?: HTMLElement;
         }
       }
 
@@ -161,7 +167,16 @@ declare global {
 
       // Drawing library
       namespace drawing {
-        // Drawing manager would be here, but using simplified version
+        class DrawingManager {
+          constructor(opts?: DrawingManagerOptions);
+          setMap(map: Map | null): void;
+        }
+
+        interface DrawingManagerOptions {
+          drawingMode?: any;
+          drawingControl?: boolean;
+          drawingControlOptions?: any;
+        }
       }
 
       // Event system
@@ -304,6 +319,7 @@ declare global {
         map?: Map;
         strokeColor?: string;
         strokeOpacity?: number;
+        strokeWeight?: number;
       }
 
       interface PolylineOptions {
@@ -311,6 +327,7 @@ declare global {
         map?: Map;
         strokeColor?: string;
         strokeWeight?: number;
+        strokeOpacity?: number;
       }
 
       interface InfoWindowOptions {
