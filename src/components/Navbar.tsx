@@ -234,7 +234,7 @@ const Navbar: React.FC = () => {
     <>
       {/* Desktop/Tablet Navbar */}
       {!isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a' }}>
           <Toolbar>
             <Typography
               variant="h6"
@@ -259,11 +259,11 @@ const Navbar: React.FC = () => {
                   startIcon={item.icon}
                   onClick={() => navigate(item.path)}
                   sx={{
-                    color: isActive(item.path) ? 'primary.main' : 'text.primary',
+                    color: isActive(item.path) ? '#1e3a8a' : '#0f172a',
                     fontWeight: isActive(item.path) ? 600 : 400,
                     '&:hover': { 
-                      bgcolor: 'action.hover',
-                      color: 'text.primary' // Ensure text stays dark on hover
+                      bgcolor: 'rgba(0, 0, 0, 0.04)',
+                      color: '#0f172a' // Ensure text stays dark on hover
                     },
                     minHeight: 48,
                   }}
@@ -279,10 +279,10 @@ const Navbar: React.FC = () => {
                     startIcon={<MoreHoriz />}
                     onClick={handleMoreMenu}
                     sx={{ 
-                      color: 'text.primary',
+                      color: '#0f172a',
                       '&:hover': { 
-                        bgcolor: 'action.hover',
-                        color: 'text.primary'
+                        bgcolor: 'rgba(0, 0, 0, 0.04)',
+                        color: '#0f172a'
                       },
                       minHeight: 48,
                     }}
@@ -296,9 +296,9 @@ const Navbar: React.FC = () => {
                     PaperProps={{
                       sx: {
                         '& .MuiMenuItem-root': {
-                          color: 'text.primary',
+                          color: '#0f172a',
                           '&:hover': {
-                            bgcolor: 'action.hover',
+                            bgcolor: 'rgba(0, 0, 0, 0.04)',
                           }
                         }
                       }
@@ -363,9 +363,9 @@ const Navbar: React.FC = () => {
                     PaperProps={{
                       sx: {
                         '& .MuiMenuItem-root': {
-                          color: 'text.primary',
+                          color: '#0f172a',
                           '&:hover': {
-                            bgcolor: 'action.hover',
+                            bgcolor: 'rgba(0, 0, 0, 0.04)',
                           }
                         }
                       }
@@ -439,7 +439,7 @@ const Navbar: React.FC = () => {
 
       {/* Mobile Top App Bar */}
       {isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a' }}>
           <Toolbar>
             <IconButton
               color="inherit"
