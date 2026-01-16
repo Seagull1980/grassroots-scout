@@ -27,7 +27,9 @@ declare global {
   }
 
   // React DOM types
-  declare module 'react-dom/client';
+  declare module 'react-dom/client' {
+    export * from 'react-dom';
+  }
 
   namespace google {
     namespace maps {
@@ -319,6 +321,7 @@ declare global {
         strokeOpacity?: number;
         strokeWeight?: number;
         fillColor?: string;
+        fillOpacity?: number;
       }
 
       interface PolylineOptions {
