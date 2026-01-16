@@ -393,6 +393,7 @@ const ProfilePage: React.FC = () => {
                 value={profileData.dateOfBirth}
                 onChange={handleInputChange('dateOfBirth')}
                 InputLabelProps={{ shrink: true }}
+                required
               />
             </Grid>
             <Grid item xs={12} sm={6}>

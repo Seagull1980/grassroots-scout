@@ -1337,15 +1337,15 @@ app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAc
 
 // Update user profile
 app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
-  body('firstName').optional().isLength({ min: 1, max: 50 }).withMessage('First name must be 1-50 characters'),
-  body('lastName').optional().isLength({ min: 1, max: 50 }).withMessage('Last name must be 1-50 characters'),
+  body('firstName').notEmpty().withMessage('First name is required').isLength({ min: 1, max: 50 }).withMessage('First name must be 1-50 characters'),
+  body('lastName').notEmpty().withMessage('Last name is required').isLength({ min: 1, max: 50 }).withMessage('Last name must be 1-50 characters'),
   body('phone').optional().isLength({ min: 5, max: 20 }).withMessage('Phone number must be 5-20 characters'),
-  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth required'),
+  body('dateOfBirth').notEmpty().withMessage('Date of birth is required').isISO8601().withMessage('Valid date of birth required'),
   body('location').optional().notEmpty().withMessage('Location cannot be empty'),
   body('bio').optional().isLength({ max: 500 }).withMessage('Bio must be less than 500 characters'),
   body('position').optional().notEmpty().withMessage('Position cannot be empty'),
   body('height').optional(),
-  body('weight').optional().isInt({ min: 30, max: 200 }).withMessage('Weight must be between 30-200 kg'),
+  body('weight').optional(),
   body('yearsExperience').optional().isInt({ min: 0, max: 50 }).withMessage('Years of experience must be 0-50')
 ], async (req, res) => {
   const errors = validationResult(req);
