@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: grassroots-scout
+    name: the-grassroots-scout
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
@@ -12,12 +12,12 @@ services:
       - key: FRONTEND_URL
         fromService:
           type: web
-          name: grassroots-scout
+          name: the-grassroots-scout
           property: host
       - key: VITE_API_URL
         fromService:
           type: web
-          name: grassroots-scout
+          name: the-grassroots-scout
           property: host
       - key: VITE_GOOGLE_MAPS_API_KEY
         sync: false
