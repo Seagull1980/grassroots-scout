@@ -27,9 +27,7 @@ declare global {
   }
 
   // React DOM types
-  declare module 'react-dom/client' {
-    export * from 'react-dom';
-  }
+  declare module 'react-dom/client';
 
   namespace google {
     namespace maps {
@@ -190,7 +188,7 @@ declare global {
       class Polygon {
         constructor(opts?: PolygonOptions);
         setMap(map: Map | null): void;
-        setPaths(paths: (LatLng | LatLngLiteral)[][] | LatLngBounds): void;
+        setPaths(paths: (LatLng | LatLngLiteral)[] | (LatLng | LatLngLiteral)[][] | LatLngBounds): void;
         getPath(): any;
         setEditable(editable: boolean): void;
         addListener(eventName: string, handler: (...args: any[]) => void): MapsEventListener;
@@ -217,7 +215,7 @@ declare global {
       // Info Window
       class InfoWindow {
         constructor(opts?: InfoWindowOptions);
-        open(map: Map, anchor?: Marker): void;
+        open(map?: Map, anchor?: Marker): void;
         close(): void;
         setContent(content: string | HTMLElement): void;
         setPosition(position: LatLng | LatLngLiteral): void;
@@ -320,6 +318,7 @@ declare global {
         strokeColor?: string;
         strokeOpacity?: number;
         strokeWeight?: number;
+        fillColor?: string;
       }
 
       interface PolylineOptions {
