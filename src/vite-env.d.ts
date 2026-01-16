@@ -143,7 +143,7 @@ declare global {
       namespace marker {
         class AdvancedMarkerElement {
           constructor(opts?: any);
-          map?: Map;
+          map?: Map | null;
           position?: LatLng | LatLngLiteral;
           addListener(eventName: string, handler: (...args: any[]) => void): MapsEventListener;
         }
@@ -307,7 +307,7 @@ declare global {
       }
 
       interface PolygonOptions {
-        paths?: (LatLng | LatLngLiteral)[][] | LatLngBounds;
+        paths?: (LatLng | LatLngLiteral)[] | (LatLng | LatLngLiteral)[][] | LatLngBounds;
         map?: Map;
         strokeColor?: string;
         strokeWeight?: number;
