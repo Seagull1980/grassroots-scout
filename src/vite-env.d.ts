@@ -20,11 +20,34 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Google Analytics gtag function
+// Google Analytics gtag function and Google Maps global
 declare global {
   interface Window {
     gtag: (...args: any[]) => void;
-    google?: typeof google;
+  }
+
+  namespace google {
+    namespace maps {
+      // Minimal declarations to ensure google is available
+      class Map {
+        constructor(mapDiv: HTMLElement, opts?: any);
+      }
+      class Marker {
+        constructor(opts?: any);
+      }
+      class LatLng {
+        constructor(lat: number, lng: number);
+      }
+      class Geocoder {
+        geocode(request: any, callback: any): void;
+      }
+      class PlacesService {
+        constructor(attrContainer: HTMLElement);
+      }
+      class Autocomplete {
+        constructor(inputField: HTMLInputElement, opts?: any);
+      }
+    }
   }
 }
 
