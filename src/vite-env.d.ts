@@ -84,6 +84,10 @@ declare global {
           getPlace(): PlaceResult;
         }
 
+        class PlaceAutocompleteElement {
+          constructor(opts?: any);
+        }
+
         class PlacesService {
           constructor(attrContainer: HTMLElement);
           nearbySearch(request: PlaceSearchRequest, callback: (results: PlaceResult[], status: PlacesServiceStatus) => void): void;
@@ -95,6 +99,7 @@ declare global {
           componentRestrictions?: {
             country: string | string[];
           };
+          fields?: string[];
         }
 
         interface PlaceResult {
@@ -133,6 +138,13 @@ declare global {
       namespace marker {
         class AdvancedMarkerElement {
           constructor(opts?: any);
+          map?: Map;
+          position?: LatLng | LatLngLiteral;
+          addListener(eventName: string, handler: (...args: any[]) => void): MapsEventListener;
+        }
+
+        class PinElement {
+          constructor(opts?: any);
         }
       }
 
@@ -140,6 +152,10 @@ declare global {
       namespace geometry {
         class spherical {
           static computeDistanceBetween(from: LatLng | LatLngLiteral, to: LatLng | LatLngLiteral): number;
+        }
+
+        namespace poly {
+          function containsLocation(point: LatLng | LatLngLiteral, polygon: Polygon): boolean;
         }
       }
 
@@ -151,6 +167,8 @@ declare global {
       // Event system
       namespace event {
         function addListener(instance: any, eventName: string, handler: (...args: any[]) => void): MapsEventListener;
+        function removeListener(listener: MapsEventListener): void;
+        function clearInstanceListeners(instance: any): void;
       }
 
       // Drawing classes
@@ -187,6 +205,7 @@ declare global {
         open(map: Map, anchor?: Marker): void;
         close(): void;
         setContent(content: string | HTMLElement): void;
+        setPosition(position: LatLng | LatLngLiteral): void;
       }
 
       // Interfaces and enums
@@ -276,6 +295,7 @@ declare global {
         paths?: (LatLng | LatLngLiteral)[][] | LatLngBounds;
         map?: Map;
         strokeColor?: string;
+        strokeWeight?: number;
       }
 
       interface CircleOptions {
@@ -283,12 +303,14 @@ declare global {
         radius?: number;
         map?: Map;
         strokeColor?: string;
+        strokeOpacity?: number;
       }
 
       interface PolylineOptions {
         path?: (LatLng | LatLngLiteral)[];
         map?: Map;
         strokeColor?: string;
+        strokeWeight?: number;
       }
 
       interface InfoWindowOptions {
