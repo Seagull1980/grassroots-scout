@@ -463,7 +463,6 @@ const ProfilePage: React.FC = () => {
                   type="number"
                   value={profileData.height || ''}
                   onChange={handleInputChange('height')}
-                  inputProps={{ min: 100, max: 250 }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

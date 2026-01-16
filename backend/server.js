@@ -1344,7 +1344,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
   body('location').optional().notEmpty().withMessage('Location cannot be empty'),
   body('bio').optional().isLength({ max: 500 }).withMessage('Bio must be less than 500 characters'),
   body('position').optional().notEmpty().withMessage('Position cannot be empty'),
-  body('height').optional().isInt({ min: 100, max: 250 }).withMessage('Height must be between 100-250 cm'),
+  body('height').optional(),
   body('weight').optional().isInt({ min: 30, max: 200 }).withMessage('Weight must be between 30-200 kg'),
   body('yearsExperience').optional().isInt({ min: 0, max: 50 }).withMessage('Years of experience must be 0-50')
 ], async (req, res) => {
