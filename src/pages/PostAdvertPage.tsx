@@ -152,8 +152,9 @@ const PostAdvertPage: React.FC = () => {
     // Validation
     const isCoach = user?.role === 'Coach';
     const positionValid = isCoach ? formData.position : formData.positions.length > 0;
+    const teamValid = isCoach ? !!formData.teamId : true;
     
-    if (!formData.title || !formData.description || !formData.league || !formData.ageGroup || !positionValid) {
+    if (!formData.title || !formData.description || !formData.league || !formData.ageGroup || !positionValid || !teamValid) {
       setError('Please fill in all required fields');
       return;
     }
@@ -431,37 +432,39 @@ const PostAdvertPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Team</InputLabel>
-                <Select
-                  name="teamId"
-                  value={formData.teamId}
-                  label="Team"
-                  onChange={handleSelectChange}
-                  disabled={loadingTeams}
-                >
-                  {teams.map((team) => (
-                    <MenuItem key={team.id} value={team.id}>
-                      {team.teamName}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {loadingTeams && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                    <CircularProgress size={16} sx={{ mr: 1 }} />
-                    <Typography variant="body2" color="text.secondary">
-                      Loading teams...
+            {isCoach && (
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Team</InputLabel>
+                  <Select
+                    name="teamId"
+                    value={formData.teamId}
+                    label="Team"
+                    onChange={handleSelectChange}
+                    disabled={loadingTeams}
+                  >
+                    {teams.map((team) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.teamName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {loadingTeams && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Loading teams...
+                      </Typography>
+                    </Box>
+                  )}
+                  {teams.length === 0 && !loadingTeams && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      No teams found. Create a team first to post vacancies.
                     </Typography>
-                  </Box>
-                )}
-                {teams.length === 0 && !loadingTeams && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    No teams found. Create a team first to post vacancies.
-                  </Typography>
-                )}
-              </FormControl>
-            </Grid>
+                  )}
+                </FormControl>
+              </Grid>
+            )}
 
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth required>
