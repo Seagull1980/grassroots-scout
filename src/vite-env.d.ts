@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 /// <reference types="node" />
-/// <reference types="google.maps" />
+/// <reference types="@types/google.maps" />
 
 interface ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
@@ -20,11 +20,25 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Google Analytics gtag function
+// Google Analytics gtag function and Google Maps
 declare global {
   interface Window {
     gtag: (...args: any[]) => void;
     google?: typeof google;
+  }
+
+  namespace google {
+    namespace maps {
+      // Re-export all google.maps types
+      export import Map = google.maps.Map;
+      export import LatLng = google.maps.LatLng;
+      export import Marker = google.maps.Marker;
+      export import PlacesService = google.maps.places.PlacesService;
+      export import Autocomplete = google.maps.places.Autocomplete;
+      export import Geocoder = google.maps.Geocoder;
+      export import GeocoderResult = google.maps.GeocoderResult;
+      export import GeocoderStatus = google.maps.GeocoderStatus;
+    }
   }
 }
 
