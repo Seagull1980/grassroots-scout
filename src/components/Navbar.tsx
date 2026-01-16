@@ -261,7 +261,11 @@ const Navbar: React.FC = () => {
                   sx={{
                     color: isActive(item.path) ? 'primary.main' : 'text.primary',
                     fontWeight: isActive(item.path) ? 600 : 400,
-                    '&:hover': { bgcolor: 'action.hover' },
+                    '&:hover': { 
+                      bgcolor: 'action.hover',
+                      color: 'text.primary' // Ensure text stays dark on hover
+                    },
+                    minHeight: 48,
                   }}
                 >
                   {item.label}
@@ -274,7 +278,14 @@ const Navbar: React.FC = () => {
                   <Button
                     startIcon={<MoreHoriz />}
                     onClick={handleMoreMenu}
-                    sx={{ color: 'text.primary' }}
+                    sx={{ 
+                      color: 'text.primary',
+                      '&:hover': { 
+                        bgcolor: 'action.hover',
+                        color: 'text.primary'
+                      },
+                      minHeight: 48,
+                    }}
                   >
                     More
                   </Button>
@@ -282,6 +293,16 @@ const Navbar: React.FC = () => {
                     anchorEl={moreMenuAnchorEl}
                     open={Boolean(moreMenuAnchorEl)}
                     onClose={handleMoreMenuClose}
+                    PaperProps={{
+                      sx: {
+                        '& .MuiMenuItem-root': {
+                          color: 'text.primary',
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          }
+                        }
+                      }
+                    }}
                   >
                     {secondaryNavItems.map((item) => (
                       <MenuItem
@@ -322,14 +343,34 @@ const Navbar: React.FC = () => {
                     size="small"
                     color="primary"
                     variant="outlined"
-                    sx={{ mr: 1 }}
+                    sx={{ 
+                      mr: 1,
+                      '& .MuiChip-label': {
+                        color: 'text.primary',
+                        fontWeight: 500,
+                      }
+                    }}
                   />
                   <IconButton onClick={handleMenu}>
                     <Avatar sx={{ width: 32, height: 32 }}>
                       {user.firstName?.[0]}{user.lastName?.[0]}
                     </Avatar>
                   </IconButton>
-                  <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
+                  <Menu 
+                    anchorEl={anchorEl} 
+                    open={Boolean(anchorEl)} 
+                    onClose={handleClose}
+                    PaperProps={{
+                      sx: {
+                        '& .MuiMenuItem-root': {
+                          color: 'text.primary',
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          }
+                        }
+                      }
+                    }}
+                  >
                     <MenuItem onClick={() => navigate('/profile')}>
                       <ListItemIcon><Person /></ListItemIcon>
                       Profile
