@@ -163,7 +163,7 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
             </Alert>
           )}
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
             <TextField
               label="Player Name"
               value={formData.playerName}
@@ -189,7 +189,12 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
               fullWidth
               required
-              SelectProps={{ native: true }}
+              SelectProps={{ 
+                native: true,
+                MenuProps: {
+                  style: { zIndex: 1301 }
+                }
+              }}
             >
               <option value="">Select Position</option>
               {positions.map((position) => (
@@ -206,7 +211,12 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
               onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
               fullWidth
               required
-              SelectProps={{ native: true }}
+              SelectProps={{ 
+                native: true,
+                MenuProps: {
+                  style: { zIndex: 1301 }
+                }
+              }}
             >
               <option value="">Select Age Group</option>
               {ageGroups.map((ageGroup) => (
@@ -236,6 +246,11 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
                 );
               }}
               noOptionsText="No leagues found"
+              componentsProps={{
+                popper: {
+                  sx: { zIndex: 1301 }
+                }
+              }}
             />
             
             <TextField

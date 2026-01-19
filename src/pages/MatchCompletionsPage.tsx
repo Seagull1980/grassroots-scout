@@ -474,7 +474,7 @@ const MatchCompletionsPage: React.FC = () => {
         <Dialog open={showCreateDialog} onClose={() => setShowCreateDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Report New Match</DialogTitle>
           <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
               <TextField
                 label="Player Name"
                 value={formData.playerName}
@@ -586,7 +586,7 @@ const MatchCompletionsPage: React.FC = () => {
         <Dialog open={showStoryDialog} onClose={() => setShowStoryDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Add Success Story</DialogTitle>
           <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
               <TextField
                 label="Success Story"
                 value={storyData.successStory}
