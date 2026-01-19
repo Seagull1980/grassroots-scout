@@ -1364,8 +1364,11 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       emergencyContact, emergencyPhone, medicalInfo, profilePicture
     } = req.body;
 
+    console.log('Received profile data:', { firstName, lastName, dateOfBirth, location, bio });
+
     // Update user's name if provided
     if (firstName || lastName) {
+      console.log('Updating user names:', { firstName, lastName });
       const updateFields = [];
       const updateValues = [];
       if (firstName) {
@@ -1378,6 +1381,9 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       }
       updateValues.push(req.user.userId);
       await db.query(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+      console.log('User names updated successfully');
+    } else {
+      console.log('No names to update');
     }
 
     // Encrypt sensitive profile data
