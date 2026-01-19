@@ -1224,6 +1224,8 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
       return res.status(404).json({ error: 'User not found' });
     }
     
+    console.log('Raw profile data from DB:', row);
+    
     console.log('Raw profile data:', row);
     
     // Decrypt email (handle both encrypted and plaintext for old DB compatibility)
@@ -1353,6 +1355,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
   }
 
   try {
+    console.log('Profile PUT request from user:', req.user.userId);
     const {
       firstName, lastName,
       dateOfBirth, location, bio, position, preferredFoot, height, weight,
