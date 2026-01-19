@@ -404,6 +404,7 @@ async function initializeServer() {
     try {
       console.log('[ADMIN DEBUG] Checking for admin account...');
       const adminEmail = 'cgill1980@hotmail.com';
+      const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
 
       // Check if admin account exists
       const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin' OR emailHash = ?", [adminEmail, emailHash]);
@@ -416,7 +417,6 @@ async function initializeServer() {
         console.log('[ADMIN DEBUG] No admin account found - creating default admin...');
         const tempPassword = 'GrassrootsAdmin2026!'; // Temporary - user must change on first login
         const hashedPassword = await bcrypt.hash(tempPassword, 12);
-        const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
         const encryptedEmail = encryptionService.encrypt(adminEmail);
 
         console.log('[ADMIN DEBUG] Password hashed, emailHash created:', emailHash.substring(0, 10) + '...');
@@ -1205,7 +1205,7 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
   console.log('Profile GET request from user:', req.user.userId);
   const query = `
     SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdat as createdAt,
-           p.phone, p.dateOfBirth, p.location, p.bio, p.position, p.preferredTeamGender,
+           p.dateOfBirth, p.location, p.bio, p.position, p.preferredTeamGender,
            p.preferredFoot, p.height, p.weight, p.experienceLevel, p.availability, 
            p.coachingLicense, p.yearsExperience, p.specializations, p.trainingLocation, 
            p.matchLocation, p.trainingDays, p.ageGroupsCoached, p.emergencyContact, 
@@ -1383,16 +1383,20 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       emergencyPhone, medicalInfo, trainingLocation, matchLocation
     });
 
+    // Provide defaults for fields with CHECK constraints to avoid PostgreSQL NULL issues
+    const safePreferredFoot = preferredFoot || 'Right'; // Default to 'Right'
+    const safeExperienceLevel = experienceLevel || 'Beginner'; // Default to 'Beginner'
+
     // Check if profile exists
     const existingResult = await db.query('SELECT userId FROM user_profiles WHERE userId = ?', [req.user.userId]);
     const existingProfile = existingResult.rows[0];
 
     const profileData = [
       encryptedData.dateOfBirth, encryptedData.location, encryptedData.bio, 
-      position, preferredFoot, height, weight, experienceLevel, JSON.stringify(availability), 
-      coachingLicense, yearsExperience, JSON.stringify(specializations), 
+      position, safePreferredFoot, height, weight, safeExperienceLevel, JSON.stringify(availability || []), 
+      coachingLicense, yearsExperience, JSON.stringify(specializations || []), 
       encryptedData.trainingLocation, encryptedData.matchLocation,
-      JSON.stringify(trainingDays), JSON.stringify(ageGroupsCoached), 
+      JSON.stringify(trainingDays || []), JSON.stringify(ageGroupsCoached || []), 
       encryptedData.emergencyContact, encryptedData.emergencyPhone,
       encryptedData.medicalInfo, profilePicture, 1, new Date().toISOString()
     ];
