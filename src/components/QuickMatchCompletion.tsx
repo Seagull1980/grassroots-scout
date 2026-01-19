@@ -189,6 +189,7 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
               fullWidth
               required
+              InputLabelProps={{ shrink: true }}
               SelectProps={{ 
                 native: true,
                 MenuProps: {
@@ -211,6 +212,7 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
               onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
               fullWidth
               required
+              InputLabelProps={{ shrink: true }}
               SelectProps={{ 
                 native: true,
                 MenuProps: {
