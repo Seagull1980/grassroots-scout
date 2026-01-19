@@ -1378,17 +1378,29 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
     }
 
     // Encrypt sensitive profile data
-    const encryptedData = encryptionService.encryptProfileData({
-      dateOfBirth, location, bio, emergencyContact, 
-      emergencyPhone, medicalInfo, trainingLocation, matchLocation
-    });
+    let encryptedData;
+    try {
+      encryptedData = encryptionService.encryptProfileData({
+        dateOfBirth, location, bio, emergencyContact, 
+        emergencyPhone, medicalInfo, trainingLocation, matchLocation
+      });
+    } catch (encryptError) {
+      console.error('Encryption error:', encryptError);
+      return res.status(500).json({ error: 'Encryption failed' });
+    }
 
     // Provide defaults for fields with CHECK constraints to avoid PostgreSQL NULL issues
     const safePreferredFoot = preferredFoot || 'Right'; // Default to 'Right'
     const safeExperienceLevel = experienceLevel || 'Beginner'; // Default to 'Beginner'
 
     // Check if profile exists
-    const existingResult = await db.query('SELECT userId FROM user_profiles WHERE userId = ?', [req.user.userId]);
+    let existingResult;
+    try {
+      existingResult = await db.query('SELECT userId FROM user_profiles WHERE userId = ?', [req.user.userId]);
+    } catch (dbError) {
+      console.error('Database error checking existing profile:', dbError);
+      return res.status(500).json({ error: 'Database error' });
+    }
     const existingProfile = existingResult.rows[0];
 
     const profileData = [
@@ -1432,18 +1444,8 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       res.json({ message: 'Profile created successfully' });
     }
   } catch (error) {
-    console.error('Profile operation error:', error);
+    console.error('Profile operation error:', error.message);
     console.error('Error stack:', error.stack);
-    console.error('Profile data being saved:', {
-      userId: req.user.userId,
-      firstName, lastName, dateOfBirth, location, bio, position, 
-      preferredFoot: safePreferredFoot, 
-      experienceLevel: safeExperienceLevel,
-      availability: availability || [],
-      specializations: specializations || [],
-      trainingDays: trainingDays || [],
-      ageGroupsCoached: ageGroupsCoached || []
-    });
     res.status(500).json({ error: 'Failed to save profile', details: error.message });
   }
 });
