@@ -1402,6 +1402,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
     ];
 
     if (existingProfile) {
+      console.log('Updating existing profile for user:', req.user.userId);
       // Update existing profile
       const updateQuery = `
         UPDATE user_profiles SET
@@ -1416,6 +1417,7 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
       await db.query(updateQuery, [...profileData, req.user.userId]);
       res.json({ message: 'Profile updated successfully' });
     } else {
+      console.log('Creating new profile for user:', req.user.userId);
       // Create new profile
       const insertQuery = `
         INSERT INTO user_profiles (
@@ -1431,7 +1433,18 @@ app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
     }
   } catch (error) {
     console.error('Profile operation error:', error);
-    res.status(500).json({ error: 'Failed to save profile' });
+    console.error('Error stack:', error.stack);
+    console.error('Profile data being saved:', {
+      userId: req.user.userId,
+      firstName, lastName, dateOfBirth, location, bio, position, 
+      preferredFoot: safePreferredFoot, 
+      experienceLevel: safeExperienceLevel,
+      availability: availability || [],
+      specializations: specializations || [],
+      trainingDays: trainingDays || [],
+      ageGroupsCoached: ageGroupsCoached || []
+    });
+    res.status(500).json({ error: 'Failed to save profile', details: error.message });
   }
 });
 
