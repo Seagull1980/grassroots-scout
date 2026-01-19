@@ -103,41 +103,45 @@ export interface User {
 export interface UserProfile {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstname: string;
+  lastname: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
-  createdAt: string;
+  createdat: string;
   // Basic profile fields
   phone?: string;
-  dateOfBirth?: string;
+  dateofbirth?: string;
   location?: string;
   bio?: string;
   // Player-specific fields
   position?: string;
-  preferredFoot?: 'Left' | 'Right' | 'Both';
+  preferredfoot?: 'Left' | 'Right' | 'Both';
   height?: number;
   weight?: number;
-  experienceLevel?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
+  experiencelevel?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
   availability?: string[];
   // Coach-specific fields
-  coachingLicense?: string;
-  yearsExperience?: number;
+  coachinglicense?: string;
+  yearsexperience?: number;
   specializations?: string[];
-  trainingLocation?: string;
-  matchLocation?: string;
+  traininglocation?: string;
+  matchlocation?: string;
+  trainingdays?: string[];
+  agegroupscoached?: string[];
+  // Team details for coaches
+  teamname?: string;
+  currentagegroup?: string;
+  trainingtime?: string;
+  matchday?: string;
+  // Contact and additional info
+  emergencycontact?: string;
+  emergencyphone?: string;
+  medicalinfo?: string;
+  profilepicture?: string;
+  isprofilecomplete?: boolean;
+  lastupdated?: string;
+  // Parsed versions of JSON fields
   trainingDays?: string[];
   ageGroupsCoached?: string[];
-  // Team details for coaches
-  teamName?: string;
-  currentAgeGroup?: string;
-  trainingTime?: string;
-  matchDay?: string;
-  // Contact and additional info
-  emergencyContact?: string;
-  emergencyPhone?: string;
-  medicalInfo?: string;
-  profilePicture?: string;
-  isProfileComplete?: boolean;
   lastUpdated?: string;
 }
 
