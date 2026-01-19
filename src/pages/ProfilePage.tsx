@@ -312,7 +312,7 @@ const ProfilePage: React.FC = () => {
       </Box>
       
       {/* Welcome message for new users */}
-      {!profile?.isProfileComplete && (
+      {!profile?.isprofilecomplete && (
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Welcome to The Grassroots Scout! 🎉
@@ -784,7 +784,7 @@ const ProfilePage: React.FC = () => {
         <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Box>
-              {profile?.isProfileComplete ? (
+              {profile?.isprofilecomplete ? (
                 <Chip label="Profile Complete" color="success" variant="outlined" />
               ) : (
                 <Chip label="Profile Incomplete" color="warning" variant="outlined" />
@@ -804,7 +804,7 @@ const ProfilePage: React.FC = () => {
       </Paper>
 
       {/* Profile completeness reminder */}
-      {!profile?.isProfileComplete && (
+      {!profile?.isprofilecomplete && (
         <Alert severity="info" sx={{ mt: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
             Complete your profile to get the most out of The Grassroots Scout!
