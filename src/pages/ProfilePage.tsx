@@ -148,8 +148,8 @@ const ProfilePage: React.FC = () => {
       // Parse JSON fields and populate form
       const profileResponse = response.profile;
       setProfileData({
-        firstName: user?.firstName || '',
-        lastName: user?.lastName || '',
+        firstName: profileResponse.firstName || '',
+        lastName: profileResponse.lastName || '',
         dateOfBirth: profileResponse.dateOfBirth || '',
         location: profileResponse.location || '',
         bio: profileResponse.bio || '',
