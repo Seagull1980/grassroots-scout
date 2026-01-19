@@ -142,7 +142,7 @@ class EncryptionService {
    */
   encryptProfileData(profileData) {
     const sensitiveFields = [
-      'phone', 'dateOfBirth', 'location', 'bio', 'emergencyContact', 
+      'location', 'bio', 'emergencyContact', 
       'emergencyPhone', 'medicalInfo', 'trainingLocation', 'matchLocation'
     ];
 
@@ -164,7 +164,7 @@ class EncryptionService {
    */
   decryptProfileData(profileData) {
     const sensitiveFields = [
-      'phone', 'dateOfBirth', 'location', 'bio', 'emergencyContact', 
+      'location', 'bio', 'emergencyContact', 
       'emergencyPhone', 'medicalInfo', 'trainingLocation', 'matchLocation'
     ];
 
