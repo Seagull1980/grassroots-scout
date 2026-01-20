@@ -22,7 +22,7 @@ const { requireBetaAccess } = require('./middleware/betaAccess.js');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
 
 // Trust proxy for Render/Heroku (enables proper rate limiting and IP detection)
@@ -263,25 +263,25 @@ async function initializeServer() {
     try {
       console.log('🔍 Checking leagues table...');
       
-      // First, ensure the region, ageGroup, url, and hits columns exist (added later in schema evolution)
+      // First, ensure the region, ageGroups, url, and hits columns exist (added later in schema evolution)
       let hasRegionColumn = false;
-      let hasAgeGroupColumn = false;
+      let hasAgeGroupsColumn = false;
       let hasUrlColumn = false;
       let hasHitsColumn = false;
       if (db.dbType === 'postgresql') {
         const checkColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues' AND column_name IN ('region', 'agegroup', 'url', 'hits')"
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues' AND column_name IN ('region', 'agegroups', 'url', 'hits')"
         );
         const existingColumns = checkColumns.rows.map(row => row.column_name);
         hasRegionColumn = existingColumns.includes('region');
-        hasAgeGroupColumn = existingColumns.includes('agegroup');
+        hasAgeGroupsColumn = existingColumns.includes('agegroups');
         hasUrlColumn = existingColumns.includes('url');
         hasHitsColumn = existingColumns.includes('hits');
       } else {
         const checkColumns = await db.query('PRAGMA table_info(leagues)');
         const existingColumns = checkColumns.rows.map(row => row.name);
         hasRegionColumn = existingColumns.includes('region');
-        hasAgeGroupColumn = existingColumns.includes('ageGroup');
+        hasAgeGroupsColumn = existingColumns.includes('ageGroups');
         hasUrlColumn = existingColumns.includes('url');
         hasHitsColumn = existingColumns.includes('hits');
       }
@@ -302,20 +302,20 @@ async function initializeServer() {
         console.log('✅ region column exists in leagues table');
       }
       
-      if (!hasAgeGroupColumn) {
-        console.log('⚠️  ageGroup column missing from leagues table - adding now...');
+      if (!hasAgeGroupsColumn) {
+        console.log('⚠️  ageGroups column missing from leagues table - adding now...');
         try {
-          await db.query('ALTER TABLE leagues ADD COLUMN ageGroup VARCHAR');
-          console.log('✅ Added ageGroup column to leagues table');
+          await db.query('ALTER TABLE leagues ADD COLUMN ageGroups JSON');
+          console.log('✅ Added ageGroups column to leagues table');
         } catch (alterError) {
           if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ ageGroup column already exists (duplicate error ignored)');
+            console.log('✅ ageGroups column already exists (duplicate error ignored)');
           } else {
             throw alterError;
           }
         }
       } else {
-        console.log('✅ ageGroup column exists in leagues table');
+        console.log('✅ ageGroups column exists in leagues table');
       }
       
       if (!hasUrlColumn) {
@@ -353,7 +353,7 @@ async function initializeServer() {
       const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
       const count = leagueCount.rows[0].count;
 
-      if (count === 0) {
+      if (false && count === 0) {
         console.log('⚠️  Leagues table is empty - seeding with FA leagues data...');
 
         // Read the SQL file and execute it
@@ -604,7 +604,8 @@ async function initializeServer() {
       console.log(`📊 Current league count: ${count}, Tamworth leagues: ${tamworthCount}`);
       
       // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data)
-      if (count === 0 || tamworthCount === 0) {
+      // DISABLED: Starting fresh with request-based league system
+      if (false && (count === 0 || tamworthCount === 0)) {
         console.log('⚠️  Leagues incomplete or missing, populating FA leagues...');
         
         // Clear existing leagues if any (to avoid duplicates)
@@ -612,17 +613,6 @@ async function initializeServer() {
           console.log('🧹 Clearing existing incomplete league data...');
           await db.query('DELETE FROM leagues');
           console.log('✅ Cleared existing leagues');
-        }
-        
-        console.log(`📝 Preparing to insert ${faLeagues.length} FA leagues...`);
-        
-        // Verify table exists
-        try {
-          await db.query('SELECT COUNT(*) FROM leagues');
-          console.log('✅ Leagues table exists and is accessible');
-        } catch (tableError) {
-          console.error('❌ Leagues table error:', tableError);
-          throw tableError;
         }
         
         const faLeagues = [
@@ -648,7 +638,18 @@ async function initializeServer() {
           { name: 'Somerset County League', region: 'South West', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 87321 },
           { name: 'Tamworth Junior Football League', region: 'Midlands', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=tamworth', hits: 25000, description: 'Junior football league serving Tamworth and surrounding areas' }
         ];
-
+        
+        console.log(`📝 Preparing to insert ${faLeagues.length} FA leagues...`);
+        
+        // Verify table exists
+        try {
+          await db.query('SELECT COUNT(*) FROM leagues');
+          console.log('✅ Leagues table exists and is accessible');
+        } catch (tableError) {
+          console.error('❌ Leagues table error:', tableError);
+          throw tableError;
+        }
+        
         for (const league of faLeagues) {
           try {
             // Use INSERT OR IGNORE for SQLite, INSERT ... ON CONFLICT DO NOTHING for PostgreSQL
@@ -2072,8 +2073,13 @@ app.get('/api/leagues', (req, res, next) => {
     
     // Test database connection
     console.log('Testing database connection...');
-    const testQuery = await db.query('SELECT 1 as test');
-    console.log('Database connection test result:', testQuery);
+    try {
+      const testQuery = await db.query('SELECT 1 as test');
+      console.log('Database connection test result:', testQuery);
+    } catch (dbError) {
+      console.error('Database connection test failed:', dbError);
+      throw dbError;
+    }
     
     // Check if leagues table exists
     console.log('Checking if leagues table exists...');
@@ -2087,6 +2093,13 @@ app.get('/api/leagues', (req, res, next) => {
         tableExists = tableCheck.rows && tableCheck.rows.length > 0;
       }
       console.log('Leagues table exists:', tableExists);
+      
+      // Also check the table schema
+      if (tableExists) {
+        console.log('Checking leagues table schema...');
+        const schemaCheck = await db.query('PRAGMA table_info(leagues)');
+        console.log('Leagues table schema:', schemaCheck.rows);
+      }
     } catch (tableError) {
       console.error('Error checking leagues table:', tableError);
     }
@@ -2094,64 +2107,68 @@ app.get('/api/leagues', (req, res, next) => {
     // Get approved leagues (simplified query for compatibility)
     console.log('Fetching leagues...');
     
-    // Use correct boolean comparison based on database type
-    const isActiveCondition = db.dbType === 'postgresql' ? 'isActive = true' : 'isActive = 1';
-    let query = `SELECT id, name, 'approved' as status FROM leagues WHERE ${isActiveCondition}`;
-    let params = [];
-    let includePendingLeagues = false;
-    
-    // If user wants pending leagues and is authenticated
-    if (includePending === 'true' && req.user) {
-      // Check if league_requests table exists first
-      try {
-        if (db.dbType === 'postgresql') {
-          await db.query("SELECT 1 FROM league_requests LIMIT 1");
-        } else {
-          await db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='league_requests'");
-        }
-        includePendingLeagues = true;
-      } catch (tableCheckError) {
-        console.warn('⚠️  league_requests table does not exist, skipping pending leagues');
-      }
+    let leagues = [];
+    if (db.dbType === 'sqlite') {
+      const sqlite3 = require('sqlite3').verbose();
+      const sqliteDb = new sqlite3.Database('./database.sqlite');
       
-      if (includePendingLeagues) {
-        if (db.dbType === 'postgresql') {
-          query += ` 
-            UNION ALL 
-            SELECT 
-              CONCAT('pending_', id::TEXT) as id, 
-              name, 
-              'pending' as status 
-            FROM league_requests 
-            WHERE status = 'pending' AND submittedBy = $1
-          `;
-        } else {
-          query += ` 
-            UNION ALL 
-            SELECT 
-              ('pending_' || id) as id, 
-              name, 
-              'pending' as status 
-            FROM league_requests 
-            WHERE status = 'pending' AND submittedBy = ?
-          `;
-        }
-        params.push(req.user.userId);
-      }
+      leagues = await new Promise((resolve, reject) => {
+        sqliteDb.all(`SELECT id, name, region, ageGroups, url, hits, description, isActive, createdBy, createdAt FROM leagues WHERE isActive = 1`, [], (err, rows) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows.map(row => ({
+              id: row.id,
+              name: row.name,
+              region: row.region,
+              ageGroups: JSON.parse(row.ageGroups || '[]'),
+              url: row.url,
+              hits: row.hits,
+              description: row.description,
+              isActive: row.isActive,
+              createdBy: row.createdBy,
+              createdAt: row.createdAt,
+              status: 'approved',
+              isPending: false
+            })));
+          }
+          sqliteDb.close();
+        });
+      });
+    } else {
+      // Use existing abstraction for PostgreSQL
+      const result = await db.query(`SELECT id, name, region, ageGroups, url, hits, description, isActive, createdBy, createdAt FROM leagues WHERE isActive = true`);
+      leagues = result.rows.map(league => ({
+        ...league,
+        ageGroups: league.agegroups ? JSON.parse(league.agegroups) : [],
+        status: 'approved',
+        isPending: false
+      }));
     }
 
-    query += ' ORDER BY status, name ASC';
-    
-    console.log('Running leagues query:', query);
-    console.log('Query params:', params);
-    const result = await db.query(query, params);
-    console.log('Query result:', result);
-    console.log('Query returned', result.rows?.length || 0, 'rows');
-    
-    const leagues = result.rows.map(league => ({
-      ...league,
-      isPending: league.status === 'pending'
-    }));
+    // Include pending league requests for authenticated users
+    if (includePending && req.user) {
+      console.log('Including pending league requests for user:', req.user.userId);
+      try {
+        const pendingResult = await db.query(`
+          SELECT lr.id, lr.name, lr.region, lr.ageGroups, lr.url, lr.description, lr.createdAt,
+                 lr.submittedBy as createdBy, 'pending' as status, 1 as isPending
+          FROM league_requests lr
+          WHERE lr.status = 'pending' AND lr.submittedBy = ?
+        `, [req.user.userId]);
+
+        if (pendingResult.rows && pendingResult.rows.length > 0) {
+          leagues = [...leagues, ...pendingResult.rows.map(row => ({
+            ...row,
+            ageGroups: row.ageGroups ? JSON.parse(row.ageGroups) : []
+          }))];
+          console.log('Added', pendingResult.rows.length, 'pending league requests');
+        }
+      } catch (pendingError) {
+        console.error('Error fetching pending league requests:', pendingError);
+        // Continue without pending requests
+      }
+    }
     
     res.json({ leagues });
   } catch (error) {
@@ -2162,9 +2179,10 @@ app.get('/api/leagues', (req, res, next) => {
       code: error.code,
       errno: error.errno
     });
+    // Return a more user-friendly error
     res.status(500).json({ 
-      error: 'Database error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: 'Failed to load leagues',
+      message: 'Unable to fetch leagues at this time. Please try again later.'
     });
   }
 });
@@ -2503,7 +2521,14 @@ app.post('/api/admin/create-admin', authenticateToken, requireAdmin, [
 app.get('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM leagues ORDER BY name');
-    const leagues = result.rows;
+    const leagues = result.rows.map(league => {
+      if (league.ageGroups) {
+        league.ageGroups = JSON.parse(league.ageGroups);
+      } else {
+        league.ageGroups = [];
+      }
+      return league;
+    });
     res.json({ leagues });
   } catch (error) {
     console.error('Error fetching admin leagues:', error);
@@ -2514,7 +2539,7 @@ app.get('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res) 
 // Create a new league
 app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { name, region, ageGroup, country, url, description } = req.body;
+    const { name, region, ageGroups, country, url, description } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
@@ -2537,20 +2562,27 @@ app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res)
     let insertQuery, selectQuery;
     if (process.env.DATABASE_URL) {
       // PostgreSQL
-      insertQuery = 'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
+      insertQuery = 'INSERT INTO leagues (name, region, ageGroups, country, url, description, createdBy) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
       selectQuery = 'SELECT * FROM leagues WHERE id = $1';
     } else {
       // SQLite
-      insertQuery = 'INSERT INTO leagues (name, region, ageGroup, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)';
+      insertQuery = 'INSERT INTO leagues (name, region, ageGroups, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)';
       selectQuery = 'SELECT * FROM leagues WHERE id = ?';
     }
 
-    const insertResult = await db.query(insertQuery, [name, region || null, ageGroup || null, country || 'England', url || null, description || null, createdBy]);
+    const insertResult = await db.query(insertQuery, [name, region || null, JSON.stringify(ageGroups || []), country || 'England', url || null, description || null, createdBy]);
     
     // Get the inserted league
     const leagueId = insertResult.rows[0]?.id || insertResult.lastID;
     const leagueResult = await db.query(selectQuery, [leagueId]);
     const league = leagueResult.rows[0];
+    
+    // Parse ageGroups JSON
+    if (league.ageGroups) {
+      league.ageGroups = JSON.parse(league.ageGroups);
+    } else {
+      league.ageGroups = [];
+    }
     
     res.json({ league, message: 'League created successfully' });
   } catch (error) {
@@ -2566,15 +2598,15 @@ app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res)
 app.put('/api/admin/leagues/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, region, ageGroup, country, url, description, isActive } = req.body;
+    const { name, region, ageGroups, country, url, description, isActive } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
     }
 
     const updateResult = await db.query(
-      'UPDATE leagues SET name = ?, region = ?, ageGroup = ?, country = ?, url = ?, description = ?, isActive = ? WHERE id = ?',
-      [name, region || null, ageGroup || null, country || 'England', url || null, description || null, isActive !== undefined ? isActive : true, id]
+      'UPDATE leagues SET name = ?, region = ?, ageGroups = ?, country = ?, url = ?, description = ?, isActive = ? WHERE id = ?',
+      [name, region || null, JSON.stringify(ageGroups || []), country || 'England', url || null, description || null, isActive !== undefined ? isActive : true, id]
     );
 
     if (updateResult.changes === 0) {
@@ -2583,6 +2615,13 @@ app.put('/api/admin/leagues/:id', authenticateToken, requireAdmin, async (req, r
 
     const leagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [id]);
     const league = leagueResult.rows[0];
+    
+    // Parse ageGroups JSON
+    if (league.ageGroups) {
+      league.ageGroups = JSON.parse(league.ageGroups);
+    } else {
+      league.ageGroups = [];
+    }
     
     res.json({ league, message: 'League updated successfully' });
   } catch (error) {
@@ -6673,5 +6712,18 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../dist', 'index.html'));
   });
 }
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down gracefully...');
+  db.close((err) => {
+    if (err) {
+      console.error('Error closing database:', err.message);
+    } else {
+      console.log('🔒 Database connection closed.');
+    }
+    process.exit(0);
+  });
+});
 
 

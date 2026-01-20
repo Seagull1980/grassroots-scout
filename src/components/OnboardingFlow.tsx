@@ -99,11 +99,11 @@ export const OnboardingFlow: React.FC = () => {
         console.error('Failed to load leagues:', error);
         // Fallback to default leagues if API fails (matching your database)
         setAvailableLeagues([
-          { id: 1, name: 'County Youth League', region: 'Local', ageGroup: 'Youth' },
-          { id: 2, name: 'Sunday League', region: 'Local', ageGroup: 'Adult' },
-          { id: 3, name: 'Community League', region: 'Local', ageGroup: 'All Ages' },
-          { id: 4, name: 'Local Girls League', region: 'Local', ageGroup: 'Girls' },
-          { id: 5, name: 'Development League', region: 'Local', ageGroup: 'Youth' }
+          { id: 1, name: 'County Youth League', region: 'Local', ageGroups: ['Youth'] },
+          { id: 2, name: 'Sunday League', region: 'Local', ageGroups: ['Adult'] },
+          { id: 3, name: 'Community League', region: 'Local', ageGroups: ['All Ages'] },
+          { id: 4, name: 'Local Girls League', region: 'Local', ageGroups: ['Girls'] },
+          { id: 5, name: 'Development League', region: 'Local', ageGroups: ['Youth'] }
         ] as League[]);
       } finally {
         setLoadingLeagues(false);
@@ -399,7 +399,7 @@ export const OnboardingFlow: React.FC = () => {
                       <Box>
                         <Typography variant="body2">{league.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {league.region} • {league.ageGroup}
+                          {league.region} • {league.ageGroups?.join(', ') || 'N/A'}
                         </Typography>
                       </Box>
                     </MenuItem>

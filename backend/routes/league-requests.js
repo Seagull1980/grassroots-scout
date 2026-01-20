@@ -13,7 +13,8 @@ router.use(authenticateToken);
 router.post('/', [
   body('name').notEmpty().withMessage('League name is required').isLength({ max: 255 }).withMessage('League name too long'),
   body('region').optional().isLength({ max: 100 }).withMessage('Region name too long'),
-  body('ageGroup').optional().isLength({ max: 50 }).withMessage('Age group too long'),
+  body('ageGroups').optional().isArray().withMessage('Age groups must be an array'),
+  body('ageGroups.*').optional().isLength({ max: 50 }).withMessage('Age group too long'),
   body('url').optional().isURL().withMessage('Invalid URL format'),
   body('description').optional().isLength({ max: 1000 }).withMessage('Description too long'),
   body('contactName').optional().isLength({ max: 255 }).withMessage('Contact name too long'),
@@ -30,7 +31,7 @@ router.post('/', [
     const {
       name,
       region,
-      ageGroup,
+      ageGroups,
       url,
       description,
       contactName,
@@ -62,12 +63,12 @@ router.post('/', [
     // Insert the league request
     const result = await db.query(`
       INSERT INTO league_requests (
-        name, region, ageGroup, url, description, 
+        name, region, ageGroups, url, description, 
         contactName, contactEmail, contactPhone, justification, 
         submittedBy, status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `, [
-      name, region, ageGroup, url, description,
+      name, region, JSON.stringify(ageGroups), url, description,
       contactName, contactEmail, contactPhone, justification,
       req.user.userId
     ]);
@@ -78,7 +79,7 @@ router.post('/', [
         id: result.lastID,
         name,
         region,
-        ageGroup,
+        ageGroups,
         status: 'pending'
       }
     });
@@ -108,7 +109,7 @@ router.get('/my-requests', async (req, res) => {
       id: request.id,
       name: request.name,
       region: request.region,
-      ageGroup: request.ageGroup,
+      ageGroups: request.ageGroups ? JSON.parse(request.ageGroups) : [],
       url: request.url,
       description: request.description,
       status: request.status,
@@ -166,7 +167,7 @@ router.get('/admin/all', requireAdmin, async (req, res) => {
       id: request.id,
       name: request.name,
       region: request.region,
-      ageGroup: request.ageGroup,
+      ageGroups: request.ageGroups ? JSON.parse(request.ageGroups) : [],
       url: request.url,
       description: request.description,
       contactName: request.contactName,
@@ -239,13 +240,13 @@ router.post('/admin/:id/approve', requireAdmin, [
     // Create the league in the main leagues table
     const leagueInsertResult = await db.query(`
       INSERT INTO leagues (
-        name, region, ageGroup, url, description, 
+        name, region, ageGroups, url, description, 
         hits, isActive, createdBy
       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
     `, [
       leagueData?.name || request.name,
       leagueData?.region || request.region,
-      leagueData?.ageGroup || request.ageGroup,
+      JSON.stringify(leagueData?.ageGroups || (request.ageGroups ? JSON.parse(request.ageGroups) : [])),
       leagueData?.url || request.url,
       leagueData?.description || request.description,
       leagueData?.hits || 0,
@@ -269,7 +270,7 @@ router.post('/admin/:id/approve', requireAdmin, [
         id: leagueInsertResult.lastID,
         name: leagueData?.name || request.name,
         region: leagueData?.region || request.region,
-        ageGroup: leagueData?.ageGroup || request.ageGroup
+        ageGroups: leagueData?.ageGroups || (request.ageGroups ? JSON.parse(request.ageGroups) : [])
       }
     });
 

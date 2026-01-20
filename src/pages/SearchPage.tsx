@@ -374,9 +374,9 @@ const SearchPage: React.FC = () => {
       console.error('Error fetching leagues:', err);
       // Fallback to default leagues if API fails
       setLeagues([
-        { id: 1, name: 'Premier League', region: 'National', ageGroup: 'Senior' },
-        { id: 2, name: 'Championship', region: 'National', ageGroup: 'Senior' },
-        { id: 3, name: 'Local League', region: 'Local', ageGroup: 'Youth' },
+        { id: 1, name: 'Premier League', region: 'National', ageGroups: ['Senior'] },
+        { id: 2, name: 'Championship', region: 'National', ageGroups: ['Senior'] },
+        { id: 3, name: 'Local League', region: 'Local', ageGroups: ['Youth'] },
       ]);
     } finally {
       setLoadingLeagues(false);
@@ -610,8 +610,12 @@ const SearchPage: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Autocomplete
               fullWidth
-              options={Array.isArray(leagues) ? [...leagues, { id: -1, name: '+ Request New League', region: '', ageGroup: '', url: '', hits: 0 }] : []}
-              getOptionLabel={(option) => typeof option === 'string' ? option : (option.name || '')}
+              options={Array.isArray(leagues) ? [...leagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], url: '', hits: 0 }] : []}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                if (option.id === -1) return option.name || '';
+                return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
+              }}
               value={leagues.find(l => l.name === filters.league) || null}
               onChange={(_, newValue) => {
                 if (typeof newValue === 'object' && newValue?.id === -1) {
@@ -720,7 +724,7 @@ const SearchPage: React.FC = () => {
                   if (!inputValue) return true;
                   return option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
                     (option.region && option.region.toLowerCase().includes(inputValue.toLowerCase())) ||
-                    (option.ageGroup && option.ageGroup.toLowerCase().includes(inputValue.toLowerCase()));
+                    (option.ageGroups && option.ageGroups.some(age => age.toLowerCase().includes(inputValue.toLowerCase())));
                 });
                 return filtered;
               }}

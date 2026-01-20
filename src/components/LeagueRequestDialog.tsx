@@ -15,7 +15,9 @@ import {
   Select,
   MenuItem,
   Box,
-  CircularProgress
+  CircularProgress,
+  Checkbox,
+  ListItemText
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -28,7 +30,7 @@ interface LeagueRequestDialogProps {
 interface LeagueRequestData {
   name: string;
   region: string;
-  ageGroup: string;
+  ageGroups: string[];
   url: string;
   description: string;
   contactName: string;
@@ -63,7 +65,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
     region: '',
-    ageGroup: '',
+    ageGroups: [],
     url: '',
     description: '',
     contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
@@ -120,7 +122,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         const resetForm = {
           name: '',
           region: '',
-          ageGroup: '',
+          ageGroups: [],
           url: '',
           description: '',
           contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
@@ -216,19 +218,19 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>Age Group</InputLabel>
+                <InputLabel>Age Groups</InputLabel>
                 <Select
-                  value={formData.ageGroup}
-                  onChange={handleInputChange('ageGroup')}
+                  multiple
+                  value={formData.ageGroups}
+                  onChange={handleInputChange('ageGroups')}
                   disabled={loading}
-                  label="Age Group"
+                  label="Age Groups"
+                  renderValue={(selected) => (selected as string[]).join(', ')}
                 >
-                  <MenuItem value="">
-                    <em>Select Age Group</em>
-                  </MenuItem>
                   {ageGroups.map((ageGroup) => (
                     <MenuItem key={ageGroup} value={ageGroup}>
-                      {ageGroup}
+                      <Checkbox checked={formData.ageGroups.indexOf(ageGroup) > -1} />
+                      <ListItemText primary={ageGroup} />
                     </MenuItem>
                   ))}
                 </Select>

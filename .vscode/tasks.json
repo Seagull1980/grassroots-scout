@@ -36,6 +36,11 @@
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Start Backend Server",
+			"type": "shell",
+			"command": "node backend/server.js"
 		}
 	]
 }

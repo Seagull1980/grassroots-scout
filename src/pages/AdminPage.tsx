@@ -102,7 +102,7 @@ const AdminPage: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     region: '',
-    ageGroup: '',
+    ageGroups: [] as string[],
     country: '',
     url: '',
     description: ''
@@ -222,7 +222,7 @@ const AdminPage: React.FC = () => {
       await leaguesAPI.create(formData);
       setSuccess('League created successfully');
       setOpenDialog(false);
-      setFormData({ name: '', region: '', ageGroup: '', country: '', url: '', description: '' });
+      setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
       // Call the refetch function from useEffect
       const response = await leaguesAPI.getAll();
       setLeagues(response.leagues || []);
@@ -239,7 +239,7 @@ const AdminPage: React.FC = () => {
       setSuccess('League updated successfully');
       setOpenDialog(false);
       setEditingLeague(null);
-      setFormData({ name: '', region: '', ageGroup: '', country: '', url: '', description: '' });
+      setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
       // Refetch leagues after update
       const response = await leaguesAPI.getAll();
       setLeagues(response.leagues || []);
@@ -284,7 +284,7 @@ const AdminPage: React.FC = () => {
     setFormData({
       name: league.name,
       region: league.region || '',
-      ageGroup: league.ageGroup || '',
+      ageGroups: league.ageGroups || [],
       country: league.country || '',
       url: league.url || '',
       description: league.description || ''
@@ -294,7 +294,7 @@ const AdminPage: React.FC = () => {
 
   const openCreateDialog = () => {
     setEditingLeague(null);
-    setFormData({ name: '', region: '', ageGroup: '', country: '', url: '', description: '' });
+    setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
     setOpenDialog(true);
   };
 
@@ -663,7 +663,7 @@ const AdminPage: React.FC = () => {
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2" color="text.secondary">
-                                {league.ageGroup || 'N/A'}
+                                {league.ageGroups && league.ageGroups.length > 0 ? league.ageGroups.join(', ') : 'N/A'}
                               </Typography>
                             </TableCell>
                             <TableCell>
@@ -970,11 +970,13 @@ const AdminPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel>Age Group</InputLabel>
+            <InputLabel>Age Groups</InputLabel>
             <Select
-              value={formData.ageGroup}
-              label="Age Group"
-              onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
+              multiple
+              value={formData.ageGroups}
+              label="Age Groups"
+              onChange={(e) => setFormData({ ...formData, ageGroups: e.target.value as string[] })}
+              renderValue={(selected) => (selected as string[]).join(', ')}
             >
               {AGE_GROUP_OPTIONS.map((option) => (
                 <MenuItem key={option} value={option}>

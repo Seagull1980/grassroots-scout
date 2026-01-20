@@ -20,6 +20,12 @@ export interface League {
   isActive: boolean;
   createdBy: number;
   createdAt: string;
+  status?: 'approved' | 'pending';
+  isPending?: boolean;
+  region?: string;
+  ageGroups?: string[];
+  url?: string;
+  hits?: number;
 }
 
 export interface Location {
