@@ -153,8 +153,9 @@ const PostAdvertPage: React.FC = () => {
     const isCoach = user?.role === 'Coach';
     const positionValid = isCoach ? formData.position : formData.positions.length > 0;
     const teamValid = isCoach ? !!formData.teamId : true;
+    const leagueValid = isCoach ? !!formData.league : true; // League is optional for players
     
-    if (!formData.title || !formData.description || !formData.league || !formData.ageGroup || !positionValid || !teamValid) {
+    if (!formData.title || !formData.description || !leagueValid || !formData.ageGroup || !positionValid || !teamValid) {
       setError('Please fill in all required fields');
       return;
     }
@@ -171,7 +172,7 @@ const PostAdvertPage: React.FC = () => {
         const submitData = {
           title: formData.title,
           description: formData.description,
-          preferredLeagues: [formData.league], // Convert to array as expected by backend
+          preferredLeagues: formData.league ? [formData.league] : [], // Only include league if selected
           ageGroup: formData.ageGroup,
           positions: formData.positions,
           location: formData.location,
@@ -355,9 +356,9 @@ const PostAdvertPage: React.FC = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="League *"
+                    label={isCoach ? "League *" : "Preferred League"}
                     placeholder="Type to search leagues..."
-                    required
+                    required={isCoach}
                     InputProps={{
                       ...params.InputProps,
                       endAdornment: (

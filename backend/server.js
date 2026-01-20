@@ -1820,7 +1820,7 @@ app.get('/api/vacancies', async (req, res) => {
 app.post('/api/player-availability', authenticateToken, requireBetaAccess, [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required'),
-  body('league').notEmpty().withMessage('League is required'),
+  body('preferredLeagues').optional().isArray().withMessage('Preferred leagues must be an array'),
   body('ageGroup').notEmpty().withMessage('Age group is required'),
   body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
 ], (req, res) => {
@@ -1829,7 +1829,7 @@ app.post('/api/player-availability', authenticateToken, requireBetaAccess, [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { title, description, league, ageGroup, positions, location, contactInfo, locationData } = req.body;
+  const { title, description, preferredLeagues = [], ageGroup, positions, location, contactInfo, locationData } = req.body;
 
   // Encrypt contact information for privacy
   const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
@@ -1848,7 +1848,7 @@ app.post('/api/player-availability', authenticateToken, requireBetaAccess, [
       title, description, preferredLeagues, ageGroup, positions, location, contactInfo, postedBy,
       locationAddress, locationLatitude, locationLongitude, locationPlaceId
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, description, league, ageGroup, JSON.stringify(positions), location, encryptedContactInfo, req.user.userId,
+    [title, description, JSON.stringify(preferredLeagues), ageGroup, JSON.stringify(positions), location, encryptedContactInfo, req.user.userId,
      locationAddress, locationLatitude, locationLongitude, locationPlaceId],
     async function(err) {
       if (err) {
@@ -1864,7 +1864,7 @@ app.post('/api/player-availability', authenticateToken, requireBetaAccess, [
           id: availabilityId,
           title,
           description,
-          preferredLeagues: league,
+          preferredLeagues: preferredLeagues,
           ageGroup,
           positions,
           location

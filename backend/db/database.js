@@ -306,7 +306,7 @@ class Database {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title VARCHAR NOT NULL,
         description VARCHAR NOT NULL,
-        preferredLeagues VARCHAR NOT NULL,
+        preferredLeagues TEXT, -- Changed to TEXT and nullable to support JSON array
         ageGroup VARCHAR NOT NULL,
         positions VARCHAR NOT NULL,
         preferredTeamGender VARCHAR NOT NULL DEFAULT 'Mixed' CHECK(preferredTeamGender IN ('Boys', 'Girls', 'Mixed')),
@@ -932,39 +932,34 @@ class Database {
         }
       }
 
-      // Migration 4: Add isBlocked column to users table if it doesn't exist
-      console.log('🔍 Checking if isBlocked column exists...');
-      const checkIsBlockedColumn = this.dbType === 'postgresql' 
-        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'isblocked'`
-        : `PRAGMA table_info(users)`;
+      // Migration 5: Update preferredLeagues column in player_availability to support JSON array
+      console.log('🔍 Checking preferredLeagues column type in player_availability...');
+      const checkPreferredLeaguesColumn = this.dbType === 'postgresql' 
+        ? `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'player_availability' AND column_name = 'preferredleagues'`
+        : `PRAGMA table_info(player_availability)`;
         
-      const isBlockedResult = await this.query(checkIsBlockedColumn);
-      console.log('📊 isBlocked column check result:', isBlockedResult.rows);
+      const preferredLeaguesResult = await this.query(checkPreferredLeaguesColumn);
       
       if (this.dbType === 'postgresql') {
-        if (isBlockedResult.rows.length === 0) {
-          console.log('➕ Adding isBlocked column to users table...');
-          try {
-            await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT FALSE');
-            console.log('✅ Added isBlocked column to users table');
-          } catch (err) {
-            console.error('❌ Error adding isBlocked column:', err.message);
-            if (!err.message.includes('already exists')) {
-              throw err;
+        if (preferredLeaguesResult.rows.length > 0) {
+          const columnType = preferredLeaguesResult.rows[0].data_type;
+          // If it's still VARCHAR, we need to update it to TEXT for JSON storage
+          if (columnType === 'character varying') {
+            console.log('➕ Updating preferredLeagues column type to TEXT...');
+            try {
+              // For PostgreSQL, we need to change VARCHAR to TEXT
+              await this.query('ALTER TABLE player_availability ALTER COLUMN preferredLeagues TYPE TEXT');
+              console.log('✅ Updated preferredLeagues column type to TEXT');
+            } catch (err) {
+              console.error('❌ Error updating preferredLeagues column:', err.message);
             }
           }
-        } else {
-          console.log('✅ isBlocked column already exists');
         }
       } else {
-        const hasIsBlocked = isBlockedResult.rows.some(row => row.name === 'isBlocked');
-        if (!hasIsBlocked) {
-          try {
-            await this.query('ALTER TABLE users ADD COLUMN isBlocked BOOLEAN DEFAULT 0');
-            console.log('✅ Added isBlocked column to users table');
-          } catch (err) {
-            if (!err.message.includes('duplicate column')) throw err;
-          }
+        // For SQLite, check if the column type needs updating
+        const preferredLeaguesColumn = preferredLeaguesResult.rows.find(row => row.name === 'preferredLeagues');
+        if (preferredLeaguesColumn && preferredLeaguesColumn.type === 'VARCHAR') {
+          console.log('➕ preferredLeagues column is VARCHAR, should be TEXT for JSON - no migration needed for SQLite');
         }
       }
     } catch (error) {
