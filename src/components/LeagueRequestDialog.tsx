@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { AGE_GROUP_OPTIONS } from '../constants/options';
 import {
   Dialog,
   DialogTitle,
@@ -15,9 +14,7 @@ import {
   Select,
   MenuItem,
   Box,
-  CircularProgress,
-  Checkbox,
-  ListItemText
+  CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -30,7 +27,6 @@ interface LeagueRequestDialogProps {
 interface LeagueRequestData {
   name: string;
   region: string;
-  ageGroups: string[];
   url: string;
   description: string;
   contactName: string;
@@ -53,8 +49,6 @@ const regions = [
   'National'
 ];
 
-const ageGroups = AGE_GROUP_OPTIONS;
-
 const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({ 
   open, 
   onClose, 
@@ -64,7 +58,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
     region: '',
-    ageGroups: [],
     url: '',
     description: '',
     contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
@@ -108,13 +101,17 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
       }
 
       const token = localStorage.getItem('token');
+      const requestData = {
+        ...formData,
+        ageGroups: ['U6', 'U7', 'U8', 'U9', 'U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19', 'U20', 'U21', 'Open Age', 'Over 35']
+      };
       const response = await fetch('/api/league-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(requestData)
       });
 
       const data = await response.json();
@@ -126,7 +123,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         const resetForm = {
           name: '',
           region: '',
-          ageGroups: [],
           url: '',
           description: '',
           contactName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
@@ -226,27 +222,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Age Groups</InputLabel>
-                <Select
-                  multiple
-                  value={formData.ageGroups}
-                  onChange={handleInputChange('ageGroups')}
-                  disabled={loading}
-                  label="Age Groups"
-                  renderValue={(selected) => (selected as string[]).join(', ')}
-                >
-                  {ageGroups.map((ageGroup) => (
-                    <MenuItem key={ageGroup} value={ageGroup}>
-                      <Checkbox checked={formData.ageGroups.indexOf(ageGroup) > -1} />
-                      <ListItemText primary={ageGroup} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12}>
               <TextField
                 label="League Website (Optional)"
                 fullWidth
