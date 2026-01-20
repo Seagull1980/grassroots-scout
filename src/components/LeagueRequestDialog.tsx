@@ -75,6 +75,17 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Update contact info when user data becomes available
+  React.useEffect(() => {
+    if (user && (user.firstName || user.lastName)) {
+      setFormData(prev => ({
+        ...prev,
+        contactName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        contactEmail: user.email || prev.contactEmail
+      }));
+    }
+  }, [user]);
+
   const handleInputChange = (field: keyof LeagueRequestData) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | any
   ) => {
@@ -118,7 +129,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
           ageGroups: [],
           url: '',
           description: '',
-          contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
+          contactName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
           contactEmail: user?.email || '',
           contactPhone: ''
         };
@@ -133,7 +144,13 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         }, 3000);
 
       } else {
-        setError(data.error || 'Failed to submit league request');
+        // Handle validation errors
+        if (data.errors && Array.isArray(data.errors)) {
+          const errorMessages = data.errors.map((err: any) => err.msg || err.message).join(', ');
+          setError(`Validation failed: ${errorMessages}`);
+        } else {
+          setError(data.error || 'Failed to submit league request');
+        }
       }
 
     } catch (error) {

@@ -14,16 +14,17 @@ router.post('/', [
   body('name').notEmpty().withMessage('League name is required').isLength({ max: 255 }).withMessage('League name too long'),
   body('region').optional().isLength({ max: 100 }).withMessage('Region name too long'),
   body('ageGroups').optional().isArray().withMessage('Age groups must be an array'),
-  body('ageGroups.*').optional().isLength({ max: 50 }).withMessage('Age group too long'),
+  body('ageGroups.*').optional().isString().isLength({ max: 50 }).withMessage('Age group too long'),
   body('url').optional().isURL().withMessage('Invalid URL format'),
   body('description').optional().isLength({ max: 1000 }).withMessage('Description too long'),
   body('contactName').optional().isLength({ max: 255 }).withMessage('Contact name too long'),
-  body('contactEmail').optional().isEmail().withMessage('Invalid email format'),
+  body('contactEmail').optional().isLength({ max: 255 }).withMessage('Email too long'),
   body('contactPhone').optional().isLength({ max: 20 }).withMessage('Phone number too long')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('League request validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
