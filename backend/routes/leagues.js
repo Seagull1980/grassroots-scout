@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     const { region, ageGroup, search, limit = 50, offset = 0, includePending = false } = req.query;
     
     // Get approved leagues
-    let query = 'SELECT id, name, region, ageGroup, url, hits, description, "approved" as status FROM leagues WHERE isActive = 1';
+    let query = 'SELECT id, name, region, ageGroup, url, hits, description, "approved" as status FROM leagues WHERE isActive IS TRUE';
     let params = [];
     
     if (region) {

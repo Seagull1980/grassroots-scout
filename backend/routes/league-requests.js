@@ -58,7 +58,7 @@ router.post('/', [
     console.log('🔍 Checking for existing league:', name);
     // Check if league name already exists in approved leagues
     const existingLeague = await db.query(
-      'SELECT id FROM leagues WHERE name = ? AND isActive = 1',
+      'SELECT id FROM leagues WHERE name = ? AND isActive IS TRUE',
       [name]
     );
     console.log('✅ League existence check result:', existingLeague.rows.length);
