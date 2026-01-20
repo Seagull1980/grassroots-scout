@@ -26,7 +26,40 @@ const LocationInput: React.FC<LocationInputProps> = ({
   useEffect(() => {
     // Wait a bit for Google Maps to fully load
     const timer = setTimeout(() => {
-      // Try to use the new PlaceAutocompleteElement first
+      // Prefer legacy Autocomplete to avoid accessibility issues with PlaceAutocompleteElement
+      if (fallbackInputRef.current && window.google?.maps?.places?.Autocomplete) {
+        legacyAutocompleteRef.current = new google.maps.places.Autocomplete(
+          fallbackInputRef.current,
+          {
+            types: ['establishment', 'geocode'],
+            componentRestrictions: { country: 'gb' }, // Restrict to UK
+            fields: ['place_id', 'formatted_address', 'geometry']
+          }
+        );
+
+        const handlePlaceSelect = async () => {
+          const place = legacyAutocompleteRef.current?.getPlace();
+          if (place?.geometry?.location) {
+            const location: Location = {
+              address: place.formatted_address || '',
+              latitude: place.geometry.location.lat(),
+              longitude: place.geometry.location.lng(),
+              placeId: place.place_id
+            };
+            onChange(location);
+          }
+        };
+
+        legacyAutocompleteRef.current.addListener('place_changed', handlePlaceSelect);
+
+        return () => {
+          if (legacyAutocompleteRef.current) {
+            google.maps.event.clearInstanceListeners(legacyAutocompleteRef.current);
+          }
+        };
+      }
+
+      // Fallback to PlaceAutocompleteElement if legacy is not available
       if (window.google?.maps?.places?.PlaceAutocompleteElement) {
         try {
           // Create the PlaceAutocompleteElement with options
@@ -108,39 +141,6 @@ const LocationInput: React.FC<LocationInputProps> = ({
           // Fall through to legacy implementation
         }
       }
-
-      // Fallback to legacy Autocomplete if PlaceAutocompleteElement is not available
-      if (fallbackInputRef.current && window.google?.maps?.places?.Autocomplete) {
-        legacyAutocompleteRef.current = new google.maps.places.Autocomplete(
-          fallbackInputRef.current,
-          {
-            types: ['establishment', 'geocode'],
-            componentRestrictions: { country: 'gb' }, // Restrict to UK
-            fields: ['place_id', 'formatted_address', 'geometry']
-          }
-        );
-
-        const handlePlaceSelect = async () => {
-          const place = legacyAutocompleteRef.current?.getPlace();
-          if (place?.geometry?.location) {
-            const location: Location = {
-              address: place.formatted_address || '',
-              latitude: place.geometry.location.lat(),
-              longitude: place.geometry.location.lng(),
-              placeId: place.place_id
-            };
-            onChange(location);
-          }
-        };
-
-        legacyAutocompleteRef.current.addListener('place_changed', handlePlaceSelect);
-
-        return () => {
-          if (legacyAutocompleteRef.current) {
-            google.maps.event.clearInstanceListeners(legacyAutocompleteRef.current);
-          }
-        };
-      }
     }, 100); // Small delay to ensure Google Maps is fully loaded
 
     return () => clearTimeout(timer);
@@ -166,8 +166,25 @@ const LocationInput: React.FC<LocationInputProps> = ({
     }
   };
 
-  // If PlaceAutocompleteElement is available and working, use the new implementation
+  // Prefer legacy Autocomplete to avoid accessibility issues with PlaceAutocompleteElement
+  const hasLegacyAPI = window.google?.maps?.places?.Autocomplete && fallbackInputRef.current;
   const hasNewAPI = window.google?.maps?.places?.PlaceAutocompleteElement && elementRef.current;
+  
+  if (hasLegacyAPI) {
+    return (
+      <TextField
+        inputRef={fallbackInputRef}
+        value={value}
+        onChange={handleInputChange}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        label={label}
+        fullWidth={fullWidth}
+      />
+    );
+  }
+
+  // Fallback to PlaceAutocompleteElement if legacy is not available
   if (hasNewAPI) {
     return (
       <Box sx={{ position: 'relative', width: fullWidth ? '100%' : 'auto' }}>
@@ -196,19 +213,6 @@ const LocationInput: React.FC<LocationInputProps> = ({
       </Box>
     );
   }
-
-  // Fallback to legacy TextField with Autocomplete
-  return (
-    <TextField
-      inputRef={fallbackInputRef}
-      value={value}
-      onChange={handleInputChange}
-      onBlur={handleBlur}
-      placeholder={placeholder}
-      label={label}
-      fullWidth={fullWidth}
-    />
-  );
 };
 
 export default LocationInput;
