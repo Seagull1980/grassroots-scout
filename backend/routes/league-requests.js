@@ -67,6 +67,19 @@ router.post('/', [
 
     // Insert the league request
     console.log('💾 Inserting league request into database...');
+    
+    // First check if table exists and has correct structure
+    try {
+      const tableCheck = await db.query("SELECT sql FROM sqlite_master WHERE type='table' AND name='league_requests'");
+      if (tableCheck.rows.length > 0) {
+        console.log('📋 Table schema:', tableCheck.rows[0].sql);
+      } else {
+        console.log('❌ league_requests table does not exist!');
+      }
+    } catch (checkError) {
+      console.error('Error checking table:', checkError);
+    }
+    
     const result = await db.query(`
       INSERT INTO league_requests (
         name, region, ageGroups, url, description, 
@@ -93,7 +106,14 @@ router.post('/', [
 
   } catch (error) {
     console.error('Error submitting league request:', error);
-    res.status(500).json({ error: 'Failed to submit league request' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sql: error.sql,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Failed to submit league request', details: error.message });
   }
 });
 

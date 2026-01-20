@@ -2760,19 +2760,22 @@ app.post('/api/admin/create-league-requests-table', authenticateToken, requireAd
           id SERIAL PRIMARY KEY,
           name VARCHAR NOT NULL,
           region VARCHAR,
-          ageGroup VARCHAR,
-          country VARCHAR DEFAULT 'England',
+          ageGroups JSON,
           url VARCHAR,
-          description VARCHAR,
-          status VARCHAR DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+          description TEXT,
+          contactName VARCHAR,
+          contactEmail VARCHAR,
+          contactPhone VARCHAR,
+          status VARCHAR DEFAULT 'pending',
           submittedBy INTEGER NOT NULL,
-          submitterEmail VARCHAR,
           reviewedBy INTEGER,
           reviewedAt TIMESTAMP,
-          rejectionReason VARCHAR,
+          reviewNotes TEXT,
           createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (submittedBy) REFERENCES users (id),
-          FOREIGN KEY (reviewedBy) REFERENCES users (id)
+          FOREIGN KEY (reviewedBy) REFERENCES users (id),
+          CHECK (status IN ('pending', 'approved', 'rejected'))
         )
       `);
     } else {
@@ -2781,19 +2784,22 @@ app.post('/api/admin/create-league-requests-table', authenticateToken, requireAd
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name VARCHAR NOT NULL,
           region VARCHAR,
-          ageGroup VARCHAR,
-          country VARCHAR DEFAULT 'England',
+          ageGroups JSON,
           url VARCHAR,
-          description VARCHAR,
+          description TEXT,
+          contactName VARCHAR,
+          contactEmail VARCHAR,
+          contactPhone VARCHAR,
           status VARCHAR DEFAULT 'pending',
           submittedBy INTEGER NOT NULL,
-          submitterEmail VARCHAR,
           reviewedBy INTEGER,
           reviewedAt TIMESTAMP,
-          rejectionReason VARCHAR,
+          reviewNotes TEXT,
           createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (submittedBy) REFERENCES users (id),
-          FOREIGN KEY (reviewedBy) REFERENCES users (id)
+          FOREIGN KEY (reviewedBy) REFERENCES users (id),
+          CHECK (status IN ('pending', 'approved', 'rejected'))
         )
       `);
     }
