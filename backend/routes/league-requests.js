@@ -6,6 +6,15 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const db = new Database();
 
+// Test endpoint to check authentication
+router.get('/test-auth', authenticateToken, (req, res) => {
+  res.json({ 
+    message: 'Authentication successful',
+    user: { userId: req.user.userId, email: req.user.email, role: req.user.role },
+    dbType: db.dbType
+  });
+});
+
 // User endpoints (require authentication)
 router.use(authenticateToken);
 
@@ -25,7 +34,8 @@ router.post('/', [
     console.log('📝 League request submission attempt:', {
       userId: req.user?.userId,
       name: req.body.name,
-      hasAgeGroups: !!req.body.ageGroups
+      hasToken: !!req.headers.authorization,
+      bodyKeys: Object.keys(req.body)
     });
 
     const errors = validationResult(req);
@@ -45,28 +55,34 @@ router.post('/', [
       contactPhone
     } = req.body;
 
+    console.log('🔍 Checking for existing league:', name);
     // Check if league name already exists in approved leagues
     const existingLeague = await db.query(
       'SELECT id FROM leagues WHERE name = ? AND isActive = 1',
       [name]
     );
+    console.log('✅ League existence check result:', existingLeague.rows.length);
 
     if (existingLeague.rows.length > 0) {
       return res.status(400).json({ error: 'A league with this name already exists' });
     }
 
+    console.log('🔍 Checking for existing request:', name);
     // Check if there's already a pending request for this league
     const existingRequest = await db.query(
       'SELECT id FROM league_requests WHERE name = ? AND status = "pending"',
       [name]
     );
+    console.log('✅ Existing request check result:', existingRequest.rows.length);
 
     if (existingRequest.rows.length > 0) {
       return res.status(400).json({ error: 'A request for this league is already pending approval' });
     }
 
+    console.log('👤 Verifying user exists:', req.user.userId);
     // Verify the user exists
     const userCheck = await db.query('SELECT id FROM users WHERE id = ?', [req.user.userId]);
+    console.log('✅ User verification result:', userCheck.rows.length);
     if (userCheck.rows.length === 0) {
       console.error('User not found in database:', req.user.userId);
       return res.status(400).json({ error: 'User account not found' });
@@ -77,15 +93,34 @@ router.post('/', [
     
     // First check if table exists and has correct structure
     try {
-      const tableCheck = await db.query("SELECT sql FROM sqlite_master WHERE type='table' AND name='league_requests'");
-      if (tableCheck.rows.length > 0) {
-        console.log('📋 Table schema:', tableCheck.rows[0].sql);
+      let tableExists = false;
+      if (db.dbType === 'postgresql') {
+        const tableCheck = await db.query("SELECT table_name FROM information_schema.tables WHERE table_name = 'league_requests'");
+        tableExists = tableCheck.rows.length > 0;
+        if (tableExists) {
+          const columnCheck = await db.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests'");
+          console.log('📋 PostgreSQL table columns:', columnCheck.rows.map(r => r.column_name));
+        }
       } else {
+        const tableCheck = await db.query("SELECT sql FROM sqlite_master WHERE type='table' AND name='league_requests'");
+        tableExists = tableCheck.rows.length > 0;
+        if (tableExists) {
+          console.log('📋 SQLite table schema:', tableCheck.rows[0].sql);
+        }
+      }
+      
+      if (!tableExists) {
         console.log('❌ league_requests table does not exist!');
+        return res.status(500).json({ error: 'Database table not found' });
       }
     } catch (checkError) {
       console.error('Error checking table:', checkError);
     }
+    
+    console.log('📝 Inserting data:', {
+      name, region, ageGroups: JSON.stringify(ageGroups), url, description,
+      contactName, contactEmail, contactPhone, submittedBy: req.user.userId
+    });
     
     const result = await db.query(`
       INSERT INTO league_requests (

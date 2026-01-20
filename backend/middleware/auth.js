@@ -6,13 +6,19 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    console.log('❌ No token provided in request');
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'grassroots-hub-secret-key', (err, user) => {
+  const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+  console.log('🔐 Verifying JWT token with secret length:', JWT_SECRET.length);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
+      console.log('❌ JWT verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid token' });
     }
+    console.log('✅ JWT verified successfully, user:', { userId: user.userId, email: user.email, role: user.role });
     req.user = user;
     next();
   });
