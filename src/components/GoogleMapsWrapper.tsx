@@ -136,7 +136,6 @@ export const Map: React.FC<MapProps> = ({
       const newMap = new google.maps.Map(ref.current, {
         center,
         zoom,
-        mapId: GOOGLE_MAPS_CONFIG.mapId, // Required for Advanced Markers
         ...GOOGLE_MAPS_CONFIG.mapOptions
       });
       setMap(newMap);

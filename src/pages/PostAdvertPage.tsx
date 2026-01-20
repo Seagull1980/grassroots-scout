@@ -550,6 +550,7 @@ const PostAdvertPage: React.FC = () => {
                     }));
                   }}
                   placeholder="Start typing an address..."
+                  debugId="post-advert-location"
                 />
               </GoogleMapsWrapper>
             </Grid>

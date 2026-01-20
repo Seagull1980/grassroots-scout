@@ -2,15 +2,14 @@
 export const GOOGLE_MAPS_CONFIG = {
   // You'll need to replace this with your actual Google Maps API key
   apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY',
-  libraries: ['places', 'geometry', 'marker'] as ('places' | 'geometry' | 'marker')[],
-  version: 'weekly', // Use weekly version to get latest AdvancedMarkerElement features
+  libraries: ['places'] as ('places')[], // Only load places library for autocomplete
+  version: 'quarterly', // Use quarterly version for better stability
   defaultCenter: {
     lat: 51.5074, // London coordinates as default
     lng: -0.1278
   },
   defaultZoom: 10,
   searchRadius: 500, // km - increased for initial search to cover all UK
-  mapId: 'GRASSROOTS_HUB_MAP', // Required for Advanced Markers
   mapOptions: {
     disableDefaultUI: false,
     zoomControl: true,
