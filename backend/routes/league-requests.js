@@ -15,7 +15,7 @@ router.post('/', [
   body('region').optional().isLength({ max: 100 }).withMessage('Region name too long'),
   body('ageGroups').optional().isArray().withMessage('Age groups must be an array'),
   body('ageGroups.*').optional().isString().isLength({ max: 50 }).withMessage('Age group too long'),
-  body('url').optional().isURL().withMessage('Invalid URL format'),
+  body('url').optional({ checkFalsy: true }).isURL().withMessage('Invalid URL format'),
   body('description').optional().isLength({ max: 1000 }).withMessage('Description too long'),
   body('contactName').optional().isLength({ max: 255 }).withMessage('Contact name too long'),
   body('contactEmail').optional().isLength({ max: 255 }).withMessage('Email too long'),
