@@ -22,6 +22,12 @@ router.post('/', [
   body('contactPhone').optional().isLength({ max: 20 }).withMessage('Phone number too long')
 ], async (req, res) => {
   try {
+    console.log('📝 League request submission attempt:', {
+      userId: req.user?.userId,
+      name: req.body.name,
+      hasAgeGroups: !!req.body.ageGroups
+    });
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('League request validation errors:', errors.array());
@@ -60,6 +66,7 @@ router.post('/', [
     }
 
     // Insert the league request
+    console.log('💾 Inserting league request into database...');
     const result = await db.query(`
       INSERT INTO league_requests (
         name, region, ageGroups, url, description, 
@@ -71,6 +78,7 @@ router.post('/', [
       contactName, contactEmail, contactPhone,
       req.user.userId
     ]);
+    console.log('✅ League request inserted successfully, ID:', result.lastID);
 
     res.status(201).json({
       message: 'League request submitted successfully. It will be reviewed by an administrator.',
