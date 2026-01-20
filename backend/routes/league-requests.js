@@ -65,6 +65,13 @@ router.post('/', [
       return res.status(400).json({ error: 'A request for this league is already pending approval' });
     }
 
+    // Verify the user exists
+    const userCheck = await db.query('SELECT id FROM users WHERE id = ?', [req.user.userId]);
+    if (userCheck.rows.length === 0) {
+      console.error('User not found in database:', req.user.userId);
+      return res.status(400).json({ error: 'User account not found' });
+    }
+
     // Insert the league request
     console.log('💾 Inserting league request into database...');
     
