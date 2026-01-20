@@ -36,7 +36,6 @@ interface LeagueRequestData {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
-  justification: string;
 }
 
 const regions = [
@@ -70,8 +69,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
     description: '',
     contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
     contactEmail: user?.email || '',
-    contactPhone: '',
-    justification: ''
+    contactPhone: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -95,11 +93,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
       if (!formData.name.trim()) {
         setError('League name is required');
-        return;
-      }
-
-      if (!formData.justification.trim()) {
-        setError('Please provide a justification for why this league should be added');
         return;
       }
 
@@ -127,8 +120,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
           description: '',
           contactName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
           contactEmail: user?.email || '',
-          contactPhone: '',
-          justification: ''
+          contactPhone: ''
         };
         
         // Call success callback immediately so user can continue
@@ -303,26 +295,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                 placeholder="+44 7700 900000"
               />
             </Grid>
-
-            {/* Justification */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Why should this league be added? *
-              </Typography>
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                label="Justification *"
-                fullWidth
-                multiline
-                rows={4}
-                value={formData.justification}
-                onChange={handleInputChange('justification')}
-                disabled={loading}
-                placeholder="Please explain why this league should be added to our system. Include information about the league's size, reputation, geographical area served, and how it would benefit our users..."
-              />
-            </Grid>
           </Grid>
         </Box>
       </DialogContent>
@@ -334,7 +306,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !formData.name.trim() || !formData.justification.trim()}
+          disabled={loading || !formData.name.trim()}
           startIcon={loading ? <CircularProgress size={16} /> : null}
         >
           {loading ? 'Submitting...' : 'Submit Request'}

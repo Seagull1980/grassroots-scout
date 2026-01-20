@@ -19,8 +19,7 @@ router.post('/', [
   body('description').optional().isLength({ max: 1000 }).withMessage('Description too long'),
   body('contactName').optional().isLength({ max: 255 }).withMessage('Contact name too long'),
   body('contactEmail').optional().isEmail().withMessage('Invalid email format'),
-  body('contactPhone').optional().isLength({ max: 20 }).withMessage('Phone number too long'),
-  body('justification').optional().isLength({ max: 1000 }).withMessage('Justification too long')
+  body('contactPhone').optional().isLength({ max: 20 }).withMessage('Phone number too long')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -36,8 +35,7 @@ router.post('/', [
       description,
       contactName,
       contactEmail,
-      contactPhone,
-      justification
+      contactPhone
     } = req.body;
 
     // Check if league name already exists in approved leagues
@@ -64,12 +62,12 @@ router.post('/', [
     const result = await db.query(`
       INSERT INTO league_requests (
         name, region, ageGroups, url, description, 
-        contactName, contactEmail, contactPhone, justification, 
+        contactName, contactEmail, contactPhone, 
         submittedBy, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `, [
       name, region, JSON.stringify(ageGroups), url, description,
-      contactName, contactEmail, contactPhone, justification,
+      contactName, contactEmail, contactPhone,
       req.user.userId
     ]);
 
@@ -173,7 +171,6 @@ router.get('/admin/all', requireAdmin, async (req, res) => {
       contactName: request.contactName,
       contactEmail: request.contactEmail,
       contactPhone: request.contactPhone,
-      justification: request.justification,
       status: request.status,
       submittedBy: request.submittedBy,
       submitterName: request.submitterName,

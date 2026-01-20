@@ -18,7 +18,6 @@ async function createLeagueRequestsTable() {
         contactName VARCHAR,
         contactEmail VARCHAR,
         contactPhone VARCHAR,
-        justification TEXT,
         status VARCHAR DEFAULT 'pending',
         submittedBy INTEGER NOT NULL,
         reviewedBy INTEGER,

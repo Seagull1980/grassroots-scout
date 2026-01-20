@@ -409,16 +409,16 @@ async function initializeServer() {
       
       if (db.dbType === 'postgresql') {
         const checkColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests' AND column_name IN ('agegroups', 'contactname', 'contactemail', 'contactphone', 'justification')"
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests' AND column_name IN ('agegroups', 'contactname', 'contactemail', 'contactphone')"
         );
         const existingColumns = checkColumns.rows.map(row => row.column_name);
         hasAgeGroupsColumn = existingColumns.includes('agegroups');
-        hasContactColumns = existingColumns.includes('contactname') && existingColumns.includes('contactemail') && existingColumns.includes('contactphone') && existingColumns.includes('justification');
+        hasContactColumns = existingColumns.includes('contactname') && existingColumns.includes('contactemail') && existingColumns.includes('contactphone');
       } else {
         const checkColumns = await db.query('PRAGMA table_info(league_requests)');
         const existingColumns = checkColumns.rows.map(row => row.name);
         hasAgeGroupsColumn = existingColumns.includes('ageGroups');
-        hasContactColumns = existingColumns.includes('contactName') && existingColumns.includes('contactEmail') && existingColumns.includes('contactPhone') && existingColumns.includes('justification');
+        hasContactColumns = existingColumns.includes('contactName') && existingColumns.includes('contactEmail') && existingColumns.includes('contactPhone');
       }
       
       if (!hasAgeGroupsColumn) {
@@ -442,8 +442,7 @@ async function initializeServer() {
         const contactColumns = [
           'contactName VARCHAR',
           'contactEmail VARCHAR', 
-          'contactPhone VARCHAR',
-          'justification TEXT'
+          'contactPhone VARCHAR'
         ];
         
         for (const columnDef of contactColumns) {
