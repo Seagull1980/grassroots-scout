@@ -2348,8 +2348,8 @@ app.get('/api/public/site-stats', async (req, res) => {
     
     // Get basic counts from existing tables
     const totalUsersResult = await db.query('SELECT COUNT(*) as count FROM users WHERE isBlocked = FALSE');
-    const totalTeamsResult = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE status = "active"');
-    const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE status = "active"');
+    const totalTeamsResult = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE status = \'active\'');
+    const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE status = \'active\'');
     
     // Handle different result formats (PostgreSQL vs SQLite)
     const totalUsers = totalUsersResult.rows ? totalUsersResult.rows[0].count : totalUsersResult.rows[0].count;
@@ -3179,7 +3179,7 @@ app.post('/api/training/sessions/:id/book', authenticateToken, requireBetaAccess
 
     // Check available spaces
     const bookingCount = await db.query(
-      'SELECT COUNT(*) as count FROM training_bookings WHERE session_id = ? AND status = "confirmed"',
+      'SELECT COUNT(*) as count FROM training_bookings WHERE session_id = ? AND status = \'confirmed\'',
       [sessionId]
     );
 

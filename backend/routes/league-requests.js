@@ -70,7 +70,7 @@ router.post('/', [
     console.log('🔍 Checking for existing request:', name);
     // Check if there's already a pending request for this league
     const existingRequest = await db.query(
-      'SELECT id FROM league_requests WHERE name = ? AND status = "pending"',
+      "SELECT id FROM league_requests WHERE name = ? AND status = 'pending'",
       [name]
     );
     console.log('✅ Existing request check result:', existingRequest.rows.length);
@@ -295,7 +295,7 @@ router.post('/admin/:id/approve', requireAdmin, [
 
     // Get the league request
     const requestResult = await db.query(
-      'SELECT * FROM league_requests WHERE id = ? AND status = "pending"',
+      "SELECT * FROM league_requests WHERE id = ? AND status = 'pending'",
       [id]
     );
 
