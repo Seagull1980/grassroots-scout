@@ -400,6 +400,72 @@ async function initializeServer() {
       console.error('❌ Error checking/seeding leagues table:', leagueError);
     }
 
+    // Check league_requests table schema (ensure ageGroups column exists)
+    try {
+      console.log('🔍 Checking league_requests table schema...');
+      
+      let hasAgeGroupsColumn = false;
+      let hasContactColumns = false;
+      
+      if (db.dbType === 'postgresql') {
+        const checkColumns = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests' AND column_name IN ('agegroups', 'contactname', 'contactemail', 'contactphone', 'justification')"
+        );
+        const existingColumns = checkColumns.rows.map(row => row.column_name);
+        hasAgeGroupsColumn = existingColumns.includes('agegroups');
+        hasContactColumns = existingColumns.includes('contactname') && existingColumns.includes('contactemail') && existingColumns.includes('contactphone') && existingColumns.includes('justification');
+      } else {
+        const checkColumns = await db.query('PRAGMA table_info(league_requests)');
+        const existingColumns = checkColumns.rows.map(row => row.name);
+        hasAgeGroupsColumn = existingColumns.includes('ageGroups');
+        hasContactColumns = existingColumns.includes('contactName') && existingColumns.includes('contactEmail') && existingColumns.includes('contactPhone') && existingColumns.includes('justification');
+      }
+      
+      if (!hasAgeGroupsColumn) {
+        console.log('⚠️  ageGroups column missing from league_requests table - adding now...');
+        try {
+          await db.query('ALTER TABLE league_requests ADD COLUMN ageGroups JSON');
+          console.log('✅ Added ageGroups column to league_requests table');
+        } catch (alterError) {
+          if (alterError.message && alterError.message.includes('duplicate column')) {
+            console.log('✅ ageGroups column already exists (duplicate error ignored)');
+          } else {
+            throw alterError;
+          }
+        }
+      } else {
+        console.log('✅ ageGroups column exists in league_requests table');
+      }
+      
+      if (!hasContactColumns) {
+        console.log('⚠️  Contact columns missing from league_requests table - adding now...');
+        const contactColumns = [
+          'contactName VARCHAR',
+          'contactEmail VARCHAR', 
+          'contactPhone VARCHAR',
+          'justification TEXT'
+        ];
+        
+        for (const columnDef of contactColumns) {
+          try {
+            await db.query(`ALTER TABLE league_requests ADD COLUMN ${columnDef}`);
+            console.log(`✅ Added ${columnDef.split(' ')[0]} column to league_requests table`);
+          } catch (alterError) {
+            if (alterError.message && alterError.message.includes('duplicate column')) {
+              console.log(`✅ ${columnDef.split(' ')[0]} column already exists (duplicate error ignored)`);
+            } else {
+              console.error(`❌ Error adding ${columnDef.split(' ')[0]}:`, alterError.message);
+            }
+          }
+        }
+      } else {
+        console.log('✅ Contact columns exist in league_requests table');
+      }
+      
+    } catch (requestsError) {
+      console.error('❌ Error checking league_requests table schema:', requestsError);
+    }
+
     // Auto-create admin account on production if none exists
     try {
       console.log('[ADMIN DEBUG] Checking for admin account...');
