@@ -201,6 +201,64 @@ async function initializeServer() {
       }
     }
 
+    // Add location columns to team_vacancies if missing
+    try {
+      let hasLocationLatitude = false;
+      let hasLocationLongitude = false;
+      let hasLocationAddress = false;
+      let hasLocationPlaceId = false;
+      
+      if (db.dbType === 'postgresql') {
+        const checkColumns = await db.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies' AND column_name IN ('locationlatitude', 'locationlongitude', 'locationaddress', 'locationplaceid')"
+        );
+        const existingColumns = checkColumns.rows.map(row => row.column_name);
+        hasLocationLatitude = existingColumns.includes('locationlatitude');
+        hasLocationLongitude = existingColumns.includes('locationlongitude');
+        hasLocationAddress = existingColumns.includes('locationaddress');
+        hasLocationPlaceId = existingColumns.includes('locationplaceid');
+      } else {
+        const checkColumns = await db.query('PRAGMA table_info(team_vacancies)');
+        const existingColumns = checkColumns.rows.map(row => row.name);
+        hasLocationLatitude = existingColumns.includes('locationLatitude');
+        hasLocationLongitude = existingColumns.includes('locationLongitude');
+        hasLocationAddress = existingColumns.includes('locationAddress');
+        hasLocationPlaceId = existingColumns.includes('locationPlaceId');
+      }
+      
+      if (!hasLocationLatitude) {
+        console.log('⚠️  locationLatitude column missing - adding now...');
+        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationLatitude REAL NULL');
+        console.log('✅ Added locationLatitude column to team_vacancies table');
+      }
+      
+      if (!hasLocationLongitude) {
+        console.log('⚠️  locationLongitude column missing - adding now...');
+        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationLongitude REAL NULL');
+        console.log('✅ Added locationLongitude column to team_vacancies table');
+      }
+      
+      if (!hasLocationAddress) {
+        console.log('⚠️  locationAddress column missing - adding now...');
+        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationAddress VARCHAR(255) NULL');
+        console.log('✅ Added locationAddress column to team_vacancies table');
+      }
+      
+      if (!hasLocationPlaceId) {
+        console.log('⚠️  locationPlaceId column missing - adding now...');
+        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationPlaceId VARCHAR(255) NULL');
+        console.log('✅ Added locationPlaceId column to team_vacancies table');
+      }
+      
+      if (hasLocationLatitude && hasLocationLongitude && hasLocationAddress && hasLocationPlaceId) {
+        console.log('✅ All location columns exist in team_vacancies table');
+      }
+    } catch (locationError) {
+      if (!locationError.message || !locationError.message.includes('duplicate column')) {
+        console.error('❌ Error checking/adding location columns:', locationError);
+      }
+    }
+
     // Add missing user_profiles columns (for old production databases)
     try {
       let existingColumns;
@@ -650,6 +708,64 @@ async function initializeServer() {
       `);
       console.log('✅ team_vacancies table ready');
 
+      // Add location columns to player_availability if missing
+      try {
+        let hasLocationLatitude = false;
+        let hasLocationLongitude = false;
+        let hasLocationAddress = false;
+        let hasLocationPlaceId = false;
+        
+        if (db.dbType === 'postgresql') {
+          const checkColumns = await db.query(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'player_availability' AND column_name IN ('locationlatitude', 'locationlongitude', 'locationaddress', 'locationplaceid')"
+          );
+          const existingColumns = checkColumns.rows.map(row => row.column_name);
+          hasLocationLatitude = existingColumns.includes('locationlatitude');
+          hasLocationLongitude = existingColumns.includes('locationlongitude');
+          hasLocationAddress = existingColumns.includes('locationaddress');
+          hasLocationPlaceId = existingColumns.includes('locationplaceid');
+        } else {
+          const checkColumns = await db.query('PRAGMA table_info(player_availability)');
+          const existingColumns = checkColumns.rows.map(row => row.name);
+          hasLocationLatitude = existingColumns.includes('locationLatitude');
+          hasLocationLongitude = existingColumns.includes('locationLongitude');
+          hasLocationAddress = existingColumns.includes('locationAddress');
+          hasLocationPlaceId = existingColumns.includes('locationPlaceId');
+        }
+        
+        if (!hasLocationLatitude) {
+          console.log('⚠️  locationLatitude column missing from player_availability - adding now...');
+          await db.query('ALTER TABLE player_availability ADD COLUMN locationLatitude REAL NULL');
+          console.log('✅ Added locationLatitude column to player_availability table');
+        }
+        
+        if (!hasLocationLongitude) {
+          console.log('⚠️  locationLongitude column missing from player_availability - adding now...');
+          await db.query('ALTER TABLE player_availability ADD COLUMN locationLongitude REAL NULL');
+          console.log('✅ Added locationLongitude column to player_availability table');
+        }
+        
+        if (!hasLocationAddress) {
+          console.log('⚠️  locationAddress column missing from player_availability - adding now...');
+          await db.query('ALTER TABLE player_availability ADD COLUMN locationAddress VARCHAR(255) NULL');
+          console.log('✅ Added locationAddress column to player_availability table');
+        }
+        
+        if (!hasLocationPlaceId) {
+          console.log('⚠️  locationPlaceId column missing from player_availability - adding now...');
+          await db.query('ALTER TABLE player_availability ADD COLUMN locationPlaceId VARCHAR(255) NULL');
+          console.log('✅ Added locationPlaceId column to player_availability table');
+        }
+        
+        if (hasLocationLatitude && hasLocationLongitude && hasLocationAddress && hasLocationPlaceId) {
+          console.log('✅ All location columns exist in player_availability table');
+        }
+      } catch (locationError) {
+        if (!locationError.message || !locationError.message.includes('duplicate column')) {
+          console.error('❌ Error checking/adding location columns to player_availability:', locationError);
+        }
+      }
+
     } catch (engagementError) {
       console.error('❌ Error creating engagement tracking tables:', engagementError);
     }
@@ -807,6 +923,7 @@ async function initializeServer() {
 
     process.on('uncaughtException', (error) => {
       console.error('❌ Uncaught Exception:', error);
+      console.error('Stack trace:', error.stack);
       process.exit(1);
     });
 
@@ -4166,6 +4283,114 @@ app.put('/api/calendar/trial-invitations/:id', authenticateToken, requireBetaAcc
       }
     );
   });
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  console.log('🧪 Test endpoint called');
+  res.json({ message: 'Server is working', timestamp: new Date().toISOString() });
+});
+
+// Get training locations for map view (team vacancies with location data)
+app.get('/api/calendar/training-locations', async (req, res) => {
+  try {
+    const { latitude, longitude, radius = 25, hasVacancies, locationType = 'training' } = req.query;
+
+    // Get team vacancies with location data for the specified type
+    let query = `
+      SELECT * FROM team_vacancies
+      WHERE locationLatitude IS NOT NULL AND locationLongitude IS NOT NULL
+        AND status = ?
+    `;
+    const params = ['active'];
+
+    const vacancies = await db.query(query, params);
+
+    // Parse locationData and calculate distances
+    const trainingLocations = vacancies.rows.map(vacancy => {
+      // Check if location coordinates exist
+      if (!vacancy.locationLatitude || !vacancy.locationLongitude) {
+        return null;
+      }
+
+      // Calculate distance if user location provided
+      let distance = null;
+      if (latitude && longitude) {
+        const lat1 = parseFloat(latitude);
+        const lon1 = parseFloat(longitude);
+        const lat2 = vacancy.locationLatitude;
+        const lon2 = vacancy.locationLongitude;
+
+        // Haversine formula for distance calculation
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        distance = Math.round(R * c * 10) / 10; // Round to 1 decimal place
+      }
+
+      // Filter by radius if distance calculated
+      if (radius && distance !== null && distance > parseFloat(radius)) {
+        return null;
+      }
+
+      // Determine location label based on type
+      const locationLabel = locationType === 'match'
+        ? `${vacancy.title} - Match Venue`
+        : `${vacancy.title} - Training Ground`;
+
+      return {
+        id: vacancy.id,
+        title: locationLabel,
+        teamName: vacancy.title,
+        date: vacancy.createdAt || new Date().toISOString(),
+        startTime: locationType === 'match' ? '15:00' : '18:00', // Different default times
+        endTime: locationType === 'match' ? '17:00' : '20:00',
+        location: vacancy.location,
+        latitude: vacancy.locationLatitude,
+        longitude: vacancy.locationLongitude,
+        distance,
+        hasVacancies: true, // All team_vacancies have vacancies by definition
+        contactEmail: vacancy.contactInfo || 'coach@team.com',
+        description: locationType === 'match'
+          ? `Home match venue for ${vacancy.title}. ${vacancy.description || ''}`
+          : `Training location for ${vacancy.title}. ${vacancy.description || ''}`,
+        locationData: {
+          address: vacancy.locationAddress || vacancy.location,
+          postcode: null, // Not stored separately
+          facilities: null // Not stored
+        },
+        locationType,
+        ageGroup: vacancy.ageGroup,
+        position: vacancy.position,
+        league: vacancy.league
+      };
+    }).filter(Boolean); // Remove null entries
+
+    // Filter by hasVacancies if specified
+    const filtered = hasVacancies === 'true'
+      ? trainingLocations.filter(loc => loc.hasVacancies)
+      : trainingLocations;
+
+    // Sort by distance if available
+    const sorted = filtered.sort((a, b) => {
+      if (a.distance === null) return 1;
+      if (b.distance === null) return -1;
+      return a.distance - b.distance;
+    });
+
+    res.json({
+      trainingLocations: sorted,
+      count: sorted.length,
+      locationType
+    });
+  } catch (error) {
+    console.error('Error fetching training locations:', error);
+    res.status(500).json({ error: 'Failed to fetch training locations' });
+  }
 });
 
 // Maps API endpoints
