@@ -87,7 +87,8 @@ const RegisterPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
+    // Prevent default behavior for both form submission and button click
     e.preventDefault();
     setError('');
 
@@ -108,8 +109,15 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    // Check password complexity
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    if (!passwordRegex.test(formData.password)) {
+      setError('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character');
       return;
     }
 
@@ -184,7 +192,7 @@ const RegisterPage: React.FC = () => {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={(e) => handleSubmit(e)} sx={{ mt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
                 margin="normal"
@@ -313,11 +321,12 @@ const RegisterPage: React.FC = () => {
               }}
             />
             <Button
-              type="submit"
+              type="button"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2, py: 1.5 }}
               disabled={isLoading}
+              onClick={(e) => handleSubmit(e as any)}
             >
               {isLoading ? <CircularProgress size={24} /> : 'Create Account'}
             </Button>

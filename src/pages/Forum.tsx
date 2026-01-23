@@ -69,10 +69,42 @@ const Forum: React.FC = () => {
         ? `${API_URL}/forum/posts`
         : `${API_URL}/forum/posts?category=${encodeURIComponent(selectedCategory)}`;
       
+      console.log('🟢 Frontend: Fetching posts from:', url);
+      
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch posts');
-      const data = await response.json();
-      setPosts(Array.isArray(data) ? data : []);
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('🟢 Frontend: Fetched posts data:', {
+          dataType: typeof data,
+          isArray: Array.isArray(data),
+          length: Array.isArray(data) ? data.length : 'N/A',
+          posts: Array.isArray(data) ? data.map(p => ({ id: p.id, title: p.title, hasNullId: p.id === null || p.id === undefined })) : data,
+          timestamp: new Date().toISOString()
+        });
+      } catch (parseError) {
+        console.error('🟢 Frontend: Failed to parse response JSON:', parseError);
+        console.error('🟢 Frontend: Response details:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: url
+        });
+        // If response is not JSON, create a generic error
+        data = [];
+        showSnackbar('Server returned invalid response format', 'error');
+      }
+      
+      // Filter out posts with null/invalid IDs
+      const validPosts = Array.isArray(data) 
+        ? data.filter(post => post && post.id != null && post.id !== 'null' && post.id !== 'undefined' && post.id !== '')
+        : [];
+      
+      console.log(`🟢 Frontend: Filtered ${data.length - validPosts.length} invalid posts, keeping ${validPosts.length} valid posts`);
+      
+      setPosts(validPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);
       showSnackbar('Failed to load posts', 'error');
@@ -128,13 +160,35 @@ const Forum: React.FC = () => {
             author_name: `${user.firstName} ${user.lastName}`,
           };
 
+      console.log('🟢 Frontend: Sending forum post request:', {
+        url,
+        method,
+        body,
+        timestamp: new Date().toISOString()
+      });
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
+      console.log('🟢 Frontend: Received response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
+      });
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('🟢 Frontend: Response data:', data);
+      } catch (parseError) {
+        console.error('🟢 Frontend: Failed to parse response JSON:', parseError);
+        // If response is not JSON, create a generic error
+        data = { error: 'Server returned an invalid response' };
+      }
 
       if (!response.ok) {
         if (data.profanityDetected) {
@@ -144,6 +198,11 @@ const Forum: React.FC = () => {
         }
         return;
       }
+
+      console.log('🟢 Frontend: Post created successfully:', {
+        responseData: data,
+        timestamp: new Date().toISOString()
+      });
 
       showSnackbar(
         editingPost ? 'Post updated successfully' : 'Post created successfully',
@@ -162,6 +221,12 @@ const Forum: React.FC = () => {
       return;
     }
 
+    if (!postId || postId === 'null' || postId === 'undefined') {
+      console.error('Invalid post ID for deletion:', postId);
+      showSnackbar('Invalid post ID', 'error');
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/forum/posts/${postId}`, {
         method: 'DELETE',
@@ -173,7 +238,13 @@ const Forum: React.FC = () => {
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If response is not JSON, create a generic error
+          data = { error: 'Server returned an invalid response' };
+        }
         throw new Error(data.error || 'Failed to delete post');
       }
 
@@ -190,6 +261,12 @@ const Forum: React.FC = () => {
       return;
     }
 
+    if (!postId || postId === 'null' || postId === 'undefined') {
+      console.error('Invalid post ID for lock toggle:', postId);
+      showSnackbar('Invalid post ID', 'error');
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/forum/posts/${postId}/lock`, {
         method: 'PATCH',
@@ -202,7 +279,13 @@ const Forum: React.FC = () => {
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If response is not JSON, create a generic error
+          data = { error: 'Server returned an invalid response' };
+        }
         throw new Error(data.error || 'Failed to update thread lock status');
       }
 
@@ -218,6 +301,12 @@ const Forum: React.FC = () => {
   };
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, post: ForumPost) => {
+    // Check for null/undefined/invalid IDs
+    if (!post || post.id === null || post.id === undefined || post.id === 'null' || post.id === 'undefined') {
+      console.warn('Cannot open menu for post with invalid ID:', post);
+      showSnackbar('This post cannot be modified', 'error');
+      return;
+    }
     setAnchorEl(event.currentTarget);
     setSelectedPost(post);
   };
@@ -360,7 +449,7 @@ const Forum: React.FC = () => {
                       • {formatDate(post.created_at)}
                     </Typography>
                   </Box>
-                  {user && (user.id === post.user_id.toString() || user.role === 'Admin') && (
+                  {user && (user.id === post.user_id.toString() || user.role === 'Admin') && post.id && post.id !== 'null' && post.id !== 'undefined' && (
                     <IconButton
                       size="small"
                       onClick={(e) => {

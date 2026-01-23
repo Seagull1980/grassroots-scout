@@ -4,6 +4,12 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    // setupFiles: ['./src/test/setup.ts'],
+    css: true,
+  },
   build: {
     rollupOptions: {
       output: {
@@ -13,7 +19,7 @@ export default defineConfig({
           'mui-vendor': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
           'charts-vendor': ['chart.js', 'react-chartjs-2'],
           'maps-vendor': ['@googlemaps/js-api-loader', '@googlemaps/react-wrapper'],
-          
+
           // Feature chunks
           'admin-features': [
             'src/pages/AdminPage.tsx',
@@ -42,7 +48,24 @@ export default defineConfig({
     // Chunk size warning limit
     chunkSizeWarningLimit: 1000,
     // Target modern browsers for smaller bundles
-    target: 'es2020'
+    target: 'es2020',
+    // Enable minification for smaller bundles
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug']
+      }
+    },
+    // Enable source maps for debugging but compress them
+    sourcemap: false,
+    // Optimize CSS
+    cssCodeSplit: true,
+    // Preload modules for better performance
+    modulePreload: {
+      polyfill: false
+    }
   },
   server: {
     host: '0.0.0.0', // Listen on all network interfaces

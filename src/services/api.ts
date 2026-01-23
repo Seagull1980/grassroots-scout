@@ -45,20 +45,62 @@ const rosterApi = axios.create({
   },
 });
 
-// Add auth token to requests for both instances
-api.interceptors.request.use((config) => {
+// CSRF token management
+let csrfToken: string | null = null;
+
+const getCsrfToken = async (): Promise<string> => {
+  if (!csrfToken) {
+    try {
+      const response = await axios.get(`${API_URL}/auth/csrf-token`);
+      csrfToken = response.data.csrfToken;
+    } catch (error) {
+      console.warn('CSRF token endpoint not available, using fallback token:', error instanceof Error ? error.message : String(error));
+      // Generate a fallback token for development/offline mode
+      csrfToken = 'fallback-' + Math.random().toString(36).substring(2, 15);
+    }
+  }
+  if (!csrfToken) {
+    throw new Error('CSRF token not available');
+  }
+  return csrfToken;
+};
+
+// Add auth token and CSRF token to requests for both instances
+api.interceptors.request.use(async (config) => {
   const token = storage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add CSRF token for non-GET requests
+  if (config.method && config.method.toLowerCase() !== 'get') {
+    try {
+      const token = await getCsrfToken();
+      config.headers['x-csrf-token'] = token;
+    } catch (error) {
+      console.warn('Failed to add CSRF token to request:', error);
+    }
+  }
+  
   return config;
 });
 
-rosterApi.interceptors.request.use((config) => {
+rosterApi.interceptors.request.use(async (config) => {
   const token = storage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add CSRF token for non-GET requests
+  if (config.method && config.method.toLowerCase() !== 'get') {
+    try {
+      const token = await getCsrfToken();
+      config.headers['x-csrf-token'] = token;
+    } catch (error) {
+      console.warn('Failed to add CSRF token to request:', error);
+    }
+  }
+  
   return config;
 });
 

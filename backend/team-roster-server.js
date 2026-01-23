@@ -58,6 +58,16 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Health check endpoint for deployment monitoring
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Auth endpoints
 
 // Helper function to calculate age

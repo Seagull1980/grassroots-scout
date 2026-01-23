@@ -1,0 +1,26 @@
+{
+  "name": "The Grassroots Scout",
+  "short_name": "Grassroots Scout",
+  "description": "Connect football players with grassroots teams",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1976d2",
+  "theme_color": "#1976d2",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo-scout.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "social", "productivity"],
+  "lang": "en-GB",
+  "dir": "ltr"
+}

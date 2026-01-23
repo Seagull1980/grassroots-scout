@@ -1,5 +1,9 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const crypto = require('crypto');
+
+// Generate CSP nonce for each request
+const generateNonce = () => crypto.randomBytes(16).toString('base64');
 
 // Rate limiting configuration
 const createRateLimiter = (windowMs, max, message) => {
@@ -37,18 +41,21 @@ const profileLimiter = createRateLimiter(
   'Too many profile update attempts, please try again later'
 );
 
-// Security headers middleware
+// Security headers middleware with enhanced CSP
 const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "https://*.googleapis.com", "https://*.gstatic.com"],
-      scriptSrc: ["'self'", "https://maps.googleapis.com", "https://maps.gstatic.com", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:", "https://*.googleapis.com", "https://*.gstatic.com", "https://*.gravatar.com"],
+      scriptSrc: ["'self'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
       connectSrc: ["'self'", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://www.googleapis.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: [],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow cross-origin requests for maps
@@ -56,10 +63,54 @@ const securityHeaders = helmet({
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true
-  }
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 });
 
-// Request sanitization middleware
+// CSRF Protection middleware
+const csrfProtection = (req, res, next) => {
+  // Skip CSRF for GET, HEAD, OPTIONS requests
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Generate CSRF token for GET requests to pages that need it
+  if (req.method === 'GET' && req.path.match(/^\/(login|register|profile|admin)/)) {
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    res.locals.csrfToken = csrfToken;
+    // In production, store this in session/redis
+    // For now, we'll use a simple in-memory store (not suitable for production)
+    if (!global.csrfTokens) global.csrfTokens = new Set();
+    global.csrfTokens.add(csrfToken);
+    // Clean up old tokens periodically (simple implementation)
+    if (global.csrfTokens.size > 1000) {
+      global.csrfTokens.clear();
+    }
+  }
+
+  // Validate CSRF token for state-changing requests
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const token = req.headers['x-csrf-token'] || req.body._csrf;
+
+    if (!token) {
+      console.warn(`🚨 CSRF token missing for ${req.method} ${req.path} from IP: ${req.ip}`);
+      return res.status(403).json({ error: 'CSRF token missing' });
+    }
+
+    // In production, validate against session/redis store
+    if (!global.csrfTokens || !global.csrfTokens.has(token)) {
+      console.warn(`🚨 Invalid CSRF token for ${req.method} ${req.path} from IP: ${req.ip}`);
+      return res.status(403).json({ error: 'Invalid CSRF token' });
+    }
+
+    // Token used, remove it (one-time use)
+    global.csrfTokens.delete(token);
+  }
+
+  next();
+};
 const sanitizeRequest = (req, res, next) => {
   // Log suspicious activity
   const suspiciousPatterns = [
@@ -169,6 +220,7 @@ module.exports = {
   authLimiter,
   profileLimiter,
   securityHeaders,
+  csrfProtection,
   sanitizeRequest,
   validateEmail,
   validatePhone,

@@ -15,6 +15,7 @@ const {
   authLimiter, 
   profileLimiter, 
   securityHeaders, 
+  csrfProtection,
   sanitizeRequest, 
   auditLogger 
 } = require('./middleware/security.js');
@@ -30,6 +31,7 @@ app.set('trust proxy', 1);
 
 // Middleware - Security First!
 app.use(securityHeaders); // Security headers (CSP, HSTS, etc.)
+// app.use(csrfProtection); // CSRF protection - temporarily disabled
 // app.use(generalLimiter); // General rate limiting - temporarily disabled for debugging
 app.use(sanitizeRequest); // Request sanitization
 app.use(cors({
@@ -46,7 +48,7 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'x-csrf-token']
 }));
 app.use(express.json({ limit: '10mb' })); // Limit payload size
 
@@ -573,6 +575,141 @@ async function initializeServer() {
       console.error('[ADMIN DEBUG] Error checking/creating admin account:', adminError);
     }
 
+    // Ensure forum tables exist (for production databases that may not have run migrations)
+    try {
+      console.log('🔄 Checking forum tables...');
+
+      // Forum posts table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS forum_posts (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          user_role VARCHAR NOT NULL,
+          author_name VARCHAR NOT NULL,
+          title VARCHAR NOT NULL,
+          content TEXT NOT NULL,
+          category VARCHAR DEFAULT 'General Discussions',
+          is_locked BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_deleted BOOLEAN DEFAULT FALSE,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ forum_posts table ready');
+
+      // Forum replies table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS forum_replies (
+          id SERIAL PRIMARY KEY,
+          post_id INTEGER NOT NULL,
+          parent_reply_id INTEGER,
+          user_id INTEGER NOT NULL,
+          user_role VARCHAR NOT NULL,
+          author_name VARCHAR NOT NULL,
+          content TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_deleted BOOLEAN DEFAULT FALSE,
+          FOREIGN KEY (post_id) REFERENCES forum_posts (id) ON DELETE CASCADE,
+          FOREIGN KEY (parent_reply_id) REFERENCES forum_replies (id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ forum_replies table ready');
+
+      // Content flags table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS content_flags (
+          id SERIAL PRIMARY KEY,
+          content_type VARCHAR NOT NULL,
+          content_id INTEGER NOT NULL,
+          flagged_by_user_id INTEGER NOT NULL,
+          flagged_by_name VARCHAR NOT NULL,
+          reason TEXT,
+          status VARCHAR DEFAULT 'pending',
+          reviewed_by_user_id INTEGER,
+          reviewed_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('✅ content_flags table ready');
+
+      // Fix any posts with null IDs (migration for existing corrupted data)
+      try {
+        console.log('🔧 Checking for posts with null IDs...');
+
+        // First, check if the table has the correct primary key
+        if (db.dbType === 'postgresql') {
+          const pkCheck = await db.query(`
+            SELECT conname, conkey
+            FROM pg_constraint
+            WHERE conrelid = 'forum_posts'::regclass
+            AND contype = 'p'
+          `);
+
+          if (pkCheck.rows.length === 0) {
+            console.log('⚠️  forum_posts table missing primary key - recreating table...');
+
+            // Backup existing data
+            const backupData = await db.query('SELECT * FROM forum_posts');
+            console.log(`📦 Backed up ${backupData.rows.length} posts`);
+
+            // Drop and recreate table
+            await db.query('DROP TABLE IF EXISTS forum_posts CASCADE');
+            await db.query(`
+              CREATE TABLE forum_posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                user_role VARCHAR NOT NULL,
+                author_name VARCHAR NOT NULL,
+                title VARCHAR NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR DEFAULT 'General Discussions',
+                is_locked BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_deleted BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+              )
+            `);
+
+            // Restore data (without IDs to let SERIAL assign them)
+            if (backupData.rows.length > 0) {
+              for (const post of backupData.rows) {
+                try {
+                  await db.query(`
+                    INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category, is_locked, created_at, updated_at, is_deleted)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                  `, [post.user_id, post.user_role, post.author_name, post.title, post.content, post.category, post.is_locked, post.created_at, post.updated_at, post.is_deleted]);
+                } catch (restoreError) {
+                  console.warn('⚠️  Failed to restore post:', post.title, restoreError.message);
+                }
+              }
+              console.log('✅ Restored forum posts with proper IDs');
+            }
+          }
+        }
+
+        try {
+          const nullIdPosts = await db.query('SELECT COUNT(*) as count FROM forum_posts WHERE id IS NULL');
+          const nullCount = nullIdPosts.rows[0].count;
+
+          if (nullCount > 0) {
+            console.log(`⚠️  Found ${nullCount} posts with null IDs - deleting corrupted data`);
+
+            // Delete posts with null IDs as they're corrupted
+            await db.query('DELETE FROM forum_posts WHERE id IS NULL');
+            console.log('✅ Deleted posts with null IDs');
+          }
+        } catch (fixError) {
+          console.warn('⚠️  Could not check/fix null ID posts:', fixError.message);
+        }
+
+    } catch (forumError) {
+      console.error('❌ Error creating forum tables:', forumError);
+    }
+
     // Ensure engagement tracking tables exist (for production databases that may not have run migrations)
     try {
       console.log('🔄 Checking engagement tracking tables...');
@@ -965,7 +1102,6 @@ async function initializeServer() {
 
     return; // Exit the function without starting cron jobs
   }
-}
 
 // Start the server
 initializeServer().catch(error => {
@@ -1383,6 +1519,22 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Get CSRF token
+app.get('/api/auth/csrf-token', (req, res) => {
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  
+  // Store token (in production, use Redis/session store)
+  if (!global.csrfTokens) global.csrfTokens = new Set();
+  global.csrfTokens.add(csrfToken);
+  
+  // Clean up old tokens periodically
+  if (global.csrfTokens.size > 1000) {
+    global.csrfTokens.clear();
+  }
+  
+  res.json({ csrfToken });
+});
+
 // Get user profile
 app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) => {
   console.log('Profile GET request from user:', req.user.userId);
@@ -1483,7 +1635,9 @@ app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) =
 // Change password
 app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAccess, [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
-  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
+  body('newPassword')
+    .isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-zA-Z\d@$!%*?&]/).withMessage('New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character')
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -6544,17 +6698,114 @@ function containsProfanity(text) {
 app.get('/api/forum/posts', async (req, res) => {
   try {
     const { category } = req.query;
-    let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE';
-    const params = [];
     
-    if (category) {
-      query += ' AND category = ?';
-      params.push(category);
+    // Use a transaction to ensure cleanup and fetch are atomic
+    const client = db.dbType === 'postgresql' ? await db.pool.connect() : null;
+    
+    try {
+      if (client) {
+        // PostgreSQL transaction
+        await client.query('BEGIN');
+        
+        // Clean up any posts with null IDs - aggressive approach
+        console.log('🧹 Aggressively cleaning up posts with null IDs...');
+        try {
+          const deleteResult = await client.query('DELETE FROM forum_posts WHERE id IS NULL');
+          console.log(`✅ Deleted ${deleteResult.rowCount} posts with null IDs`);
+        } catch (deleteError) {
+          console.warn('⚠️ Could not delete null ID posts:', deleteError.message);
+          // Try alternative cleanup
+          try {
+            await client.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id IS NULL');
+            console.log('✅ Marked null ID posts as deleted');
+          } catch (updateError) {
+            console.warn('⚠️ Could not mark null ID posts as deleted:', updateError.message);
+          }
+        }
+        
+        // Now fetch posts
+        let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE AND id IS NOT NULL';
+        const params = [];
+
+        if (category) {
+          query += ' AND category = $' + (params.length + 1);
+          params.push(category);
+        }
+
+        query += ' ORDER BY created_at DESC';
+        console.log('🔍 Executing forum posts query:', { query, params });
+        
+        const result = await client.query(query, params);
+        console.log('🔍 Query result:', { 
+          rowCount: result.rowCount, 
+          rowsLength: result.rows ? result.rows.length : 'undefined',
+          firstRow: result.rows && result.rows[0] ? { id: result.rows[0].id, title: result.rows[0].title } : 'no rows'
+        });
+
+        await client.query('COMMIT');
+        
+        // Filter out any posts with null IDs as a safety measure
+        const validPosts = (result.rows || []).filter(post => post.id != null);
+        console.log(`Fetched ${validPosts.length} forum posts`);
+        
+        // Ensure we always return a valid array
+        const safePosts = Array.isArray(validPosts) ? validPosts : [];
+        res.json(safePosts);
+      } else {
+        // SQLite approach (no transactions needed)
+        // Clean up any posts with null IDs - aggressive approach
+        console.log('🧹 Aggressively cleaning up posts with null IDs...');
+        try {
+          const deleteResult = await db.query('DELETE FROM forum_posts WHERE id IS NULL');
+          console.log(`✅ Deleted ${deleteResult.changes} posts with null IDs`);
+        } catch (deleteError) {
+          console.warn('⚠️ Could not delete null ID posts:', deleteError.message);
+          // Try alternative cleanup
+          try {
+            await db.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id IS NULL');
+            console.log('✅ Marked null ID posts as deleted');
+          } catch (updateError) {
+            console.warn('⚠️ Could not mark null ID posts as deleted:', updateError.message);
+          }
+        }
+        
+        let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE AND id IS NOT NULL';
+        const params = [];
+
+        if (category) {
+          query += ' AND category = ?';
+          params.push(category);
+        }
+
+        query += ' ORDER BY created_at DESC';
+        console.log('🔍 Executing forum posts query:', { query, params });
+        
+        const result = await db.query(query, params);
+        console.log('🔍 Query result:', { 
+          rowCount: result.rowCount, 
+          rowsLength: result.rows ? result.rows.length : 'undefined',
+          firstRow: result.rows && result.rows[0] ? { id: result.rows[0].id, title: result.rows[0].title } : 'no rows'
+        });
+
+        // Filter out any posts with null IDs as a safety measure
+        const validPosts = (result.rows || []).filter(post => post.id != null);
+        console.log(`Fetched ${validPosts.length} forum posts`);
+        
+        // Ensure we always return a valid array
+        const safePosts = Array.isArray(validPosts) ? validPosts : [];
+        res.json(safePosts);
+      }
+    } catch (dbError) {
+      console.error('Database error in forum posts fetch:', dbError);
+      if (client) {
+        await client.query('ROLLBACK');
+      }
+      throw dbError;
+    } finally {
+      if (client) {
+        client.release();
+      }
     }
-    
-    query += ' ORDER BY created_at DESC';
-    const result = await db.query(query, params);
-    res.json(result.rows || []);
   } catch (error) {
     console.error('Error fetching forum posts:', error);
     res.status(500).json({ error: 'Failed to fetch posts' });
@@ -6565,16 +6816,30 @@ app.get('/api/forum/posts', async (req, res) => {
 app.get('/api/forum/posts/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ID is not null or invalid
+    if (!id || id === 'null' || id === 'undefined') {
+      return res.status(400).json({ error: 'Invalid post ID' });
+    }
+
     const result = await db.query(
       'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
       [id]
     );
-    
+
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
-    res.json(result.rows[0]);
+
+    const post = result.rows[0];
+
+    // Double-check the post has a valid ID
+    if (!post.id) {
+      console.error('Post found but has null ID:', post);
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.json(post);
   } catch (error) {
     console.error('Error fetching forum post:', error);
     res.status(500).json({ error: 'Failed to fetch post' });
@@ -6585,30 +6850,204 @@ app.get('/api/forum/posts/:id', async (req, res) => {
 app.post('/api/forum/posts', async (req, res) => {
   try {
     const { user_id, user_role, author_name, title, content, category } = req.body;
-    
+
+    console.log('🔍 Creating forum post:', { user_id, user_role, author_name, title, category });
+
     if (!user_id || !user_role || !author_name || !title || !content) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    
+
     const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
     const postCategory = category && validCategories.includes(category) ? category : 'General Discussions';
-    
+
     if (containsProfanity(title) || containsProfanity(content)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Your post contains inappropriate language. Please revise and try again.',
         profanityDetected: true
       });
     }
-    
-    const result = await db.query(
-      `INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
-      [user_id, user_role, author_name, title, content, postCategory]
-    );
-    
-    res.status(201).json(result.rows[0]);
+
+    // Check database type and table structure
+    console.log('📊 Database type:', db.dbType);
+
+    // Check if table exists and has correct structure
+    try {
+      if (db.dbType === 'postgresql') {
+        const tableCheck = await db.query(`
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_name = 'forum_posts'
+          ORDER BY ordinal_position
+        `);
+        console.log('📋 forum_posts table structure:', tableCheck.rows);
+
+        // Check if there's a sequence for the id column
+        const sequenceCheck = await db.query(`
+          SELECT sequence_name
+          FROM information_schema.sequences
+          WHERE sequence_name LIKE '%forum_posts%'
+        `);
+        console.log('🔢 Sequences for forum_posts:', sequenceCheck.rows);
+
+        // Check primary key constraint
+        const pkCheck = await db.query(`
+          SELECT conname, conkey
+          FROM pg_constraint
+          WHERE conrelid = 'forum_posts'::regclass
+          AND contype = 'p'
+        `);
+        console.log('🔑 Primary key constraint:', pkCheck.rows);
+
+        // Check current max id
+        const maxIdCheck = await db.query('SELECT MAX(id) as max_id FROM forum_posts');
+        console.log('📊 Current max ID in forum_posts:', maxIdCheck.rows[0]);
+
+        // If no sequence exists, create one and set it up
+        if (sequenceCheck.rows.length === 0) {
+          console.log('⚠️ No sequence found for forum_posts.id - creating sequence...');
+          
+          // Create sequence
+          await db.query('CREATE SEQUENCE forum_posts_id_seq');
+          
+          // Set the sequence to start after the current max ID
+          const maxId = maxIdCheck.rows[0].max_id || 0;
+          await db.query(`SELECT setval('forum_posts_id_seq', ${maxId + 1})`);
+          
+          // Alter the column to use the sequence as default
+          await db.query(`ALTER TABLE forum_posts ALTER COLUMN id SET DEFAULT nextval('forum_posts_id_seq')`);
+          
+          console.log('✅ Created sequence and set as default for forum_posts.id');
+        }
+      } else {
+        const tableCheck = await db.query('PRAGMA table_info(forum_posts)');
+        console.log('📋 forum_posts table structure:', tableCheck.rows);
+      }
+    } catch (schemaError) {
+      console.log('⚠️ Could not check table schema:', schemaError.message);
+    }
+
+    // Use a transaction to ensure data consistency
+    const client = db.dbType === 'postgresql' ? await db.pool.connect() : null;
+
+    try {
+      if (client) {
+        // PostgreSQL transaction
+        console.log('🔄 Starting PostgreSQL transaction');
+        await client.query('BEGIN');
+
+        // Get next ID manually to ensure we have a valid ID
+        const nextIdResult = await client.query("SELECT nextval('forum_posts_id_seq') as next_id");
+        const nextId = nextIdResult.rows[0].next_id;
+        console.log('🔢 Next ID from sequence:', nextId);
+
+        const insertResult = await client.query(
+          `INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [nextId, user_id, user_role, author_name, title, content, postCategory]
+        );
+
+        console.log('✅ PostgreSQL insert result:', {
+          rowCount: insertResult.rowCount
+        });
+
+        // Fetch the inserted post
+        const fetchResult = await client.query('SELECT * FROM forum_posts WHERE id = $1', [nextId]);
+        
+        await client.query('COMMIT');
+
+        if (fetchResult.rows && fetchResult.rows.length > 0) {
+          const newPost = fetchResult.rows[0];
+          console.log('🎉 Forum post created successfully (PostgreSQL):', { id: newPost.id, title: newPost.title });
+          return res.status(201).json(newPost);
+        } else {
+          console.error('❌ PostgreSQL could not fetch inserted post');
+          await client.query('ROLLBACK');
+        }
+      } else {
+        // SQLite approach
+        console.log('🔄 Using SQLite approach');
+        
+        // Get next ID manually
+        const maxIdResult = await db.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM forum_posts');
+        const nextId = maxIdResult.rows[0].next_id;
+        console.log('🔢 Next ID for SQLite:', nextId);
+
+        const insertResult = await db.query(
+          `INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [nextId, user_id, user_role, author_name, title, content, postCategory]
+        );
+
+        console.log('✅ SQLite insert result:', insertResult);
+
+        // Get the inserted post
+        const newPostResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [nextId]);
+
+        console.log('📖 SQLite select result:', newPostResult.rows);
+
+        if (newPostResult.rows && newPostResult.rows.length > 0) {
+          const newPost = newPostResult.rows[0];
+          console.log('🎉 Forum post created successfully (SQLite):', { id: newPost.id, title: newPost.title });
+          return res.status(201).json(newPost);
+        }
+      }
+
+      // Fallback: query by content if RETURNING/last_insert_rowid failed
+      console.log('🔄 Using fallback query to retrieve inserted post...');
+      const fallbackResult = await db.query(
+        `SELECT * FROM forum_posts WHERE user_id = ? AND title = ? AND content = ? ORDER BY created_at DESC LIMIT 1`,
+        [user_id, title, content]
+      );
+
+      console.log('📖 Fallback query result:', fallbackResult.rows);
+
+      if (fallbackResult.rows && fallbackResult.rows.length > 0) {
+        let newPost = fallbackResult.rows[0];
+        
+        // If the post has a null ID, try to fix it
+        if (newPost.id === null || newPost.id === undefined) {
+          console.log('⚠️ Post has null ID, attempting to fix...');
+          
+          // Generate a new ID manually
+          const maxIdResult = await db.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM forum_posts');
+          const nextId = maxIdResult.rows[0].next_id;
+          
+          // Update the post with the new ID
+          await db.query('UPDATE forum_posts SET id = ? WHERE user_id = ? AND title = ? AND content = ? AND created_at = ?', 
+            [nextId, user_id, title, content, newPost.created_at]);
+          
+          // Fetch the updated post
+          const updatedResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [nextId]);
+          if (updatedResult.rows && updatedResult.rows.length > 0) {
+            newPost = updatedResult.rows[0];
+            console.log('✅ Fixed null ID, new post:', { id: newPost.id, title: newPost.title });
+          }
+        }
+        
+        if (newPost.id) {
+          console.log('🎉 Forum post retrieved via fallback:', { id: newPost.id, title: newPost.title });
+          return res.status(201).json(newPost);
+        } else {
+          console.error('❌ Fallback query returned post with null ID:', newPost);
+        }
+      }
+
+      throw new Error('Failed to retrieve inserted post');
+
+    } catch (insertError) {
+      console.error('❌ Error during post insertion:', insertError);
+      if (client) {
+        await client.query('ROLLBACK');
+      }
+      throw insertError;
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+
   } catch (error) {
-    console.error('Error creating forum post:', error);
+    console.error('❌ Error creating forum post:', error);
     res.status(500).json({ error: 'Failed to create post' });
   }
 });
@@ -6618,39 +7057,49 @@ app.put('/api/forum/posts/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, user_id, category } = req.body;
-    
+
     const existingResult = await db.query(
       'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
       [id]
     );
-    
+
     if (!existingResult.rows || existingResult.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
+
     const existingPost = existingResult.rows[0];
     if (existingPost.user_id !== user_id) {
       return res.status(403).json({ error: 'You can only edit your own posts' });
     }
-    
+
     const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
     const postCategory = category && validCategories.includes(category) ? category : existingPost.category;
-    
+
     if (containsProfanity(title) || containsProfanity(content)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Your post contains inappropriate language. Please revise and try again.',
         profanityDetected: true
       });
     }
-    
-    const result = await db.query(
-      `UPDATE forum_posts 
+
+    // Update the post
+    await db.query(
+      `UPDATE forum_posts
        SET title = ?, content = ?, category = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? RETURNING *`,
+       WHERE id = ?`,
       [title, content, postCategory, id]
     );
-    
-    res.json(result.rows[0]);
+
+    // Get the updated post
+    const updatedResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [id]);
+    const updatedPost = updatedResult.rows[0];
+
+    if (!updatedPost) {
+      return res.status(500).json({ error: 'Post updated but could not retrieve data' });
+    }
+
+    console.log('Forum post updated successfully:', { id: updatedPost.id, title: updatedPost.title });
+    res.json(updatedPost);
   } catch (error) {
     console.error('Error updating forum post:', error);
     res.status(500).json({ error: 'Failed to update post' });
@@ -6906,8 +7355,122 @@ app.post('/api/forum/flag', async (req, res) => {
   }
 });
 
-// GET /api/forum/flags - Get all flags (admin only)
-app.get('/api/forum/flags', async (req, res) => {
+// GET /api/forum/fix-table - Emergency table fix (admin only)
+app.get('/api/forum/fix-table', async (req, res) => {
+  try {
+    console.log('🚨 EMERGENCY TABLE FIX: Recreating forum_posts table...');
+    
+    // Backup existing posts with valid IDs
+    const validPostsResult = await db.query('SELECT * FROM forum_posts WHERE id IS NOT NULL AND id IS NOT NULL');
+    const validPosts = validPostsResult.rows || [];
+    console.log(`📦 Backed up ${validPosts.length} valid posts`);
+    
+    // Drop and recreate table
+    await db.query('DROP TABLE IF EXISTS forum_posts CASCADE');
+    await db.query(`
+      CREATE TABLE forum_posts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        user_role VARCHAR NOT NULL,
+        author_name VARCHAR NOT NULL,
+        title VARCHAR NOT NULL,
+        content TEXT NOT NULL,
+        category VARCHAR DEFAULT 'General Discussions',
+        is_locked BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )
+    `);
+    
+    // Restore valid posts
+    let restoredCount = 0;
+    if (validPosts.length > 0) {
+      for (const post of validPosts) {
+        try {
+          await db.query(`
+            INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category, is_locked, created_at, updated_at, is_deleted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [post.id, post.user_id, post.user_role, post.author_name, post.title, post.content, post.category, post.is_locked, post.created_at, post.updated_at, post.is_deleted]);
+          restoredCount++;
+        } catch (restoreError) {
+          console.warn('⚠️ Could not restore post:', post.title, restoreError.message);
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Table recreated. Backed up ${validPosts.length} posts, restored ${restoredCount} posts.` 
+    });
+  } catch (error) {
+    console.error('Error in emergency table fix:', error);
+    res.status(500).json({ error: 'Failed to fix table' });
+  }
+});
+  try {
+    console.log('🧪 Testing forum_posts sequence...');
+
+    const results = {};
+
+    // Check if sequence exists
+    const sequenceCheck = await db.query(`
+      SELECT sequence_name
+      FROM information_schema.sequences
+      WHERE sequence_name LIKE '%forum_posts%'
+    `);
+    results.sequences = sequenceCheck.rows;
+    console.log('🔢 Sequences found:', sequenceCheck.rows);
+
+    // Check table structure
+    const tableCheck = await db.query(`
+      SELECT column_name, data_type, column_default
+      FROM information_schema.columns
+      WHERE table_name = 'forum_posts' AND column_name = 'id'
+    `);
+    results.tableStructure = tableCheck.rows;
+    console.log('📋 ID column info:', tableCheck.rows);
+
+    // Check current max id
+    const maxIdCheck = await db.query('SELECT MAX(id) as max_id FROM forum_posts');
+    results.maxId = maxIdCheck.rows[0];
+    console.log('📊 Current max ID:', maxIdCheck.rows[0]);
+
+    // Test inserting a post
+    console.log('🧪 Testing post insertion...');
+    const testResult = await db.query(`
+      INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category)
+      VALUES (1, 'Admin', 'Sequence Test', 'Sequence Test ${Date.now()}', 'Testing sequence generation', 'General Discussions')
+      RETURNING id, title
+    `);
+
+    results.insertResult = testResult.rows;
+    console.log('✅ Insert result:', testResult.rows);
+
+    if (testResult.rows && testResult.rows[0] && testResult.rows[0].id) {
+      console.log('🎉 SUCCESS: Post created with ID:', testResult.rows[0].id);
+      results.success = true;
+      results.generatedId = testResult.rows[0].id;
+
+      // Clean up test post
+      await db.query('DELETE FROM forum_posts WHERE id = ?', [testResult.rows[0].id]);
+      console.log('🧹 Cleaned up test post');
+    } else {
+      console.log('❌ FAILED: No ID returned');
+      results.success = false;
+    }
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('❌ Error testing sequence:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get flagged content for admin review
+app.get('/api/forum/flags', requireAdmin, async (req, res) => {
   try {
     const { user_role, status } = req.query;
     

@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 interface LeagueRequestDialogProps {
   open: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (leagueName?: string) => void;
 }
 
 interface LeagueRequestData {
@@ -131,7 +131,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         };
         
         // Call success callback immediately so user can continue
-        onSuccess?.();
+        onSuccess?.(formData.name);
         
         // Reset form and close after showing success message
         setTimeout(() => {

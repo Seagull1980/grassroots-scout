@@ -48,13 +48,26 @@ const ForumPostDetail: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   useEffect(() => {
-    if (postId) {
+    if (postId && postId !== 'null' && postId !== 'undefined') {
       fetchPost();
       fetchReplies();
+    } else {
+      setLoading(false);
+      setError('Invalid post ID');
+      // Redirect to forum list after a short delay
+      setTimeout(() => {
+        navigate('/forum');
+      }, 2000);
     }
   }, [postId]);
 
   const fetchPost = async () => {
+    if (!postId || postId === 'null' || postId === 'undefined') {
+      setError('Invalid post ID');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/forum/posts/${postId}`);
       if (response.status === 404) {
@@ -74,6 +87,10 @@ const ForumPostDetail: React.FC = () => {
   };
 
   const fetchReplies = async () => {
+    if (!postId || postId === 'null' || postId === 'undefined') {
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/forum/posts/${postId}/replies`);
       if (!response.ok) throw new Error('Failed to fetch replies');
@@ -97,6 +114,11 @@ const ForumPostDetail: React.FC = () => {
       return;
     }
 
+    if (!postId || postId === 'null' || postId === 'undefined') {
+      setError('Invalid post ID');
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/forum/posts/${postId}/replies`, {
         method: 'POST',
@@ -110,7 +132,13 @@ const ForumPostDetail: React.FC = () => {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If response is not JSON, create a generic error
+        data = { error: 'Server returned an invalid response' };
+      }
 
       if (!response.ok) {
         if (data.profanityDetected) {
@@ -196,7 +224,13 @@ const ForumPostDetail: React.FC = () => {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If response is not JSON, create a generic error
+        data = { error: 'Server returned an invalid response' };
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to flag content');
@@ -248,6 +282,20 @@ const ForumPostDetail: React.FC = () => {
     return (
       <Container maxWidth="md" sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (error && (!postId || postId === 'null' || postId === 'undefined')) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Alert severity="error">{error}</Alert>
+        <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
+          Redirecting to forum...
+        </Typography>
+        <Button onClick={() => navigate('/forum')} sx={{ mt: 2 }}>
+          Go to Forum Now
+        </Button>
       </Container>
     );
   }

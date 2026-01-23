@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -43,6 +43,7 @@ import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
+import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
 
 // Heavy features - lazy loaded
 const {
@@ -74,6 +75,14 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
 function App() {
+  // Mobile optimizations
+  useMobileScrollOptimization();
+
+  // Optimize viewport on mount
+  useEffect(() => {
+    optimizeViewportForMobile();
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider theme={theme}>

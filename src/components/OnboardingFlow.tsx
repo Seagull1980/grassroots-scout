@@ -13,12 +13,9 @@ import {
   Stack,
   Grid,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Autocomplete
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -37,6 +34,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { storage } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { leaguesAPI, League } from '../services/api';
+import LeagueRequestDialog from './LeagueRequestDialog';
 
 interface OnboardingStep {
   id: string;
@@ -69,6 +67,7 @@ export const OnboardingFlow: React.FC = () => {
   const [, setCompletedSteps] = useState<Set<number>>(new Set());
   const [availableLeagues, setAvailableLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
+  const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
   const [userData, setUserData] = useState({
     interests: [] as string[],
     location: '',
@@ -87,7 +86,7 @@ export const OnboardingFlow: React.FC = () => {
     const loadLeagues = async () => {
       setLoadingLeagues(true);
       try {
-        const leagues = await leaguesAPI.getForSearch(false); // Don't include pending leagues
+        const leagues = await leaguesAPI.getForSearch(true); // Include pending leagues for the user
         // Ensure we have an array before filtering
         if (Array.isArray(leagues)) {
           setAvailableLeagues(leagues.filter(league => league.isActive !== false));
@@ -360,53 +359,85 @@ export const OnboardingFlow: React.FC = () => {
               </Box>
             </Box>
             
-            <FormControl>
-              <InputLabel>Preferred Leagues</InputLabel>
-              <Select
-                multiple
-                value={userData.preferredLeagues}
-                onChange={(e) => setUserData(prev => ({ 
-                  ...prev, 
-                  preferredLeagues: e.target.value as string[] 
-                }))}
-                renderValue={(selected) => (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {(selected as string[]).map((value) => {
-                      const league = availableLeagues.find(l => l.name === value);
-                      return (
-                        <Chip 
-                          key={value} 
-                          label={league ? `${league.name} (${league.region})` : value} 
-                          size="small" 
-                        />
-                      );
-                    })}
-                  </Box>
-                )}
-                disabled={loadingLeagues}
-              >
-                {loadingLeagues ? (
-                  <MenuItem disabled>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      Loading leagues...
+            <Autocomplete
+              multiple
+              options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], url: '', hits: 0 }]}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                if (option.id === -1) return option.name || '';
+                return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
+              }}
+              value={userData.preferredLeagues.map(leagueName => {
+                const league = availableLeagues.find(l => l.name === leagueName);
+                return league || { id: 0, name: leagueName, region: '', ageGroups: [], url: '', hits: 0 };
+              })}
+              onChange={(_, newValue) => {
+                const selectedLeagues = newValue.map(item => {
+                  if (typeof item === 'string') return item;
+                  if (item.id === -1) {
+                    // Open league request dialog
+                    setLeagueRequestOpen(true);
+                    return null; // Don't add this to the selection
+                  }
+                  return item.name;
+                }).filter(Boolean) as string[];
+
+                setUserData(prev => ({
+                  ...prev,
+                  preferredLeagues: selectedLeagues
+                }));
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Preferred Leagues"
+                  placeholder="Select preferred leagues..."
+                  disabled={loadingLeagues}
+                />
+              )}
+              renderOption={(props, option) => {
+                if (option.id === -1) {
+                  return (
+                    <li {...props} style={{ fontWeight: 'bold', color: '#1976d2' }}>
+                      {option.name}
+                    </li>
+                  );
+                }
+                const isPending = option.isPending;
+                return (
+                  <li {...props} style={isPending ? { backgroundColor: '#fff3e0' } : {}}>
+                    <Box>
+                      <Typography variant="body2">
+                        {option.name}
+                        {isPending && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, color: 'orange', fontWeight: 'bold' }}>
+                            (Under Review)
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {option.region} • {option.ageGroups?.join(', ') || 'N/A'}
+                      </Typography>
                     </Box>
-                  </MenuItem>
-                ) : availableLeagues.length === 0 ? (
-                  <MenuItem disabled>No leagues available</MenuItem>
-                ) : (
-                  availableLeagues.map((league) => (
-                    <MenuItem key={league.id} value={league.name}>
-                      <Box>
-                        <Typography variant="body2">{league.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {league.region} • {league.ageGroups?.join(', ') || 'N/A'}
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                  ))
-                )}
-              </Select>
-            </FormControl>
+                  </li>
+                );
+              }}
+              renderTags={(tagValue, getTagProps) =>
+                tagValue.map((option, index) => (
+                  <Chip
+                    label={option.isPending ? `${option.name} (Under Review)` : option.name}
+                    {...getTagProps({ index })}
+                    size="small"
+                    sx={option.isPending ? {
+                      backgroundColor: '#fff3e0',
+                      '& .MuiChip-label': { color: '#f57c00' }
+                    } : {}}
+                  />
+                ))
+              }
+              loading={loadingLeagues}
+              disabled={loadingLeagues}
+            />
           </Stack>
         </Box>
       )
@@ -634,6 +665,21 @@ export const OnboardingFlow: React.FC = () => {
           )}
         </Box>
       </DialogContent>
+
+      <LeagueRequestDialog
+        open={leagueRequestOpen}
+        onClose={() => setLeagueRequestOpen(false)}
+        onSuccess={(leagueName?: string) => {
+          setLeagueRequestOpen(false);
+          // If a league name was provided, add it to the user's preferred leagues
+          if (leagueName) {
+            setUserData(prev => ({
+              ...prev,
+              preferredLeagues: [...(prev.preferredLeagues || []), leagueName]
+            }));
+          }
+        }}
+      />
     </Dialog>
   );
 };

@@ -123,7 +123,13 @@ const TeamProfilePage: React.FC = () => {
         setProfile(data);
         setFormData(data);
       } else {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // If response is not JSON, create a generic error
+          errorData = { error: 'Server returned an invalid response' };
+        }
         setError(errorData.error || 'Failed to fetch team profile');
       }
     } catch (err) {
@@ -153,7 +159,13 @@ const TeamProfilePage: React.FC = () => {
         setDialogOpen(false);
         await fetchProfile(); // Refresh the profile
       } else {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // If response is not JSON, create a generic error
+          errorData = { error: 'Server returned an invalid response' };
+        }
         setError(errorData.error || 'Failed to save team profile');
       }
     } catch (err) {
