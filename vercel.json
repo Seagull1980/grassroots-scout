@@ -19,7 +19,7 @@
       "destination": "/favicon.svg"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|assets/|favicon.svg|manifest.json|sw.js).*)",
       "destination": "/index.html"
     }
   ],
