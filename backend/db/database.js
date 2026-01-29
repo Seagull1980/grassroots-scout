@@ -299,6 +299,22 @@ class Database {
         CHECK (status IN ('pending', 'approved', 'rejected'))
       )`,
 
+      `CREATE TABLE IF NOT EXISTS teams (
+        id SERIAL PRIMARY KEY,
+        teamName VARCHAR NOT NULL,
+        clubName VARCHAR,
+        ageGroup VARCHAR NOT NULL,
+        league VARCHAR NOT NULL,
+        teamGender VARCHAR NOT NULL DEFAULT 'Mixed' CHECK(teamGender IN ('Boys', 'Girls', 'Mixed')),
+        location VARCHAR,
+        locationData JSONB,
+        contactEmail VARCHAR,
+        website VARCHAR,
+        socialMedia JSONB,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+
       `CREATE TABLE IF NOT EXISTS team_vacancies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title VARCHAR NOT NULL,
@@ -403,22 +419,6 @@ class Database {
         FOREIGN KEY (eventId) REFERENCES calendar_events (id) ON DELETE CASCADE,
         FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
         UNIQUE(eventId, userId)
-      )`,
-
-      `CREATE TABLE IF NOT EXISTS teams (
-        id SERIAL PRIMARY KEY,
-        teamName VARCHAR NOT NULL,
-        clubName VARCHAR,
-        ageGroup VARCHAR NOT NULL,
-        league VARCHAR NOT NULL,
-        teamGender VARCHAR NOT NULL DEFAULT 'Mixed' CHECK(teamGender IN ('Boys', 'Girls', 'Mixed')),
-        location VARCHAR,
-        locationData JSONB,
-        contactEmail VARCHAR,
-        website VARCHAR,
-        socialMedia JSONB,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
 
       `CREATE TABLE IF NOT EXISTS team_members (
