@@ -2,38 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
-const Database = require('./db/database.js');
-const encryptionService = require('./utils/encryption.js');
-const emailService = require('./services/emailService.js');
-const alertService = require('./services/alertService.js');
-const cronService = require('./services/cronService.js');
-const NotificationServer = require('./services/notificationServer.js');
-const { 
-  generalLimiter, 
-  authLimiter, 
-  profileLimiter, 
-  securityHeaders, 
-  csrfProtection,
-  sanitizeRequest, 
-  auditLogger 
-} = require('./middleware/security.js');
-const { requireBetaAccess } = require('./middleware/betaAccess.js');
+const path = require('path');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const helmet = require('helmet');
 require('dotenv').config();
 
+const DatabaseUtils = require('./db/database');
+
 const app = express();
-const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-jwt-secret';
 
-// Trust proxy for Render/Heroku (enables proper rate limiting and IP detection)
-app.set('trust proxy', 1);
-
-// Middleware - Security First!
-app.use(securityHeaders); // Security headers (CSP, HSTS, etc.)
-// app.use(csrfProtection); // CSRF protection - temporarily disabled
-// app.use(generalLimiter); // General rate limiting - temporarily disabled for debugging
-app.use(sanitizeRequest); // Request sanitization
+// Middleware
 app.use(cors({
   origin: [
     'http://localhost:5173', 
@@ -44,1142 +26,304 @@ app.use(cors({
     'http://192.168.0.44:5173', // Your network IP
     'http://192.168.0.44:5174', // Your network IP alternate port
     process.env.FRONTEND_URL, // Environment variable for production deployment
+    'https://grassroots-scout-frontend.vercel.app', // Explicit Vercel URL
     true // Allow all origins for local development
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'x-csrf-token']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Session-Id']
 }));
-app.use(express.json({ limit: '10mb' })); // Limit payload size
+app.use(express.json());
 
-// Database connection
-const db = new Database();
-
-// Routes
-const leagueRequestsRouter = require('./routes/league-requests');
-const verificationRouter = require('./routes/verification');
-const savedSearchesRouter = require('./routes/saved-searches');
-
-app.use('/api/league-requests', leagueRequestsRouter);
-app.use('/api/verification', verificationRouter);
-app.use('/api/saved-searches', savedSearchesRouter);
-
-// Initialize database tables on startup
-async function initializeServer() {
-  try {
-    console.log('🚀 Starting server initialization...');
-    console.log('📊 Database type:', db.dbType);
-    console.log('🔗 Database URL exists:', !!process.env.DATABASE_URL);
-    
-    await db.createTables();
-    console.log('✅ Database tables created successfully');
-    
-    // Test database connection
-    try {
-      const testResult = await db.query('SELECT 1 as test');
-      console.log('🧪 Database connection test successful:', testResult.rows[0]);
-    } catch (testError) {
-      console.error('❌ Database connection test failed:', testError);
-    }
-    
-    // CRITICAL: Force-check emailHash column exists (migration may not run on existing DBs)
-    try {
-      let hasEmailHash = false;
-      
-      if (db.dbType === 'postgresql') {
-        // PostgreSQL: Check information_schema
-        const checkEmailHash = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'emailhash'"
-        );
-        hasEmailHash = checkEmailHash.rows && checkEmailHash.rows.length > 0;
-      } else {
-        // SQLite: Use PRAGMA
-        const checkEmailHash = await db.query('PRAGMA table_info(users)');
-        hasEmailHash = checkEmailHash.rows.some(row => row.name === 'emailHash');
-      }
-      
-      if (!hasEmailHash) {
-        console.log('⚠️  emailHash column missing - adding now...');
-        // SQLite doesn't allow adding UNIQUE columns to existing tables - add without UNIQUE first
-        try {
-          await db.query('ALTER TABLE users ADD COLUMN emailHash VARCHAR');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            // Column already exists, continue
-          } else {
-            throw alterError;
-          }
-        }
-        // Create unique index separately
-        await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emailhash ON users(emailHash)');
-      }
-    } catch (hashError) {
-      // Ignore duplicate column errors
-      if (!hashError.message || !hashError.message.includes('duplicate column')) {
-        console.error('❌ Error checking/adding emailHash column:', hashError);
-      }
-    }
-
-    // Add betaAccess column if missing (for old production databases)
-    try {
-      let hasBetaAccess = false;
-      
-      if (db.dbType === 'postgresql') {
-        // PostgreSQL: Check information_schema (column names are lowercase)
-        const checkBetaAccess = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccess'"
-        );
-        hasBetaAccess = checkBetaAccess.rows && checkBetaAccess.rows.length > 0;
-      } else {
-        // SQLite: Use PRAGMA
-        const checkBetaAccess = await db.query('PRAGMA table_info(users)');
-        hasBetaAccess = checkBetaAccess.rows.some(row => row.name === 'betaAccess');
-      }
-      
-      if (!hasBetaAccess) {
-        console.log('⚠️  betaAccess column missing - adding now...');
-        if (db.dbType === 'postgresql') {
-          await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
-        } else {
-          await db.query('ALTER TABLE users ADD COLUMN betaAccess INTEGER DEFAULT 0');
-        }
-        // Grant beta access to existing users (grandfather them in)
-        await db.query('UPDATE users SET betaaccess = 1 WHERE id IS NOT NULL');
-      }
-    } catch (betaError) {
-      if (!betaError.message || !betaError.message.includes('duplicate column')) {
-        console.error('❌ Error checking/adding betaAccess column:', betaError);
-      }
-    }
-
-    // Add betaAccessGrantedAt column if missing
-    try {
-      let hasBetaAccessGrantedAt = false;
-      
-      if (db.dbType === 'postgresql') {
-        const checkColumn = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccessgrantedat'"
-        );
-        hasBetaAccessGrantedAt = checkColumn.rows && checkColumn.rows.length > 0;
-      } else {
-        const checkColumn = await db.query('PRAGMA table_info(users)');
-        hasBetaAccessGrantedAt = checkColumn.rows.some(row => row.name === 'betaAccessGrantedAt');
-      }
-      
-      if (!hasBetaAccessGrantedAt) {
-        console.log('⚠️  betaAccessGrantedAt column missing - adding now...');
-        await db.query('ALTER TABLE users ADD COLUMN betaAccessGrantedAt TIMESTAMP NULL');
-      }
-    } catch (grantedAtError) {
-      if (!grantedAtError.message || !grantedAtError.message.includes('duplicate column')) {
-        console.error('❌ Error checking/adding betaAccessGrantedAt column:', grantedAtError);
-      }
-    }
-
-    // Add playingTimePolicy column to team_vacancies if missing
-    try {
-      let hasPlayingTimePolicy = false;
-      
-      if (db.dbType === 'postgresql') {
-        const checkColumn = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies' AND column_name = 'playingtimepolicy'"
-        );
-        hasPlayingTimePolicy = checkColumn.rows && checkColumn.rows.length > 0;
-      } else {
-        const checkColumn = await db.query('PRAGMA table_info(team_vacancies)');
-        hasPlayingTimePolicy = checkColumn.rows.some(row => row.name === 'playingTimePolicy');
-      }
-      
-      if (!hasPlayingTimePolicy) {
-        console.log('⚠️  playingTimePolicy column missing - adding now...');
-        await db.query('ALTER TABLE team_vacancies ADD COLUMN playingTimePolicy VARCHAR(50) NULL');
-        console.log('✅ Added playingTimePolicy column to team_vacancies table');
-      } else {
-        console.log('✅ playingTimePolicy column exists');
-      }
-    } catch (policyError) {
-      if (!policyError.message || !policyError.message.includes('duplicate column')) {
-        console.error('❌ Error checking/adding playingTimePolicy column:', policyError);
-      }
-    }
-
-    // Add location columns to team_vacancies if missing
-    try {
-      let hasLocationLatitude = false;
-      let hasLocationLongitude = false;
-      let hasLocationAddress = false;
-      let hasLocationPlaceId = false;
-      
-      if (db.dbType === 'postgresql') {
-        const checkColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies' AND column_name IN ('locationlatitude', 'locationlongitude', 'locationaddress', 'locationplaceid')"
-        );
-        const existingColumns = checkColumns.rows.map(row => row.column_name);
-        hasLocationLatitude = existingColumns.includes('locationlatitude');
-        hasLocationLongitude = existingColumns.includes('locationlongitude');
-        hasLocationAddress = existingColumns.includes('locationaddress');
-        hasLocationPlaceId = existingColumns.includes('locationplaceid');
-      } else {
-        const checkColumns = await db.query('PRAGMA table_info(team_vacancies)');
-        const existingColumns = checkColumns.rows.map(row => row.name);
-        hasLocationLatitude = existingColumns.includes('locationLatitude');
-        hasLocationLongitude = existingColumns.includes('locationLongitude');
-        hasLocationAddress = existingColumns.includes('locationAddress');
-        hasLocationPlaceId = existingColumns.includes('locationPlaceId');
-      }
-      
-      if (!hasLocationLatitude) {
-        console.log('⚠️  locationLatitude column missing - adding now...');
-        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationLatitude REAL NULL');
-        console.log('✅ Added locationLatitude column to team_vacancies table');
-      }
-      
-      if (!hasLocationLongitude) {
-        console.log('⚠️  locationLongitude column missing - adding now...');
-        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationLongitude REAL NULL');
-        console.log('✅ Added locationLongitude column to team_vacancies table');
-      }
-      
-      if (!hasLocationAddress) {
-        console.log('⚠️  locationAddress column missing - adding now...');
-        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationAddress VARCHAR(255) NULL');
-        console.log('✅ Added locationAddress column to team_vacancies table');
-      }
-      
-      if (!hasLocationPlaceId) {
-        console.log('⚠️  locationPlaceId column missing - adding now...');
-        await db.query('ALTER TABLE team_vacancies ADD COLUMN locationPlaceId VARCHAR(255) NULL');
-        console.log('✅ Added locationPlaceId column to team_vacancies table');
-      }
-      
-      if (hasLocationLatitude && hasLocationLongitude && hasLocationAddress && hasLocationPlaceId) {
-        console.log('✅ All location columns exist in team_vacancies table');
-      }
-    } catch (locationError) {
-      if (!locationError.message || !locationError.message.includes('duplicate column')) {
-        console.error('❌ Error checking/adding location columns:', locationError);
-      }
-    }
-
-    // Add missing user_profiles columns (for old production databases)
-    try {
-      let existingColumns;
-      if (db.dbType === 'postgresql') {
-        const profileColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'user_profiles'"
-        );
-        existingColumns = new Set(profileColumns.rows.map(row => row.column_name));
-      } else {
-        const profileColumns = await db.query('PRAGMA table_info(user_profiles)');
-        existingColumns = new Set(profileColumns.rows.map(row => row.name));
-      }
-      
-      const requiredColumns = [
-        { name: 'preferredTeamGender', pgName: 'preferredteamgender', type: "VARCHAR DEFAULT 'Mixed'" },
-        { name: 'preferredFoot', pgName: 'preferredfoot', type: 'VARCHAR' },
-        { name: 'height', pgName: 'height', type: 'INTEGER' },
-        { name: 'weight', pgName: 'weight', type: 'INTEGER' },
-        { name: 'experienceLevel', pgName: 'experiencelevel', type: 'VARCHAR' },
-        { name: 'coachingLicense', pgName: 'coachinglicense', type: 'VARCHAR' },
-        { name: 'yearsExperience', pgName: 'yearsexperience', type: 'INTEGER' },
-        { name: 'specializations', pgName: 'specializations', type: 'VARCHAR' },
-        { name: 'trainingLocation', pgName: 'traininglocation', type: 'VARCHAR' },
-        { name: 'matchLocation', pgName: 'matchlocation', type: 'VARCHAR' },
-        { name: 'trainingDays', pgName: 'trainingdays', type: 'VARCHAR' },
-        { name: 'ageGroupsCoached', pgName: 'agegroupscoached', type: 'VARCHAR' },
-        { name: 'emergencyContact', pgName: 'emergencycontact', type: 'VARCHAR' },
-        { name: 'emergencyPhone', pgName: 'emergencyphone', type: 'VARCHAR' },
-        { name: 'medicalInfo', pgName: 'medicalinfo', type: 'VARCHAR' },
-        { name: 'profilePicture', pgName: 'profilepicture', type: 'VARCHAR' },
-        { name: 'isProfileComplete', pgName: 'isprofilecomplete', type: 'BOOLEAN DEFAULT FALSE' },
-        { name: 'lastUpdated', pgName: 'lastupdated', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
-      ];
-      
-      let addedColumns = [];
-      for (const column of requiredColumns) {
-        const checkName = db.dbType === 'postgresql' ? column.pgName : column.name;
-        if (!existingColumns.has(checkName)) {
-          try {
-            await db.query(`ALTER TABLE user_profiles ADD COLUMN ${column.name} ${column.type}`);
-            addedColumns.push(column.name);
-          } catch (alterError) {
-            if (!alterError.message || !alterError.message.includes('duplicate column')) {
-              console.error(`❌ Error adding ${column.name}:`, alterError.message);
-            }
-          }
-        }
-      }
-      
-      if (addedColumns.length > 0) {
-        console.log(`✅ Added missing user_profiles columns: ${addedColumns.join(', ')}`);
-      } else {
-        console.log('✅ All user_profiles columns exist');
-      }
-    } catch (profileError) {
-      console.error('❌ Error checking user_profiles schema:', profileError);
-    }
-
-    // Seed leagues table if empty (critical for production deployments)
-    try {
-      console.log('🔍 Checking leagues table...');
-      
-      // First, ensure the region, ageGroups, url, and hits columns exist (added later in schema evolution)
-      let hasRegionColumn = false;
-      let hasAgeGroupsColumn = false;
-      let hasUrlColumn = false;
-      let hasHitsColumn = false;
-      if (db.dbType === 'postgresql') {
-        const checkColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues' AND column_name IN ('region', 'agegroups', 'url', 'hits')"
-        );
-        const existingColumns = checkColumns.rows.map(row => row.column_name);
-        hasRegionColumn = existingColumns.includes('region');
-        hasAgeGroupsColumn = existingColumns.includes('agegroups');
-        hasUrlColumn = existingColumns.includes('url');
-        hasHitsColumn = existingColumns.includes('hits');
-      } else {
-        const checkColumns = await db.query('PRAGMA table_info(leagues)');
-        const existingColumns = checkColumns.rows.map(row => row.name);
-        hasRegionColumn = existingColumns.includes('region');
-        hasAgeGroupsColumn = existingColumns.includes('ageGroups');
-        hasUrlColumn = existingColumns.includes('url');
-        hasHitsColumn = existingColumns.includes('hits');
-      }
-      
-      if (!hasRegionColumn) {
-        console.log('⚠️  region column missing from leagues table - adding now...');
-        try {
-          await db.query('ALTER TABLE leagues ADD COLUMN region VARCHAR');
-          console.log('✅ Added region column to leagues table');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ region column already exists (duplicate error ignored)');
-          } else {
-            throw alterError;
-          }
-        }
-      } else {
-        console.log('✅ region column exists in leagues table');
-      }
-      
-      if (!hasAgeGroupsColumn) {
-        console.log('⚠️  ageGroups column missing from leagues table - adding now...');
-        try {
-          await db.query('ALTER TABLE leagues ADD COLUMN ageGroups JSON');
-          console.log('✅ Added ageGroups column to leagues table');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ ageGroups column already exists (duplicate error ignored)');
-          } else {
-            throw alterError;
-          }
-        }
-      } else {
-        console.log('✅ ageGroups column exists in leagues table');
-      }
-      
-      if (!hasUrlColumn) {
-        console.log('⚠️  url column missing from leagues table - adding now...');
-        try {
-          await db.query('ALTER TABLE leagues ADD COLUMN url VARCHAR');
-          console.log('✅ Added url column to leagues table');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ url column already exists (duplicate error ignored)');
-          } else {
-            throw alterError;
-          }
-        }
-      } else {
-        console.log('✅ url column exists in leagues table');
-      }
-      
-      if (!hasHitsColumn) {
-        console.log('⚠️  hits column missing from leagues table - adding now...');
-        try {
-          await db.query('ALTER TABLE leagues ADD COLUMN hits INTEGER DEFAULT 0');
-          console.log('✅ Added hits column to leagues table');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ hits column already exists (duplicate error ignored)');
-          } else {
-            throw alterError;
-          }
-        }
-      } else {
-        console.log('✅ hits column exists in leagues table');
-      }
-      
-      const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
-      const count = leagueCount.rows[0].count;
-
-      if (false && count === 0) {
-        console.log('⚠️  Leagues table is empty - seeding with FA leagues data...');
-
-        // Read the SQL file and execute it
-        const fs = require('fs');
-        const path = require('path');
-        const sqlFilePath = path.join(__dirname, 'add-fa-leagues.sql');
-
-        if (fs.existsSync(sqlFilePath)) {
-          const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
-          const statements = sqlContent.split(';').filter(stmt => stmt.trim().length > 0);
-
-          console.log(`📄 Found ${statements.length} SQL statements to execute`);
-
-          let insertedCount = 0;
-          for (let i = 0; i < statements.length; i++) {
-            let statement = statements[i].trim();
-            if (statement) {
-              // Convert SQLite syntax to PostgreSQL if needed
-              if (db.dbType === 'postgresql') {
-                statement = statement.replace(/INSERT OR IGNORE/gi, 'INSERT');
-                // Add ON CONFLICT DO NOTHING for PostgreSQL
-                if (statement.toUpperCase().startsWith('INSERT')) {
-                  statement += ' ON CONFLICT DO NOTHING';
-                }
-              }
-              try {
-                await db.query(statement);
-                insertedCount++;
-              } catch (stmtError) {
-                console.warn(`⚠️  Failed to execute statement ${i + 1}:`, stmtError.message);
-                // Continue with other statements
-              }
-            }
-          }
-
-          console.log(`✅ Successfully inserted ${insertedCount} leagues into database`);
-        } else {
-          console.error('❌ add-fa-leagues.sql file not found at:', sqlFilePath);
-        }
-      } else {
-        console.log(`✅ Leagues table already has ${count} entries`);
-      }
-    } catch (leagueError) {
-      console.error('❌ Error checking/seeding leagues table:', leagueError);
-    }
-
-    // Check league_requests table schema (ensure ageGroups column exists)
-    try {
-      console.log('🔍 Checking league_requests table schema...');
-      
-      let hasAgeGroupsColumn = false;
-      let hasContactColumns = false;
-      
-      if (db.dbType === 'postgresql') {
-        const checkColumns = await db.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests' AND column_name IN ('agegroups', 'contactname', 'contactemail', 'contactphone')"
-        );
-        const existingColumns = checkColumns.rows.map(row => row.column_name);
-        hasAgeGroupsColumn = existingColumns.includes('agegroups');
-        hasContactColumns = existingColumns.includes('contactname') && existingColumns.includes('contactemail') && existingColumns.includes('contactphone');
-      } else {
-        const checkColumns = await db.query('PRAGMA table_info(league_requests)');
-        const existingColumns = checkColumns.rows.map(row => row.name);
-        hasAgeGroupsColumn = existingColumns.includes('ageGroups');
-        hasContactColumns = existingColumns.includes('contactName') && existingColumns.includes('contactEmail') && existingColumns.includes('contactPhone');
-      }
-      
-      if (!hasAgeGroupsColumn) {
-        console.log('⚠️  ageGroups column missing from league_requests table - adding now...');
-        try {
-          await db.query('ALTER TABLE league_requests ADD COLUMN ageGroups JSON');
-          console.log('✅ Added ageGroups column to league_requests table');
-        } catch (alterError) {
-          if (alterError.message && alterError.message.includes('duplicate column')) {
-            console.log('✅ ageGroups column already exists (duplicate error ignored)');
-          } else {
-            throw alterError;
-          }
-        }
-      } else {
-        console.log('✅ ageGroups column exists in league_requests table');
-      }
-      
-      if (!hasContactColumns) {
-        console.log('⚠️  Contact columns missing from league_requests table - adding now...');
-        const contactColumns = [
-          'contactName VARCHAR',
-          'contactEmail VARCHAR', 
-          'contactPhone VARCHAR'
-        ];
-        
-        for (const columnDef of contactColumns) {
-          try {
-            await db.query(`ALTER TABLE league_requests ADD COLUMN ${columnDef}`);
-            console.log(`✅ Added ${columnDef.split(' ')[0]} column to league_requests table`);
-          } catch (alterError) {
-            if (alterError.message && alterError.message.includes('duplicate column')) {
-              console.log(`✅ ${columnDef.split(' ')[0]} column already exists (duplicate error ignored)`);
-            } else {
-              console.error(`❌ Error adding ${columnDef.split(' ')[0]}:`, alterError.message);
-            }
-          }
-        }
-      } else {
-        console.log('✅ Contact columns exist in league_requests table');
-      }
-      
-    } catch (requestsError) {
-      console.error('❌ Error checking league_requests table schema:', requestsError);
-    }
-
-    // Auto-create admin account on production if none exists
-    try {
-      console.log('[ADMIN DEBUG] Checking for admin account...');
-      const adminEmail = 'cgill1980@hotmail.com';
-      const emailHash = crypto.createHash('sha256').update(adminEmail.toLowerCase()).digest('hex');
-
-      // Check if admin account exists
-      const existingAdminCheck = await db.query("SELECT id, email, role FROM users WHERE email = ? OR role = 'Admin' OR emailHash = ?", [adminEmail, emailHash]);
-      console.log('[ADMIN DEBUG] Admin query result:', existingAdminCheck.rows);
-      console.log('[ADMIN DEBUG] Admin query row count:', existingAdminCheck.rows ? existingAdminCheck.rows.length : 0);
-
-      if (existingAdminCheck.rows && existingAdminCheck.rows.length > 0) {
-        console.log('[ADMIN DEBUG] Admin account exists');
-      } else {
-        console.log('[ADMIN DEBUG] No admin account found - creating default admin...');
-        const tempPassword = 'GrassrootsAdmin2026!'; // Temporary - user must change on first login
-        const hashedPassword = await bcrypt.hash(tempPassword, 12);
-        const encryptedEmail = encryptionService.encrypt(adminEmail);
-
-        console.log('[ADMIN DEBUG] Password hashed, emailHash created:', emailHash.substring(0, 10) + '...');
-        console.log('[ADMIN DEBUG] Encrypted email length:', encryptedEmail ? encryptedEmail.length : 'NULL');
-
-        // Try with minimal columns first (guaranteed to exist)
-        try {
-          const insertResult = await db.query(
-            `INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified)
-             VALUES (?, ?, ?, ?, ?, 'Admin', TRUE)`,
-            [encryptedEmail, emailHash, hashedPassword, 'Chris', 'Gill']
-          );
-          console.log('[ADMIN DEBUG] Admin account created successfully:', insertResult);
-        } catch (insertError) {
-          console.error('[ADMIN DEBUG] Failed to create admin with minimal columns:', insertError.message);
-          // Try with plaintext email as fallback
-          try {
-            const fallbackResult = await db.query(
-              `INSERT INTO users (email, password, firstName, lastName, role)
-               VALUES (?, ?, ?, ?, 'Admin')`,
-              [adminEmail, hashedPassword, 'Chris', 'Gill']
-            );
-            console.log('[ADMIN DEBUG] Admin account created (fallback mode):', fallbackResult);
-          } catch (fallbackError) {
-            console.error('[ADMIN DEBUG] Fallback admin creation also failed:', fallbackError.message);
-          }
-        }
-        console.log('[ADMIN DEBUG] CHANGE PASSWORD IMMEDIATELY AFTER FIRST LOGIN');
-      }
-    } catch (adminError) {
-      console.error('[ADMIN DEBUG] Error checking/creating admin account:', adminError);
-    }
-
-    // Ensure forum tables exist (for production databases that may not have run migrations)
-    try {
-      console.log('🔄 Checking forum tables...');
-
-      // Forum posts table
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS forum_posts (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL,
-          user_role VARCHAR NOT NULL,
-          author_name VARCHAR NOT NULL,
-          title VARCHAR NOT NULL,
-          content TEXT NOT NULL,
-          category VARCHAR DEFAULT 'General Discussions',
-          is_locked BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          is_deleted BOOLEAN DEFAULT FALSE,
-          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-        )
-      `);
-      console.log('✅ forum_posts table ready');
-
-      // Forum replies table
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS forum_replies (
-          id SERIAL PRIMARY KEY,
-          post_id INTEGER NOT NULL,
-          parent_reply_id INTEGER,
-          user_id INTEGER NOT NULL,
-          user_role VARCHAR NOT NULL,
-          author_name VARCHAR NOT NULL,
-          content TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          is_deleted BOOLEAN DEFAULT FALSE,
-          FOREIGN KEY (post_id) REFERENCES forum_posts (id) ON DELETE CASCADE,
-          FOREIGN KEY (parent_reply_id) REFERENCES forum_replies (id) ON DELETE CASCADE,
-          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-        )
-      `);
-      console.log('✅ forum_replies table ready');
-
-      // Content flags table
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS content_flags (
-          id SERIAL PRIMARY KEY,
-          content_type VARCHAR NOT NULL,
-          content_id INTEGER NOT NULL,
-          flagged_by_user_id INTEGER NOT NULL,
-          flagged_by_name VARCHAR NOT NULL,
-          reason TEXT,
-          status VARCHAR DEFAULT 'pending',
-          reviewed_by_user_id INTEGER,
-          reviewed_at TIMESTAMP,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      console.log('✅ content_flags table ready');
-
-      // Fix any posts with null IDs (migration for existing corrupted data)
-      try {
-        console.log('🔧 Checking for posts with null IDs...');
-
-        // First, check if the table has the correct primary key
-        if (db.dbType === 'postgresql') {
-          const pkCheck = await db.query(`
-            SELECT conname, conkey
-            FROM pg_constraint
-            WHERE conrelid = 'forum_posts'::regclass
-            AND contype = 'p'
-          `);
-
-          if (pkCheck.rows.length === 0) {
-            console.log('⚠️  forum_posts table missing primary key - recreating table...');
-
-            // Backup existing data
-            const backupData = await db.query('SELECT * FROM forum_posts');
-            console.log(`📦 Backed up ${backupData.rows.length} posts`);
-
-            // Drop and recreate table
-            await db.query('DROP TABLE IF EXISTS forum_posts CASCADE');
-            await db.query(`
-              CREATE TABLE forum_posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                user_role VARCHAR NOT NULL,
-                author_name VARCHAR NOT NULL,
-                title VARCHAR NOT NULL,
-                content TEXT NOT NULL,
-                category VARCHAR DEFAULT 'General Discussions',
-                is_locked BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_deleted BOOLEAN DEFAULT FALSE,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-              )
-            `);
-
-            // Restore data (without IDs to let SERIAL assign them)
-            if (backupData.rows.length > 0) {
-              for (const post of backupData.rows) {
-                try {
-                  await db.query(`
-                    INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category, is_locked, created_at, updated_at, is_deleted)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                  `, [post.user_id, post.user_role, post.author_name, post.title, post.content, post.category, post.is_locked, post.created_at, post.updated_at, post.is_deleted]);
-                } catch (restoreError) {
-                  console.warn('⚠️  Failed to restore post:', post.title, restoreError.message);
-                }
-              }
-              console.log('✅ Restored forum posts with proper IDs');
-            }
-          }
-        }
-
-        try {
-          const nullIdPosts = await db.query('SELECT COUNT(*) as count FROM forum_posts WHERE id IS NULL');
-          const nullCount = nullIdPosts.rows[0].count;
-
-          if (nullCount > 0) {
-            console.log(`⚠️  Found ${nullCount} posts with null IDs - deleting corrupted data`);
-
-            // Delete posts with null IDs as they're corrupted
-            await db.query('DELETE FROM forum_posts WHERE id IS NULL');
-            console.log('✅ Deleted posts with null IDs');
-          }
-        } catch (fixError) {
-          console.warn('⚠️  Could not check/fix null ID posts:', fixError.message);
-        }
-
-    } catch (forumError) {
-      console.error('❌ Error creating forum tables:', forumError);
-    }
-
-    // Ensure engagement tracking tables exist (for production databases that may not have run migrations)
-    try {
-      console.log('🔄 Checking engagement tracking tables...');
-
-      // User interactions table for recommendations
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS user_interactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          userId INTEGER NOT NULL,
-          actionType VARCHAR(50) NOT NULL,
-          targetId INTEGER,
-          targetType VARCHAR(50),
-          metadata TEXT,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-      `);
-      console.log('✅ user_interactions table ready');
-
-      // User engagement metrics table
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS user_engagement_metrics (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          userId INTEGER NOT NULL,
-          sessionId VARCHAR(255),
-          pageViews INTEGER DEFAULT 0,
-          timeSpent INTEGER DEFAULT 0,
-          actionsCompleted INTEGER DEFAULT 0,
-          date DATE NOT NULL,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
-          UNIQUE(userId, date)
-        )
-      `);
-      console.log('✅ user_engagement_metrics table ready');
-
-      // Messages table for messaging system
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          senderId INTEGER NOT NULL,
-          recipientId INTEGER NOT NULL,
-          subject VARCHAR(200) NOT NULL,
-          message TEXT NOT NULL,
-          messageType VARCHAR(50) DEFAULT 'general',
-          relatedVacancyId INTEGER,
-          relatedPlayerAvailabilityId INTEGER,
-          isRead BOOLEAN DEFAULT FALSE,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (senderId) REFERENCES users(id) ON DELETE CASCADE,
-          FOREIGN KEY (recipientId) REFERENCES users(id) ON DELETE CASCADE,
-          FOREIGN KEY (relatedVacancyId) REFERENCES team_vacancies(id) ON DELETE SET NULL,
-          FOREIGN KEY (relatedPlayerAvailabilityId) REFERENCES player_availability(id) ON DELETE SET NULL
-        )
-      `);
-      console.log('✅ messages table ready');
-
-      // Match completions table for tracking player-team matches
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS match_completions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          vacancyId INTEGER,
-          availabilityId INTEGER,
-          coachId INTEGER NOT NULL,
-          playerId INTEGER NOT NULL,
-          parentId INTEGER,
-          matchType VARCHAR(50) DEFAULT 'player_to_team',
-          playerName VARCHAR(100),
-          teamName VARCHAR(100),
-          position VARCHAR(50),
-          ageGroup VARCHAR(50),
-          league VARCHAR(100),
-          completionStatus VARCHAR(50) DEFAULT 'pending',
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (vacancyId) REFERENCES team_vacancies(id) ON DELETE SET NULL,
-          FOREIGN KEY (availabilityId) REFERENCES player_availability(id) ON DELETE SET NULL,
-          FOREIGN KEY (coachId) REFERENCES users(id) ON DELETE CASCADE,
-          FOREIGN KEY (playerId) REFERENCES users(id) ON DELETE CASCADE,
-          FOREIGN KEY (parentId) REFERENCES users(id) ON DELETE SET NULL
-        )
-      `);
-      console.log('✅ match_completions table ready');
-
-      // Player availability table for player postings
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS player_availability (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          title VARCHAR(200) NOT NULL,
-          description TEXT,
-          preferredLeagues VARCHAR(100),
-          ageGroup VARCHAR(50),
-          positions TEXT,
-          location VARCHAR(100),
-          contactInfo TEXT,
-          postedBy INTEGER NOT NULL,
-          locationAddress VARCHAR(255),
-          locationLatitude REAL,
-          locationLongitude REAL,
-          locationPlaceId VARCHAR(255),
-          status VARCHAR(50) DEFAULT 'active',
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (postedBy) REFERENCES users(id) ON DELETE CASCADE
-        )
-      `);
-      console.log('✅ player_availability table ready');
-
-      // Team vacancies table for team postings
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS team_vacancies (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          title VARCHAR(200) NOT NULL,
-          description TEXT,
-          league VARCHAR(100),
-          ageGroup VARCHAR(50),
-          position VARCHAR(50),
-          location VARCHAR(100),
-          contactInfo TEXT,
-          postedBy INTEGER NOT NULL,
-          teamId INTEGER,
-          locationAddress VARCHAR(255),
-          locationLatitude REAL,
-          locationLongitude REAL,
-          locationPlaceId VARCHAR(255),
-          hasMatchRecording BOOLEAN DEFAULT FALSE,
-          hasPathwayToSenior BOOLEAN DEFAULT FALSE,
-          playingTimePolicy VARCHAR(50),
-          status VARCHAR(50) DEFAULT 'active',
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (postedBy) REFERENCES users(id) ON DELETE CASCADE,
-          FOREIGN KEY (teamId) REFERENCES teams(id) ON DELETE SET NULL
-        )
-      `);
-      console.log('✅ team_vacancies table ready');
-
-      // Add location columns to player_availability if missing
-      try {
-        let hasLocationLatitude = false;
-        let hasLocationLongitude = false;
-        let hasLocationAddress = false;
-        let hasLocationPlaceId = false;
-        
-        if (db.dbType === 'postgresql') {
-          const checkColumns = await db.query(
-            "SELECT column_name FROM information_schema.columns WHERE table_name = 'player_availability' AND column_name IN ('locationlatitude', 'locationlongitude', 'locationaddress', 'locationplaceid')"
-          );
-          const existingColumns = checkColumns.rows.map(row => row.column_name);
-          hasLocationLatitude = existingColumns.includes('locationlatitude');
-          hasLocationLongitude = existingColumns.includes('locationlongitude');
-          hasLocationAddress = existingColumns.includes('locationaddress');
-          hasLocationPlaceId = existingColumns.includes('locationplaceid');
-        } else {
-          const checkColumns = await db.query('PRAGMA table_info(player_availability)');
-          const existingColumns = checkColumns.rows.map(row => row.name);
-          hasLocationLatitude = existingColumns.includes('locationLatitude');
-          hasLocationLongitude = existingColumns.includes('locationLongitude');
-          hasLocationAddress = existingColumns.includes('locationAddress');
-          hasLocationPlaceId = existingColumns.includes('locationPlaceId');
-        }
-        
-        if (!hasLocationLatitude) {
-          console.log('⚠️  locationLatitude column missing from player_availability - adding now...');
-          await db.query('ALTER TABLE player_availability ADD COLUMN locationLatitude REAL NULL');
-          console.log('✅ Added locationLatitude column to player_availability table');
-        }
-        
-        if (!hasLocationLongitude) {
-          console.log('⚠️  locationLongitude column missing from player_availability - adding now...');
-          await db.query('ALTER TABLE player_availability ADD COLUMN locationLongitude REAL NULL');
-          console.log('✅ Added locationLongitude column to player_availability table');
-        }
-        
-        if (!hasLocationAddress) {
-          console.log('⚠️  locationAddress column missing from player_availability - adding now...');
-          await db.query('ALTER TABLE player_availability ADD COLUMN locationAddress VARCHAR(255) NULL');
-          console.log('✅ Added locationAddress column to player_availability table');
-        }
-        
-        if (!hasLocationPlaceId) {
-          console.log('⚠️  locationPlaceId column missing from player_availability - adding now...');
-          await db.query('ALTER TABLE player_availability ADD COLUMN locationPlaceId VARCHAR(255) NULL');
-          console.log('✅ Added locationPlaceId column to player_availability table');
-        }
-        
-        if (hasLocationLatitude && hasLocationLongitude && hasLocationAddress && hasLocationPlaceId) {
-          console.log('✅ All location columns exist in player_availability table');
-        }
-      } catch (locationError) {
-        if (!locationError.message || !locationError.message.includes('duplicate column')) {
-          console.error('❌ Error checking/adding location columns to player_availability:', locationError);
-        }
-      }
-
-    } catch (engagementError) {
-      console.error('❌ Error creating engagement tracking tables:', engagementError);
-    }
-
-    // Check and populate FA leagues if database is empty or incomplete
-    try {
-      console.log('🔄 Checking if leagues need to be populated...');
-      console.log('🗄️  Database type:', db.dbType);
-      
-      const leagueCount = await db.query('SELECT COUNT(*) as count FROM leagues');
-      const count = leagueCount.rows[0].count;
-      
-      // Check if we have the Tamworth league specifically (our test case)
-      const tamworthCheck = await db.query('SELECT COUNT(*) as count FROM leagues WHERE name LIKE ?', ['%Tamworth%']);
-      const tamworthCount = tamworthCheck.rows[0].count;
-      
-      console.log(`📊 Current league count: ${count}, Tamworth leagues: ${tamworthCount}`);
-      
-      // Populate if: no leagues at all, or missing Tamworth (indicating incomplete data)
-      // DISABLED: Starting fresh with request-based league system
-      if (false && (count === 0 || tamworthCount === 0)) {
-        console.log('⚠️  Leagues incomplete or missing, populating FA leagues...');
-        
-        // Clear existing leagues if any (to avoid duplicates)
-        if (count > 0) {
-          console.log('🧹 Clearing existing incomplete league data...');
-          await db.query('DELETE FROM leagues');
-          console.log('✅ Cleared existing leagues');
-        }
-        
-        const faLeagues = [
-          { name: 'Central Warwickshire Youth Football League', region: 'Midlands', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 163137 },
-          { name: 'Northumberland Football League', region: 'North East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=136980506', hits: 154583 },
-          { name: 'Eastern Junior Alliance', region: 'Eastern', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=257944965', hits: 150693 },
-          { name: 'Sheffield & District Junior Sunday League', region: 'Yorkshire', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=5484799', hits: 136761 },
-          { name: 'East Manchester Junior Football League ( Charter Standard League )', region: 'North West', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=8335132', hits: 124371 },
-          { name: 'Warrington Junior Football League', region: 'North West', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=70836961', hits: 118582 },
-          { name: 'Teesside Junior Football Alliance League', region: 'North East', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=8739365', hits: 116243 },
-          { name: 'Surrey Youth League (SYL)', region: 'South East', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 114583 },
-          { name: 'Midland Junior Premier League', region: 'Midlands', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 112456 },
-          { name: 'BCFA Youth League', region: 'London', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 108734 },
-          { name: 'Norfolk Combined Youth Football League', region: 'Eastern', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 106823 },
-          { name: 'Stourbridge & District Youth Football League Sponsored by EURO GARAGES', region: 'West Midlands', ageGroup: 'Youth', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 104567 },
-          { name: 'HUDDERSFIELD FOX ENGRAVERS JUNIOR FOOTBALL LEAGUE', region: 'Yorkshire', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 102345 },
-          { name: 'Birmingham County FA Girls Football League', region: 'West Midlands', ageGroup: 'Women/Girls', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 99876 },
-          { name: 'Hampshire Combination & Development Football League', region: 'South East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 97654 },
-          { name: 'West Riding County Amateur Football League', region: 'Yorkshire', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 95432 },
-          { name: 'Mid Sussex Football League', region: 'South East', ageGroup: 'All Ages', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 93210 },
-          { name: 'North Riding Football League', region: 'North East', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 91876 },
-          { name: 'Peterborough & District Football League', region: 'East Midlands', ageGroup: 'All Ages', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 89543 },
-          { name: 'Somerset County League', region: 'South West', ageGroup: 'Senior', url: 'https://fulltime.thefa.com/index.html?league=4385806', hits: 87321 },
-          { name: 'Tamworth Junior Football League', region: 'Midlands', ageGroup: 'Junior', url: 'https://fulltime.thefa.com/index.html?league=tamworth', hits: 25000, description: 'Junior football league serving Tamworth and surrounding areas' }
-        ];
-        
-        console.log(`📝 Preparing to insert ${faLeagues.length} FA leagues...`);
-        
-        // Verify table exists
-        try {
-          await db.query('SELECT COUNT(*) FROM leagues');
-          console.log('✅ Leagues table exists and is accessible');
-        } catch (tableError) {
-          console.error('❌ Leagues table error:', tableError);
-          throw tableError;
-        }
-        
-        for (const league of faLeagues) {
-          try {
-            // Use INSERT OR IGNORE for SQLite, INSERT ... ON CONFLICT DO NOTHING for PostgreSQL
-            let insertSql, insertParams;
-            
-            if (db.dbType === 'postgresql') {
-              insertSql = `INSERT INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) 
-                          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
-                          ON CONFLICT (name) DO NOTHING`;
-              insertParams = [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1];
-            } else {
-              insertSql = `INSERT OR IGNORE INTO leagues (name, region, ageGroup, country, url, hits, description, isActive, createdBy) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-              insertParams = [league.name, league.region, league.ageGroup, 'England', league.url, league.hits, league.description || '', 1, 1];
-            }
-            
-            const result = await db.query(insertSql, insertParams);
-            
-            if (db.dbType === 'postgresql') {
-              if (result.rowCount > 0) {
-                console.log(`✅ Inserted league: ${league.name}`);
-              } else {
-                console.log(`⚠️  Skipped duplicate league: ${league.name}`);
-              }
-            } else {
-              console.log(`✅ Inserted league: ${league.name}`);
-            }
-          } catch (insertError) {
-            console.error(`❌ Failed to insert league ${league.name}:`, insertError);
-            // Continue with other leagues
-          }
-        }
-        
-        console.log(`✅ Populated database with ${faLeagues.length} FA leagues`);
-        console.log('🎯 Key leagues added:');
-        console.log('  - Tamworth Junior Football League');
-        console.log('  - Central Warwickshire Youth Football League');
-        console.log('  - Northumberland Football League');
-      } else {
-        console.log(`✅ Leagues already complete (${count} leagues found, including Tamworth)`);
-      }
-      
-    } catch (populateError) {
-      console.error('❌ CRITICAL: League population failed:', populateError.message);
-      console.error('❌ Full error:', populateError);
-      // Don't throw - allow server to start even if league population fails
-      console.warn('⚠️  Server will continue without league data');
-    }
-    
-    // Initialize and start cron jobs with shared database instance
-    cronService.db = db;
-    // Initialize cron jobs (temporarily disabled for debugging)
-    // cronService.init();
-    // cronService.start();
-    
-    // Test email service connection (disabled - SMTP blocked on Render)
-    // await emailService.testConnection();
-    
-    // Start the server only after database is fully initialized
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on all interfaces at port ${PORT}`);
-      console.log(`📱 Local access: http://localhost:${PORT}`);
-      console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
-      console.log('🔧 Server listen callback executed successfully');
-    });
-
-    // Add error handler for server
-    server.on('error', (error) => {
-      console.error('❌ Server error:', error);
-    });
-
-    server.on('listening', () => {
-      console.log('✅ Server is now listening for connections');
-    });
-
-    // Initialize WebSocket notification server (temporarily disabled for debugging)
-    // console.log('🔧 Initializing notification server...');
-    // const notificationServer = new NotificationServer(server, JWT_SECRET);
-    // console.log('✅ Notification server initialized');
-
-    // Make notification server available globally
-    // app.locals.notificationServer = notificationServer;
-    console.log('🚀 Server fully initialized and ready to accept connections');
-
-    // Graceful shutdown - don't close singleton database, just exit cleanly
-    process.on('SIGINT', () => {
-      console.log('Shutting down gracefully...');
-      process.exit(0);
-    });
-
-    process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
-      console.error('Stack trace:', error.stack);
-      process.exit(1);
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-      process.exit(1);
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to initialize database:', error);
-    console.error('Stack trace:', error.stack);
-    console.warn('⚠️  Continuing with server startup despite database initialization failure');
-    console.warn('⚠️  Some features may not work correctly');
-    
-    // Start server anyway with limited functionality
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on all interfaces at port ${PORT} (with limited functionality)`);
-      console.log(`📱 Local access: http://localhost:${PORT}`);
-      console.log(`🌐 Network access: http://192.168.0.44:${PORT}`);
-    });
-
-    // Initialize WebSocket notification server (may fail)
-    try {
-      console.log('🔧 Initializing notification server...');
-      const notificationServer = new NotificationServer(server, JWT_SECRET);
-      console.log('✅ Notification server initialized');
-      app.locals.notificationServer = notificationServer;
-    } catch (wsError) {
-      console.warn('⚠️  WebSocket server initialization failed:', wsError.message);
-    }
-
-    console.log('🚀 Server started with limited functionality due to database issues');
-
-    // Graceful shutdown
-    process.on('SIGINT', () => {
-      console.log('Shutting down gracefully...');
-      process.exit(0);
-    });
-
-    return; // Exit the function without starting cron jobs
-  }
-
-// Start the server
-initializeServer().catch(error => {
-  console.error('❌ Failed to initialize server:', error);
-  process.exit(1);
-});
+// Security headers with CSP
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://maps.googleapis.com", "https://*.googleapis.com"],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // Analytics middleware to track page views
 const trackPageView = async (req, res, next) => {
-  if (req.user && req.method === 'GET') {
-    const sessionId = req.headers['x-session-id'] || `session_${Date.now()}_${Math.random()}`;
+  try {
+    // Generate session ID if not exists
+    let sessionId = req.headers['x-session-id'];
+    if (!sessionId) {
+      sessionId = require('crypto').randomBytes(32).toString('hex');
+      res.setHeader('X-Session-ID', sessionId);
+    }
+
+    // Only track frontend page requests (not API calls)
+    if (!req.path.startsWith('/api/')) {
+      const pageViewData = {
+        sessionId,
+        userId: req.user?.id || null,
+        page: req.path,
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip || req.connection.remoteAddress,
+        referrer: req.headers['referer'] || null
+      };
+
+      // Track page view asynchronously
+      setImmediate(async () => {
+        try {
+          await db.query(
+            `INSERT INTO page_views (sessionId, userId, page, userAgent, ipAddress, referrer) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [pageViewData.sessionId, pageViewData.userId, pageViewData.page, 
+             pageViewData.userAgent, pageViewData.ipAddress, pageViewData.referrer]
+          );
+
+          // Update or create user session
+          await db.query(
+            `INSERT OR REPLACE INTO user_sessions (sessionId, userId, ipAddress, userAgent, lastActivity) 
+             VALUES (?, ?, ?, ?, datetime('now'))`,
+            [pageViewData.sessionId, pageViewData.userId, pageViewData.ipAddress, pageViewData.userAgent]
+          );
+        } catch (error) {
+          console.error('Error tracking page view:', error);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Analytics middleware error:', error);
+  }
+  next();
+};
+
+app.use(trackPageView);
+
+// Initialize database
+const db = new DatabaseUtils();
+
+// Email transporter setup (configure with your email service)
+const emailTransporter = nodemailer.createTransport({
+  service: 'gmail', // Change to your email service
+  auth: {
+    user: process.env.EMAIL_USER || 'your-email@gmail.com',
+    pass: process.env.EMAIL_PASS || 'your-app-password'
+  }
+});
+
+// Helper function to calculate age from date of birth
+const calculateAge = (dateOfBirth) => {
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
+
+// Helper function to send verification email
+const sendVerificationEmail = async (email, firstName, verificationToken) => {
+  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${verificationToken}`;
+  
+  const mailOptions = {
+    from: process.env.EMAIL_USER || 'your-email@gmail.com',
+    to: email,
+    subject: 'Verify Your Email - The Grassroots Hub',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2E7D32;">Welcome to The Grassroots Hub, ${firstName}!</h2>
+        <p>Thank you for registering with us. To complete your registration and secure your account, please verify your email address by clicking the button below:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationUrl}" 
+             style="background-color: #2E7D32; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            Verify Email Address
+          </a>
+        </div>
+        
+        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
+        
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          This verification link will expire in 24 hours. If you didn't create an account with us, please ignore this email.
+        </p>
+        
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+        <p style="font-size: 12px; color: #999; text-align: center;">
+          The Grassroots Hub - Connecting Football Players with Teams
+        </p>
+      </div>
+    `
+  };
+
+  try {
+    await emailTransporter.sendMail(mailOptions);
+    console.log(`Verification email sent to ${email}`);
+  } catch (error) {
+    console.error('Error sending verification email:', error);
+    throw error;
+  }
+};
+
+// Helper function to send password reset email
+const sendPasswordResetEmail = async (email, firstName, resetToken) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+  
+  const mailOptions = {
+    from: process.env.EMAIL_USER || 'your-email@gmail.com',
+    to: email,
+    subject: 'Reset Your Password - The Grassroots Hub',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2E7D32;">Password Reset Request</h2>
+        <p>Hello ${firstName},</p>
+        <p>We received a request to reset your password for your The Grassroots Hub account. If you made this request, please click the button below to reset your password:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}" 
+             style="background-color: #2E7D32; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            Reset Password
+          </a>
+        </div>
+        
+        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #666;">${resetUrl}</p>
+        
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          This password reset link will expire in 1 hour. If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+        </p>
+        
+        <p style="margin-top: 20px; font-size: 14px; color: #666;">
+          For security reasons, we recommend that you:
+        </p>
+        <ul style="font-size: 14px; color: #666;">
+          <li>Use a strong, unique password</li>
+          <li>Don't share your password with anyone</li>
+          <li>Log out from shared computers</li>
+        </ul>
+        
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+        <p style="font-size: 12px; color: #999; text-align: center;">
+          The Grassroots Hub - Connecting Football Players with Teams
+        </p>
+      </div>
+    `
+  };
+
+  try {
+    await emailTransporter.sendMail(mailOptions);
+    console.log(`Password reset email sent to ${email}`);
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    throw error;
+  }
+};
+
+// Initialize database tables on startup
+(async () => {
+  try {
+    await db.createTables();
+    console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
+  } catch (error) {
+    console.error('❌ Failed to initialize database:', error);
+    console.log('⚠️  Continuing without database - some features may not work');
+    // Don't exit - allow server to start even without database
+  }
+})();
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Backend server is running!' });
+});
+
+// CSRF token endpoint
+app.get('/api/auth/csrf-token', (req, res) => {
+  try {
+    const csrfToken = crypto.randomBytes(32).toString('hex');
     
-    try {
-      // Check if analytics tables exist before attempting to track
-      const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('page_views', 'user_sessions')");
-      
-      if (tableCheck.rows && tableCheck.rows.length >= 2) {
-        await db.query(`INSERT INTO page_views (userId, page, sessionId, ipAddress, userAgent) 
-                VALUES (?, ?, ?, ?, ?)`, 
-               [req.user.userId, req.path, sessionId, req.ip, req.get('User-Agent')]);
-
-        // Update or create user session
-        await db.query(`INSERT OR REPLACE INTO user_sessions 
-                (userId, sessionId, startTime, pageViews, ipAddress, userAgent)
-                VALUES (?, ?, 
-                        COALESCE((SELECT startTime FROM user_sessions WHERE sessionId = ?), ?),
-                        COALESCE((SELECT pageViews FROM user_sessions WHERE sessionId = ?), 0) + 1,
-                        ?, ?)`,
-               [req.user.userId, sessionId, sessionId, new Date().toISOString(), sessionId, req.ip, req.get('User-Agent')]);
-      } else {
-        // Analytics tables not yet created - skip tracking silently
-        console.log('📊 Analytics tables not available - skipping page view tracking');
-      }
-    } catch (error) {
-      // Silently fail - don't block requests if analytics fails
-      console.warn('Error tracking page view:', error.message);
+    // Store token in global store (for development - use Redis/session in production)
+    if (!global.csrfTokens) global.csrfTokens = new Set();
+    global.csrfTokens.add(csrfToken);
+    
+    // Clean up old tokens periodically
+    if (global.csrfTokens.size > 1000) {
+      global.csrfTokens.clear();
     }
+    
+    res.json({ csrfToken });
+  } catch (error) {
+    console.error('CSRF token generation error:', error);
+    res.status(500).json({ error: 'Failed to generate CSRF token' });
   }
-  next();
-};
+});
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
-    next();
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Backend server is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
-};
+});
 
-// Admin middleware
-const requireAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'Admin') {
-    return res.status(403).json({ error: 'Admin access required' });
+// Analytics tracking endpoint (allows anonymous tracking)
+app.post('/api/analytics/track', (req, res) => {
+  try {
+    // Check for authentication token (optional for anonymous users)
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    let userId = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.id;
+        req.user = decoded; // Set user for authenticated requests
+      } catch (error) {
+        // Token is invalid, but we'll still allow anonymous tracking
+        console.log('Invalid token for analytics, proceeding anonymously');
+      }
+    }
+
+    const { events, sessionId } = req.body;
+    
+    if (!Array.isArray(events)) {
+      return res.status(400).json({ error: 'Events must be an array' });
+    }
+
+    // Log analytics events (in production, you'd store these in a database)
+    const authStatus = userId ? 'authenticated' : 'anonymous';
+    console.log(`📊 Analytics: ${events.length} events from ${authStatus} user (session: ${sessionId})`);
+    
+    // For now, just acknowledge the events - in production you'd store them
+    events.forEach(event => {
+      console.log(`  - ${event.type}: ${event.page || event.action || 'unknown'}`);
+    });
+
+    res.json({ success: true, eventsProcessed: events.length });
+  } catch (error) {
+    console.error('Analytics tracking error:', error);
+    res.status(500).json({ error: 'Failed to process analytics events' });
   }
-  next();
-};
+});
 
-// Routes
-
-// Register
-app.post('/api/auth/register', authLimiter, [
+// Register endpoint
+app.post('/api/auth/register', [
   body('email').isEmail().withMessage('Valid email is required'),
-  body('password')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-zA-Z\d@$!%*?&]/).withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('firstName').notEmpty().withMessage('First name is required'),
   body('lastName').notEmpty().withMessage('Last name is required'),
-  body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required')
+  body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required for players')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -1187,74 +331,86 @@ app.post('/api/auth/register', authLimiter, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role } = req.body;
+    const { email, password, firstName, lastName, role, dateOfBirth } = req.body;
+
+    // Age restriction check for players
+    if (role === 'Player') {
+      if (!dateOfBirth) {
+        return res.status(400).json({ 
+          error: 'Date of birth is required for player registration',
+          requiresDateOfBirth: true
+        });
+      }
+
+      const age = calculateAge(dateOfBirth);
+      if (age < 16) {
+        return res.status(400).json({ 
+          error: 'Players under 16 must be registered by a parent or guardian. Please use Parent/Guardian registration.',
+          ageRestriction: true,
+          suggestedRole: 'Parent/Guardian',
+          playerAge: age
+        });
+      }
+    }
 
     // Prevent Admin registration through public endpoint
     if (role === 'Admin') {
       return res.status(403).json({ error: 'Admin accounts can only be created by existing administrators' });
     }
 
-    // Encrypt email for secure storage
-    const emailData = encryptionService.encryptEmail(email);
-
-    // Check if user already exists using searchable hash
-    const existingUserResult = await db.query('SELECT id FROM users WHERE emailHash = ?', [emailData.searchHash]);
-    if (existingUserResult.rows.length > 0) {
+    // Check if user already exists
+    const existingUserResult = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existingUserResult.rows && existingUserResult.rows.length > 0) {
       return res.status(400).json({ error: 'User already exists with this email' });
     }
 
-    // Hash password with increased rounds for better security
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user with encrypted email - simplified for compatibility with older DBs
-    const insertResult = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, betaAccess) VALUES (?, ?, ?, ?, ?, ?, 0)',
-      [emailData.encrypted, emailData.searchHash, hashedPassword, firstName, lastName, role]
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Insert user with email verification fields
+    const result = await db.query(
+      'INSERT INTO users (email, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [email, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
     );
 
-    const userId = insertResult.lastID;
+    const userId = result.lastID;
 
-    // Skip email sending for now (SMTP blocked on Render)
-    // try {
-    //   await emailService.sendVerificationEmail(email, firstName, emailVerificationToken);
-    // } catch (emailError) {
-    //   console.error('Failed to send verification email:', emailError);
-    // }
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, firstName, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // Continue with registration even if email fails - user can request resend
+    }
 
-    // Create JWT token - user is verified but needs beta approval
-    const token = jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
-
-    // Audit log successful registration
-    auditLogger('user_registered', userId, {
-      email,
-      role,
-      ip: req.ip,
-      userAgent: req.get('User-Agent')
-    });
+    // Create user profile with date of birth if provided
+    if (dateOfBirth) {
+      await db.query(
+        'INSERT INTO user_profiles (userId, dateOfBirth) VALUES (?, ?)',
+        [userId, dateOfBirth]
+      );
+    }
 
     res.status(201).json({
-      message: 'Registration successful! You can now login.',
-      token,
+      message: 'User created successfully. Please check your email to verify your account.',
+      emailVerificationRequired: true,
       user: {
         id: userId,
         email,
         firstName,
         lastName,
-        role
+        role,
+        isEmailVerified: false,
+        createdAt: new Date().toISOString()
       }
     });
   } catch (error) {
     console.error('Registration error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      errno: error.errno
-    });
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1264,51 +420,29 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
     const { token } = req.params;
 
     // Find user with this verification token
-    const result = await db.query(
-      'SELECT * FROM users WHERE emailVerificationToken = ? AND emailVerificationExpires > datetime("now")',
-      [token]
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE emailVerificationToken = ? AND emailVerificationExpires > ?',
+      [token, new Date()]
     );
 
-    const user = result.rows[0];
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid or expired verification token',
+        expired: true
+      });
     }
 
-    // Update user as verified and clear verification token
+    const user = userResult.rows[0];
+
+    // Update user as verified
     await db.query(
       'UPDATE users SET isEmailVerified = ?, emailVerificationToken = NULL, emailVerificationExpires = NULL WHERE id = ?',
       [true, user.id]
     );
 
-    // Decrypt email for response
-    const decryptedEmail = encryptionService.decrypt(user.email);
-
-    // Create full access token now that email is verified
-    const token_new = jwt.sign({ 
-      userId: user.id, 
-      email: decryptedEmail, 
-      role: user.role 
-    }, JWT_SECRET, { expiresIn: '7d' });
-
-    // Audit log successful verification
-    auditLogger('email_verified', user.id, {
-      email: decryptedEmail,
-      ip: req.ip,
-      userAgent: req.get('User-Agent')
-    });
-
     res.json({
-      message: 'Email verified successfully!',
-      token: token_new,
-      user: {
-        id: user.id,
-        email: decryptedEmail,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        isEmailVerified: true,
-        createdAt: user.createdAt
-      }
+      message: 'Email verified successfully! You can now log in.',
+      verified: true
     });
   } catch (error) {
     console.error('Email verification error:', error);
@@ -1316,8 +450,8 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
   }
 });
 
-// Resend verification email
-app.post('/api/auth/resend-verification', authLimiter, [
+// Resend verification email endpoint
+app.post('/api/auth/resend-verification', [
   body('email').isEmail().withMessage('Valid email is required')
 ], async (req, res) => {
   try {
@@ -1327,47 +461,173 @@ app.post('/api/auth/resend-verification', authLimiter, [
     }
 
     const { email } = req.body;
-    const emailHash = encryptionService.hashForSearch(email);
 
-    const result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
-    const user = result.rows[0];
-
-    if (!user) {
-      // Don't reveal if user exists or not for security
-      return res.json({ message: 'If your email is registered, you will receive a verification email.' });
+    // Find user
+    const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
+
+    const user = userResult.rows[0];
 
     if (user.isEmailVerified) {
       return res.status(400).json({ error: 'Email is already verified' });
     }
 
     // Generate new verification token
-    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Update user with new token
     await db.query(
       'UPDATE users SET emailVerificationToken = ?, emailVerificationExpires = ? WHERE id = ?',
-      [emailVerificationToken, emailVerificationExpires.toISOString(), user.id]
+      [verificationToken, verificationExpires, user.id]
     );
 
     // Send verification email
-    try {
-      await emailService.sendVerificationEmail(email, user.firstName, emailVerificationToken);
-    } catch (emailError) {
-      console.error('Failed to send verification email:', emailError);
-      return res.status(500).json({ error: 'Failed to send verification email' });
-    }
+    await sendVerificationEmail(email, user.firstName, verificationToken);
 
-    res.json({ message: 'Verification email sent successfully!' });
+    res.json({
+      message: 'Verification email sent successfully. Please check your email.'
+    });
   } catch (error) {
     console.error('Resend verification error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Login
-app.post('/api/auth/login', authLimiter, [
+// Forgot password endpoint
+app.post('/api/auth/forgot-password', [
+  body('email').isEmail().withMessage('Valid email is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email } = req.body;
+
+    // Find user
+    const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      // Don't reveal if email exists or not for security
+      return res.json({
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if user is verified
+    if (!user.isEmailVerified) {
+      return res.status(400).json({ 
+        error: 'Please verify your email address before resetting your password.' 
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Update user with reset token
+    await db.query(
+      'UPDATE users SET passwordResetToken = ?, passwordResetExpires = ? WHERE id = ?',
+      [resetToken, resetExpires, user.id]
+    );
+
+    // Send reset email
+    await sendPasswordResetEmail(email, user.firstName, resetToken);
+
+    res.json({
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset password endpoint
+app.post('/api/auth/reset-password', [
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { token, password } = req.body;
+
+    // Find user with this reset token
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE passwordResetToken = ? AND passwordResetExpires > ?',
+      [token, new Date()]
+    );
+
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid or expired reset token',
+        expired: true
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update user with new password and clear reset token
+    await db.query(
+      'UPDATE users SET password = ?, passwordResetToken = NULL, passwordResetExpires = NULL WHERE id = ?',
+      [hashedPassword, user.id]
+    );
+
+    res.json({
+      message: 'Password reset successfully! You can now log in with your new password.'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Validate reset token endpoint
+app.get('/api/auth/validate-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find user with this reset token
+    const userResult = await db.query(
+      'SELECT id, firstName, email FROM users WHERE passwordResetToken = ? AND passwordResetExpires > ?',
+      [token, new Date()]
+    );
+
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid or expired reset token',
+        expired: true,
+        valid: false
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    res.json({
+      valid: true,
+      message: 'Reset token is valid',
+      userEmail: user.email
+    });
+  } catch (error) {
+    console.error('Validate reset token error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Login endpoint
+app.post('/api/auth/login', [
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required')
 ], async (req, res) => {
@@ -1378,100 +638,47 @@ app.post('/api/auth/login', authLimiter, [
     }
 
     const { email, password } = req.body;
-
-    console.log('[LOGIN DEBUG] Login attempt for:', email);
-    console.log('[LOGIN DEBUG] DB Type:', db.dbType);
-    console.log('[LOGIN DEBUG] DB Connected:', db.db ? 'YES' : 'NO');
-
-    // Try emailHash lookup first (modern schema)
-    const emailHash = encryptionService.hashForSearch(email);
-    console.log('[LOGIN DEBUG] EmailHash generated:', emailHash.substring(0, 10) + '...');
-
-    let result = await db.query('SELECT * FROM users WHERE emailHash = ?', [emailHash]);
-    let user = result.rows[0];
-    console.log('[LOGIN DEBUG] EmailHash lookup result:', user ? 'USER FOUND' : 'USER NOT FOUND');
-
-    // Fallback: try plaintext email lookup (old schema or fallback admin creation)
-    if (!user) {
-      console.log('[LOGIN DEBUG] Trying plaintext email lookup');
-      result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-      user = result.rows[0];
-      console.log('[LOGIN DEBUG] Plaintext email lookup result:', user ? 'USER FOUND' : 'USER NOT FOUND');
+    
+    // Find user
+    const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
+    
+    const user = userResult.rows[0];
 
-    // Special fallback for admin user if ENCRYPTION_KEY changed
-    if (!user && email === 'cgill1980@hotmail.com') {
-      console.log('[LOGIN DEBUG] Admin user not found, checking all users with admin role');
-      result = await db.query("SELECT * FROM users WHERE role = 'Admin' LIMIT 1");
-      user = result.rows[0];
-      console.log('[LOGIN DEBUG] Admin role lookup result:', user ? 'ADMIN FOUND' : 'ADMIN NOT FOUND');
-    }
-
-    if (!user) {
-      console.log('[LOGIN DEBUG] NO USER FOUND - returning 401');
+    // Check password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    console.log('[LOGIN DEBUG] User found, checking password...');
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('[LOGIN DEBUG] Password validation result:', isValidPassword ? 'VALID' : 'INVALID');
-
-    if (!isValidPassword) {
-      console.log('[LOGIN DEBUG] INVALID PASSWORD - returning 401');
-      return res.status(401).json({ error: 'Invalid email or password' });
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      return res.status(401).json({ 
+        error: 'Please verify your email before logging in. Check your email for the verification link.',
+        emailVerificationRequired: true,
+        canResendVerification: true
+      });
     }
 
-    // Email verification disabled - skip check
-
-    // Decrypt email for response (handle both encrypted and plaintext for old DBs)
-    let decryptedEmail;
-    try {
-      decryptedEmail = encryptionService.decrypt(user.email);
-    } catch (decryptError) {
-      // Email might be plaintext in old database
-      console.warn('[Login] Email decryption failed, using plaintext:', decryptError.message);
-      decryptedEmail = user.email;
-    }
-
+    // Generate token
     const token = jwt.sign(
-      { userId: user.id, email: decryptedEmail, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-
-    console.log('[LOGIN DEBUG] JWT token generated successfully');
-    console.log('[LOGIN DEBUG] JWT_SECRET length:', JWT_SECRET ? JWT_SECRET.length : 'UNDEFINED');
-
-    // Audit log successful login
-    auditLogger('login_success', user.id, {
-      email: decryptedEmail,
-      ip: req.ip,
-      userAgent: req.get('User-Agent')
-    });
-
-    // Check beta access (PostgreSQL uses lowercase column name)
-    const hasBetaAccess = user.betaaccess === 1 || user.betaaccess === true || user.role === 'Admin';
-    
-    console.log('[Login] Beta access check:', {
-      userId: user.id,
-      betaaccess_raw: user.betaaccess,
-      betaaccess_type: typeof user.betaaccess,
-      role: user.role,
-      hasBetaAccess
-    });
 
     res.json({
       message: 'Login successful',
       token,
       user: {
         id: user.id,
-        email: decryptedEmail,
+        email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        betaAccess: hasBetaAccess,
-        betaAccessGrantedAt: user.betaaccessgrantedat || user.betaAccessGrantedAt,
-        createdAt: user.createdAt
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {
@@ -1480,2030 +687,531 @@ app.post('/api/auth/login', authLimiter, [
   }
 });
 
-// Get current user
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
+// Export the app for use in other servers (like railway-server.js)
+module.exports = app;
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Middleware to authenticate JWT tokens
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.sendStatus(401);
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// Children Management Endpoints
+
+// Get all children for a parent
+app.get('/api/children', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess, createdat as createdAt FROM users WHERE id = ?', 
-      [req.user.userId]);
-    const user = result.rows[0];
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can access children data' });
     }
 
-    // Decrypt email for response
-    const decryptedEmail = encryptionService.decrypt(user.email);
-    
-    // Check beta access and return appropriate response (PostgreSQL uses lowercase column name)
-    const hasBetaAccess = user.betaaccess === true || user.betaaccess === 1 || user.betaaccess === '1' || user.role === 'Admin';
-    
-    console.log('[/api/auth/me] User data:', {
-      userId: user.id,
-      email: decryptedEmail,
-      role: user.role,
-      betaaccess_raw: user.betaaccess,
-      betaaccess_type: typeof user.betaaccess,
-      hasBetaAccess
-    });
-    
-    res.json({ 
-      user: {
-        ...user,
-        email: decryptedEmail,
-        betaAccess: hasBetaAccess
-      }
-    });
-  } catch (error) {
-    console.error('Get current user error:', error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
+    const childrenResult = await db.query(
+      'SELECT * FROM children WHERE parentId = ? AND isActive = ? ORDER BY firstName',
+      [req.user.userId, true]
+    );
 
-// Get CSRF token
-app.get('/api/auth/csrf-token', (req, res) => {
-  const csrfToken = crypto.randomBytes(32).toString('hex');
-  
-  // Store token (in production, use Redis/session store)
-  if (!global.csrfTokens) global.csrfTokens = new Set();
-  global.csrfTokens.add(csrfToken);
-  
-  // Clean up old tokens periodically
-  if (global.csrfTokens.size > 1000) {
-    global.csrfTokens.clear();
-  }
-  
-  res.json({ csrfToken });
-});
-
-// Get user profile
-app.get('/api/profile', authenticateToken, requireBetaAccess, async (req, res) => {
-  console.log('Profile GET request from user:', req.user.userId);
-  const query = `
-    SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdat as createdAt,
-           p.dateOfBirth, p.location, p.bio, p.position, p.preferredTeamGender,
-           p.preferredFoot, p.height, p.weight, p.experienceLevel, p.availability, 
-           p.coachingLicense, p.yearsExperience, p.specializations, p.trainingLocation, 
-           p.matchLocation, p.trainingDays, p.ageGroupsCoached, p.emergencyContact, 
-           p.emergencyPhone, p.medicalInfo, p.profilePicture, p.isProfileComplete, p.lastUpdated
-    FROM users u
-    LEFT JOIN user_profiles p ON u.id = p.userId
-    WHERE u.id = ?
-  `;
-  
-  try {
-    const result = await db.query(query, [req.user.userId]);
-    const row = result.rows[0];
-    
-    if (!row) {
-      console.log('No user found for ID:', req.user.userId);
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    console.log('Raw profile data from DB:', row);
-    
-    console.log('Raw profile data:', row);
-    
-    // Decrypt email (handle both encrypted and plaintext for old DB compatibility)
-    try {
-      row.email = encryptionService.decrypt(row.email);
-    } catch (decryptError) {
-      console.warn('[Profile] Email decryption failed, using plaintext:', decryptError.message);
-      // Email is already plaintext, keep as-is
-    }
-    
-    // Decrypt sensitive profile data (handle both encrypted and plaintext for old DB compatibility)
-    let decryptedProfile;
-    try {
-      decryptedProfile = encryptionService.decryptProfileData(row);
-      console.log('[Profile] Profile data decrypted successfully');
-    } catch (profileDecryptError) {
-      console.warn('[Profile] Profile data decryption failed, using row as-is:', profileDecryptError.message);
-      console.warn('[Profile] Error stack:', profileDecryptError.stack);
-      // Use row as-is if decryption fails (old DB or no profile data)
-      decryptedProfile = { ...row };
-    }
-    
-    // Parse JSON fields
-    if (decryptedProfile.availability) {
-      try {
-        decryptedProfile.availability = JSON.parse(decryptedProfile.availability);
-      } catch (e) {
-        decryptedProfile.availability = [];
-      }
-    } else {
-      decryptedProfile.availability = [];
-    }
-    
-    if (decryptedProfile.specializations) {
-      try {
-        decryptedProfile.specializations = JSON.parse(decryptedProfile.specializations);
-      } catch (e) {
-        decryptedProfile.specializations = [];
-      }
-    } else {
-      decryptedProfile.specializations = [];
-    }
-    
-    if (decryptedProfile.trainingDays) {
-      try {
-        decryptedProfile.trainingDays = JSON.parse(decryptedProfile.trainingDays);
-      } catch (e) {
-        decryptedProfile.trainingDays = [];
-      }
-    } else {
-      decryptedProfile.trainingDays = [];
-    }
-    
-    if (decryptedProfile.ageGroupsCoached) {
-      try {
-        decryptedProfile.ageGroupsCoached = JSON.parse(decryptedProfile.ageGroupsCoached);
-      } catch (e) {
-        decryptedProfile.ageGroupsCoached = [];
-      }
-    } else {
-      decryptedProfile.ageGroupsCoached = [];
-    }
-    
-    console.log('Processed profile data:', decryptedProfile);
-    res.json({ profile: decryptedProfile });
-  } catch (error) {
-    console.error('Database error in profile GET:', error);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Change password
-app.put('/api/change-password', profileLimiter, authenticateToken, requireBetaAccess, [
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
-  body('newPassword')
-    .isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-zA-Z\d@$!%*?&]/).withMessage('New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    // Get current user with password
-    const userResult = await db.query('SELECT password FROM users WHERE id = ?', [req.user.userId]);
-    const user = userResult.rows[0];
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Verify current password
-    const isValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isValid) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-
-    // Update password
-    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.userId]);
-
-    res.json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('Password change error:', error);
-    res.status(500).json({ error: 'Failed to change password' });
-  }
-});
-
-// Update user profile
-app.put('/api/profile', profileLimiter, authenticateToken, requireBetaAccess, [
-  body('firstName').notEmpty().withMessage('First name is required').isLength({ min: 1, max: 50 }).withMessage('First name must be 1-50 characters'),
-  body('lastName').notEmpty().withMessage('Last name is required').isLength({ min: 1, max: 50 }).withMessage('Last name must be 1-50 characters'),
-  body('dateOfBirth').notEmpty().withMessage('Date of birth is required').isISO8601().withMessage('Valid date of birth required'),
-  body('location').optional().notEmpty().withMessage('Location cannot be empty'),
-  body('bio').optional().isLength({ max: 500 }).withMessage('Bio must be less than 500 characters'),
-  body('position').optional().notEmpty().withMessage('Position cannot be empty'),
-  body('height').optional(),
-  body('weight').optional(),
-  body('yearsExperience').optional().isInt({ min: 0, max: 50 }).withMessage('Years of experience must be 0-50')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    console.log('Profile PUT request from user:', req.user.userId);
-    const {
-      firstName, lastName,
-      dateOfBirth, location, bio, position, preferredFoot, height, weight,
-      experienceLevel, availability, coachingLicense, yearsExperience, specializations,
-      trainingLocation, matchLocation, trainingDays, ageGroupsCoached,
-      emergencyContact, emergencyPhone, medicalInfo, profilePicture
-    } = req.body;
-
-    console.log('Received profile data:', { firstName, lastName, dateOfBirth, location, bio });
-
-    // Update user's name if provided
-    if (firstName || lastName) {
-      console.log('Updating user names:', { firstName, lastName });
-      const updateFields = [];
-      const updateValues = [];
-      if (firstName) {
-        updateFields.push('firstName = ?');
-        updateValues.push(firstName);
-      }
-      if (lastName) {
-        updateFields.push('lastName = ?');
-        updateValues.push(lastName);
-      }
-      updateValues.push(req.user.userId);
-      await db.query(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
-      console.log('User names updated successfully');
-    } else {
-      console.log('No names to update');
-    }
-
-    // Encrypt sensitive profile data
-    let encryptedData;
-    try {
-      encryptedData = encryptionService.encryptProfileData({
-        dateOfBirth, location, bio, emergencyContact, 
-        emergencyPhone, medicalInfo, trainingLocation, matchLocation
-      });
-    } catch (encryptError) {
-      console.error('Encryption error:', encryptError);
-      return res.status(500).json({ error: 'Encryption failed' });
-    }
-
-    // Provide defaults for fields with CHECK constraints to avoid PostgreSQL NULL issues
-    const safePreferredFoot = preferredFoot || 'Right'; // Default to 'Right'
-    const safeExperienceLevel = experienceLevel || 'Beginner'; // Default to 'Beginner'
-
-    // Check if profile exists
-    let existingResult;
-    try {
-      existingResult = await db.query('SELECT userId FROM user_profiles WHERE userId = ?', [req.user.userId]);
-    } catch (dbError) {
-      console.error('Database error checking existing profile:', dbError);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    const existingProfile = existingResult.rows[0];
-
-    const profileData = [
-      encryptedData.dateOfBirth, encryptedData.location, encryptedData.bio, 
-      position, safePreferredFoot, height, weight, safeExperienceLevel, JSON.stringify(availability || []), 
-      coachingLicense, yearsExperience, JSON.stringify(specializations || []), 
-      encryptedData.trainingLocation, encryptedData.matchLocation,
-      JSON.stringify(trainingDays || []), JSON.stringify(ageGroupsCoached || []), 
-      encryptedData.emergencyContact, encryptedData.emergencyPhone,
-      encryptedData.medicalInfo, profilePicture, 1, new Date().toISOString()
-    ];
-
-    if (existingProfile) {
-      console.log('Updating existing profile for user:', req.user.userId);
-      // Update existing profile
-      const updateQuery = `
-        UPDATE user_profiles SET
-          dateOfBirth = ?, location = ?, bio = ?, position = ?, preferredFoot = ?,
-          height = ?, weight = ?, experienceLevel = ?, availability = ?, coachingLicense = ?,
-          yearsExperience = ?, specializations = ?, trainingLocation = ?, matchLocation = ?,
-          trainingDays = ?, ageGroupsCoached = ?, emergencyContact = ?, emergencyPhone = ?,
-          medicalInfo = ?, profilePicture = ?, isProfileComplete = ?, lastUpdated = ?
-        WHERE userId = ?
-      `;
-      
-      await db.query(updateQuery, [...profileData, req.user.userId]);
-      res.json({ message: 'Profile updated successfully' });
-    } else {
-      console.log('Creating new profile for user:', req.user.userId);
-      // Create new profile
-      const insertQuery = `
-        INSERT INTO user_profiles (
-          dateOfBirth, location, bio, position, preferredFoot, height, weight,
-          experienceLevel, availability, coachingLicense, yearsExperience, specializations,
-          trainingLocation, matchLocation, trainingDays, ageGroupsCoached, emergencyContact, 
-          emergencyPhone, medicalInfo, profilePicture, isProfileComplete, lastUpdated, userId
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-      
-      await db.query(insertQuery, [...profileData, req.user.userId]);
-      res.json({ message: 'Profile created successfully' });
-    }
-  } catch (error) {
-    console.error('Profile operation error:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to save profile', details: error.message });
-  }
-});
-
-// Post team vacancy
-app.post('/api/vacancies', authenticateToken, requireBetaAccess, [
-  body('title').notEmpty().withMessage('Title is required'),
-  body('description').notEmpty().withMessage('Description is required'),
-  body('league').notEmpty().withMessage('League is required'),
-  body('ageGroup').notEmpty().withMessage('Age group is required'),
-  body('position').notEmpty().withMessage('Position is required'),
-  body('teamId').optional().isInt().withMessage('Team ID must be a number')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { title, description, league, ageGroup, position, location, contactInfo, locationData, hasMatchRecording, hasPathwayToSenior, playingTimePolicy, teamId } = req.body;
-
-  try {
-    // If teamId is provided, verify the user is a member of that team and has permission to post vacancies
-    if (teamId) {
-      const membership = await db.query(`
-        SELECT tm.permissions, t.teamName
-        FROM team_members tm
-        JOIN teams t ON tm.teamId = t.id
-        WHERE tm.teamId = ? AND tm.userId = ? AND JSON_EXTRACT(tm.permissions, '$.canPostVacancies') = true
-      `, [teamId, req.user.userId]);
-
-      if (!membership.rows || membership.rows.length === 0) {
-        return res.status(403).json({ error: 'You do not have permission to post vacancies for this team' });
-      }
-    }
-
-    // Encrypt contact information for privacy
-    const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
-
-  // Handle location data if provided
-  let locationAddress = null, locationLatitude = null, locationLongitude = null, locationPlaceId = null;
-  if (locationData) {
-    locationAddress = locationData.address;
-    locationLatitude = locationData.latitude;
-    locationLongitude = locationData.longitude;
-    locationPlaceId = locationData.placeId;
-  }
-
-  // Convert boolean values
-  const matchRecording = hasMatchRecording ? 1 : 0;
-  const pathwayToSenior = hasPathwayToSenior ? 1 : 0;
-
-  db.run(
-    `INSERT INTO team_vacancies (
-      title, description, league, ageGroup, position, location, contactInfo, postedBy, teamId,
-      locationAddress, locationLatitude, locationLongitude, locationPlaceId,
-      hasMatchRecording, hasPathwayToSenior, playingTimePolicy
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, description, league, ageGroup, position, location, encryptedContactInfo, req.user.userId, teamId || null,
-     locationAddress, locationLatitude, locationLongitude, locationPlaceId,
-     matchRecording, pathwayToSenior, playingTimePolicy || null],
-    async function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to create vacancy' });
-      }
-      
-      const vacancyId = this.lastID;
-      
-      // Send alerts to matching players
-      try {
-        const vacancy = {
-          id: vacancyId,
-          title,
-          description,
-          league,
-          ageGroup,
-          position,
-          location,
-          postedBy: req.user.userId
-        };
-        await alertService.sendNewVacancyAlerts(vacancy);
-        
-        // Send real-time notifications
-        const notificationServer = req.app.locals.notificationServer;
-        if (notificationServer) {
-          notificationServer.notifyNewTeamVacancy(vacancy);
-        }
-      } catch (alertError) {
-        console.error('Failed to send vacancy alerts:', alertError);
-        // Don't fail the vacancy creation if alerts fail
-      }
-      
-      res.status(201).json({
-        message: 'Vacancy created successfully',
-        vacancyId: vacancyId
-      });
-    }
-  );
-  } catch (error) {
-    console.error('Error creating vacancy:', error);
-    return res.status(500).json({ error: 'Failed to create vacancy' });
-  }
-});
-
-// Get team vacancies
-app.get('/api/vacancies', async (req, res) => {
-  const { 
-    league, 
-    ageGroup, 
-    position, 
-    location, 
-    search, 
-    teamGender,
-    // Advanced filters
-    experienceLevel,
-    travelDistance,
-    trainingFrequency,
-    availability,
-    coachingLicense,
-    hasMatchRecording,
-    hasPathwayToSenior,
-    playingTimePolicy,
-    // Location-based filtering
-    centerLat,
-    centerLng
-  } = req.query;
-  
-  let query = `
-    SELECT v.*, u.firstName, u.lastName, up.coachingLicense, up.yearsExperience
-    FROM team_vacancies v 
-    JOIN users u ON v.postedBy = u.id 
-    LEFT JOIN user_profiles up ON u.id = up.userId
-    WHERE v.status = 'active'
-  `;
-  const params = [];
-
-  if (league) {
-    query += ' AND v.league = ?';
-    params.push(league);
-  }
-  if (ageGroup) {
-    query += ' AND v.ageGroup = ?';
-    params.push(ageGroup);
-  }
-  if (position) {
-    query += ' AND v.position = ?';
-    params.push(position);
-  }
-  if (teamGender) {
-    query += ' AND v.teamGender = ?';
-    params.push(teamGender);
-  }
-  if (location) {
-    query += ' AND v.location LIKE ?';
-    params.push(`%${location}%`);
-  }
-  if (search) {
-    query += ' AND (v.title LIKE ? OR v.description LIKE ?)';
-    params.push(`%${search}%`, `%${search}%`);
-  }
-
-  // Advanced filters
-  if (experienceLevel) {
-    const experienceLevels = experienceLevel.split(',');
-    const experienceConditions = [];
-    
-    for (const level of experienceLevels) {
-      switch (level) {
-        case 'beginner':
-          experienceConditions.push('up.yearsExperience BETWEEN 0 AND 2');
-          break;
-        case 'intermediate':
-          experienceConditions.push('up.yearsExperience BETWEEN 3 AND 7');
-          break;
-        case 'advanced':
-          experienceConditions.push('up.yearsExperience BETWEEN 8 AND 15');
-          break;
-        case 'professional':
-          experienceConditions.push('up.yearsExperience > 15');
-          break;
-      }
-    }
-    
-    if (experienceConditions.length > 0) {
-      query += ` AND (${experienceConditions.join(' OR ')})`;
-    }
-  }
-
-  if (coachingLicense) {
-    const licenses = coachingLicense.split(',');
-    const placeholders = licenses.map(() => '?').join(',');
-    query += ` AND up.coachingLicense IN (${placeholders})`;
-    params.push(...licenses);
-  }
-
-  // Filter by match recording facilities
-  if (hasMatchRecording === 'true' || hasMatchRecording === '1') {
-    const hasMatchRecordingCondition = db.dbType === 'postgresql' ? 'hasMatchRecording = true' : 'hasMatchRecording = 1';
-    query += ` AND v.${hasMatchRecordingCondition}`;
-  }
-
-  // Filter by pathway to senior team
-  if (hasPathwayToSenior === 'true' || hasPathwayToSenior === '1') {
-    const hasPathwayToSeniorCondition = db.dbType === 'postgresql' ? 'hasPathwayToSenior = true' : 'hasPathwayToSenior = 1';
-    query += ` AND v.${hasPathwayToSeniorCondition}`;
-  }
-
-  // Filter by playing time policy
-  if (playingTimePolicy) {
-    const policies = playingTimePolicy.split(',');
-    const placeholders = policies.map(() => '?').join(',');
-    query += ` AND v.playingTimePolicy IN (${placeholders})`;
-    params.push(...policies);
-  }
-
-  if (availability) {
-    const availabilityOptions = availability.split(',');
-    const availabilityConditions = [];
-    
-    if (availabilityOptions.includes('weekdays')) {
-      availabilityConditions.push("(v.trainingDays LIKE '%Monday%' OR v.trainingDays LIKE '%Tuesday%' OR v.trainingDays LIKE '%Wednesday%' OR v.trainingDays LIKE '%Thursday%' OR v.trainingDays LIKE '%Friday%')");
-    }
-    if (availabilityOptions.includes('weekends')) {
-      availabilityConditions.push("(v.trainingDays LIKE '%Saturday%' OR v.trainingDays LIKE '%Sunday%')");
-    }
-    if (availabilityOptions.includes('evenings')) {
-      availabilityConditions.push("v.trainingTime LIKE '%evening%' OR v.trainingTime LIKE '%19:%' OR v.trainingTime LIKE '%20:%' OR v.trainingTime LIKE '%21:%'");
-    }
-    if (availabilityOptions.includes('mornings')) {
-      availabilityConditions.push("v.trainingTime LIKE '%morning%' OR v.trainingTime LIKE '%09:%' OR v.trainingTime LIKE '%10:%' OR v.trainingTime LIKE '%11:%'");
-    }
-    if (availabilityOptions.includes('afternoons')) {
-      availabilityConditions.push("v.trainingTime LIKE '%afternoon%' OR v.trainingTime LIKE '%13:%' OR v.trainingTime LIKE '%14:%' OR v.trainingTime LIKE '%15:%' OR v.trainingTime LIKE '%16:%'");
-    }
-    
-    if (availabilityConditions.length > 0) {
-      query += ` AND (${availabilityConditions.join(' OR ')})`;
-    }
-  }
-
-  // Location-based filtering for travel distance
-  if (centerLat && centerLng && travelDistance) {
-    // Using Haversine formula approximation for SQLite
-    query += ` AND (
-      6371 * acos(
-        cos(radians(?)) * cos(radians(COALESCE(v.latitude, 0))) *
-        cos(radians(COALESCE(v.longitude, 0)) - radians(?)) +
-        sin(radians(?)) * sin(radians(COALESCE(v.latitude, 0)))
-      )
-    ) <= ?`;
-    params.push(centerLat, centerLng, centerLat, parseFloat(travelDistance));
-  }
-
-  query += ' ORDER BY v.createdAt DESC';
-
-  try {
-    const result = await db.query(query, params);
-    const rows = result.rows;
-    
-    // Transform rows to include locationData object and decrypt contact info
-    const vacancies = rows.map(row => {
-      const vacancy = { ...row };
-      
-      // Decrypt contact information
-      if (vacancy.contactInfo) {
-        vacancy.contactInfo = encryptionService.decryptContactInfo(vacancy.contactInfo);
-      }
-      
-      // Add locationData if coordinates exist
-      if (row.locationLatitude && row.locationLongitude) {
-        vacancy.locationData = {
-          address: row.locationAddress,
-          latitude: row.locationLatitude,
-          longitude: row.locationLongitude,
-          placeId: row.locationPlaceId
-        };
-      }
-      
-      // Remove raw location columns from response
-      delete vacancy.locationAddress;
-      delete vacancy.locationLatitude;
-      delete vacancy.locationLongitude;
-      delete vacancy.locationPlaceId;
-      
-      return vacancy;
-    });
-    
-    res.json({ vacancies });
-  } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Player Availability endpoints
-
-// Create player availability
-app.post('/api/player-availability', authenticateToken, requireBetaAccess, [
-  body('title').notEmpty().withMessage('Title is required'),
-  body('description').notEmpty().withMessage('Description is required'),
-  body('preferredLeagues').optional().isArray().withMessage('Preferred leagues must be an array'),
-  body('ageGroup').notEmpty().withMessage('Age group is required'),
-  body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { title, description, preferredLeagues = [], ageGroup, positions, location, contactInfo, locationData } = req.body;
-
-  // Encrypt contact information for privacy
-  const encryptedContactInfo = encryptionService.encryptContactInfo(contactInfo);
-
-  // Handle location data if provided
-  let locationAddress = null, locationLatitude = null, locationLongitude = null, locationPlaceId = null;
-  if (locationData) {
-    locationAddress = locationData.address;
-    locationLatitude = locationData.latitude;
-    locationLongitude = locationData.longitude;
-    locationPlaceId = locationData.placeId;
-  }
-
-  db.run(
-    `INSERT INTO player_availability (
-      title, description, preferredLeagues, ageGroup, positions, location, contactInfo, postedBy,
-      locationAddress, locationLatitude, locationLongitude, locationPlaceId
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, description, JSON.stringify(preferredLeagues), ageGroup, JSON.stringify(positions), location, encryptedContactInfo, req.user.userId,
-     locationAddress, locationLatitude, locationLongitude, locationPlaceId],
-    async function(err) {
-      if (err) {
-        console.error('Error creating player availability:', err);
-        return res.status(500).json({ error: 'Failed to create player availability' });
-      }
-      
-      const availabilityId = this.lastID;
-      
-      // Send alerts to matching coaches
-      try {
-        const playerAvailability = {
-          id: availabilityId,
-          title,
-          description,
-          preferredLeagues: preferredLeagues,
-          ageGroup,
-          positions,
-          location
-        };
-        await alertService.sendNewPlayerAlerts(playerAvailability);
-      } catch (alertError) {
-        console.error('Failed to send player alerts:', alertError);
-        // Don't fail the availability creation if alerts fail
-      }
-      
-      res.status(201).json({
-        message: 'Player availability created successfully',
-        availabilityId: availabilityId
-      });
-    }
-  );
-});
-
-// Get player availability
-app.get('/api/player-availability', async (req, res) => {
-  const { 
-    league, 
-    ageGroup, 
-    position, 
-    location, 
-    search, 
-    preferredTeamGender,
-    // Advanced filters
-    experienceLevel,
-    travelDistance,
-    trainingFrequency,
-    availability,
-    // Location-based filtering
-    centerLat,
-    centerLng
-  } = req.query;
-  
-  let query = `
-    SELECT p.*, u.firstName, u.lastName, up.yearsExperience, up.experienceLevel 
-    FROM player_availability p 
-    JOIN users u ON p.postedBy = u.id 
-    LEFT JOIN user_profiles up ON u.id = up.userId
-    WHERE p.status = 'active'
-  `;
-  const params = [];
-
-  if (league) {
-    query += ' AND p.preferredLeagues = ?';
-    params.push(league);
-  }
-  if (ageGroup) {
-    query += ' AND p.ageGroup = ?';
-    params.push(ageGroup);
-  }
-  if (position) {
-    // Search within the JSON array of positions
-    query += ' AND p.positions LIKE ?';
-    params.push(`%"${position}"%`);
-  }
-  if (preferredTeamGender) {
-    query += ' AND p.preferredTeamGender = ?';
-    params.push(preferredTeamGender);
-  }
-  if (location) {
-    query += ' AND p.location LIKE ?';
-    params.push(`%${location}%`);
-  }
-  if (search) {
-    query += ' AND (p.title LIKE ? OR p.description LIKE ?)';
-    params.push(`%${search}%`, `%${search}%`);
-  }
-
-  // Advanced filters
-  if (experienceLevel) {
-    const experienceLevels = experienceLevel.split(',');
-    const experienceConditions = [];
-    
-    for (const level of experienceLevels) {
-      switch (level) {
-        case 'beginner':
-          experienceConditions.push('up.yearsExperience BETWEEN 0 AND 2 OR up.experienceLevel = "Beginner"');
-          break;
-        case 'intermediate':
-          experienceConditions.push('up.yearsExperience BETWEEN 3 AND 7 OR up.experienceLevel = "Intermediate"');
-          break;
-        case 'advanced':
-          experienceConditions.push('up.yearsExperience BETWEEN 8 AND 15 OR up.experienceLevel = "Advanced"');
-          break;
-        case 'professional':
-          experienceConditions.push('up.yearsExperience > 15 OR up.experienceLevel = "Professional"');
-          break;
-      }
-    }
-    
-    if (experienceConditions.length > 0) {
-      query += ` AND (${experienceConditions.join(' OR ')})`;
-    }
-  }
-
-  if (trainingFrequency) {
-    const frequencies = trainingFrequency.split(',');
-    const placeholders = frequencies.map(() => '?').join(',');
-    query += ` AND p.trainingFrequency IN (${placeholders})`;
-    params.push(...frequencies);
-  }
-
-  if (availability) {
-    const availabilityOptions = availability.split(',');
-    const availabilityConditions = [];
-    
-    if (availabilityOptions.includes('weekdays')) {
-      availabilityConditions.push("(p.availability LIKE '%Monday%' OR p.availability LIKE '%Tuesday%' OR p.availability LIKE '%Wednesday%' OR p.availability LIKE '%Thursday%' OR p.availability LIKE '%Friday%')");
-    }
-    if (availabilityOptions.includes('weekends')) {
-      availabilityConditions.push("(p.availability LIKE '%Saturday%' OR p.availability LIKE '%Sunday%')");
-    }
-    if (availabilityOptions.includes('evenings')) {
-      availabilityConditions.push("p.availability LIKE '%evening%'");
-    }
-    if (availabilityOptions.includes('mornings')) {
-      availabilityConditions.push("p.availability LIKE '%morning%'");
-    }
-    if (availabilityOptions.includes('afternoons')) {
-      availabilityConditions.push("p.availability LIKE '%afternoon%'");
-    }
-    if (availabilityOptions.includes('flexible')) {
-      availabilityConditions.push("p.availability LIKE '%flexible%' OR p.availability LIKE '%any%'");
-    }
-    
-    if (availabilityConditions.length > 0) {
-      query += ` AND (${availabilityConditions.join(' OR ')})`;
-    }
-  }
-
-  // Location-based filtering for travel distance
-  if (centerLat && centerLng && travelDistance) {
-    // Using Haversine formula approximation for SQLite
-    query += ` AND (
-      6371 * acos(
-        cos(radians(?)) * cos(radians(COALESCE(p.latitude, 0))) *
-        cos(radians(COALESCE(p.longitude, 0)) - radians(?)) +
-        sin(radians(?)) * sin(radians(COALESCE(p.latitude, 0)))
-      )
-    ) <= ?`;
-    params.push(centerLat, centerLng, centerLat, parseFloat(travelDistance));
-  }
-
-  query += ' ORDER BY p.createdAt DESC';
-
-  try {
-    const result = await db.query(query, params);
-    const rows = result.rows;
-    
-    // Transform rows to include locationData object and parse positions
-    const availability = rows.map(row => {
-      const item = { ...row };
-      
-      // Decrypt contact information
-      if (item.contactInfo) {
-        item.contactInfo = encryptionService.decryptContactInfo(item.contactInfo);
-      }
-      
-      // Parse positions JSON array
-      try {
-        item.positions = JSON.parse(row.positions || '[]');
-      } catch (e) {
-        console.error('Error parsing positions JSON:', e);
-        item.positions = [];
-      }
-      
-      // Add locationData if coordinates exist
-      if (row.locationLatitude && row.locationLongitude) {
-        item.locationData = {
-          address: row.locationAddress,
-          latitude: row.locationLatitude,
-          longitude: row.locationLongitude,
-          placeId: row.locationPlaceId
-        };
-      }
-      
-      // Remove raw location columns from response
-      delete item.locationAddress;
-      delete item.locationLatitude;
-      delete item.locationLongitude;
-      delete item.locationPlaceId;
-      
-      return item;
-    });
-    
-    res.json({ availability });
-  } catch (err) {
-    console.error('Error fetching player availability:', err);
-    return res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Children management endpoints (for Parent/Guardian users)
-
-// Get children for authenticated parent
-app.get('/api/children', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    // Return empty array for now - this feature needs children table implementation
-    res.json({ children: [] });
-  } catch (error) {
-    console.error('Error fetching children:', error);
-    res.status(500).json({ error: 'Failed to fetch children' });
-  }
-});
-
-// Get child player availability for authenticated parent
-app.get('/api/child-player-availability', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    // Return empty array for now - this feature needs child_player_availability table implementation
-    res.json({ availability: [] });
-  } catch (error) {
-    console.error('Error fetching child availability:', error);
-    res.status(500).json({ error: 'Failed to fetch availability' });
-  }
-});
-
-// Create child player availability
-app.post('/api/child-player-availability', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    // Return success for now - this feature needs full implementation
-    res.status(201).json({ message: 'Child availability will be created when feature is implemented' });
-  } catch (error) {
-    console.error('Error creating child availability:', error);
-    res.status(500).json({ error: 'Failed to create availability' });
-  }
-});
-
-// Update child player availability
-app.put('/api/child-player-availability/:id', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    res.json({ message: 'Child availability will be updated when feature is implemented' });
-  } catch (error) {
-    console.error('Error updating child availability:', error);
-    res.status(500).json({ error: 'Failed to update availability' });
-  }
-});
-
-// Delete child player availability
-app.delete('/api/child-player-availability/:id', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    res.json({ message: 'Child availability will be deleted when feature is implemented' });
-  } catch (error) {
-    console.error('Error deleting child availability:', error);
-    res.status(500).json({ error: 'Failed to delete availability' });
-  }
-});
-
-// League management endpoints
-
-// Get all leagues (includes user's pending requests if authenticated)
-app.get('/api/leagues', (req, res, next) => {
-  // Try to authenticate but don't require it
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded;
-    } catch (err) {
-      // Continue without authentication if token is invalid
-    }
-  }
-  next();
-}, async (req, res) => {
-  try {
-    const { includePending = false } = req.query;
-    
-    // Test database connection
-    console.log('Testing database connection...');
-    try {
-      const testQuery = await db.query('SELECT 1 as test');
-      console.log('Database connection test result:', testQuery);
-    } catch (dbError) {
-      console.error('Database connection test failed:', dbError);
-      throw dbError;
-    }
-    
-    // Check if leagues table exists
-    console.log('Checking if leagues table exists...');
-    let tableExists = false;
-    try {
-      if (db.dbType === 'postgresql') {
-        const tableCheck = await db.query("SELECT table_name FROM information_schema.tables WHERE table_name = 'leagues'");
-        tableExists = tableCheck.rows && tableCheck.rows.length > 0;
-      } else {
-        const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='leagues'");
-        tableExists = tableCheck.rows && tableCheck.rows.length > 0;
-      }
-      console.log('Leagues table exists:', tableExists);
-      
-      // Also check the table schema
-      if (tableExists) {
-        console.log('Checking leagues table schema...');
-        const schemaCheck = await db.query('PRAGMA table_info(leagues)');
-        console.log('Leagues table schema:', schemaCheck.rows);
-      }
-    } catch (tableError) {
-      console.error('Error checking leagues table:', tableError);
-    }
-    
-    // Get approved leagues (simplified query for compatibility)
-    console.log('Fetching leagues...');
-    
-    let leagues = [];
-    if (db.dbType === 'sqlite') {
-      const sqlite3 = require('sqlite3').verbose();
-      const sqliteDb = new sqlite3.Database('./database.sqlite');
-      
-      leagues = await new Promise((resolve, reject) => {
-        sqliteDb.all(`SELECT id, name, region, ageGroups, url, hits, description, isActive, createdBy, createdAt FROM leagues WHERE isActive = 1`, [], (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(rows.map(row => ({
-              id: row.id,
-              name: row.name,
-              region: row.region,
-              ageGroups: JSON.parse(row.ageGroups || '[]'),
-              url: row.url,
-              hits: row.hits,
-              description: row.description,
-              isActive: row.isActive,
-              createdBy: row.createdBy,
-              createdAt: row.createdAt,
-              status: 'approved',
-              isPending: false
-            })));
-          }
-          sqliteDb.close();
-        });
-      });
-    } else {
-      // Use existing abstraction for PostgreSQL
-      const result = await db.query(`SELECT id, name, region, ageGroups, url, hits, description, isActive, createdBy, createdAt FROM leagues WHERE isActive = true`);
-      leagues = result.rows.map(league => ({
-        ...league,
-        ageGroups: league.agegroups ? JSON.parse(league.agegroups) : [],
-        status: 'approved',
-        isPending: false
-      }));
-    }
-
-    // Include pending league requests for authenticated users
-    if (includePending && req.user) {
-      console.log('Including pending league requests for user:', req.user.userId);
-      try {
-        const pendingResult = await db.query(`
-          SELECT lr.id, lr.name, lr.region, lr.ageGroups, lr.url, lr.description, lr.createdAt,
-                 lr.submittedBy as createdBy, 'pending' as status, 1 as isPending
-          FROM league_requests lr
-          WHERE lr.status = 'pending' AND lr.submittedBy = ?
-        `, [req.user.userId]);
-
-        if (pendingResult.rows && pendingResult.rows.length > 0) {
-          leagues = [...leagues, ...pendingResult.rows.map(row => ({
-            ...row,
-            ageGroups: row.ageGroups ? JSON.parse(row.ageGroups) : []
-          }))];
-          console.log('Added', pendingResult.rows.length, 'pending league requests');
-        }
-      } catch (pendingError) {
-        console.error('Error fetching pending league requests:', pendingError);
-        // Continue without pending requests
-      }
-    }
-    
-    res.json({ leagues });
-  } catch (error) {
-    console.error('Error fetching leagues:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      errno: error.errno
-    });
-    // Return a more user-friendly error
-    res.status(500).json({ 
-      error: 'Failed to load leagues',
-      message: 'Unable to fetch leagues at this time. Please try again later.'
-    });
-  }
-});
-
-// Create new league (Admin only)
-app.post('/api/leagues', authenticateToken, requireAdmin, [
-  body('name').notEmpty().withMessage('League name is required'),
-  body('description').optional()
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { name, description } = req.body;
-
-  db.run(
-    'INSERT INTO leagues (name, description, createdBy) VALUES (?, ?, ?)',
-    [name, description, req.user.userId],
-    function(err) {
-      if (err) {
-        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          return res.status(400).json({ error: 'League name already exists' });
-        }
-        return res.status(500).json({ error: 'Failed to create league' });
-      }
-      res.status(201).json({
-        message: 'League created successfully',
-        league: {
-          id: this.lastID,
-          name,
-          description
-        }
-      });
-    }
-  );
-});
-
-// Update league (Admin only)
-app.put('/api/leagues/:id', authenticateToken, requireAdmin, [
-  body('name').notEmpty().withMessage('League name is required'),
-  body('description').optional()
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { name, description } = req.body;
-  const leagueId = req.params.id;
-
-  db.run(
-    'UPDATE leagues SET name = ?, description = ? WHERE id = ?',
-    [name, description, leagueId],
-    function(err) {
-      if (err) {
-        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          return res.status(400).json({ error: 'League name already exists' });
-        }
-        return res.status(500).json({ error: 'Failed to update league' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'League not found' });
-      }
-      res.json({ message: 'League updated successfully' });
-    }
-  );
-});
-
-// Delete league (Admin only)
-app.delete('/api/leagues/:id', authenticateToken, requireAdmin, (req, res) => {
-  const leagueId = req.params.id;
-
-  db.run(
-    'UPDATE leagues SET isActive = FALSE WHERE id = ?',
-    [leagueId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to delete league' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'League not found' });
-      }
-      res.json({ message: 'League deleted successfully' });
-    }
-  );
-});
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
-});
-
-// Public site statistics (no authentication required)
-app.get('/api/public/site-stats', async (req, res) => {
-  try {
-    console.log('📊 Fetching public site stats...');
-    
-    // Get basic counts from existing tables
-    const totalUsersResult = await db.query('SELECT COUNT(*) as count FROM users WHERE isBlocked = FALSE');
-    const totalTeamsResult = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE status = \'active\'');
-    const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE status = \'active\'');
-    
-    // Handle different result formats (PostgreSQL vs SQLite)
-    const totalUsers = totalUsersResult.rows ? totalUsersResult.rows[0].count : totalUsersResult.rows[0].count;
-    const totalTeams = totalTeamsResult.rows ? totalTeamsResult.rows[0].count : totalTeamsResult.rows[0].count;
-    const totalPlayers = totalPlayersResult.rows ? totalPlayersResult.rows[0].count : totalPlayersResult.rows[0].count;
-    
-    // Return public stats
     res.json({
-      activeTeams: parseInt(totalTeams) || 0,
-      registeredPlayers: parseInt(totalPlayers) || 0,
-      successfulMatches: 0 // TODO: Implement match tracking
+      children: childrenResult.rows || []
     });
   } catch (error) {
-    console.error('Error fetching public site stats:', error);
-    // Return default values if database query fails
-    res.json({
-      activeTeams: 0,
-      registeredPlayers: 0,
-      successfulMatches: 0
-    });
-  }
-});
-
-// Analytics API endpoints
-
-// Analytics overview
-app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    console.log('📊 Fetching analytics overview...');
-    
-    // Use simpler queries that work with the existing database structure
-    const totalUsersResult = await db.query('SELECT COUNT(*) as count FROM users');
-    const totalTeamsResult = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
-    const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability');
-    
-    // Handle different result formats
-    const getTotalFromResult = (result) => {
-      if (result && result.rows && result.rows[0]) {
-        return result.rows[0].count || 0;
-      }
-      if (result && result[0]) {
-        return result[0].count || 0;
-      }
-      return 0;
-    };
-
-    const overview = {
-      totalUsers: getTotalFromResult(totalUsersResult),
-      totalTeams: getTotalFromResult(totalTeamsResult),
-      totalPlayers: getTotalFromResult(totalPlayersResult),
-      totalMatches: 0, // Default for now
-      todayUsers: 0,
-      todayTeams: 0, 
-      todayPlayers: 0,
-      todayPageViews: 0,
-      todayUniqueVisitors: 0,
-      activeSessions: 0
-    };
-
-    // Get user type breakdown
-    const userTypesResult = await db.query('SELECT role as userType, COUNT(*) as count FROM users GROUP BY role');
-    const userTypes = userTypesResult?.rows || userTypesResult || [];
-    
-    // Simple popular pages data
-    const popularPages = [
-      { page: '/dashboard', views: 150 },
-      { page: '/teams', views: 89 },
-      { page: '/players', views: 67 }
-    ];
-    
-    console.log('✅ Analytics data fetched successfully');
-    
-    res.json({
-      overview,
-      userTypeBreakdown: userTypes,
-      popularPages
-    });
-  } catch (error) {
-    console.error('Analytics overview error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data', details: error.message });
-  }
-});
-
-// Daily statistics
-app.get('/api/analytics/daily-stats', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    console.log('📊 Fetching daily stats...');
-    const days = parseInt(req.query.days) || 30;
-    
-    // Simplified daily stats with sample data
-    const sampleData = [];
-    const today = new Date();
-    
-    for (let i = parseInt(days) - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      sampleData.push({
-        date: dateStr,
-        users: Math.floor(Math.random() * 5) + 1,
-        teams: Math.floor(Math.random() * 3) + 1,
-        players: Math.floor(Math.random() * 8) + 2,
-        pageViews: Math.floor(Math.random() * 50) + 20,
-        uniqueVisitors: Math.floor(Math.random() * 25) + 10
-      });
-    }
-
-    console.log('✅ Daily stats fetched successfully');
-    res.json(sampleData);
-  } catch (error) {
-    console.error('Analytics daily stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch daily statistics', details: error.message });
-  }
-});
-
-// User activity analytics
-app.get('/api/analytics/user-activity', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    console.log('📊 Fetching user activity...');
-    
-    // Simple sample user activity data
-    const sampleActivity = {
-      mostActiveUsers: [
-        { name: 'Chris Gill', email: 'cgill1980@hotmail.com', userType: 'Admin', pageViews: 45 },
-        { name: 'Test User', email: 'test2@example.com', userType: 'Player', pageViews: 23 }
-      ],
-      recentActivity: [
-        { timestamp: new Date().toISOString(), user: 'Chris Gill', action: 'Viewed Analytics', page: '/analytics' },
-        { timestamp: new Date(Date.now() - 300000).toISOString(), user: 'Test User', action: 'Login', page: '/dashboard' }
-      ]
-    };
-
-    console.log('✅ User activity fetched successfully');
-    res.json(sampleActivity);
-  } catch (error) {
-    console.error('User activity error:', error);
-    res.status(500).json({ error: 'Failed to fetch user activity', details: error.message });
-  }
-});
-
-// Analytics tracking endpoint
-app.post('/api/analytics/track', async (req, res) => {
-  try {
-    const { events, sessionId, userId } = req.body;
-    
-    if (!Array.isArray(events)) {
-      return res.status(400).json({ error: 'Events must be an array' });
-    }
-
-    // For now, just log the events (you can extend this to store in database)
-    console.log(`📊 Analytics: Received ${events.length} events${userId ? ` for user ${userId}` : ' (anonymous)'}`);
-    
-    // Process each event
-    for (const event of events) {
-      console.log(`📈 Event: ${event.category}/${event.action}`, {
-        label: event.label,
-        value: event.value,
-        timestamp: event.timestamp
-      });
-    }
-
-    res.json({ 
-      success: true, 
-      processed: events.length,
-      message: 'Analytics events processed successfully'
-    });
-  } catch (error) {
-    console.error('Analytics tracking error:', error);
-    res.status(500).json({ error: 'Failed to process analytics events', details: error.message });
-  }
-});
-
-// Create admin user (Admin only)
-app.post('/api/admin/create-admin', authenticateToken, requireAdmin, [
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('firstName').notEmpty().withMessage('First name is required'),
-  body('lastName').notEmpty().withMessage('Last name is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password, firstName, lastName } = req.body;
-
-    // Check if user already exists
-    db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
-      if (row) {
-        return res.status(400).json({ error: 'User already exists with this email' });
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Insert admin user
-      db.run(
-        'INSERT INTO users (email, password, firstName, lastName, role) VALUES (?, ?, ?, ?, ?)',
-        [email, hashedPassword, firstName, lastName, 'Admin'],
-        function(err) {
-          if (err) {
-            console.error('Database error during admin creation:', err);
-            return res.status(500).json({ error: 'Failed to create admin user' });
-          }
-
-          res.status(201).json({
-            message: 'Admin user created successfully',
-            admin: {
-              id: this.lastID,
-              email,
-              firstName,
-              lastName,
-              role: 'Admin',
-              createdAt: new Date().toISOString()
-            }
-          });
-        }
-      );
-    });
-  } catch (error) {
-    console.error('Error creating admin:', error);
+    console.error('Get children error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Admin League Management Routes
-
-// Get all leagues from database (for admin management)
-app.get('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM leagues ORDER BY name');
-    const leagues = result.rows.map(league => {
-      if (league.ageGroups) {
-        league.ageGroups = JSON.parse(league.ageGroups);
-      } else {
-        league.ageGroups = [];
-      }
-      return league;
-    });
-    res.json({ leagues });
-  } catch (error) {
-    console.error('Error fetching admin leagues:', error);
-    res.status(500).json({ error: 'Failed to fetch leagues' });
-  }
-});
-
-// Create a new league
-app.post('/api/admin/leagues', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { name, region, ageGroups, country, url, description } = req.body;
-    
-    if (!name) {
-      return res.status(400).json({ error: 'League name is required' });
-    }
-
-    // Check if the user exists, if not, use NULL for createdBy
-    let createdBy = req.user.userId;
-    try {
-      const userCheck = await db.query('SELECT id FROM users WHERE id = ?', [req.user.userId]);
-      if (!userCheck.rows || userCheck.rows.length === 0) {
-        console.warn(`⚠️  User ${req.user.userId} not found in database, using NULL for createdBy`);
-        createdBy = null;
-      }
-    } catch (userCheckError) {
-      console.warn('⚠️  Error checking user existence:', userCheckError.message);
-      createdBy = null;
-    }
-
-    // Use different query syntax for PostgreSQL vs SQLite
-    let insertQuery, selectQuery;
-    if (process.env.DATABASE_URL) {
-      // PostgreSQL
-      insertQuery = 'INSERT INTO leagues (name, region, ageGroups, country, url, description, createdBy) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
-      selectQuery = 'SELECT * FROM leagues WHERE id = $1';
-    } else {
-      // SQLite
-      insertQuery = 'INSERT INTO leagues (name, region, ageGroups, country, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)';
-      selectQuery = 'SELECT * FROM leagues WHERE id = ?';
-    }
-
-    const insertResult = await db.query(insertQuery, [name, region || null, JSON.stringify(ageGroups || []), country || 'England', url || null, description || null, createdBy]);
-    
-    // Get the inserted league
-    const leagueId = insertResult.rows[0]?.id || insertResult.lastID;
-    const leagueResult = await db.query(selectQuery, [leagueId]);
-    const league = leagueResult.rows[0];
-    
-    // Parse ageGroups JSON
-    if (league.ageGroups) {
-      league.ageGroups = JSON.parse(league.ageGroups);
-    } else {
-      league.ageGroups = [];
-    }
-    
-    res.json({ league, message: 'League created successfully' });
-  } catch (error) {
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({ error: 'A league with this name already exists' });
-    }
-    console.error('Error creating league:', error);
-    res.status(500).json({ error: 'Failed to create league' });
-  }
-});
-
-// Update a league
-app.put('/api/admin/leagues/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, region, ageGroups, country, url, description, isActive } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'League name is required' });
-    }
-
-    const updateResult = await db.query(
-      'UPDATE leagues SET name = ?, region = ?, ageGroups = ?, country = ?, url = ?, description = ?, isActive = ? WHERE id = ?',
-      [name, region || null, JSON.stringify(ageGroups || []), country || 'England', url || null, description || null, isActive !== undefined ? isActive : true, id]
-    );
-
-    if (updateResult.changes === 0) {
-      return res.status(404).json({ error: 'League not found' });
-    }
-
-    const leagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [id]);
-    const league = leagueResult.rows[0];
-    
-    // Parse ageGroups JSON
-    if (league.ageGroups) {
-      league.ageGroups = JSON.parse(league.ageGroups);
-    } else {
-      league.ageGroups = [];
-    }
-    
-    res.json({ league, message: 'League updated successfully' });
-  } catch (error) {
-    if (error.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({ error: 'A league with this name already exists' });
-    }
-    console.error('Error updating league:', error);
-    res.status(500).json({ error: 'Failed to update league' });
-  }
-});
-
-// Delete a league
-app.delete('/api/admin/leagues/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const deleteResult = await db.query('DELETE FROM leagues WHERE id = ?', [id]);
-
-    if (deleteResult.changes === 0) {
-      return res.status(404).json({ error: 'League not found' });
-    }
-
-    res.json({ message: 'League deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting league:', error);
-    res.status(500).json({ error: 'Failed to delete league' });
-  }
-});
-
-// Freeze/Unfreeze a league (toggle isActive status)
-app.patch('/api/admin/leagues/:id/freeze', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { freeze } = req.body;
-
-    // Get current league status
-    const leagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [id]);
-    
-    if (leagueResult.rows.length === 0) {
-      return res.status(404).json({ error: 'League not found' });
-    }
-
-    const newStatus = freeze !== undefined ? !freeze : !leagueResult.rows[0].isActive;
-
-    const updateResult = await db.query(
-      'UPDATE leagues SET isActive = ? WHERE id = ?',
-      [newStatus, id]
-    );
-
-    const updatedLeagueResult = await db.query('SELECT * FROM leagues WHERE id = ?', [id]);
-    const league = updatedLeagueResult.rows[0];
-    
-    res.json({ 
-      league, 
-      message: `League ${newStatus ? 'activated' : 'frozen'} successfully` 
-    });
-  } catch (error) {
-    console.error('Error freezing/unfreezing league:', error);
-    res.status(500).json({ error: 'Failed to update league status' });
-  }
-});
-
-// Create league_requests table if it doesn't exist
-app.post('/api/admin/create-league-requests-table', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    console.log('🚀 Creating league_requests table...');
-    
-    if (db.dbType === 'postgresql') {
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS league_requests (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR NOT NULL,
-          region VARCHAR,
-          ageGroups JSON,
-          url VARCHAR,
-          description TEXT,
-          contactName VARCHAR,
-          contactEmail VARCHAR,
-          contactPhone VARCHAR,
-          status VARCHAR DEFAULT 'pending',
-          submittedBy INTEGER NOT NULL,
-          reviewedBy INTEGER,
-          reviewedAt TIMESTAMP,
-          reviewNotes TEXT,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (submittedBy) REFERENCES users (id),
-          FOREIGN KEY (reviewedBy) REFERENCES users (id),
-          CHECK (status IN ('pending', 'approved', 'rejected'))
-        )
-      `);
-    } else {
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS league_requests (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name VARCHAR NOT NULL,
-          region VARCHAR,
-          ageGroups JSON,
-          url VARCHAR,
-          description TEXT,
-          contactName VARCHAR,
-          contactEmail VARCHAR,
-          contactPhone VARCHAR,
-          status VARCHAR DEFAULT 'pending',
-          submittedBy INTEGER NOT NULL,
-          reviewedBy INTEGER,
-          reviewedAt TIMESTAMP,
-          reviewNotes TEXT,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (submittedBy) REFERENCES users (id),
-          FOREIGN KEY (reviewedBy) REFERENCES users (id),
-          CHECK (status IN ('pending', 'approved', 'rejected'))
-        )
-      `);
-    }
-    
-    // Create indexes
-    if (db.dbType === 'postgresql') {
-      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_status ON league_requests(status)');
-      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_submitted_by ON league_requests(submittedBy)');
-    } else {
-      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_status ON league_requests(status)');
-      await db.query('CREATE INDEX IF NOT EXISTS idx_league_requests_submitted_by ON league_requests(submittedBy)');
-    }
-    
-    console.log('✅ League requests table created successfully');
-    res.json({ message: 'League requests table created successfully' });
-  } catch (error) {
-    console.error('Error creating league_requests table:', error);
-    res.status(500).json({ error: 'Failed to create league_requests table', details: error.message });
-  }
-});
-
-// Populate database with FA leagues (one-time setup)
-app.post('/api/admin/leagues/populate-fa-leagues', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const faLeagues = [
-      { 
-        name: 'Central Warwickshire Youth Football League', 
-        region: 'Midlands', 
-        ageGroup: 'Youth',
-        url: 'https://fulltime.thefa.com/index.html?league=4385806',
-        hits: 163137
-      },
-      { 
-        name: 'Northumberland Football League', 
-        region: 'North East', 
-        ageGroup: 'Senior',
-        url: 'https://fulltime.thefa.com/index.html?league=136980506',
-        hits: 154583
-      },
-      { 
-        name: 'Eastern Junior Alliance', 
-        region: 'Eastern', 
-        ageGroup: 'Junior',
-        url: 'https://fulltime.thefa.com/index.html?league=257944965',
-        hits: 150693
-      },
-      { 
-        name: 'Sheffield & District Junior Sunday League', 
-        region: 'Yorkshire', 
-        ageGroup: 'Junior',
-        url: 'https://fulltime.thefa.com/index.html?league=5484799',
-        hits: 136761
-      },
-      { 
-        name: 'East Manchester Junior Football League ( Charter Standard League )', 
-        region: 'North West', 
-        ageGroup: 'Junior',
-        url: 'https://fulltime.thefa.com/index.html?league=8335132',
-        hits: 124371
-      },
-      { 
-        name: 'Warrington Junior Football League', 
-        region: 'North West', 
-        ageGroup: 'Junior',
-        url: 'https://fulltime.thefa.com/index.html?league=70836961',
-        hits: 118582
-      },
-      { 
-        name: 'Teesside Junior Football Alliance League', 
-        region: 'North East', 
-        ageGroup: 'Junior',
-        url: 'https://fulltime.thefa.com/index.html?league=8739365',
-        hits: 116243
-      },
-      { 
-        name: 'Surrey Youth League (SYL)', 
-        region: 'South East', 
-        ageGroup: 'Youth',
-        url: 'https://fulltime.thefa.com/index.html?league=863411662',
-        hits: 113925
-      }
-    ];
-
-    let insertedCount = 0;
-    let skippedCount = 0;
-
-    for (const league of faLeagues) {
-      try {
-        await db.query(
-          'INSERT INTO leagues (name, region, ageGroup, url, hits, createdBy) VALUES (?, ?, ?, ?, ?, ?)',
-          [league.name, league.region, league.ageGroup, league.url, league.hits, req.user.userId]
-        );
-        insertedCount++;
-      } catch (error) {
-        if (error.message.includes('UNIQUE constraint failed')) {
-          skippedCount++;
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    res.json({ 
-      message: 'FA leagues population completed',
-      inserted: insertedCount,
-      skipped: skippedCount,
-      total: faLeagues.length
-    });
-  } catch (error) {
-    console.error('Error populating FA leagues:', error);
-    res.status(500).json({ error: 'Failed to populate FA leagues' });
-  }
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-// Alert System API endpoints
-
-// Get user alert preferences
-app.get('/api/alerts/preferences', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const preferences = await alertService.getAlertPreferences(req.user.userId);
-    res.json({ preferences });
-  } catch (error) {
-    console.error('Error getting alert preferences:', error);
-    res.status(500).json({ error: 'Failed to get alert preferences' });
-  }
-});
-
-// Update user alert preferences
-app.put('/api/alerts/preferences', authenticateToken, requireBetaAccess, [
-  body('emailNotifications').optional().isBoolean(),
-  body('newVacancyAlerts').optional().isBoolean(),
-  body('newPlayerAlerts').optional().isBoolean(),
-  body('trialInvitations').optional().isBoolean(),
-  body('weeklyDigest').optional().isBoolean(),
-  body('instantAlerts').optional().isBoolean(),
-  body('preferredLeagues').optional().isArray(),
-  body('ageGroups').optional().isArray(),
-  body('positions').optional().isArray(),
-  body('maxDistance').optional().isInt({ min: 1, max: 500 })
+// Add a new child
+app.post('/api/children', [
+  authenticateToken,
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('lastName').notEmpty().withMessage('Last name is required'),
+  body('dateOfBirth').isISO8601().withMessage('Valid date of birth is required'),
+  body('gender').optional().isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required')
 ], async (req, res) => {
   try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can add children' });
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    await alertService.setAlertPreferences(req.user.userId, req.body);
-    res.json({ message: 'Alert preferences updated successfully' });
-  } catch (error) {
-    console.error('Error updating alert preferences:', error);
-    res.status(500).json({ error: 'Failed to update alert preferences' });
-  }
-});
+    const {
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      preferredPosition,
+      medicalInfo,
+      emergencyContact,
+      emergencyPhone,
+      schoolName
+    } = req.body;
 
-// Get alert history for user
-app.get('/api/alerts/history', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
-
-    const result = await db.query(`
-      SELECT al.*, 
-        CASE 
-          WHEN al.targetType = 'vacancy' THEN (
-            SELECT json_object('title', title, 'league', league, 'position', position)
-            FROM team_vacancies WHERE id = al.targetId
-          )
-          WHEN al.targetType = 'player_availability' THEN (
-            SELECT json_object('title', title, 'preferredLeagues', preferredLeagues)
-            FROM player_availability WHERE id = al.targetId
-          )
-          ELSE NULL
-        END as targetData
-      FROM alert_logs al
-      WHERE al.userId = ?
-      ORDER BY al.sentAt DESC
-      LIMIT ? OFFSET ?
-    `, [req.user.userId, limit, offset]);
-
-    const totalResult = await db.query(
-      'SELECT COUNT(*) as total FROM alert_logs WHERE userId = ?',
-      [req.user.userId]
-    );
-
-    res.json({
-      alerts: result.rows,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: totalResult.rows[0].total,
-        totalPages: Math.ceil(totalResult.rows[0].total / limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error getting alert history:', error);
-    res.status(500).json({ error: 'Failed to get alert history' });
-  }
-});
-
-// Training Sessions API
-
-// Create training session (coaches only)
-app.post('/api/training/sessions', authenticateToken, requireBetaAccess, [
-  body('title').notEmpty().withMessage('Title is required'),
-  body('description').optional(),
-  body('date').isISO8601().withMessage('Valid date is required'),
-  body('time').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Valid time is required'),
-  body('location').notEmpty().withMessage('Location is required'),
-  body('max_spaces').isInt({ min: 1 }).withMessage('Max spaces must be at least 1'),
-  body('price').optional().isFloat({ min: 0 }).withMessage('Price must be non-negative'),
-  body('price_type').optional().isIn(['per_session', 'per_month', 'free']).withMessage('Invalid price type'),
-  body('includes_equipment').optional().isBoolean(),
-  body('includes_facilities').optional().isBoolean(),
-  body('payment_methods').optional(),
-  body('refund_policy').optional(),
-  body('special_offers').optional()
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    // Verify child is under 16
+    const age = calculateAge(dateOfBirth);
+    if (age >= 16) {
+      return res.status(400).json({ 
+        error: 'Children must be under 16 years old. Players 16 and over should register their own accounts.',
+        ageRestriction: true,
+        childAge: age
+      });
     }
-
-    if (req.user.role !== 'coach') {
-      return res.status(403).json({ error: 'Only coaches can create training sessions' });
-    }
-
-    const { title, description, date, time, location, max_spaces, price = 0, price_type = 'per_session', includes_equipment = false, includes_facilities = false, payment_methods = 'cash,bank_transfer', refund_policy, special_offers } = req.body;
 
     const result = await db.query(
-      'INSERT INTO training_sessions (coach_id, title, description, date, time, location, max_spaces, price, price_type, includes_equipment, includes_facilities, payment_methods, refund_policy, special_offers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, title, description, date, time, location, max_spaces, price, price_type, includes_equipment, includes_facilities, payment_methods, refund_policy, special_offers]
+      `INSERT INTO children (parentId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
+       medicalInfo, emergencyContact, emergencyPhone, schoolName) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.userId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
+       medicalInfo, emergencyContact, emergencyPhone, schoolName]
     );
 
-    res.status(201).json({ 
-      id: result.lastID,
-      message: 'Training session created successfully' 
+    const childId = result.lastID;
+
+    res.status(201).json({
+      message: 'Child added successfully',
+      child: {
+        id: childId,
+        parentId: req.user.userId,
+        firstName,
+        lastName,
+        dateOfBirth,
+        gender,
+        preferredPosition,
+        medicalInfo,
+        emergencyContact,
+        emergencyPhone,
+        schoolName,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      }
     });
   } catch (error) {
-    console.error('Error creating training session:', error);
-    res.status(500).json({ error: 'Failed to create training session' });
+    console.error('Add child error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get coach's training sessions
-app.get('/api/training/sessions', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    let query, params;
-
-    if (req.user.role === 'coach') {
-      // Coaches see their own sessions
-      query = 'SELECT * FROM training_sessions WHERE coach_id = ? ORDER BY date DESC, time DESC';
-      params = [req.user.userId];
-    } else {
-      // Players see all sessions
-      query = 'SELECT ts.*, u.name as coach_name FROM training_sessions ts JOIN users u ON ts.coach_id = u.id ORDER BY ts.date DESC, ts.time DESC';
-      params = [];
-    }
-
-    const result = await db.query(query, params);
-    res.json({ sessions: result.rows });
-  } catch (error) {
-    console.error('Error getting training sessions:', error);
-    res.status(500).json({ error: 'Failed to get training sessions' });
-  }
-});
-
-// Update training session
-app.put('/api/training/sessions/:id', authenticateToken, requireBetaAccess, [
-  body('title').optional().notEmpty(),
-  body('description').optional(),
-  body('date').optional().isISO8601(),
-  body('time').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
-  body('location').optional().notEmpty(),
-  body('max_spaces').optional().isInt({ min: 1 }),
-  body('price').optional().isFloat({ min: 0 }),
-  body('price_type').optional().isIn(['per_session', 'per_month', 'free']),
-  body('includes_equipment').optional().isBoolean(),
-  body('includes_facilities').optional().isBoolean(),
-  body('payment_methods').optional(),
-  body('refund_policy').optional(),
-  body('special_offers').optional()
+// Update child information
+app.put('/api/children/:childId', [
+  authenticateToken,
+  body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
+  body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required'),
+  body('gender').optional().isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required')
 ], async (req, res) => {
   try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can update children' });
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const sessionId = req.params.id;
-    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
+    const { childId } = req.params;
+    
+    // Verify child belongs to this parent
+    const childResult = await db.query(
+      'SELECT * FROM children WHERE id = ? AND parentId = ?',
+      [childId, req.user.userId]
+    );
 
-    if (session.rows.length === 0) {
-      return res.status(404).json({ error: 'Training session not found' });
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
     }
 
-    if (session.rows[0].coach_id !== req.user.userId) {
-      return res.status(403).json({ error: 'You can only update your own sessions' });
-    }
+    const updateFields = [];
+    const updateValues = [];
+    
+    Object.keys(req.body).forEach(key => {
+      if (req.body[key] !== undefined) {
+        updateFields.push(`${key} = ?`);
+        updateValues.push(req.body[key]);
+      }
+    });
 
-    const updates = req.body;
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
-
-    if (fields.length === 0) {
+    if (updateFields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const setClause = fields.map(field => `${field} = ?`).join(', ');
-    values.push(sessionId);
+    updateFields.push('updatedAt = ?');
+    updateValues.push(new Date().toISOString());
+    updateValues.push(childId);
 
     await db.query(
-      `UPDATE training_sessions SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      values
+      `UPDATE children SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
     );
 
-    res.json({ message: 'Training session updated successfully' });
+    res.json({ message: 'Child information updated successfully' });
   } catch (error) {
-    console.error('Error updating training session:', error);
-    res.status(500).json({ error: 'Failed to update training session' });
+    console.error('Update child error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Delete training session
-app.delete('/api/training/sessions/:id', authenticateToken, requireBetaAccess, async (req, res) => {
+// Delete/deactivate a child
+app.delete('/api/children/:childId', authenticateToken, async (req, res) => {
   try {
-    const sessionId = req.params.id;
-    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
-
-    if (session.rows.length === 0) {
-      return res.status(404).json({ error: 'Training session not found' });
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can delete children' });
     }
 
-    if (session.rows[0].coach_id !== req.user.userId) {
-      return res.status(403).json({ error: 'You can only delete your own sessions' });
+    const { childId } = req.params;
+    
+    // Verify child belongs to this parent
+    const childResult = await db.query(
+      'SELECT * FROM children WHERE id = ? AND parentId = ?',
+      [childId, req.user.userId]
+    );
+
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
     }
 
-    await db.query('DELETE FROM training_bookings WHERE session_id = ?', [sessionId]);
-    await db.query('DELETE FROM training_sessions WHERE id = ?', [sessionId]);
+    // Soft delete - set isActive to false
+    await db.query(
+      'UPDATE children SET isActive = ?, updatedAt = ? WHERE id = ?',
+      [false, new Date().toISOString(), childId]
+    );
 
-    res.json({ message: 'Training session deleted successfully' });
+    // Also deactivate any player availability for this child
+    await db.query(
+      'UPDATE child_player_availability SET status = ?, updatedAt = ? WHERE childId = ?',
+      ['inactive', new Date().toISOString(), childId]
+    );
+
+    res.json({ message: 'Child removed successfully' });
   } catch (error) {
-    console.error('Error deleting training session:', error);
-    res.status(500).json({ error: 'Failed to delete training session' });
+    console.error('Delete child error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Book training session
-app.post('/api/training/sessions/:id/book', authenticateToken, requireBetaAccess, async (req, res) => {
+// Child Player Availability Endpoints
+
+// Get all player availability for parent's children
+app.get('/api/child-player-availability', authenticateToken, async (req, res) => {
   try {
-    const sessionId = req.params.id;
-
-    if (req.user.role !== 'player' && req.user.role !== 'parent') {
-      return res.status(403).json({ error: 'Only players can book training sessions' });
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can access child player availability' });
     }
 
-    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
-    if (session.rows.length === 0) {
-      return res.status(404).json({ error: 'Training session not found' });
-    }
-
-    // Check if already booked
-    const existingBooking = await db.query(
-      'SELECT * FROM training_bookings WHERE session_id = ? AND player_id = ?',
-      [sessionId, req.user.userId]
+    const availabilityResult = await db.query(
+      `SELECT cpa.*, c.firstName, c.lastName, c.dateOfBirth 
+       FROM child_player_availability cpa 
+       JOIN children c ON cpa.childId = c.id 
+       WHERE cpa.parentId = ? AND cpa.status != 'inactive'
+       ORDER BY cpa.createdAt DESC`,
+      [req.user.userId]
     );
 
-    if (existingBooking.rows.length > 0) {
-      return res.status(400).json({ error: 'You have already booked this session' });
+    const availability = (availabilityResult.rows || []).map(row => ({
+      ...row,
+      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
+      positions: row.positions ? JSON.parse(row.positions) : [],
+      locationData: row.locationData ? JSON.parse(row.locationData) : null,
+      availability: row.availability ? JSON.parse(row.availability) : null
+    }));
+
+    res.json({ availability });
+  } catch (error) {
+    console.error('Get child player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create new player availability for a child
+app.post('/api/child-player-availability', [
+  authenticateToken,
+  body('childId').isInt().withMessage('Valid child ID is required'),
+  body('title').notEmpty().withMessage('Title is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can create child player availability' });
     }
 
-    // Check available spaces
-    const bookingCount = await db.query(
-      'SELECT COUNT(*) as count FROM training_bookings WHERE session_id = ? AND status = \'confirmed\'',
-      [sessionId]
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      childId,
+      title,
+      description,
+      preferredLeagues,
+      ageGroup,
+      positions,
+      preferredTeamGender,
+      location,
+      locationData,
+      contactInfo,
+      availability
+    } = req.body;
+
+    // Verify child belongs to this parent
+    const childResult = await db.query(
+      'SELECT * FROM children WHERE id = ? AND parentId = ? AND isActive = ?',
+      [childId, req.user.userId, true]
     );
 
-    if (bookingCount.rows[0].count >= session.rows[0].max_spaces) {
-      return res.status(400).json({ error: 'This session is fully booked' });
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
     }
+
+    const result = await db.query(
+      `INSERT INTO child_player_availability 
+       (childId, parentId, title, description, preferredLeagues, ageGroup, positions, 
+        preferredTeamGender, location, locationData, contactInfo, availability) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        childId,
+        req.user.userId,
+        title,
+        description,
+        JSON.stringify(preferredLeagues || []),
+        ageGroup,
+        JSON.stringify(positions),
+        preferredTeamGender || 'Mixed',
+        location,
+        JSON.stringify(locationData),
+        contactInfo,
+        JSON.stringify(availability)
+      ]
+    );
+
+    const availabilityId = result.lastID;
+
+    res.status(201).json({
+      message: 'Child player availability created successfully',
+      availability: {
+        id: availabilityId,
+        childId,
+        parentId: req.user.userId,
+        title,
+        description,
+        preferredLeagues: preferredLeagues || [],
+        ageGroup,
+        positions,
+        location,
+        locationData,
+        contactInfo,
+        availability,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Create child player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update child player availability
+app.put('/api/child-player-availability/:availabilityId', [
+  authenticateToken,
+  body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+  body('ageGroup').optional().notEmpty().withMessage('Age group cannot be empty'),
+  body('positions').optional().isArray({ min: 1 }).withMessage('At least one position is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can update child player availability' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { availabilityId } = req.params;
+    
+    // Verify availability belongs to this parent
+    const availabilityResult = await db.query(
+      'SELECT * FROM child_player_availability WHERE id = ? AND parentId = ?',
+      [availabilityId, req.user.userId]
+    );
+
+    if (!availabilityResult.rows || availabilityResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Player availability not found or access denied' });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+    
+    Object.keys(req.body).forEach(key => {
+      if (req.body[key] !== undefined) {
+        if (['preferredLeagues', 'positions', 'locationData', 'availability'].includes(key)) {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(JSON.stringify(req.body[key]));
+        } else {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(req.body[key]);
+        }
+      }
+    });
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateFields.push('updatedAt = ?');
+    updateValues.push(new Date().toISOString());
+    updateValues.push(availabilityId);
 
     await db.query(
-      'INSERT INTO training_bookings (session_id, player_id, status) VALUES (?, ?, "confirmed")',
-      [sessionId, req.user.userId]
+      `UPDATE child_player_availability SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
     );
 
-    res.json({ message: 'Training session booked successfully' });
+    res.json({ message: 'Child player availability updated successfully' });
   } catch (error) {
-    console.error('Error booking training session:', error);
-    res.status(500).json({ error: 'Failed to book training session' });
+    console.error('Update child player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get bookings for a session (coach only)
-app.get('/api/training/sessions/:id/bookings', authenticateToken, requireBetaAccess, async (req, res) => {
+// Delete child player availability
+app.delete('/api/child-player-availability/:availabilityId', authenticateToken, async (req, res) => {
   try {
-    const sessionId = req.params.id;
-    const session = await db.query('SELECT * FROM training_sessions WHERE id = ?', [sessionId]);
-
-    if (session.rows.length === 0) {
-      return res.status(404).json({ error: 'Training session not found' });
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can delete child player availability' });
     }
 
-    if (session.rows[0].coach_id !== req.user.userId) {
-      return res.status(403).json({ error: 'You can only view bookings for your own sessions' });
-    }
-
-    const bookings = await db.query(
-      'SELECT tb.*, u.name, u.email FROM training_bookings tb JOIN users u ON tb.player_id = u.id WHERE tb.session_id = ? ORDER BY tb.booked_at DESC',
-      [sessionId]
+    const { availabilityId } = req.params;
+    
+    // Verify availability belongs to this parent
+    const availabilityResult = await db.query(
+      'SELECT * FROM child_player_availability WHERE id = ? AND parentId = ?',
+      [availabilityId, req.user.userId]
     );
 
-    res.json({ bookings: bookings.rows });
+    if (!availabilityResult.rows || availabilityResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Player availability not found or access denied' });
+    }
+
+    // Soft delete - set status to inactive
+    await db.query(
+      'UPDATE child_player_availability SET status = ?, updatedAt = ? WHERE id = ?',
+      ['inactive', new Date().toISOString(), availabilityId]
+    );
+
+    res.json({ message: 'Child player availability removed successfully' });
   } catch (error) {
-    console.error('Error getting session bookings:', error);
-    res.status(500).json({ error: 'Failed to get session bookings' });
+    console.error('Delete child player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// User Engagement and Recommendation System
+// Get public child player availability (for coaches to see)
+app.get('/api/public/child-player-availability', async (req, res) => {
+  try {
+    const { league, ageGroup, position, location } = req.query;
+    
+    let query = `
+      SELECT cpa.*, c.firstName, c.lastName, c.dateOfBirth, u.email as parentEmail
+      FROM child_player_availability cpa 
+      JOIN children c ON cpa.childId = c.id 
+      JOIN users u ON cpa.parentId = u.id
+      WHERE cpa.status = 'active' AND c.isActive = true
+    `;
+    const params = [];
 
-// Track user interaction
-app.post('/api/engagement/track', authenticateToken, requireBetaAccess, [
-  body('actionType').notEmpty().withMessage('Action type is required'),
-  body('targetId').optional().isInt(),
-  body('targetType').optional().notEmpty(),
-  body('metadata').optional().isObject()
+    if (league) {
+      query += ` AND cpa.preferredLeagues LIKE ?`;
+      params.push(`%"${league}"%`);
+    }
+
+    if (ageGroup) {
+      query += ` AND cpa.ageGroup = ?`;
+      params.push(ageGroup);
+    }
+
+    if (position) {
+      query += ` AND cpa.positions LIKE ?`;
+      params.push(`%"${position}"%`);
+    }
+
+    if (location) {
+      query += ` AND cpa.location LIKE ?`;
+      params.push(`%${location}%`);
+    }
+
+    query += ` ORDER BY cpa.createdAt DESC`;
+
+    const availabilityResult = await db.query(query, params);
+
+    const availability = (availabilityResult.rows || []).map(row => ({
+      ...row,
+      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
+      positions: row.positions ? JSON.parse(row.positions) : [],
+      locationData: row.locationData ? JSON.parse(row.locationData) : null,
+      availability: row.availability ? JSON.parse(row.availability) : null
+    }));
+
+    res.json({ availability });
+  } catch (error) {
+    console.error('Get public child player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get public site statistics (for homepage display)
+app.get('/api/public/site-stats', async (req, res) => {
+  try {
+    // Get total active teams (from team_vacancies table - count distinct users who posted vacancies)
+    const activeTeams = await db.query('SELECT COUNT(DISTINCT postedBy) as count FROM team_vacancies WHERE status = "active"');
+    
+    // Get total registered players (from users table, excluding admins)
+    const registeredPlayers = await db.query('SELECT COUNT(*) as count FROM users WHERE role != "Admin"');
+    
+    // Get successful matches (confirmed match completions)
+    const successfulMatches = await db.query('SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"');
+
+    res.json({
+      activeTeams: activeTeams.rows[0].count,
+      registeredPlayers: registeredPlayers.rows[0].count,
+      successfulMatches: successfulMatches.rows[0].count
+    });
+  } catch (error) {
+    console.error('Get public site stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Match Completion Endpoints
+
+// Create a match completion (when a coach/player confirms a successful match)
+app.post('/api/match-completions', [
+  authenticateToken,
+  body('matchType').isIn(['player_to_team', 'child_to_team']).withMessage('Valid match type required'),
+  body('playerName').notEmpty().withMessage('Player name is required'),
+  body('teamName').notEmpty().withMessage('Team name is required'),
+  body('position').notEmpty().withMessage('Position is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('league').notEmpty().withMessage('League is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -3511,1532 +1219,340 @@ app.post('/api/engagement/track', authenticateToken, requireBetaAccess, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { actionType, targetId, targetType, metadata } = req.body;
+    const {
+      vacancyId,
+      availabilityId,
+      childAvailabilityId,
+      matchType,
+      playerName,
+      teamName,
+      position,
+      ageGroup,
+      league,
+      startDate,
+      playerId,
+      parentId
+    } = req.body;
 
-    await db.query(`
-      INSERT INTO user_interactions (userId, actionType, targetId, targetType, metadata)
-      VALUES (?, ?, ?, ?, ?)
-    `, [req.user.userId, actionType, targetId, targetType, JSON.stringify(metadata || {})]);
-
-    // Update daily engagement metrics
-    const today = new Date().toISOString().split('T')[0];
-    
-    if (db.dbType === 'postgresql') {
-      // PostgreSQL syntax
-      await db.query(`
-        INSERT INTO user_engagement_metrics (userId, date, actionsCompleted)
-        VALUES ($1, $2, 1)
-        ON CONFLICT(userId, date) DO UPDATE SET
-          actionsCompleted = user_engagement_metrics.actionsCompleted + 1
-      `, [req.user.userId, today]);
-    } else {
-      // SQLite syntax
-      await db.query(`
-        INSERT INTO user_engagement_metrics (userId, date, actionsCompleted)
-        VALUES (?, ?, 1)
-        ON CONFLICT(userId, date) DO UPDATE SET
-          actionsCompleted = actionsCompleted + 1
-      `, [req.user.userId, today]);
+    // Validate user role based on match type
+    if (matchType === 'child_to_team' && req.user.role !== 'Parent/Guardian' && req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only parents/guardians or coaches can confirm child matches' });
     }
 
-    res.json({ message: 'Interaction tracked successfully' });
-  } catch (error) {
-    console.error('Error tracking interaction:', error);
-    res.status(500).json({ error: 'Failed to track interaction' });
-  }
-});
-
-// Get personalized recommendations
-app.get('/api/recommendations', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { type = 'all', limit = 10 } = req.query;
-    const parsedLimit = parseInt(limit) || 10;
-    
-    // Get user's recent interactions to understand preferences (with error handling)
-    let interactions = [];
-    try {
-      const dateThreshold = process.env.DATABASE_URL 
-        ? `NOW() - INTERVAL '30 days'` 
-        : `datetime('now', '-30 days')`;
-      const interactionsResult = await db.query(`
-        SELECT actionType, targetType, metadata
-        FROM user_interactions
-        WHERE userId = ${process.env.DATABASE_URL ? '$1' : '?'} AND createdAt > ${dateThreshold}
-        ORDER BY createdAt DESC
-        LIMIT 50
-      `, [req.user.userId]);
-      interactions = interactionsResult.rows || [];
-    } catch (interactionError) {
-      console.warn('user_interactions table not available:', interactionError.message);
-    }
-    
-    // Get user profile to understand preferences (with error handling)
-    let profileResult = { rows: [] };
-    try {
-      const placeholder = process.env.DATABASE_URL ? '$1' : '?';
-      profileResult = await db.query(`
-        SELECT position, preferredTeamGender, experienceLevel, ageGroupsCoached
-        FROM user_profiles
-        WHERE userId = ${placeholder}
-      `, [req.user.userId]);
-    } catch (profileError) {
-      console.warn('user_profiles query failed:', profileError.message);
+    if (matchType === 'player_to_team' && req.user.role !== 'Player' && req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only players or coaches can confirm player matches' });
     }
 
-    let recommendations = [];
-
-    if (req.user.role === 'Player' || req.user.role === 'Parent/Guardian') {
-      // Recommend team vacancies
-      const placeholder1 = process.env.DATABASE_URL ? '$1' : '?';
-      const placeholder2 = process.env.DATABASE_URL ? '$2' : '?';
-      const placeholder3 = process.env.DATABASE_URL ? '$3' : '?';
-      let vacancyQuery = `
-        SELECT v.*, u.firstName, u.lastName,
-          CASE 
-            WHEN ui.targetId IS NOT NULL THEN 1 
-            ELSE 0 
-          END as hasInteracted
-        FROM team_vacancies v
-        JOIN users u ON v.postedBy = u.id
-        LEFT JOIN user_interactions ui ON ui.targetId = v.id AND ui.targetType = 'vacancy' AND ui.userId = ${placeholder1}
-        WHERE v.status = 'active' AND ui.targetId IS NULL
-      `;
-
-      let queryParams = [req.user.userId];
-      let paramIndex = 2;
-
-      // Add filters based on user interactions and profile
-      if (profileResult.rows.length > 0) {
-        const profile = profileResult.rows[0];
-        if (profile.position) {
-          vacancyQuery += ` AND v.position = ${process.env.DATABASE_URL ? '$' + paramIndex : '?'}`;
-          queryParams.push(profile.position);
-          paramIndex++;
-        }
-      }
-
-      vacancyQuery += ` ORDER BY v.createdAt DESC LIMIT ${process.env.DATABASE_URL ? '$' + paramIndex : '?'}`;
-      queryParams.push(parsedLimit);
-      
-      const vacanciesResult = await db.query(vacancyQuery, queryParams);
-      recommendations = recommendations.concat(
-        vacanciesResult.rows.map(v => ({
-          type: 'vacancy',
-          id: v.id,
-          title: v.title,
-          description: v.description,
-          metadata: {
-            league: v.league,
-            position: v.position,
-            ageGroup: v.ageGroup,
-            location: v.location,
-            postedBy: `${v.firstName} ${v.lastName}`
-          },
-          score: Math.random() * 100 // Simple scoring for now
-        }))
-      );
-    }
+    // Set confirmation status based on who is creating the completion
+    let coachConfirmed = false;
+    let playerConfirmed = false;
+    let parentConfirmed = false;
 
     if (req.user.role === 'Coach') {
-      // Recommend available players
-      const placeholder1 = process.env.DATABASE_URL ? '$1' : '?';
-      const placeholder2 = process.env.DATABASE_URL ? '$2' : '?';
-      let playerQuery = `
-        SELECT p.*, u.firstName, u.lastName,
-          CASE 
-            WHEN ui.targetId IS NOT NULL THEN 1 
-            ELSE 0 
-          END as hasInteracted
-        FROM player_availability p
-        JOIN users u ON p.postedBy = u.id
-        LEFT JOIN user_interactions ui ON ui.targetId = p.id AND ui.targetType = 'player_availability' AND ui.userId = ${placeholder1}
-        WHERE p.status = 'active' AND ui.targetId IS NULL
-        ORDER BY p.createdAt DESC 
-        LIMIT ${placeholder2}
-      `;
-      
-      const playersResult = await db.query(playerQuery, [req.user.userId, parsedLimit]);
-      recommendations = recommendations.concat(
-        playersResult.rows.map(p => ({
-          type: 'player',
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          metadata: {
-            preferredLeagues: p.preferredLeagues,
-            positions: (() => {
-              try {
-                return JSON.parse(p.positions || '[]');
-              } catch (e) {
-                console.warn('Failed to parse positions for player', p.id, e);
-                return [];
-              }
-            })(),
-            ageGroup: p.ageGroup,
-            location: p.location,
-            postedBy: `${p.firstName} ${p.lastName}`
-          },
-          score: Math.random() * 100 // Simple scoring for now
-        }))
-      );
+      coachConfirmed = true;
+    } else if (req.user.role === 'Player') {
+      playerConfirmed = true;
+    } else if (req.user.role === 'Parent/Guardian') {
+      parentConfirmed = true;
     }
 
-    // Sort by score (descending)
-    recommendations.sort((a, b) => b.score - a.score);
-
-    res.json({ 
-      recommendations: recommendations.slice(0, parsedLimit),
-      total: recommendations.length
-    });
-  } catch (error) {
-    console.error('Error getting recommendations:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to get recommendations', details: error.message });
-  }
-});
-
-// Social Sharing API
-
-// Track social share
-app.post('/api/social/share', [
-  body('shareType').notEmpty().withMessage('Share type is required'),
-  body('targetId').isInt().withMessage('Target ID is required'),
-  body('targetType').notEmpty().withMessage('Target type is required'),
-  body('platform').notEmpty().withMessage('Platform is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { shareType, targetId, targetType, platform } = req.body;
-    const userId = req.user ? req.user.userId : null;
-
-    await db.query(`
-      INSERT INTO social_shares (userId, shareType, targetId, targetType, platform)
-      VALUES (?, ?, ?, ?, ?)
-    `, [userId, shareType, targetId, targetType, platform]);
-
-    res.json({ message: 'Share tracked successfully' });
-  } catch (error) {
-    console.error('Error tracking share:', error);
-    res.status(500).json({ error: 'Failed to track share' });
-  }
-});
-
-// Get social share stats
-app.get('/api/social/stats/:targetType/:targetId', async (req, res) => {
-  try {
-    const { targetType, targetId } = req.params;
-
-    const result = await db.query(`
-      SELECT platform, COUNT(*) as shareCount
-      FROM social_shares
-      WHERE targetType = ? AND targetId = ?
-      GROUP BY platform
-      ORDER BY shareCount DESC
-    `, [targetType, targetId]);
-
-    const totalResult = await db.query(`
-      SELECT COUNT(*) as total
-      FROM social_shares
-      WHERE targetType = ? AND targetId = ?
-    `, [targetType, targetId]);
-
-    res.json({
-      shares: result.rows,
-      totalShares: totalResult.rows[0].total
-    });
-  } catch (error) {
-    console.error('Error getting share stats:', error);
-    res.status(500).json({ error: 'Failed to get share stats' });
-  }
-});
-
-// User Bookmarks/Favorites
-
-// Add bookmark
-app.post('/api/bookmarks', authenticateToken, requireBetaAccess, [
-  body('targetId').isInt().withMessage('Target ID is required'),
-  body('targetType').isIn(['vacancy', 'player_availability']).withMessage('Valid target type required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { targetId, targetType } = req.body;
-
-    await db.query(`
-      INSERT OR IGNORE INTO user_bookmarks (userId, targetId, targetType)
-      VALUES (?, ?, ?)
-    `, [req.user.userId, targetId, targetType]);
-
-    res.json({ message: 'Bookmark added successfully' });
-  } catch (error) {
-    console.error('Error adding bookmark:', error);
-    res.status(500).json({ error: 'Failed to add bookmark' });
-  }
-});
-
-// Remove bookmark
-app.delete('/api/bookmarks/:targetType/:targetId', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { targetType, targetId } = req.params;
-
-    await db.query(`
-      DELETE FROM user_bookmarks
-      WHERE userId = ? AND targetId = ? AND targetType = ?
-    `, [req.user.userId, targetId, targetType]);
-
-    res.json({ message: 'Bookmark removed successfully' });
-  } catch (error) {
-    console.error('Error removing bookmark:', error);
-    res.status(500).json({ error: 'Failed to remove bookmark' });
-  }
-});
-
-// Get user bookmarks
-app.get('/api/bookmarks', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { type, page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
-
-    let query = `
-      SELECT ub.*, 
-        CASE 
-          WHEN ub.targetType = 'vacancy' THEN (
-            SELECT json_object(
-              'title', tv.title, 
-              'description', tv.description,
-              'league', tv.league,
-              'position', tv.position,
-              'ageGroup', tv.ageGroup,
-              'location', tv.location,
-              'status', tv.status,
-              'createdAt', tv.createdAt
-            )
-            FROM team_vacancies tv WHERE tv.id = ub.targetId
-          )
-          WHEN ub.targetType = 'player_availability' THEN (
-            SELECT json_object(
-              'title', pa.title,
-              'description', pa.description,
-              'preferredLeagues', pa.preferredLeagues,
-              'positions', pa.positions,
-              'ageGroup', pa.ageGroup,
-              'location', pa.location,
-              'status', pa.status,
-              'createdAt', pa.createdAt
-            )
-            FROM player_availability pa WHERE pa.id = ub.targetId
-          )
-        END as targetData
-      FROM user_bookmarks ub
-      WHERE ub.userId = ?
-    `;
-
-    const params = [req.user.userId];
-
-    if (type) {
-      query += ' AND ub.targetType = ?';
-      params.push(type);
-    }
-
-    query += ' ORDER BY ub.createdAt DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-
-    const result = await db.query(query, params);
-
-    const totalQuery = `
-      SELECT COUNT(*) as total FROM user_bookmarks WHERE userId = ?
-      ${type ? 'AND targetType = ?' : ''}
-    `;
-    const totalParams = type ? [req.user.userId, type] : [req.user.userId];
-    const totalResult = await db.query(totalQuery, totalParams);
-
-    res.json({
-      bookmarks: result.rows.map(bookmark => ({
-        ...bookmark,
-        targetData: bookmark.targetData ? JSON.parse(bookmark.targetData) : null
-      })),
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: totalResult.rows[0].total,
-        totalPages: Math.ceil(totalResult.rows[0].total / limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error getting bookmarks:', error);
-    res.status(500).json({ error: 'Failed to get bookmarks' });
-  }
-});
-
-// Advanced Search with History
-
-// Enhanced search endpoint with history tracking
-app.get('/api/search/enhanced', async (req, res) => {
-  try {
-    const { 
-      q: searchTerm, 
-      type = 'both', 
-      league, 
-      ageGroup, 
-      position, 
-      location, 
-      page = 1, 
-      limit = 20,
-      sortBy = 'newest',
-      radius = 50
-    } = req.query;
-
-    const offset = (page - 1) * limit;
-    const filters = { league, ageGroup, position, location, radius };
-
-    // Track search if user is authenticated
-    if (req.user) {
-      try {
-        await db.query(`
-          INSERT INTO user_search_history (userId, searchTerm, filters, searchedAt)
-          VALUES (?, ?, ?, ?)
-        `, [req.user.userId, searchTerm || '', JSON.stringify(filters), new Date().toISOString()]);
-      } catch (searchLogError) {
-        console.warn('Failed to log search:', searchLogError);
-      }
-    }
-
-    let results = [];
-    let totalResults = 0;
-
-    // Search vacancies
-    if (type === 'vacancies' || type === 'both') {
-      let vacancyQuery = `
-        SELECT v.*, u.firstName, u.lastName, 'vacancy' as resultType
-        FROM team_vacancies v 
-        JOIN users u ON v.postedBy = u.id 
-        WHERE v.status = 'active'
-      `;
-      const vacancyParams = [];
-
-      if (searchTerm) {
-        vacancyQuery += ' AND (v.title LIKE ? OR v.description LIKE ?)';
-        vacancyParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
-      }
-      if (league) {
-        vacancyQuery += ' AND v.league = ?';
-        vacancyParams.push(league);
-      }
-      if (ageGroup) {
-        vacancyQuery += ' AND v.ageGroup = ?';
-        vacancyParams.push(ageGroup);
-      }
-      if (position) {
-        vacancyQuery += ' AND v.position = ?';
-        vacancyParams.push(position);
-      }
-      if (location) {
-        vacancyQuery += ' AND v.location LIKE ?';
-        vacancyParams.push(`%${location}%`);
-      }
-
-      // Add sorting
-      switch (sortBy) {
-        case 'oldest':
-          vacancyQuery += ' ORDER BY v.createdAt ASC';
-          break;
-        case 'alphabetical':
-          vacancyQuery += ' ORDER BY v.title ASC';
-          break;
-        default:
-          vacancyQuery += ' ORDER BY v.createdAt DESC';
-      }
-
-      vacancyQuery += ' LIMIT ? OFFSET ?';
-      vacancyParams.push(limit, offset);
-
-      const vacancyResult = await db.query(vacancyQuery, vacancyParams);
-      results = results.concat(vacancyResult.rows);
-    }
-
-    // Search player availability
-    if (type === 'players' || type === 'both') {
-      let playerQuery = `
-        SELECT p.*, u.firstName, u.lastName, 'player_availability' as resultType
-        FROM player_availability p 
-        JOIN users u ON p.postedBy = u.id 
-        WHERE p.status = 'active'
-      `;
-      const playerParams = [];
-
-      if (searchTerm) {
-        playerQuery += ' AND (p.title LIKE ? OR p.description LIKE ?)';
-        playerParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
-      }
-      if (league) {
-        playerQuery += ' AND p.preferredLeagues = ?';
-        playerParams.push(league);
-      }
-      if (ageGroup) {
-        playerQuery += ' AND p.ageGroup = ?';
-        playerParams.push(ageGroup);
-      }
-      if (position) {
-        playerQuery += ' AND p.positions LIKE ?';
-        playerParams.push(`%"${position}"%`);
-      }
-      if (location) {
-        playerQuery += ' AND p.location LIKE ?';
-        playerParams.push(`%${location}%`);
-      }
-
-      // Add sorting
-      switch (sortBy) {
-        case 'oldest':
-          playerQuery += ' ORDER BY p.createdAt ASC';
-          break;
-        case 'alphabetical':
-          playerQuery += ' ORDER BY p.title ASC';
-          break;
-        default:
-          playerQuery += ' ORDER BY p.createdAt DESC';
-      }
-
-      const currentResultsCount = results.length;
-      const remainingLimit = limit - currentResultsCount;
-      const playerOffset = Math.max(0, offset - (type === 'both' ? Math.floor(limit / 2) : 0));
-
-      if (remainingLimit > 0) {
-        playerQuery += ' LIMIT ? OFFSET ?';
-        playerParams.push(remainingLimit, playerOffset);
-
-        const playerResult = await db.query(playerQuery, playerParams);
-        results = results.concat(playerResult.rows);
-      }
-    }
-
-    // Update search result count
-    if (req.user) {
-      try {
-        await db.query(`
-          UPDATE user_search_history 
-          SET resultsCount = ? 
-          WHERE userId = ? AND searchedAt = (
-            SELECT MAX(searchedAt) FROM user_search_history WHERE userId = ?
-          )
-        `, [results.length, req.user.userId, req.user.userId]);
-      } catch (updateError) {
-        console.warn('Failed to update search result count:', updateError);
-      }
-    }
-
-    // Transform results
-    const transformedResults = results.map(result => {
-      const transformed = { ...result };
-      
-      // Decrypt contact information
-      if (transformed.contactInfo) {
-        transformed.contactInfo = encryptionService.decryptContactInfo(transformed.contactInfo);
-      }
-      
-      // Parse positions for players
-      if (transformed.positions && typeof transformed.positions === 'string') {
-        try {
-          transformed.positions = JSON.parse(transformed.positions);
-        } catch (e) {
-          transformed.positions = [];
-        }
-      }
-      
-      // Add location data if coordinates exist
-      if (result.locationLatitude && result.locationLongitude) {
-        transformed.locationData = {
-          address: result.locationAddress,
-          latitude: result.locationLatitude,
-          longitude: result.locationLongitude,
-          placeId: result.locationPlaceId
-        };
-      }
-      
-      // Remove raw location columns
-      delete transformed.locationAddress;
-      delete transformed.locationLatitude;
-      delete transformed.locationLongitude;
-      delete transformed.locationPlaceId;
-      
-      return transformed;
-    });
-
-    res.json({
-      results: transformedResults,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: results.length,
-        hasMore: results.length === parseInt(limit)
-      },
-      searchInfo: {
-        searchTerm,
-        filters: filters,
-        sortBy,
-        resultCount: results.length
-      }
-    });
-
-  } catch (error) {
-    console.error('Enhanced search error:', error);
-    res.status(500).json({ error: 'Search failed' });
-  }
-});
-
-// Get user search history
-app.get('/api/search/history', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { limit = 10 } = req.query;
-
-    const result = await db.query(`
-      SELECT searchTerm, filters, resultsCount, searchedAt
-      FROM user_search_history
-      WHERE userId = ? AND searchTerm != ''
-      ORDER BY searchedAt DESC
-      LIMIT ?
-    `, [req.user.userId, limit]);
-
-    const history = result.rows.map(row => ({
-      ...row,
-      filters: JSON.parse(row.filters || '{}')
-    }));
-
-    res.json({ history });
-  } catch (error) {
-    console.error('Error getting search history:', error);
-    res.status(500).json({ error: 'Failed to get search history' });
-  }
-});
-
-// Clear search history
-app.delete('/api/search/history', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    await db.query('DELETE FROM user_search_history WHERE userId = ?', [req.user.userId]);
-    res.json({ message: 'Search history cleared successfully' });
-  } catch (error) {
-    console.error('Error clearing search history:', error);
-    res.status(500).json({ error: 'Failed to clear search history' });
-  }
-});
-
-// Calendar API endpoints
-
-// Get calendar events
-app.get('/api/calendar/events', authenticateToken, requireBetaAccess, async (req, res) => {
-  const { startDate, endDate } = req.query;
-  
-  let query = `
-    SELECT e.*, u.firstName, u.lastName 
-    FROM calendar_events e 
-    JOIN users u ON e.createdBy = u.id
-  `;
-  const params = [];
-
-  if (startDate && endDate) {
-    query += ' WHERE e.date BETWEEN ? AND ?';
-    params.push(startDate, endDate);
-  }
-
-  query += ' ORDER BY e.date ASC, e.startTime ASC';
-
-  try {
-    const result = await db.query(query, params);
-    const rows = result.rows;
-
-    const events = rows.map(row => ({
-      ...row,
-      positions: row.positions ? JSON.parse(row.positions) : []
-    }));
-
-    res.json({ events });
-  } catch (err) {
-    console.error('Error fetching calendar events:', err);
-    return res.status(500).json({ error: 'Failed to fetch events' });
-  }
-});
-
-// Create calendar event
-app.post('/api/calendar/events', authenticateToken, requireBetaAccess, [
-  body('title').notEmpty().withMessage('Title is required'),
-  body('eventType').isIn(['training', 'match', 'trial']).withMessage('Valid event type required'),
-  body('date').isISO8601().withMessage('Valid date required'),
-  body('startTime').notEmpty().withMessage('Start time is required'),
-  body('endTime').notEmpty().withMessage('End time is required'),
-  body('location').notEmpty().withMessage('Location is required')
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const {
-    title, description, eventType, date, startTime, endTime, location,
-    isRecurring, recurringPattern, maxParticipants
-  } = req.body;
-
-  const insertQuery = `
-    INSERT INTO calendar_events 
-    (title, description, eventType, date, startTime, endTime, location, createdBy, isRecurring, recurringPattern, maxParticipants)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(insertQuery, [
-    title, description, eventType, date, startTime, endTime, location,
-    req.user.userId, isRecurring || false, recurringPattern, maxParticipants
-  ], function(err) {
-    if (err) {
-      console.error('Error creating calendar event:', err);
-      return res.status(500).json({ error: 'Failed to create event' });
-    }
-
-    res.status(201).json({
-      message: 'Event created successfully',
-      event: { id: this.lastID, title, date, startTime, endTime }
-    });
-  });
-});
-
-// Create trial with invitation capability
-app.post('/api/calendar/trials', authenticateToken, requireBetaAccess, [
-  body('title').notEmpty().withMessage('Title is required'),
-  body('date').isISO8601().withMessage('Valid date required'),
-  body('startTime').notEmpty().withMessage('Start time is required'),
-  body('endTime').notEmpty().withMessage('End time is required'),
-  body('location').notEmpty().withMessage('Location is required'),
-  body('ageGroup').notEmpty().withMessage('Age group is required'),
-  body('positions').isArray().withMessage('Positions must be an array')
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  // Only coaches can create trials
-  if (req.user.role !== 'Coach') {
-    return res.status(403).json({ error: 'Only coaches can create trials' });
-  }
-
-  const {
-    title, description, date, startTime, endTime, location,
-    maxParticipants, ageGroup, positions, requirements
-  } = req.body;
-
-  const insertQuery = `
-    INSERT INTO calendar_events 
-    (title, description, eventType, date, startTime, endTime, location, createdBy, maxParticipants, ageGroup, positions, requirements)
-    VALUES (?, ?, 'trial', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(insertQuery, [
-    title, description, date, startTime, endTime, location,
-    req.user.userId, maxParticipants || 20, ageGroup, JSON.stringify(positions), requirements
-  ], function(err) {
-    if (err) {
-      console.error('Error creating trial:', err);
-      return res.status(500).json({ error: 'Failed to create trial' });
-    }
-
-    const trialId = this.lastID;
-
-    // Auto-invite players based on age group and positions
-    const findPlayersQuery = `
-      SELECT DISTINCT u.id, u.firstName, u.lastName, u.email, p.position
-      FROM users u
-      LEFT JOIN user_profiles p ON u.id = p.userId
-      WHERE u.role = 'Player' 
-      AND (p.position IN (${positions.map(() => '?').join(', ')}) OR p.position IS NULL)
-      LIMIT 50
-    `;
-
-    try {
-      // TODO: Fix this to be properly async - temporarily commenting out
-      // const playersResult = await db.query(findPlayersQuery, positions);
-      // const players = playersResult.rows;
-      
-      // For now, just return success without auto-invites
-      res.status(201).json({
-        message: 'Trial created successfully',
-        trial: { id: trialId, title, date, startTime, endTime }
-      });
-      return;
-      
-      // Send invitations to eligible players
-      if (players.length > 0) {
-        const invitePromises = players.map(player => {
-          return new Promise((resolve, reject) => {
-            db.run(
-              'INSERT INTO trial_invitations (eventId, playerId, invitedBy, message) VALUES (?, ?, ?, ?)',
-              [trialId, player.id, req.user.userId, `You've been invited to try out for our ${ageGroup} team. Positions needed: ${positions.join(', ')}`],
-              async (err) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  // Send trial invitation alert
-                  try {
-                    await alertService.sendTrialInvitationAlert(
-                      player.id,
-                      `${req.user.firstName} ${req.user.lastName}`,
-                      { id: trialId, title, date, startTime, endTime, location, ageGroup, positions, requirements },
-                      `You've been invited to try out for our ${ageGroup} team. Positions needed: ${positions.join(', ')}`
-                    );
-                  } catch (alertError) {
-                    console.error('Failed to send trial invitation alert:', alertError);
-                  }
-                  resolve(true);
-                }
-              }
-            );
-          });
-        });
-
-        Promise.all(invitePromises)
-          .then(() => {
-            res.status(201).json({
-              message: `Trial created successfully and ${players.length} players invited`,
-              trial: { id: trialId, title, date, startTime, endTime },
-              invitesSent: players.length
-            });
-          })
-          .catch((err) => {
-            console.error('Error sending trial invites:', err);
-            res.status(201).json({
-              message: 'Trial created successfully but some invites failed to send',
-              trial: { id: trialId, title, date, startTime, endTime }
-            });
-          });
-      } else {
-        res.status(201).json({
-          message: 'Trial created successfully (no eligible players found for automatic invites)',
-          trial: { id: trialId, title, date, startTime, endTime }
-        });
-      }
-    } catch (err) {
-      console.error('Error finding players for trial invites:', err);
-      return res.status(201).json({
-        message: 'Trial created successfully but failed to send automatic invites',
-        trial: { id: trialId, title, date, startTime, endTime }
-      });
-    }
-  });
-});
-
-// Get trial invitations for a player
-app.get('/api/calendar/trial-invitations', authenticateToken, requireBetaAccess, async (req, res) => {
-  if (req.user.role !== 'Player') {
-    return res.status(403).json({ error: 'Only players can view trial invitations' });
-  }
-
-  const query = `
-    SELECT 
-      ti.*,
-      e.title as trialTitle, e.description, e.date, e.startTime, e.endTime, 
-      e.location, e.maxParticipants, e.ageGroup, e.positions, e.requirements,
-      coach.firstName as coachFirstName, coach.lastName as coachLastName,
-      profile.teamName
-    FROM trial_invitations ti
-    JOIN calendar_events e ON ti.eventId = e.id
-    JOIN users coach ON ti.invitedBy = coach.id
-    LEFT JOIN user_profiles profile ON coach.id = profile.userId
-    WHERE ti.playerId = ?
-    ORDER BY ti.createdAt DESC
-  `;
-
-  try {
-    const result = await db.query(query, [req.user.userId]);
-    const rows = result.rows;
-
-    const invitations = rows.map(row => ({
-      id: row.id,
-      eventId: row.eventId,
-      status: row.status,
-      message: row.message,
-      createdAt: row.createdAt,
-      responseDate: row.responseDate,
-      trial: {
-        title: row.trialTitle,
-        description: row.description,
-        date: row.date,
-        startTime: row.startTime,
-        endTime: row.endTime,
-        location: row.location,
-        maxParticipants: row.maxParticipants,
-        ageGroup: row.ageGroup,
-        positions: row.positions ? JSON.parse(row.positions) : [],
-        requirements: row.requirements
-      },
-      coach: {
-        firstName: row.coachFirstName,
-        lastName: row.coachLastName,
-        teamName: row.teamName
-      }
-    }));
-
-    res.json({ invitations });
-  } catch (err) {
-    console.error('Error fetching trial invitations:', err);
-    return res.status(500).json({ error: 'Failed to fetch trial invitations' });
-  }
-});
-
-// Respond to trial invitation
-app.put('/api/calendar/trial-invitations/:id', authenticateToken, requireBetaAccess, [
-  body('status').isIn(['accepted', 'declined']).withMessage('Status must be accepted or declined')
-], (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { id } = req.params;
-  const { status } = req.body;
-
-  // Verify the invitation belongs to the current user
-  db.get('SELECT * FROM trial_invitations WHERE id = ? AND playerId = ?', [id, req.user.userId], (err, invitation) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!invitation) {
-      return res.status(404).json({ error: 'Trial invitation not found' });
-    }
-    if (invitation.status !== 'pending') {
-      return res.status(400).json({ error: 'This invitation has already been responded to' });
-    }
-
-    // Update the invitation status
-    db.run(
-      'UPDATE trial_invitations SET status = ?, responseDate = ? WHERE id = ?',
-      [status, new Date().toISOString(), id],
-      function(err) {
-        if (err) {
-          console.error('Error updating trial invitation:', err);
-          return res.status(500).json({ error: 'Failed to update invitation' });
-        }
-
-        // If accepted, add to event participants
-        if (status === 'accepted') {
-          db.run(
-            'INSERT OR IGNORE INTO event_participants (eventId, userId, status) VALUES (?, ?, ?)',
-            [invitation.eventId, req.user.userId, 'attending'],
-            (err) => {
-              if (err) {
-                console.error('Error adding to event participants:', err);
-              }
-            }
-          );
-        }
-
-        res.json({ message: `Trial invitation ${status} successfully` });
-      }
-    );
-  });
-});
-
-// Simple test endpoint
-app.get('/api/test', (req, res) => {
-  console.log('🧪 Test endpoint called');
-  res.json({ message: 'Server is working', timestamp: new Date().toISOString() });
-});
-
-// Get training locations for map view (team vacancies with location data)
-app.get('/api/calendar/training-locations', async (req, res) => {
-  try {
-    const { latitude, longitude, radius = 25, hasVacancies, locationType = 'training' } = req.query;
-
-    // Get team vacancies with location data for the specified type
-    let query = `
-      SELECT * FROM team_vacancies
-      WHERE locationLatitude IS NOT NULL AND locationLongitude IS NOT NULL
-        AND status = ?
-    `;
-    const params = ['active'];
-
-    const vacancies = await db.query(query, params);
-
-    // Parse locationData and calculate distances
-    const trainingLocations = vacancies.rows.map(vacancy => {
-      // Check if location coordinates exist
-      if (!vacancy.locationLatitude || !vacancy.locationLongitude) {
-        return null;
-      }
-
-      // Calculate distance if user location provided
-      let distance = null;
-      if (latitude && longitude) {
-        const lat1 = parseFloat(latitude);
-        const lon1 = parseFloat(longitude);
-        const lat2 = vacancy.locationLatitude;
-        const lon2 = vacancy.locationLongitude;
-
-        // Haversine formula for distance calculation
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        distance = Math.round(R * c * 10) / 10; // Round to 1 decimal place
-      }
-
-      // Filter by radius if distance calculated
-      if (radius && distance !== null && distance > parseFloat(radius)) {
-        return null;
-      }
-
-      // Determine location label based on type
-      const locationLabel = locationType === 'match'
-        ? `${vacancy.title} - Match Venue`
-        : `${vacancy.title} - Training Ground`;
-
-      return {
-        id: vacancy.id,
-        title: locationLabel,
-        teamName: vacancy.title,
-        date: vacancy.createdAt || new Date().toISOString(),
-        startTime: locationType === 'match' ? '15:00' : '18:00', // Different default times
-        endTime: locationType === 'match' ? '17:00' : '20:00',
-        location: vacancy.location,
-        latitude: vacancy.locationLatitude,
-        longitude: vacancy.locationLongitude,
-        distance,
-        hasVacancies: true, // All team_vacancies have vacancies by definition
-        contactEmail: vacancy.contactInfo || 'coach@team.com',
-        description: locationType === 'match'
-          ? `Home match venue for ${vacancy.title}. ${vacancy.description || ''}`
-          : `Training location for ${vacancy.title}. ${vacancy.description || ''}`,
-        locationData: {
-          address: vacancy.locationAddress || vacancy.location,
-          postcode: null, // Not stored separately
-          facilities: null // Not stored
-        },
-        locationType,
-        ageGroup: vacancy.ageGroup,
-        position: vacancy.position,
-        league: vacancy.league
-      };
-    }).filter(Boolean); // Remove null entries
-
-    // Filter by hasVacancies if specified
-    const filtered = hasVacancies === 'true'
-      ? trainingLocations.filter(loc => loc.hasVacancies)
-      : trainingLocations;
-
-    // Sort by distance if available
-    const sorted = filtered.sort((a, b) => {
-      if (a.distance === null) return 1;
-      if (b.distance === null) return -1;
-      return a.distance - b.distance;
-    });
-
-    res.json({
-      trainingLocations: sorted,
-      count: sorted.length,
-      locationType
-    });
-  } catch (error) {
-    console.error('Error fetching training locations:', error);
-    res.status(500).json({ error: 'Failed to fetch training locations' });
-  }
-});
-
-// Maps API endpoints
-
-// Search vacancies by location
-app.get('/api/maps/search', async (req, res) => {
-  const { lat, lng, radius = 50, type = 'both' } = req.query;
-  
-  if (!lat || !lng) {
-    return res.status(400).json({ error: 'Latitude and longitude are required' });
-  }
-
-  const latitude = parseFloat(lat);
-  const longitude = parseFloat(lng);
-  const searchRadius = parseFloat(radius);
-
-  let queries = [];
-  
-  if (type === 'vacancies' || type === 'both') {
-    const vacancyQuery = `
-      SELECT 'vacancy' as type, v.*, u.firstName, u.lastName,
-        (6371 * acos(cos(radians(?)) * cos(radians(locationLatitude)) * 
-         cos(radians(locationLongitude) - radians(?)) + 
-         sin(radians(?)) * sin(radians(locationLatitude)))) AS distance
-      FROM team_vacancies v 
-      JOIN users u ON v.postedBy = u.id 
-      WHERE v.status = 'active' 
-        AND v.locationLatitude IS NOT NULL 
-        AND v.locationLongitude IS NOT NULL
-      HAVING distance <= ?
-      ORDER BY distance
-    `;
-    queries.push({
-      query: vacancyQuery,
-      params: [latitude, longitude, latitude, searchRadius]
-    });
-  }
-
-  if (type === 'availability' || type === 'both') {
-    const availabilityQuery = `
-      SELECT 'availability' as type, p.*, u.firstName, u.lastName,
-        (6371 * acos(cos(radians(?)) * cos(radians(locationLatitude)) * 
-         cos(radians(locationLongitude) - radians(?)) + 
-         sin(radians(?)) * sin(radians(locationLatitude)))) AS distance
-      FROM player_availability p 
-      JOIN users u ON p.postedBy = u.id 
-      WHERE p.status = 'active' 
-        AND p.locationLatitude IS NOT NULL 
-        AND p.locationLongitude IS NOT NULL
-      HAVING distance <= ?
-      ORDER BY distance
-    `;
-    queries.push({
-      query: availabilityQuery,
-      params: [latitude, longitude, latitude, searchRadius]
-    });
-  }
-
-  try {
-    const results = await Promise.all(queries.map(async ({ query, params }) => {
-      const result = await db.query(query, params);
-      return result.rows;
-    }));
-    
-    const allResults = results.flat().map(row => {
-      const item = { ...row };
-      
-      // Add locationData if coordinates exist
-      if (row.locationLatitude && row.locationLongitude) {
-        item.locationData = {
-          address: row.locationAddress,
-          latitude: row.locationLatitude,
-          longitude: row.locationLongitude,
-          placeId: row.locationPlaceId
-        };
-      }
-      
-      // Remove raw location columns from response
-      delete item.locationAddress;
-      delete item.locationLatitude;
-      delete item.locationLongitude;
-      delete item.locationPlaceId;
-      
-      return item;
-    });
-
-    // Sort all results by distance
-    allResults.sort((a, b) => a.distance - b.distance);
-    
-    res.json({ results: allResults });
-  } catch (err) {
-    console.error('Error searching by location:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Geocoding endpoint (for converting addresses to coordinates)
-app.post('/api/maps/geocode', (req, res) => {
-  const { address } = req.body;
-  
-  if (!address) {
-    return res.status(400).json({ error: 'Address is required' });
-  }
-
-  // This would integrate with Google Geocoding API in a real implementation
-  // For now, return a placeholder response
-  res.json({
-    message: 'Geocoding endpoint - integrate with Google Maps Geocoding API',
-    address,
-    coordinates: null
-  });
-});
-
-// Admin Cron Job Management
-
-// Trigger weekly digest manually (Admin only)
-app.post('/api/admin/trigger-weekly-digest', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    await cronService.triggerWeeklyDigest();
-    res.json({ message: 'Weekly digest emails sent successfully' });
-  } catch (error) {
-    console.error('Error triggering weekly digest:', error);
-    res.status(500).json({ error: 'Failed to send weekly digest emails' });
-  }
-});
-
-// Trigger cleanup manually (Admin only)
-app.post('/api/admin/trigger-cleanup', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    await cronService.triggerCleanup();
-    res.json({ message: 'Data cleanup completed successfully' });
-  } catch (error) {
-    console.error('Error triggering cleanup:', error);
-    res.status(500).json({ error: 'Failed to complete data cleanup' });
-  }
-});
-
-// Trigger re-engagement emails manually (Admin only)
-app.post('/api/admin/trigger-reengagement', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    await cronService.triggerReengagement();
-    res.json({ message: 'Re-engagement emails sent successfully' });
-  } catch (error) {
-    console.error('Error triggering re-engagement:', error);
-    res.status(500).json({ error: 'Failed to send re-engagement emails' });
-  }
-});
-
-// Test email functionality (Admin only)
-app.post('/api/admin/test-email', authenticateToken, requireAdmin, [
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('template').isIn(['newVacancy', 'newPlayerAlert', 'weeklyDigest', 'trialInvitation']).withMessage('Valid template required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, template } = req.body;
-    
-    // Create test data based on template
-    let testData = {};
-    switch (template) {
-      case 'newVacancy':
-        testData = {
-          playerName: 'Test Player',
-          vacancy: {
-            id: 999,
-            title: 'Test Goalkeeper Position',
-            description: 'Looking for an experienced goalkeeper for our U21 team',
-            league: 'Premier League',
-            position: 'Goalkeeper',
-            ageGroup: 'U21',
-            location: 'London'
-          }
-        };
-        break;
-      case 'newPlayerAlert':
-        testData = {
-          coachName: 'Test Coach',
-          player: {
-            id: 999,
-            title: 'Experienced Midfielder Available',
-            description: 'Looking for a competitive team',
-            preferredLeagues: 'Championship',
-            positions: ['Midfielder', 'Forward'],
-            ageGroup: 'Senior',
-            location: 'Manchester'
-          }
-        };
-        break;
-      case 'weeklyDigest':
-        testData = {
-          userName: 'Test User',
-          stats: {
-            newVacancies: 5,
-            newPlayers: 3,
-            matches: 2
-          },
-          recommendations: [
-            { title: 'New striker needed', description: 'U18 team in your area' },
-            { title: 'Goalkeeper available', description: 'Experienced player seeking team' }
-          ]
-        };
-        break;
-      case 'trialInvitation':
-        testData = {
-          playerName: 'Test Player',
-          coachName: 'Test Coach',
-          trial: {
-            id: 999,
-            title: 'U21 Squad Trial',
-            date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            startTime: '10:00',
-            endTime: '12:00',
-            location: 'Training Ground, London',
-            ageGroup: 'U21',
-            positions: ['Midfielder', 'Forward'],
-            requirements: 'Bring boots and shin pads'
-          },
-          message: 'This is a test trial invitation'
-        };
-        break;
-    }
-
-    await emailService.sendEmail(email, template, testData);
-    res.json({ message: `Test ${template} email sent successfully to ${email}` });
-    
-  } catch (error) {
-    console.error('Error sending test email:', error);
-    res.status(500).json({ error: 'Failed to send test email' });
-  }
-});
-
-// Email Alerts endpoints
-app.post('/api/email-alerts', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { alertType, filters, searchRegion } = req.body;
-    
-    const result = await db.query(`
-      INSERT INTO email_alerts (userId, email, alertType, filters, searchRegion, isActive, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    `, [req.user.userId, req.user.email, alertType, JSON.stringify(filters || {}), JSON.stringify(searchRegion || {}), true]);
-    
-    res.json({ message: 'Email alert created successfully', alertId: result.lastID });
-  } catch (error) {
-    console.error('Error creating email alert:', error);
-    res.status(500).json({ error: 'Failed to create email alert' });
-  }
-});
-
-app.get('/api/email-alerts', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT * FROM email_alerts 
-      WHERE userId = ? 
-      ORDER BY createdAt DESC
-    `, [req.user.userId]);
-    
-    const alerts = result.rows.map(alert => ({
-      ...alert,
-      filters: alert.filters ? JSON.parse(alert.filters) : {},
-      searchRegion: alert.searchRegion ? JSON.parse(alert.searchRegion) : {}
-    }));
-    
-    res.json({ alerts });
-  } catch (error) {
-    console.error('Error fetching email alerts:', error);
-    res.status(500).json({ error: 'Failed to fetch email alerts' });
-  }
-});
-
-app.put('/api/email-alerts/:id', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { isActive, filters, searchRegion } = req.body;
-    
-    await db.query(`
-      UPDATE email_alerts 
-      SET isActive = ?, filters = ?, searchRegion = ?
-      WHERE id = ? AND userId = ?
-    `, [isActive, JSON.stringify(filters || {}), JSON.stringify(searchRegion || {}), id, req.user.userId]);
-    
-    res.json({ message: 'Email alert updated successfully' });
-  } catch (error) {
-    console.error('Error updating email alert:', error);
-    res.status(500).json({ error: 'Failed to update email alert' });
-  }
-});
-
-app.delete('/api/email-alerts/:id', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    await db.query(`
-      DELETE FROM email_alerts 
-      WHERE id = ? AND userId = ?
-    `, [id, req.user.userId]);
-    
-    res.json({ message: 'Email alert deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting email alert:', error);
-    res.status(500).json({ error: 'Failed to delete email alert' });
-  }
-});
-
-app.post('/api/email-alerts/:id/test', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await db.query(`
-      SELECT * FROM email_alerts 
-      WHERE id = ? AND userId = ?
-    `, [id, req.user.userId]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Email alert not found' });
-    }
-    
-    const alert = result.rows[0];
-    
-    // Send test email
-    const testData = {
-      alertType: alert.alertType,
-      filters: alert.filters ? JSON.parse(alert.filters) : {},
-      searchRegion: alert.searchRegion ? JSON.parse(alert.searchRegion) : {}
-    };
-    
-    await emailService.sendEmail(alert.email, 'emailAlert', {
-      userName: req.user.firstName,
-      alertType: alert.alertType,
-      filters: testData.filters,
-      matches: ['Test Match 1', 'Test Match 2'] // Mock matches for testing
-    });
-    
-    res.json({ message: 'Test email alert sent successfully' });
-  } catch (error) {
-    console.error('Error sending test email alert:', error);
-    res.status(500).json({ error: 'Failed to send test email alert' });
-  }
-});
-
-// Messages endpoints
-app.post('/api/messages', authenticateToken, requireBetaAccess, [
-  body('recipientId').isInt().withMessage('Valid recipient ID required'),
-  body('subject').isLength({ min: 1, max: 200 }).withMessage('Subject is required (max 200 characters)'),
-  body('message').isLength({ min: 1, max: 2000 }).withMessage('Message is required (max 2000 characters)'),
-  body('messageType').optional().isIn(['general', 'vacancy_interest', 'player_inquiry', 'system']).withMessage('Valid message type required'),
-  body('relatedVacancyId').optional().isInt().withMessage('Valid vacancy ID required'),
-  body('relatedPlayerAvailabilityId').optional().isInt().withMessage('Valid player availability ID required')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { recipientId, subject, message, messageType = 'general', relatedVacancyId, relatedPlayerAvailabilityId } = req.body;
-    const senderId = req.user.userId;
-
-    // Prevent users from messaging themselves
-    if (senderId === recipientId) {
-      return res.status(400).json({ error: 'Cannot send message to yourself' });
-    }
-
-    // Verify recipient exists
-    const recipientCheck = await db.query('SELECT id FROM users WHERE id = ?', [recipientId]);
-    if (recipientCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Recipient not found' });
-    }
-
-    // If related to a vacancy, verify the vacancy exists and the user is authorized
-    if (relatedVacancyId) {
-      const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [relatedVacancyId]);
-      if (vacancyCheck.rows.length === 0) {
-        return res.status(404).json({ error: 'Related vacancy not found' });
-      }
-      
-      // Ensure the message is being sent to the vacancy poster
-      if (vacancyCheck.rows[0].postedBy !== recipientId) {
-        return res.status(403).json({ error: 'Can only message the coach who posted this vacancy' });
-      }
-    }
-
-    // Insert the message
     const result = await db.query(
-      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, relatedVacancyId, relatedPlayerAvailabilityId)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [senderId, recipientId, subject, message, messageType, relatedVacancyId || null, relatedPlayerAvailabilityId || null]
+      `INSERT INTO match_completions 
+       (vacancyId, availabilityId, childAvailabilityId, coachId, playerId, parentId, 
+        matchType, playerName, teamName, position, ageGroup, league, startDate,
+        coachConfirmed, playerConfirmed, parentConfirmed) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        vacancyId || null,
+        availabilityId || null,
+        childAvailabilityId || null,
+        req.user.role === 'Coach' ? req.user.userId : null,
+        playerId || null,
+        parentId || null,
+        matchType,
+        playerName,
+        teamName,
+        position,
+        ageGroup,
+        league,
+        startDate || null,
+        coachConfirmed,
+        playerConfirmed,
+        parentConfirmed
+      ]
     );
 
-    // Auto-create match progress when someone shows interest
-    if ((messageType === 'vacancy_interest' || messageType === 'player_inquiry') && (relatedVacancyId || relatedPlayerAvailabilityId)) {
-      try {
-        // Check if match progress already exists for this combination
-        let existingMatch;
-        if (relatedVacancyId) {
-          existingMatch = await db.query(
-            `SELECT id FROM match_completions WHERE vacancyId = ? AND (playerId = ? OR coachId = ?)`,
-            [relatedVacancyId, senderId, senderId]
-          );
-        } else if (relatedPlayerAvailabilityId) {
-          existingMatch = await db.query(
-            `SELECT id FROM match_completions WHERE availabilityId = ? AND (playerId = ? OR coachId = ?)`,
-            [relatedPlayerAvailabilityId, senderId, senderId]
-          );
-        }
-
-        // Only create if doesn't exist
-        if (!existingMatch || existingMatch.rows.length === 0) {
-          const senderInfo = await db.query('SELECT firstName, lastName, role FROM users WHERE id = ?', [senderId]);
-          const recipientInfo = await db.query('SELECT firstName, lastName, role FROM users WHERE id = ?', [recipientId]);
-          
-          let playerName, teamName, position, ageGroup, league, coachId, playerId;
-          
-          if (relatedVacancyId) {
-            // Player responding to team vacancy
-            const vacancy = await db.query('SELECT * FROM team_vacancies WHERE id = ?', [relatedVacancyId]);
-            if (vacancy.rows.length > 0) {
-              const v = vacancy.rows[0];
-              playerName = `${senderInfo.rows[0].firstName} ${senderInfo.rows[0].lastName}`;
-              teamName = v.title;
-              position = v.position;
-              ageGroup = v.ageGroup;
-              league = v.league;
-              coachId = recipientId;
-              playerId = senderId;
-            }
-          } else if (relatedPlayerAvailabilityId) {
-            // Coach responding to player availability
-            const availability = await db.query('SELECT * FROM player_availability WHERE id = ?', [relatedPlayerAvailabilityId]);
-            if (availability.rows.length > 0) {
-              const a = availability.rows[0];
-              playerName = a.title;
-              teamName = `${recipientInfo.rows[0].firstName} ${recipientInfo.rows[0].lastName}'s Team`;
-              position = a.position;
-              ageGroup = a.ageGroup;
-              league = a.preferredLeagues.split(',')[0]; // Use first preferred league
-              coachId = recipientId;
-              playerId = senderId;
-            }
-          }
-
-          if (playerName && teamName) {
-            await db.query(
-              `INSERT INTO match_completions (
-                vacancyId, availabilityId, coachId, playerId, matchType,
-                playerName, teamName, position, ageGroup, league,
-                completionStatus
-              ) VALUES (?, ?, ?, ?, 'player_to_team', ?, ?, ?, ?, ?, 'pending')`,
-              [
-                relatedVacancyId || null,
-                relatedPlayerAvailabilityId || null,
-                coachId,
-                playerId,
-                playerName,
-                teamName,
-                position,
-                ageGroup,
-                league
-              ]
-            );
-            console.log('✅ Auto-created match progress record');
-          }
-        }
-      } catch (matchError) {
-        console.error('Error creating match progress:', matchError);
-        // Don't fail the message send if match creation fails
-      }
-    }
-
-    // Get sender info for response
-    const senderInfo = await db.query(
-      'SELECT firstName, lastName FROM users WHERE id = ?',
-      [senderId]
-    );
+    const completionId = result.lastID;
 
     res.status(201).json({
-      success: true,
-      message: 'Message sent successfully',
-      messageId: result.lastID,
-      sender: senderInfo.rows[0]
+      message: 'Match completion created successfully',
+      completion: {
+        id: completionId,
+        matchType,
+        playerName,
+        teamName,
+        position,
+        ageGroup,
+        league,
+        coachConfirmed,
+        playerConfirmed,
+        parentConfirmed,
+        completionStatus: 'pending',
+        createdAt: new Date().toISOString()
+      }
     });
   } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
+    console.error('Create match completion error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get conversations for a user
-app.get('/api/conversations', authenticateToken, requireBetaAccess, async (req, res) => {
+// Confirm a match completion (when the other party confirms)
+app.put('/api/match-completions/:completionId/confirm', [
+  authenticateToken,
+  body('confirmed').isBoolean().withMessage('Confirmation status is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { completionId } = req.params;
+    const { confirmed } = req.body;
+
+    // Get the completion record
+    const completionResult = await db.query(
+      'SELECT * FROM match_completions WHERE id = ?',
+      [completionId]
+    );
+
+    if (!completionResult.rows || completionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Match completion not found' });
+    }
+
+    const completion = completionResult.rows[0];
+
+    // Determine which confirmation to update based on user role
+    let updateField = '';
+    let canConfirm = false;
+
+    if (req.user.role === 'Coach' && !completion.coachConfirmed) {
+      updateField = 'coachConfirmed';
+      canConfirm = true;
+    } else if (req.user.role === 'Player' && !completion.playerConfirmed && completion.playerId === req.user.userId) {
+      updateField = 'playerConfirmed';
+      canConfirm = true;
+    } else if (req.user.role === 'Parent/Guardian' && !completion.parentConfirmed && completion.parentId === req.user.userId) {
+      updateField = 'parentConfirmed';
+      canConfirm = true;
+    }
+
+    if (!canConfirm) {
+      return res.status(403).json({ error: 'You are not authorized to confirm this match or it has already been confirmed' });
+    }
+
+    // Update the confirmation
+    await db.query(
+      `UPDATE match_completions SET ${updateField} = ?, updatedAt = ? WHERE id = ?`,
+      [confirmed, new Date().toISOString(), completionId]
+    );
+
+    // Check if all required parties have confirmed
+    const updatedResult = await db.query(
+      'SELECT * FROM match_completions WHERE id = ?',
+      [completionId]
+    );
+
+    const updated = updatedResult.rows[0];
+    let allConfirmed = false;
+    let completionStatus = 'pending';
+
+    if (updated.matchType === 'player_to_team') {
+      allConfirmed = updated.coachConfirmed && updated.playerConfirmed;
+    } else if (updated.matchType === 'child_to_team') {
+      allConfirmed = updated.coachConfirmed && updated.parentConfirmed;
+    }
+
+    if (allConfirmed) {
+      completionStatus = 'confirmed';
+      await db.query(
+        'UPDATE match_completions SET completionStatus = ?, completedAt = ? WHERE id = ?',
+        ['confirmed', new Date().toISOString(), completionId]
+      );
+
+      // Mark related vacancy/availability as filled/inactive
+      if (updated.vacancyId) {
+        await db.query(
+          'UPDATE team_vacancies SET status = ? WHERE id = ?',
+          ['filled', updated.vacancyId]
+        );
+      }
+      if (updated.availabilityId) {
+        await db.query(
+          'UPDATE player_availability SET status = ? WHERE id = ?',
+          ['inactive', updated.availabilityId]
+        );
+      }
+      if (updated.childAvailabilityId) {
+        await db.query(
+          'UPDATE child_player_availability SET status = ? WHERE id = ?',
+          ['inactive', updated.childAvailabilityId]
+        );
+      }
+    }
+
+    res.json({
+      message: 'Confirmation updated successfully',
+      completionStatus,
+      allConfirmed
+    });
+  } catch (error) {
+    console.error('Confirm match completion error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get match completions for a user
+app.get('/api/match-completions', authenticateToken, async (req, res) => {
+  try {
+    let query = '';
+    let params = [];
+
+    if (req.user.role === 'Coach') {
+      query = 'SELECT * FROM match_completions WHERE coachId = ? ORDER BY createdAt DESC';
+      params = [req.user.userId];
+    } else if (req.user.role === 'Player') {
+      query = 'SELECT * FROM match_completions WHERE playerId = ? ORDER BY createdAt DESC';
+      params = [req.user.userId];
+    } else if (req.user.role === 'Parent/Guardian') {
+      query = 'SELECT * FROM match_completions WHERE parentId = ? ORDER BY createdAt DESC';
+      params = [req.user.userId];
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const completionsResult = await db.query(query, params);
+
+    res.json({
+      completions: completionsResult.rows || []
+    });
+  } catch (error) {
+    console.error('Get match completions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add success story and rating to a completion
+app.put('/api/match-completions/:completionId/story', [
+  authenticateToken,
+  body('successStory').optional().isLength({ max: 1000 }).withMessage('Success story must be under 1000 characters'),
+  body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
+  body('feedback').optional().isLength({ max: 500 }).withMessage('Feedback must be under 500 characters'),
+  body('publicStory').optional().isBoolean().withMessage('Public story flag must be boolean')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { completionId } = req.params;
+    const { successStory, rating, feedback, publicStory } = req.body;
+
+    // Verify user has access to this completion
+    const completionResult = await db.query(
+      `SELECT * FROM match_completions WHERE id = ? AND 
+       (coachId = ? OR playerId = ? OR parentId = ?)`,
+      [completionId, req.user.userId, req.user.userId, req.user.userId]
+    );
+
+    if (!completionResult.rows || completionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Match completion not found or access denied' });
+    }
+
+    const completion = completionResult.rows[0];
+
+    // Only allow adding story if completion is confirmed
+    if (completion.completionStatus !== 'confirmed') {
+      return res.status(400).json({ error: 'Can only add success story to confirmed matches' });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+
+    if (successStory !== undefined) {
+      updateFields.push('successStory = ?');
+      updateValues.push(successStory);
+    }
+    if (rating !== undefined) {
+      updateFields.push('rating = ?');
+      updateValues.push(rating);
+    }
+    if (feedback !== undefined) {
+      updateFields.push('feedback = ?');
+      updateValues.push(feedback);
+    }
+    if (publicStory !== undefined) {
+      updateFields.push('publicStory = ?');
+      updateValues.push(publicStory);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateFields.push('updatedAt = ?');
+    updateValues.push(new Date().toISOString());
+    updateValues.push(completionId);
+
+    await db.query(
+      `UPDATE match_completions SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({ message: 'Success story updated successfully' });
+  } catch (error) {
+    console.error('Update success story error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get public success stories
+app.get('/api/success-stories', async (req, res) => {
+  try {
+    const { limit = 10, offset = 0 } = req.query;
+
+    const storiesResult = await db.query(
+      `SELECT 
+        playerName, teamName, position, ageGroup, league, successStory, 
+        rating, createdAt, completedAt
+       FROM match_completions 
+       WHERE completionStatus = 'confirmed' AND publicStory = true AND successStory IS NOT NULL
+       ORDER BY completedAt DESC 
+       LIMIT ? OFFSET ?`,
+      [parseInt(limit), parseInt(offset)]
+    );
+
+    const countResult = await db.query(
+      `SELECT COUNT(*) as total FROM match_completions 
+       WHERE completionStatus = 'confirmed' AND publicStory = true AND successStory IS NOT NULL`
+    );
+
+    res.json({
+      stories: storiesResult.rows || [],
+      total: countResult.rows[0]?.total || 0
+    });
+  } catch (error) {
+    console.error('Get success stories error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ===== MESSAGING & CONVERSATION ENDPOINTS =====
+
+// Get user's conversations
+app.get('/api/conversations', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     
@@ -5113,7 +1629,7 @@ app.get('/api/conversations', authenticateToken, requireBetaAccess, async (req, 
 });
 
 // Get messages in a conversation
-app.get('/api/conversations/:conversationId/messages', authenticateToken, requireBetaAccess, async (req, res) => {
+app.get('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { conversationId } = req.params;
@@ -5155,13 +1671,59 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, requir
   }
 });
 
+// Send message in conversation
+app.post('/api/messages', authenticateToken, [
+  body('message').isLength({ min: 1, max: 2000 }).withMessage('Message is required (max 2000 characters)'),
+  body('conversationId').optional().isString().withMessage('Valid conversation ID required'),
+  body('recipientId').optional().isInt().withMessage('Valid recipient ID required'),
+  body('messageType').optional().isIn(['general', 'vacancy_interest', 'player_inquiry', 'training_invitation', 'match_update', 'system']).withMessage('Valid message type required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const senderId = req.user.userId;
+    const { message, conversationId, recipientId, messageType = 'general', subject } = req.body;
+    
+    let actualRecipientId = recipientId;
+    
+    // If conversationId is provided, extract recipient from it
+    if (conversationId && !recipientId) {
+      const participantIds = conversationId.split('_').map(id => parseInt(id));
+      actualRecipientId = participantIds.find(id => id !== parseInt(senderId));
+    }
+    
+    if (!actualRecipientId) {
+      return res.status(400).json({ error: 'Recipient ID is required' });
+    }
+
+    // Insert the message
+    const result = await db.query(
+      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, isRead)
+       VALUES (?, ?, ?, ?, ?, false)`,
+      [senderId, actualRecipientId, subject || 'Message', message, messageType]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Message sent successfully',
+      messageId: result.lastID
+    });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
 // Get match progress for user
-app.get('/api/match-progress', authenticateToken, requireBetaAccess, async (req, res) => {
+app.get('/api/match-progress', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const userRole = req.user.role;
     
-    // Get match progress data based on recent conversations and match completions
+    // Mock match progress data based on recent conversations and match completions
     const matchesResult = await db.query(`
       SELECT DISTINCT
         mc.id,
@@ -5191,7 +1753,7 @@ app.get('/api/match-progress', authenticateToken, requireBetaAccess, async (req,
 
     const matches = matchesResult.rows.map(match => ({
       id: match.id,
-      conversationId: `mock_${match.id}`,
+      conversationId: `mock_${match.id}`, // Mock conversation ID
       stage: match.stage,
       playerName: match.playerName,
       teamName: match.teamName,
@@ -5213,1392 +1775,127 @@ app.get('/api/match-progress', authenticateToken, requireBetaAccess, async (req,
   }
 });
 
-// Get messages for a user (inbox)
-app.get('/api/messages', authenticateToken, requireBetaAccess, async (req, res) => {
+// Leagues API endpoints
+
+// Get all leagues
+app.get('/api/leagues', async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const { type = 'received', limit = 50, offset = 0 } = req.query;
-
-    let query;
-    let params;
-
-    if (type === 'sent') {
-      query = `
-        SELECT m.*, 
-               u.firstName as recipientFirstName, 
-               u.lastName as recipientLastName,
-               tv.title as vacancyTitle,
-               pa.title as playerAvailabilityTitle
-        FROM messages m
-        JOIN users u ON m.recipientId = u.id
-        LEFT JOIN team_vacancies tv ON m.relatedVacancyId = tv.id
-        LEFT JOIN player_availability pa ON m.relatedPlayerAvailabilityId = pa.id
-        WHERE m.senderId = ?
-        ORDER BY m.createdAt DESC
-        LIMIT ? OFFSET ?
-      `;
-      params = [userId, parseInt(limit), parseInt(offset)];
-    } else {
-      query = `
-        SELECT m.*, 
-               u.firstName as senderFirstName, 
-               u.lastName as senderLastName,
-               tv.title as vacancyTitle,
-               pa.title as playerAvailabilityTitle
-        FROM messages m
-        JOIN users u ON m.senderId = u.id
-        LEFT JOIN team_vacancies tv ON m.relatedVacancyId = tv.id
-        LEFT JOIN player_availability pa ON m.relatedPlayerAvailabilityId = pa.id
-        WHERE m.recipientId = ?
-        ORDER BY m.createdAt DESC
-        LIMIT ? OFFSET ?
-      `;
-      params = [userId, parseInt(limit), parseInt(offset)];
-    }
-
-    const result = await db.query(query, params);
-    const messages = result.rows;
-
-    // Get unread count for received messages
-    let unreadCount = 0;
-    if (type === 'received') {
-      const unreadResult = await db.query(
-        'SELECT COUNT(*) as count FROM messages WHERE recipientId = ? AND isRead = FALSE',
-        [userId]
-      );
-      unreadCount = unreadResult.rows[0].count;
-    }
+    const leaguesResult = await db.query(
+      'SELECT id, name, description, isActive, createdAt FROM leagues WHERE isActive = true ORDER BY name'
+    );
 
     res.json({
-      messages,
-      unreadCount,
-      total: messages.length
+      leagues: leaguesResult.rows || []
     });
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    console.error('Get leagues error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Mark message as read
-app.put('/api/messages/:messageId/read', authenticateToken, requireBetaAccess, async (req, res) => {
+// Create new league (admin only)
+app.post('/api/leagues', authenticateToken, async (req, res) => {
   try {
-    const { messageId } = req.params;
-    const userId = req.user.userId;
+    const { name, description } = req.body;
 
-    // Verify the user is the recipient
-    const messageCheck = await db.query(
-      'SELECT recipientId FROM messages WHERE id = ?',
-      [messageId]
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Check if league name already exists
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE name = ?', [name]);
+    if (existingLeague.rows && existingLeague.rows.length > 0) {
+      return res.status(400).json({ error: 'League name already exists' });
+    }
+
+    // Create league
+    const leagueResult = await db.query(
+      'INSERT INTO leagues (name, description, createdBy) VALUES (?, ?, ?) RETURNING *',
+      [name, description || '', req.user.id]
     );
-
-    if (messageCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Message not found' });
-    }
-
-    if (messageCheck.rows[0].recipientId !== userId) {
-      return res.status(403).json({ error: 'Unauthorized to mark this message as read' });
-    }
-
-    // Mark as read
-    await db.query(
-      'UPDATE messages SET isRead = TRUE, readAt = CURRENT_TIMESTAMP WHERE id = ?',
-      [messageId]
-    );
-
-    res.json({ success: true, message: 'Message marked as read' });
-  } catch (error) {
-    console.error('Error marking message as read:', error);
-    res.status(500).json({ error: 'Failed to mark message as read' });
-  }
-});
-
-// ==================== TRAINING INVITATIONS ENDPOINTS ====================
-
-// Send training invitation
-app.post('/api/training-invitations', authenticateToken, requireBetaAccess, [
-  body('playerId').isInt({ min: 1 }).withMessage('Valid player ID required'),
-  body('teamName').isLength({ min: 1, max: 100 }).withMessage('Team name is required (max 100 characters)'),
-  body('trainingLocation').isLength({ min: 1, max: 200 }).withMessage('Training location is required (max 200 characters)'),
-  body('trainingDate').isISO8601().withMessage('Valid training date required (YYYY-MM-DD)'),
-  body('trainingTime').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Valid training time required (HH:MM format)'),
-  body('message').optional().isLength({ max: 500 }).withMessage('Message too long (max 500 characters)'),
-  body('expiresInDays').optional().isInt({ min: 1, max: 30 }).withMessage('Expiration must be between 1-30 days')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { playerId, teamName, trainingLocation, trainingDate, trainingTime, message, expiresInDays = 7 } = req.body;
-    const coachId = req.user.userId;
-
-    // Verify coach role
-    const coachCheck = await db.query('SELECT role FROM users WHERE id = ? AND role = ?', [coachId, 'Coach']);
-    if (coachCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Only coaches can send training invitations' });
-    }
-
-    // Verify player exists and is a player
-    const playerCheck = await db.query('SELECT id, firstName, lastName, role FROM users WHERE id = ? AND role = ?', [playerId, 'Player']);
-    if (playerCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-
-    // Check if training date is in the future
-    const trainingDateTime = new Date(`${trainingDate}T${trainingTime}`);
-    if (trainingDateTime <= new Date()) {
-      return res.status(400).json({ error: 'Training date and time must be in the future' });
-    }
-
-    // Calculate expiration date
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
-
-    // Check for existing invitation for same coach, player, date, and time
-    const existingInvite = await db.query(
-      'SELECT id FROM training_invitations WHERE coachId = ? AND playerId = ? AND trainingDate = ? AND trainingTime = ? AND status != ?',
-      [coachId, playerId, trainingDate, trainingTime, 'expired']
-    );
-
-    if (existingInvite.rows.length > 0) {
-      return res.status(409).json({ error: 'Training invitation already exists for this date and time' });
-    }
-
-    // Create training invitation
-    const result = await db.query(`
-      INSERT INTO training_invitations (coachId, playerId, teamName, trainingLocation, trainingDate, trainingTime, message, expiresAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [coachId, playerId, teamName, trainingLocation, trainingDate, trainingTime, message || null, expiresAt.toISOString()]);
 
     res.status(201).json({
-      success: true,
-      message: 'Training invitation sent successfully',
-      invitationId: result.lastID
+      message: 'League created successfully',
+      league: leagueResult.rows[0]
     });
   } catch (error) {
-    console.error('Error sending training invitation:', error);
-    res.status(500).json({ error: 'Failed to send training invitation' });
+    console.error('Create league error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get training invitations (for coaches - sent invitations, for players - received invitations)
-app.get('/api/training-invitations', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { type = 'received', status, limit = 50, offset = 0 } = req.query;
-
-    let query;
-    let params;
-
-    if (type === 'sent') {
-      // For coaches to see invitations they've sent
-      query = `
-        SELECT ti.*,
-               u.firstName as playerFirstName,
-               u.lastName as playerLastName,
-               u.email as playerEmail
-        FROM training_invitations ti
-        JOIN users u ON ti.playerId = u.id
-        WHERE ti.coachId = ?
-      `;
-      params = [userId];
-    } else {
-      // For players to see invitations they've received
-      query = `
-        SELECT ti.*,
-               u.firstName as coachFirstName,
-               u.lastName as coachLastName,
-               u.email as coachEmail
-        FROM training_invitations ti
-        JOIN users u ON ti.coachId = u.id
-        WHERE ti.playerId = ?
-      `;
-      params = [userId];
-    }
-
-    // Add status filter if provided
-    if (status && ['pending', 'accepted', 'declined', 'expired'].includes(status)) {
-      query += ' AND ti.status = ?';
-      params.push(status);
-    }
-
-    query += ' ORDER BY ti.createdAt DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await db.query(query, params);
-
-    res.json({
-      success: true,
-      invitations: result.rows,
-      total: result.rows.length
-    });
-  } catch (error) {
-    console.error('Error fetching training invitations:', error);
-    res.status(500).json({ error: 'Failed to fetch training invitations' });
-  }
-});
-
-// Respond to training invitation (accept/decline)
-app.put('/api/training-invitations/:invitationId', authenticateToken, requireBetaAccess, [
-  body('status').isIn(['accepted', 'declined']).withMessage('Status must be either "accepted" or "declined"'),
-  body('responseMessage').optional().isLength({ max: 300 }).withMessage('Response message too long (max 300 characters)')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { invitationId } = req.params;
-    const { status, responseMessage } = req.body;
-    const playerId = req.user.userId;
-
-    // Verify the invitation exists and belongs to this player
-    const inviteCheck = await db.query(
-      'SELECT * FROM training_invitations WHERE id = ? AND playerId = ? AND status = ?',
-      [invitationId, playerId, 'pending']
-    );
-
-    if (inviteCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Training invitation not found or already responded to' });
-    }
-
-    const invitation = inviteCheck.rows[0];
-
-    // Check if invitation has expired
-    if (new Date() > new Date(invitation.expiresAt)) {
-      // Auto-expire the invitation
-      await db.query(
-        'UPDATE training_invitations SET status = ? WHERE id = ?',
-        ['expired', invitationId]
-      );
-      return res.status(400).json({ error: 'Training invitation has expired' });
-    }
-
-    // Update invitation status
-    await db.query(
-      'UPDATE training_invitations SET status = ?, responseMessage = ?, responseDate = CURRENT_TIMESTAMP WHERE id = ?',
-      [status, responseMessage || null, invitationId]
-    );
-
-    res.json({
-      success: true,
-      message: `Training invitation ${status} successfully`
-    });
-  } catch (error) {
-    console.error('Error responding to training invitation:', error);
-    res.status(500).json({ error: 'Failed to respond to training invitation' });
-  }
-});
-
-// Cancel training invitation (for coaches only)
-app.delete('/api/training-invitations/:invitationId', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { invitationId } = req.params;
-    const coachId = req.user.userId;
-
-    // Verify the invitation exists and belongs to this coach
-    const inviteCheck = await db.query(
-      'SELECT * FROM training_invitations WHERE id = ? AND coachId = ?',
-      [invitationId, coachId]
-    );
-
-    if (inviteCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Training invitation not found' });
-    }
-
-    // Delete the invitation
-    await db.query('DELETE FROM training_invitations WHERE id = ?', [invitationId]);
-
-    res.json({
-      success: true,
-      message: 'Training invitation cancelled successfully'
-    });
-  } catch (error) {
-    console.error('Error cancelling training invitation:', error);
-    res.status(500).json({ error: 'Failed to cancel training invitation' });
-  }
-});
-
-// ==================== TRIAL MANAGEMENT ENDPOINTS ====================
-
-// Create a new trial list
-app.post('/api/trial-lists', authenticateToken, requireBetaAccess, [
-  body('title').isLength({ min: 1, max: 200 }).withMessage('Title is required (max 200 characters)'),
-  body('description').optional().isLength({ max: 1000 }).withMessage('Description too long (max 1000 characters)'),
-  body('trialDate').optional().isISO8601().withMessage('Valid trial date required (YYYY-MM-DD)'),
-  body('trialTime').optional().matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Valid trial time required (HH:MM format)'),
-  body('location').optional().isLength({ max: 200 }).withMessage('Location too long (max 200 characters)'),
-  body('maxPlayers').optional().isInt({ min: 1, max: 100 }).withMessage('Max players must be between 1-100')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { title, description, trialDate, trialTime, location, maxPlayers } = req.body;
-    const coachId = req.user.userId;
-
-    // Verify coach role
-    const coachCheck = await db.query('SELECT role FROM users WHERE id = ? AND role = ?', [coachId, 'Coach']);
-    if (coachCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Only coaches can create trial lists' });
-    }
-
-    const result = await db.query(`
-      INSERT INTO trial_lists (coachId, title, description, trialDate, trialTime, location, maxPlayers)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [coachId, title, description || null, trialDate || null, trialTime || null, location || null, maxPlayers || null]);
-
-    res.status(201).json({
-      success: true,
-      message: 'Trial list created successfully',
-      trialListId: result.lastID
-    });
-  } catch (error) {
-    console.error('Error creating trial list:', error);
-    res.status(500).json({ error: 'Failed to create trial list' });
-  }
-});
-
-// Get trial lists for a coach
-app.get('/api/trial-lists', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const coachId = req.user.userId;
-    const { status, limit = 50, offset = 0 } = req.query;
-
-    // Verify coach role
-    const coachCheck = await db.query('SELECT role FROM users WHERE id = ? AND role = ?', [coachId, 'Coach']);
-    if (coachCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Only coaches can view trial lists' });
-    }
-
-    let query = `
-      SELECT tl.*, 
-             COUNT(te.id) as playerCount,
-             AVG(te.overallRating) as avgRating
-      FROM trial_lists tl
-      LEFT JOIN trial_evaluations te ON tl.id = te.trialListId
-      WHERE tl.coachId = ?
-    `;
-    const params = [coachId];
-
-    if (status && ['active', 'completed', 'cancelled'].includes(status)) {
-      query += ' AND tl.status = ?';
-      params.push(status);
-    }
-
-    query += ' GROUP BY tl.id ORDER BY tl.createdAt DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await db.query(query, params);
-
-    res.json({
-      success: true,
-      trialLists: result.rows,
-      total: result.rows.length
-    });
-  } catch (error) {
-    console.error('Error fetching trial lists:', error);
-    res.status(500).json({ error: 'Failed to fetch trial lists' });
-  }
-});
-
-// Get specific trial list with players
-app.get('/api/trial-lists/:trialListId', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { trialListId } = req.params;
-    const coachId = req.user.userId;
-
-    // Verify trial list belongs to coach
-    const trialListCheck = await db.query(
-      'SELECT * FROM trial_lists WHERE id = ? AND coachId = ?',
-      [trialListId, coachId]
-    );
-
-    if (trialListCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Trial list not found or access denied' });
-    }
-
-    const trialList = trialListCheck.rows[0];
-
-    // Get all players in the trial list with their evaluations
-    const playersResult = await db.query(`
-      SELECT te.*, 
-             u.firstName, 
-             u.lastName, 
-             u.email
-      FROM trial_evaluations te
-      JOIN users u ON te.playerId = u.id
-      WHERE te.trialListId = ?
-      ORDER BY te.ranking ASC, te.overallRating DESC, te.evaluatedAt DESC
-    `, [trialListId]);
-
-    res.json({
-      success: true,
-      trialList: trialList,
-      players: playersResult.rows
-    });
-  } catch (error) {
-    console.error('Error fetching trial list details:', error);
-    res.status(500).json({ error: 'Failed to fetch trial list details' });
-  }
-});
-
-// Add player to trial list
-app.post('/api/trial-lists/:trialListId/players', authenticateToken, requireBetaAccess, [
-  body('playerId').isInt({ min: 1 }).withMessage('Valid player ID required'),
-  body('playerName').isLength({ min: 1, max: 200 }).withMessage('Player name is required'),
-  body('playerAge').optional().isInt({ min: 5, max: 50 }).withMessage('Valid age required'),
-  body('playerPosition').optional().isLength({ max: 100 }).withMessage('Position too long')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { trialListId } = req.params;
-    const { playerId, playerName, playerAge, playerPosition } = req.body;
-    const coachId = req.user.userId;
-
-    // Verify trial list belongs to coach
-    const trialListCheck = await db.query(
-      'SELECT * FROM trial_lists WHERE id = ? AND coachId = ?',
-      [trialListId, coachId]
-    );
-
-    if (trialListCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Trial list not found or access denied' });
-    }
-
-    // Check if player already exists in this trial list
-    const existingPlayer = await db.query(
-      'SELECT id FROM trial_evaluations WHERE trialListId = ? AND playerId = ?',
-      [trialListId, playerId]
-    );
-
-    if (existingPlayer.rows.length > 0) {
-      return res.status(409).json({ error: 'Player already exists in this trial list' });
-    }
-
-    // Get the next ranking position
-    const rankingResult = await db.query(
-      'SELECT COALESCE(MAX(ranking), 0) + 1 as nextRanking FROM trial_evaluations WHERE trialListId = ?',
-      [trialListId]
-    );
-    const nextRanking = rankingResult.rows[0].nextRanking;
-
-    const result = await db.query(`
-      INSERT INTO trial_evaluations (trialListId, playerId, coachId, playerName, playerAge, playerPosition, ranking)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [trialListId, playerId, coachId, playerName, playerAge || null, playerPosition || null, nextRanking]);
-
-    res.status(201).json({
-      success: true,
-      message: 'Player added to trial list successfully',
-      evaluationId: result.lastID
-    });
-  } catch (error) {
-    console.error('Error adding player to trial list:', error);
-    res.status(500).json({ error: 'Failed to add player to trial list' });
-  }
-});
-
-// Update player evaluation
-app.put('/api/trial-evaluations/:evaluationId', authenticateToken, requireBetaAccess, [
-  body('overallRating').optional().isInt({ min: 1, max: 10 }).withMessage('Overall rating must be 1-10'),
-  body('technicalSkills').optional().isInt({ min: 1, max: 10 }).withMessage('Technical skills rating must be 1-10'),
-  body('physicalAttributes').optional().isInt({ min: 1, max: 10 }).withMessage('Physical attributes rating must be 1-10'),
-  body('mentalStrength').optional().isInt({ min: 1, max: 10 }).withMessage('Mental strength rating must be 1-10'),
-  body('teamwork').optional().isInt({ min: 1, max: 10 }).withMessage('Teamwork rating must be 1-10'),
-  body('privateNotes').optional().isLength({ max: 2000 }).withMessage('Private notes too long (max 2000 characters)'),
-  body('strengths').optional().isLength({ max: 500 }).withMessage('Strengths too long (max 500 characters)'),
-  body('areasForImprovement').optional().isLength({ max: 500 }).withMessage('Areas for improvement too long (max 500 characters)'),
-  body('recommendedForTeam').optional().isBoolean().withMessage('Recommended for team must be boolean'),
-  body('status').optional().isIn(['evaluating', 'approved', 'rejected', 'pending']).withMessage('Invalid status')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { evaluationId } = req.params;
-    const coachId = req.user.userId;
-
-    // Verify evaluation belongs to coach
-    const evaluationCheck = await db.query(
-      'SELECT * FROM trial_evaluations WHERE id = ? AND coachId = ?',
-      [evaluationId, coachId]
-    );
-
-    if (evaluationCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Player evaluation not found or access denied' });
-    }
-
-    const {
-      overallRating,
-      technicalSkills,
-      physicalAttributes,
-      mentalStrength,
-      teamwork,
-      privateNotes,
-      strengths,
-      areasForImprovement,
-      recommendedForTeam,
-      status
-    } = req.body;
-
-    // Build dynamic update query
-    const updateFields = [];
-    const updateValues = [];
-
-    if (overallRating !== undefined) {
-      updateFields.push('overallRating = ?');
-      updateValues.push(overallRating);
-    }
-    if (technicalSkills !== undefined) {
-      updateFields.push('technicalSkills = ?');
-      updateValues.push(technicalSkills);
-    }
-    if (physicalAttributes !== undefined) {
-      updateFields.push('physicalAttributes = ?');
-      updateValues.push(physicalAttributes);
-    }
-    if (mentalStrength !== undefined) {
-      updateFields.push('mentalStrength = ?');
-      updateValues.push(mentalStrength);
-    }
-    if (teamwork !== undefined) {
-      updateFields.push('teamwork = ?');
-      updateValues.push(teamwork);
-    }
-    if (privateNotes !== undefined) {
-      updateFields.push('privateNotes = ?');
-      updateValues.push(privateNotes);
-    }
-    if (strengths !== undefined) {
-      updateFields.push('strengths = ?');
-      updateValues.push(strengths);
-    }
-    if (areasForImprovement !== undefined) {
-      updateFields.push('areasForImprovement = ?');
-      updateValues.push(areasForImprovement);
-    }
-    if (recommendedForTeam !== undefined) {
-      updateFields.push('recommendedForTeam = ?');
-      updateValues.push(recommendedForTeam);
-    }
-    if (status !== undefined) {
-      updateFields.push('status = ?');
-      updateValues.push(status);
-    }
-
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
-    }
-
-    updateFields.push('updatedAt = CURRENT_TIMESTAMP');
-    updateValues.push(evaluationId);
-
-    const query = `UPDATE trial_evaluations SET ${updateFields.join(', ')} WHERE id = ?`;
-    await db.query(query, updateValues);
-
-    res.json({
-      success: true,
-      message: 'Player evaluation updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating player evaluation:', error);
-    res.status(500).json({ error: 'Failed to update player evaluation' });
-  }
-});
-
-// Update player ranking (move up/down in list)
-app.put('/api/trial-evaluations/:evaluationId/ranking', authenticateToken, requireBetaAccess, [
-  body('newRanking').isInt({ min: 1 }).withMessage('Valid ranking position required')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { evaluationId } = req.params;
-    const { newRanking } = req.body;
-    const coachId = req.user.userId;
-
-    // Get current evaluation
-    const currentEval = await db.query(
-      'SELECT * FROM trial_evaluations WHERE id = ? AND coachId = ?',
-      [evaluationId, coachId]
-    );
-
-    if (currentEval.rows.length === 0) {
-      return res.status(404).json({ error: 'Player evaluation not found or access denied' });
-    }
-
-    const currentRanking = currentEval.rows[0].ranking;
-    const trialListId = currentEval.rows[0].trialListId;
-
-    if (currentRanking === newRanking) {
-      return res.json({ success: true, message: 'No ranking change needed' });
-    }
-
-    // Update rankings in a transaction-like manner
-    if (newRanking < currentRanking) {
-      // Moving up - shift others down
-      await db.query(
-        'UPDATE trial_evaluations SET ranking = ranking + 1 WHERE trialListId = ? AND ranking >= ? AND ranking < ?',
-        [trialListId, newRanking, currentRanking]
-      );
-    } else {
-      // Moving down - shift others up
-      await db.query(
-        'UPDATE trial_evaluations SET ranking = ranking - 1 WHERE trialListId = ? AND ranking > ? AND ranking <= ?',
-        [trialListId, currentRanking, newRanking]
-      );
-    }
-
-    // Update the target evaluation
-    await db.query(
-      'UPDATE trial_evaluations SET ranking = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
-      [newRanking, evaluationId]
-    );
-
-    res.json({
-      success: true,
-      message: 'Player ranking updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating player ranking:', error);
-    res.status(500).json({ error: 'Failed to update player ranking' });
-  }
-});
-
-// Remove player from trial list
-app.delete('/api/trial-evaluations/:evaluationId', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { evaluationId } = req.params;
-    const coachId = req.user.userId;
-
-    // Get evaluation details first
-    const evaluationCheck = await db.query(
-      'SELECT * FROM trial_evaluations WHERE id = ? AND coachId = ?',
-      [evaluationId, coachId]
-    );
-
-    if (evaluationCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Player evaluation not found or access denied' });
-    }
-
-    const evaluation = evaluationCheck.rows[0];
-
-    // Delete the evaluation
-    await db.query('DELETE FROM trial_evaluations WHERE id = ?', [evaluationId]);
-
-    // Update rankings for remaining players
-    await db.query(
-      'UPDATE trial_evaluations SET ranking = ranking - 1 WHERE trialListId = ? AND ranking > ?',
-      [evaluation.trialListId, evaluation.ranking]
-    );
-
-    res.json({
-      success: true,
-      message: 'Player removed from trial list successfully'
-    });
-  } catch (error) {
-    console.error('Error removing player from trial list:', error);
-    res.status(500).json({ error: 'Failed to remove player from trial list' });
-  }
-});
-
-// Delete trial list
-app.delete('/api/trial-lists/:trialListId', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const { trialListId } = req.params;
-    const coachId = req.user.userId;
-
-    // Verify trial list belongs to coach
-    const trialListCheck = await db.query(
-      'SELECT * FROM trial_lists WHERE id = ? AND coachId = ?',
-      [trialListId, coachId]
-    );
-
-    if (trialListCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Trial list not found or access denied' });
-    }
-
-    // Delete trial list (evaluations will be deleted due to CASCADE)
-    await db.query('DELETE FROM trial_lists WHERE id = ?', [trialListId]);
-
-    res.json({
-      success: true,
-      message: 'Trial list deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting trial list:', error);
-    res.status(500).json({ error: 'Failed to delete trial list' });
-  }
-});
-
-// ======================
-// TEAM PROFILES API
-// ======================
-
-// Create or update team profile
-app.post('/api/team-profile', authenticateToken, requireBetaAccess, [
-  body('teamName').trim().isLength({ min: 1 }).withMessage('Team name is required'),
-  body('clubName').optional().trim(),
-  body('teamDescription').optional().trim(),
-], async (req, res) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        details: errors.array()
-      });
-    }
-
-    const userId = req.user.userId;
-    
-    // Verify user is a coach
-    const user = await db.query('SELECT role FROM users WHERE id = ?', [userId]);
-    if (user.rows.length === 0 || user.rows[0].role !== 'Coach') {
-      return res.status(403).json({ error: 'Only coaches can create team profiles' });
-    }
-
-    const {
-      teamName,
-      clubName,
-      establishedYear,
-      teamDescription,
-      homeGroundName,
-      homeGroundAddress,
-      trainingSchedule,
-      hasRegularSocialEvents,
-      socialEventsDescription,
-      welcomesParentInvolvement,
-      parentInvolvementDetails,
-      attendsSummerTournaments,
-      tournamentDetails,
-      hasPathwayProgram,
-      pathwayDescription,
-      linkedAdultTeam,
-      academyAffiliation,
-      coachingPhilosophy,
-      trainingFocus,
-      developmentAreas,
-      coachingStaff,
-      teamAchievements,
-      specialRequirements,
-      equipmentProvided,
-      seasonalFees,
-      contactPreferences
-    } = req.body;
-
-    // Check if team profile already exists
-    const existingProfile = await db.query(
-      'SELECT id FROM team_profiles WHERE coachId = ?',
-      [userId]
-    );
-
-    if (existingProfile.rows.length > 0) {
-      // Update existing profile
-      await db.query(`
-        UPDATE team_profiles SET 
-          teamName = ?, clubName = ?, establishedYear = ?, teamDescription = ?,
-          homeGroundName = ?, homeGroundAddress = ?, trainingSchedule = ?,
-          hasRegularSocialEvents = ?, socialEventsDescription = ?,
-          welcomesParentInvolvement = ?, parentInvolvementDetails = ?,
-          attendsSummerTournaments = ?, tournamentDetails = ?,
-          hasPathwayProgram = ?, pathwayDescription = ?, linkedAdultTeam = ?,
-          academyAffiliation = ?, coachingPhilosophy = ?, trainingFocus = ?,
-          developmentAreas = ?, coachingStaff = ?, teamAchievements = ?,
-          specialRequirements = ?, equipmentProvided = ?, seasonalFees = ?,
-          contactPreferences = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE coachId = ?
-      `, [
-        teamName, clubName, establishedYear, teamDescription,
-        homeGroundName, homeGroundAddress, trainingSchedule,
-        hasRegularSocialEvents, socialEventsDescription,
-        welcomesParentInvolvement, parentInvolvementDetails,
-        attendsSummerTournaments, tournamentDetails,
-        hasPathwayProgram, pathwayDescription, linkedAdultTeam,
-        academyAffiliation, coachingPhilosophy, trainingFocus,
-        developmentAreas, coachingStaff, teamAchievements,
-        specialRequirements, equipmentProvided, seasonalFees,
-        contactPreferences, userId
-      ]);
-
-      res.json({
-        success: true,
-        message: 'Team profile updated successfully',
-        profileId: existingProfile.rows[0].id
-      });
-    } else {
-      // Create new profile
-      const result = await db.query(`
-        INSERT INTO team_profiles (
-          coachId, teamName, clubName, establishedYear, teamDescription,
-          homeGroundName, homeGroundAddress, trainingSchedule,
-          hasRegularSocialEvents, socialEventsDescription,
-          welcomesParentInvolvement, parentInvolvementDetails,
-          attendsSummerTournaments, tournamentDetails,
-          hasPathwayProgram, pathwayDescription, linkedAdultTeam,
-          academyAffiliation, coachingPhilosophy, trainingFocus,
-          developmentAreas, coachingStaff, teamAchievements,
-          specialRequirements, equipmentProvided, seasonalFees,
-          contactPreferences
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id
-      `, [
-        userId, teamName, clubName, establishedYear, teamDescription,
-        homeGroundName, homeGroundAddress, trainingSchedule,
-        hasRegularSocialEvents, socialEventsDescription,
-        welcomesParentInvolvement, parentInvolvementDetails,
-        attendsSummerTournaments, tournamentDetails,
-        hasPathwayProgram, pathwayDescription, linkedAdultTeam,
-        academyAffiliation, coachingPhilosophy, trainingFocus,
-        developmentAreas, coachingStaff, teamAchievements,
-        specialRequirements, equipmentProvided, seasonalFees,
-        contactPreferences
-      ]);
-
-      res.status(201).json({
-        success: true,
-        message: 'Team profile created successfully',
-        profileId: result.rows[0]?.id || result.lastID
-      });
-    }
-  } catch (error) {
-    console.error('Error creating/updating team profile:', error);
-    res.status(500).json({ error: 'Failed to save team profile' });
-  }
-});
-
-// Get team profile for current user (coach)
-app.get('/api/team-profile', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    
-    const profile = await db.query(
-      'SELECT * FROM team_profiles WHERE coachId = ? AND isActive = TRUE',
-      [userId]
-    );
-
-    if (profile.rows.length === 0) {
-      return res.status(404).json({ error: 'Team profile not found' });
-    }
-
-    res.json(profile.rows[0]);
-  } catch (error) {
-    console.error('Error fetching team profile:', error);
-    res.status(500).json({ error: 'Failed to fetch team profile' });
-  }
-});
-
-// Get team profile by ID (public view)
-app.get('/api/team-profile/:id', async (req, res) => {
-  try {
-    const profileId = req.params.id;
-    
-    const profile = await db.query(`
-      SELECT tp.*, u.firstName, u.lastName, u.email
-      FROM team_profiles tp
-      JOIN users u ON tp.coachId = u.id
-      WHERE tp.id = ? AND tp.isActive = TRUE
-    `, [profileId]);
-
-    if (profile.rows.length === 0) {
-      return res.status(404).json({ error: 'Team profile not found' });
-    }
-
-    res.json(profile.rows[0]);
-  } catch (error) {
-    console.error('Error fetching team profile:', error);
-    res.status(500).json({ error: 'Failed to fetch team profile' });
-  }
-});
-
-// Get all team profiles (public)
-app.get('/api/team-profiles', async (req, res) => {
-  try {
-    const { search, location, hasPathway, hasTournaments, socialEvents, page = 1, limit = 10 } = req.query;
-    
-    let query = `
-      SELECT tp.*, u.firstName, u.lastName, u.email,
-             CASE WHEN tp.hasPathwayProgram = 1 THEN 'Yes' ELSE 'No' END as pathwayProgram,
-             CASE WHEN tp.attendsSummerTournaments = 1 THEN 'Yes' ELSE 'No' END as tournaments,
-             CASE WHEN tp.hasRegularSocialEvents = 1 THEN 'Yes' ELSE 'No' END as socialEvents
-      FROM team_profiles tp
-      JOIN users u ON tp.coachId = u.id
-      WHERE tp.isActive = TRUE
-    `;
-    
-    const params = [];
-    
-    if (search) {
-      query += ` AND (tp.teamName LIKE ? OR tp.clubName LIKE ? OR tp.teamDescription LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-    
-    if (location) {
-      query += ` AND (tp.homeGroundAddress LIKE ? OR tp.homeGroundName LIKE ?)`;
-      params.push(`%${location}%`, `%${location}%`);
-    }
-    
-    if (hasPathway === 'true') {
-      query += ` AND tp.hasPathwayProgram = 1`;
-    }
-    
-    if (hasTournaments === 'true') {
-      query += ` AND tp.attendsSummerTournaments = 1`;
-    }
-    
-    if (socialEvents === 'true') {
-      query += ` AND tp.hasRegularSocialEvents = 1`;
-    }
-    
-    query += ` ORDER BY tp.createdAt DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-    
-    const profiles = await db.query(query, params);
-    
-    // Get total count for pagination
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM team_profiles tp
-      WHERE tp.isActive = TRUE
-    `;
-    const countParams = [];
-    
-    if (search) {
-      countQuery += ` AND (tp.teamName LIKE ? OR tp.clubName LIKE ? OR tp.teamDescription LIKE ?)`;
-      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-    
-    if (location) {
-      countQuery += ` AND (tp.homeGroundAddress LIKE ? OR tp.homeGroundName LIKE ?)`;
-      countParams.push(`%${location}%`, `%${location}%`);
-    }
-    
-    if (hasPathway === 'true') {
-      countQuery += ` AND tp.hasPathwayProgram = 1`;
-    }
-    
-    if (hasTournaments === 'true') {
-      countQuery += ` AND tp.attendsSummerTournaments = 1`;
-    }
-    
-    if (socialEvents === 'true') {
-      countQuery += ` AND tp.hasRegularSocialEvents = 1`;
-    }
-    
-    const totalResult = await db.query(countQuery, countParams);
-    const total = totalResult.rows[0].total;
-    
-    res.json({
-      profiles: profiles.rows,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching team profiles:', error);
-    res.status(500).json({ error: 'Failed to fetch team profiles' });
-  }
-});
-
-// User Administration Routes (Admin only)
-
-// Get all users
-app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT u.id, u.email, u.firstName, u.lastName, u.role, u.createdat as createdAt, 
-             u.isEmailVerified, u.isBlocked
-      FROM users u
-      ORDER BY u.createdat DESC
-    `);
-    
-    // Decrypt emails
-    const users = result.rows.map(user => ({
-      ...user,
-      email: encryptionService.decrypt(user.email),
-      isBlocked: user.isBlocked || false
-    }));
-    
-    res.json({ users });
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// Delete user
-app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Update league (admin only)
+app.put('/api/leagues/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Prevent deleting yourself
-    if (parseInt(id) === req.user.userId) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
-    }
-    
-    // Delete user (cascading deletes will handle related records)
-    const result = await db.query('DELETE FROM users WHERE id = ?', [id]);
-    
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
+    const { name, description } = req.body;
 
-// Block/Unblock user
-app.post('/api/admin/users/:id/block', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { blocked } = req.body;
-    
-    // Prevent blocking yourself
-    if (parseInt(id) === req.user.userId) {
-      return res.status(400).json({ error: 'Cannot block your own account' });
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
     }
-    
-    const blockedValue = db.dbType === 'postgresql' ? blocked : (blocked ? 1 : 0);
-    await db.query('UPDATE users SET isBlocked = ? WHERE id = ?', [blockedValue, id]);
-    
-    res.json({ 
-      message: `User ${blocked ? 'blocked' : 'unblocked'} successfully` 
-    });
-  } catch (error) {
-    console.error('Error blocking/unblocking user:', error);
-    res.status(500).json({ error: 'Failed to update user status' });
-  }
-});
 
-// Send admin message to user
-app.post('/api/admin/users/:id/message', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { subject, message } = req.body;
-    
-    if (!subject || !message) {
-      return res.status(400).json({ error: 'Subject and message are required' });
+    // Check if league exists
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE id = ?', [id]);
+    if (!existingLeague.rows || existingLeague.rows.length === 0) {
+      return res.status(404).json({ error: 'League not found' });
     }
-    
-    // Get user email
-    const userResult = await db.query('SELECT email, firstName FROM users WHERE id = ?', [id]);
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = userResult.rows[0];
-    const userEmail = encryptionService.decrypt(user.email);
-    
-    // Send email using email service
-    try {
-      await emailService.sendAdminMessage(userEmail, user.firstName, subject, message);
-      res.json({ message: 'Message sent successfully' });
-    } catch (emailError) {
-      console.error('Failed to send email:', emailError);
-      res.status(500).json({ error: 'Failed to send message' });
-    }
-  } catch (error) {
-    console.error('Error sending admin message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
-  }
-});
 
-// Beta Access Management Routes
-
-// Get all users with beta access status
-app.get('/api/admin/users/beta-access', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    // PostgreSQL uses lowercase column names for unquoted identifiers
-    const result = await db.query(`
-      SELECT id, email, firstName, lastName, role, betaaccess, createdat as createdAt
-      FROM users
-      ORDER BY createdat DESC
-    `);
-    
-    // Decrypt emails
-    const users = result.rows.map(user => ({
-      ...user,
-      email: encryptionService.decrypt(user.email),
-      betaAccess: user.betaaccess === 1 || user.betaaccess === true
-    }));
-    
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users for beta access:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// Update user's beta access status
-app.patch('/api/admin/users/:id/beta-access', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { betaAccess } = req.body;
-    
-    // Convert string to boolean if needed
-    const betaAccessBool = betaAccess === true || betaAccess === 'true';
-    
-    console.log(`[BetaAccess] Request to ${betaAccessBool ? 'GRANT' : 'REVOKE'} access for user ID: ${id}`);
-    
-    // Get user info before update
-    // NOTE: PostgreSQL converts unquoted identifiers to lowercase, so use lowercase column names
-    const userResult = await db.query('SELECT email, firstName, role, betaaccess FROM users WHERE id = ?', [id]);
-    
-    if (userResult.rows.length === 0) {
-      console.log('[BetaAccess] User not found:', id);
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = userResult.rows[0];
-    console.log('[BetaAccess] User BEFORE update:', { 
-      id, 
-      role: user.role, 
-      currentBetaAccess: user.betaaccess,
-      currentType: typeof user.betaaccess,
-      requestedAccess: betaAccessBool 
-    });
-    
-    // Prevent removing beta access from admins
-    if (user.role === 'Admin' && !betaAccessBool) {
-      console.log('[BetaAccess] Attempted to remove admin access - blocked');
-      return res.status(400).json({ error: 'Cannot remove beta access from admin users' });
-    }
-    
-    // Update beta access
-    // Even for PostgreSQL, the column is INTEGER (not BOOLEAN), so we need to use 1/0
-    const boolValue = betaAccessBool ? 1 : 0;
-    console.log(`[BetaAccess] About to UPDATE with value: ${boolValue} (type: ${typeof boolValue})`);
-    
-    try {
-      // PostgreSQL lowercase column name
-      if (betaAccessBool) {
-        // When granting beta access, set the timestamp
-        await db.query(
-          'UPDATE users SET betaaccess = ?, betaAccessGrantedAt = CURRENT_TIMESTAMP WHERE id = ?',
-          [boolValue, id]
-        );
-      } else {
-        // When revoking, just update the betaaccess flag
-        await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', [boolValue, id]);
-      }
-      console.log(`[BetaAccess] UPDATE executed successfully`);
-    } catch (updateError) {
-      console.error('[BetaAccess] UPDATE failed:', updateError);
-      throw updateError;
-    }
-    
-    // Verify the update
-    const verifyResult = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
-    
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
-      console.error('[BetaAccess] Verification failed - user not found after update');
-      return res.status(500).json({ error: 'Failed to verify beta access update' });
-    }
-    
-    const actualValue = verifyResult.rows[0].betaaccess;
-    console.log('[BetaAccess] User AFTER update:', {
-      id,
-      betaAccess: actualValue,
-      type: typeof actualValue,
-      rawValue: JSON.stringify(actualValue),
-      willPass: actualValue === true || actualValue === 1 || actualValue === '1'
-    });
-    
-    console.log(`[BetaAccess] SUCCESS - Access ${betaAccessBool ? 'granted' : 'revoked'} for user ${id}`);
-    
-    // Send response with the actual database value (converted to boolean)
-    // PostgreSQL returns true/false, SQLite returns 1/0
-    const finalBetaAccessValue = actualValue === 1 || actualValue === true || actualValue === '1';
-    res.json({ 
-      message: betaAccessBool ? 'Beta access granted successfully' : 'Beta access revoked successfully',
-      betaAccess: finalBetaAccessValue
-    });
-  } catch (error) {
-    console.error('[BetaAccess] Error updating beta access:', error);
-    res.status(500).json({ error: 'Failed to update beta access', details: error.message });
-  }
-});
-
-// DEBUG: Check user's beta access status (Admin only)
-app.get('/api/admin/users/:id/beta-status', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await db.query('SELECT id, email, firstName, lastName, role, betaaccess FROM users WHERE id = ?', [id]);
-    
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = result.rows[0];
-    res.json({
-      userId: user.id,
-      email: user.email,
-      name: `${user.firstName} ${user.lastName}`,
-      role: user.role,
-      betaAccess: user.betaaccess,
-      betaAccessType: typeof user.betaaccess,
-      betaAccessValue: user.betaaccess,
-      willPass: user.betaaccess === true || user.betaaccess === 1 || user.betaaccess === '1' || user.role === 'Admin'
-    });
-  } catch (error) {
-    console.error('[BetaAccess] Error checking beta status:', error);
-    res.status(500).json({ error: 'Failed to check beta status', details: error.message });
-  }
-});
-
-// User Verification Management Routes (Admin only)
-
-// Update user's verification status
-app.patch('/api/admin/users/:id/verify', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { isVerified } = req.body;
-    
-    if (typeof isVerified !== 'boolean') {
-      return res.status(400).json({ error: 'isVerified must be a boolean' });
-    }
-    
-    // Get user info before update
-    const userResult = await db.query('SELECT email, firstName, lastName, role FROM users WHERE id = ?', [id]);
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = userResult.rows[0];
-    
-    // Update verification status
-    const verificationValue = db.dbType === 'postgresql' ? isVerified : (isVerified ? 1 : 0);
-    await db.query('UPDATE users SET isEmailVerified = ? WHERE id = ?', [verificationValue, id]);
-    
-    // Send email notification
-    if (isVerified) {
-      try {
-        const userEmail = encryptionService.decrypt(user.email);
-        await emailService.sendVerificationApproved(userEmail, user.firstName);
-      } catch (emailError) {
-        console.error('Failed to send verification email:', emailError);
+    // Check if new name conflicts with existing league (excluding current league)
+    if (name) {
+      const nameConflict = await db.query('SELECT id FROM leagues WHERE name = ? AND id != ?', [name, id]);
+      if (nameConflict.rows && nameConflict.rows.length > 0) {
+        return res.status(400).json({ error: 'League name already exists' });
       }
     }
-    
-    // Audit log
-    auditLogger('user_verification_updated', req.user.userId, {
-      targetUserId: id,
-      isVerified,
-      role: user.role
-    });
-    
-    res.json({ 
-      message: `User ${isVerified ? 'verified' : 'unverified'} successfully`,
-      isVerified 
-    });
-  } catch (error) {
-    console.error('Error updating verification status:', error);
-    res.status(500).json({ error: 'Failed to update verification status' });
-  }
-});
 
-// Request verification (for users)
-app.post('/api/users/request-verification', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { documents } = req.body; // Could include proof of identity documents
-    
-    // Check if user is already verified
-    const userResult = await db.query('SELECT isVerified, firstName, lastName, role FROM users WHERE id = ?', [userId]);
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const user = userResult.rows[0];
-    
-    if (user.isVerified) {
-      return res.status(400).json({ error: 'User is already verified' });
-    }
-    
-    // Store verification request (could create a verification_requests table)
-    // For now, just notify admins
-    try {
-      await emailService.notifyAdminsVerificationRequest(
-        user.firstName,
-        user.lastName,
-        user.role,
-        userId
-      );
-    } catch (emailError) {
-      console.error('Failed to notify admins:', emailError);
-    }
-    
-    res.json({ 
-      message: 'Verification request submitted successfully. An admin will review your request.',
-      requestSubmitted: true
-    });
-  } catch (error) {
-    console.error('Error requesting verification:', error);
-    res.status(500).json({ error: 'Failed to submit verification request' });
-  }
-});
-
-// Delete team profile
-app.delete('/api/team-profile', authenticateToken, requireBetaAccess, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    
-    // Verify user is a coach
-    const user = await db.query('SELECT role FROM users WHERE id = ?', [userId]);
-    if (user.rows.length === 0 || user.rows[0].role !== 'Coach') {
-      return res.status(403).json({ error: 'Only coaches can delete team profiles' });
-    }
-
-    const result = await db.query(
-      'UPDATE team_profiles SET isActive = FALSE WHERE coachId = ?',
-      [userId]
+    // Update league
+    await db.query(
+      'UPDATE leagues SET name = ?, description = ? WHERE id = ?',
+      [name, description || '', id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Team profile not found' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Team profile deleted successfully'
-    });
+    res.json({ message: 'League updated successfully' });
   } catch (error) {
-    console.error('Error deleting team profile:', error);
-    res.status(500).json({ error: 'Failed to delete team profile' });
+    console.error('Update league error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ============================================================================
-// PERFORMANCE ANALYTICS ENDPOINTS
-// ============================================================================
+// Delete league (admin only)
+app.delete('/api/leagues/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
 
-// Get site stats for performance analytics dashboard
-app.get('/api/analytics/site-stats', authenticateToken, requireBetaAccess, async (req, res) => {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Check if league exists
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE id = ?', [id]);
+    if (!existingLeague.rows || existingLeague.rows.length === 0) {
+      return res.status(404).json({ error: 'League not found' });
+    }
+
+    // Soft delete - mark as inactive instead of actual delete to preserve data integrity
+    await db.query('UPDATE leagues SET isActive = false WHERE id = ?', [id]);
+
+    res.json({ message: 'League deleted successfully' });
+  } catch (error) {
+    console.error('Delete league error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Analytics API endpoints (admin only)
+
+// Get dashboard analytics overview
+app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
   try {
     // Check if user is admin
     const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
@@ -6606,15 +1903,266 @@ app.get('/api/analytics/site-stats', authenticateToken, requireBetaAccess, async
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Return default stats since analytics tables don't exist yet
-    // TODO: Create analytics tables and implement real tracking
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Get total counts
+    const totalUsers = await db.query('SELECT COUNT(*) as count FROM users');
+    const totalTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
+    const totalPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability');
+    const totalMatches = await db.query('SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"');
+
+    // Get today's stats
+    const todayUsers = await db.query('SELECT COUNT(*) as count FROM users WHERE DATE(createdAt) = ?', [today]);
+    const todayTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE DATE(createdAt) = ?', [today]);
+    const todayPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE DATE(createdAt) = ?', [today]);
+
+    // Get active sessions (last 24 hours)
+    const activeSessions = await db.query(
+      'SELECT COUNT(DISTINCT sessionId) as count FROM user_sessions WHERE lastActivity > datetime("now", "-24 hours")'
+    );
+
+    // Get page views today
+    const todayPageViews = await db.query(
+      'SELECT COUNT(*) as count FROM page_views WHERE DATE(timestamp) = ?', [today]
+    );
+
+    // Get unique visitors today
+    const todayUniqueVisitors = await db.query(
+      'SELECT COUNT(DISTINCT sessionId) as count FROM page_views WHERE DATE(timestamp) = ?', [today]
+    );
+
+    // Get user types breakdown
+    const roleBreakdown = await db.query(
+      'SELECT role, COUNT(*) as count FROM users GROUP BY role'
+    );
+
+    // Get popular pages (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const popularPages = await db.query(
+      `SELECT page, COUNT(*) as views FROM page_views 
+       WHERE DATE(timestamp) >= ? 
+       GROUP BY page 
+       ORDER BY views DESC 
+       LIMIT 10`,
+      [sevenDaysAgo]
+    );
+
     res.json({
-      totalVisits: 0,
-      uniqueVisitors: 0,
-      newUsers: 0,
-      searchesPerformed: 0,
-      successfulMatches: 0,
-      activeListings: 0
+      overview: {
+        totalUsers: totalUsers.rows[0].count,
+        totalTeams: totalTeams.rows[0].count,
+        totalPlayers: totalPlayers.rows[0].count,
+        totalMatches: totalMatches.rows[0].count,
+        todayUsers: todayUsers.rows[0].count,
+        todayTeams: todayTeams.rows[0].count,
+        todayPlayers: todayPlayers.rows[0].count,
+        activeSessions: activeSessions.rows[0].count,
+        todayPageViews: todayPageViews.rows[0].count,
+        todayUniqueVisitors: todayUniqueVisitors.rows[0].count
+      },
+      roleBreakdown: roleBreakdown.rows,
+      popularPages: popularPages.rows
+    });
+  } catch (error) {
+    console.error('Get analytics overview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get daily stats for charts
+app.get('/api/analytics/daily-stats', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { days = 30 } = req.query;
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Get daily user registrations
+    const dailyUsers = await db.query(
+      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+       FROM users 
+       WHERE DATE(createdAt) >= ? 
+       GROUP BY DATE(createdAt) 
+       ORDER BY date`,
+      [startDate]
+    );
+
+    // Get daily page views and unique visitors
+    const dailyPageViews = await db.query(
+      `SELECT DATE(timestamp) as date, 
+              COUNT(*) as page_views,
+              COUNT(DISTINCT sessionId) as unique_visitors
+       FROM page_views 
+       WHERE DATE(timestamp) >= ? 
+       GROUP BY DATE(timestamp) 
+       ORDER BY date`,
+      [startDate]
+    );
+
+    // Get daily team creations
+    const dailyTeams = await db.query(
+      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+       FROM team_vacancies 
+       WHERE DATE(createdAt) >= ? 
+       GROUP BY DATE(createdAt) 
+       ORDER BY date`,
+      [startDate]
+    );
+
+    // Get daily player availability posts
+    const dailyPlayers = await db.query(
+      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+       FROM player_availability 
+       WHERE DATE(createdAt) >= ? 
+       GROUP BY DATE(createdAt) 
+       ORDER BY date`,
+      [startDate]
+    );
+
+    // Get daily match completions
+    const dailyMatches = await db.query(
+      `SELECT DATE(completedAt) as date, COUNT(*) as count 
+       FROM match_completions 
+       WHERE DATE(completedAt) >= ? AND completionStatus = 'confirmed'
+       GROUP BY DATE(completedAt) 
+       ORDER BY date`,
+      [startDate]
+    );
+
+    res.json({
+      dailyUsers: dailyUsers.rows,
+      dailyPageViews: dailyPageViews.rows,
+      dailyTeams: dailyTeams.rows,
+      dailyPlayers: dailyPlayers.rows,
+      dailyMatches: dailyMatches.rows
+    });
+  } catch (error) {
+    console.error('Get daily stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user activity analytics
+app.get('/api/analytics/user-activity', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get most active users (by page views in last 30 days)
+    const activeUsers = await db.query(
+      `SELECT u.firstName, u.lastName, u.email, u.role, COUNT(pv.id) as page_views
+       FROM users u
+       LEFT JOIN page_views pv ON u.id = pv.userId
+       WHERE pv.timestamp > datetime('now', '-30 days')
+       GROUP BY u.id
+       ORDER BY page_views DESC
+       LIMIT 20`
+    );
+
+    // Get user registration trends by type
+    const registrationTrends = await db.query(
+      `SELECT DATE(createdAt) as date, role, COUNT(*) as count
+       FROM users 
+       WHERE DATE(createdAt) >= date('now', '-30 days')
+       GROUP BY DATE(createdAt), role
+       ORDER BY date, role`
+    );
+
+    // Get session duration stats
+    const sessionStats = await db.query(
+      `SELECT 
+         AVG((julianday(lastActivity) - julianday(startTime)) * 24 * 60) as avg_session_minutes,
+         COUNT(*) as total_sessions,
+         COUNT(DISTINCT userId) as unique_users
+       FROM user_sessions 
+       WHERE startTime > datetime('now', '-7 days')`
+    );
+
+    res.json({
+      activeUsers: activeUsers.rows,
+      registrationTrends: registrationTrends.rows,
+      sessionStats: sessionStats.rows[0]
+    });
+  } catch (error) {
+    console.error('Get user activity error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get site stats for performance analytics dashboard
+app.get('/api/analytics/site-stats', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get total visits (all page views, excluding admin users)
+    const totalVisits = await db.query(
+      `SELECT COUNT(*) as count FROM page_views pv
+       LEFT JOIN users u ON pv.userId = u.id
+       WHERE u.id IS NULL OR u.role != 'Admin'`
+    );
+    
+    // Get unique visitors (distinct session IDs, excluding admin users)
+    const uniqueVisitors = await db.query(
+      `SELECT COUNT(DISTINCT pv.sessionId) as count FROM page_views pv
+       LEFT JOIN users u ON pv.userId = u.id
+       WHERE u.id IS NULL OR u.role != 'Admin'`
+    );
+    
+    // Get new users (registered in last 30 days, excluding admins)
+    const newUsers = await db.query(
+      `SELECT COUNT(*) as count FROM users 
+       WHERE createdAt >= datetime("now", "-30 days")
+       AND (role IS NULL OR role != 'Admin')`
+    );
+    
+    // Get searches performed (from analytics_events if available, otherwise estimate, excluding admins)
+    let searchesPerformed = { rows: [{ count: 0 }] };
+    try {
+      searchesPerformed = await db.query(
+        `SELECT COUNT(*) as count FROM analytics_events ae
+         LEFT JOIN users u ON ae.user_id = u.id
+         WHERE (event = 'search' OR action LIKE '%search%')
+         AND (u.id IS NULL OR u.role != 'Admin')`
+      );
+    } catch (err) {
+      // If analytics_events table doesn't exist, use page_views as estimate
+      searchesPerformed = await db.query(
+        `SELECT COUNT(*) as count FROM page_views pv
+         LEFT JOIN users u ON pv.userId = u.id
+         WHERE (page LIKE '%search%' OR page LIKE '%explore%')
+         AND (u.id IS NULL OR u.role != 'Admin')`
+      );
+    }
+    
+    // Get successful matches (confirmed match completions)
+    const successfulMatches = await db.query(
+      'SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"'
+    );
+    
+    // Get active listings (team vacancies + player availability)
+    const activeTeamVacancies = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
+    const activePlayerListings = await db.query('SELECT COUNT(*) as count FROM player_availability');
+    const activeListings = activeTeamVacancies.rows[0].count + activePlayerListings.rows[0].count;
+
+    res.json({
+      totalVisits: totalVisits.rows[0].count,
+      uniqueVisitors: uniqueVisitors.rows[0].count,
+      newUsers: newUsers.rows[0].count,
+      searchesPerformed: searchesPerformed.rows[0].count,
+      successfulMatches: successfulMatches.rows[0].count,
+      activeListings: activeListings
     });
   } catch (error) {
     console.error('Get site stats error:', error);
@@ -6623,7 +2171,7 @@ app.get('/api/analytics/site-stats', authenticateToken, requireBetaAccess, async
 });
 
 // Get weekly traffic data for performance analytics
-app.get('/api/analytics/weekly-traffic', authenticateToken, requireBetaAccess, async (req, res) => {
+app.get('/api/analytics/weekly-traffic', authenticateToken, async (req, res) => {
   try {
     // Check if user is admin
     const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
@@ -6631,16 +2179,29 @@ app.get('/api/analytics/weekly-traffic', authenticateToken, requireBetaAccess, a
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Return default weekly traffic data
-    // TODO: Implement real page_views tracking
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const trafficData = days.map(day => ({
-      date: day,
-      visits: 0,
-      uniqueUsers: 0
-    }));
+    // Get last 7 days of traffic data (excluding admin users)
+    const trafficData = await db.query(
+      `SELECT 
+         CASE CAST(strftime('%w', DATE(timestamp)) AS INTEGER)
+           WHEN 0 THEN 'Sun'
+           WHEN 1 THEN 'Mon'
+           WHEN 2 THEN 'Tue'
+           WHEN 3 THEN 'Wed'
+           WHEN 4 THEN 'Thu'
+           WHEN 5 THEN 'Fri'
+           WHEN 6 THEN 'Sat'
+         END as date,
+         COUNT(*) as visits,
+         COUNT(DISTINCT pv.sessionId) as uniqueUsers
+       FROM page_views pv
+       LEFT JOIN users u ON pv.userId = u.id
+       WHERE DATE(timestamp) >= date('now', '-7 days')
+       AND (u.id IS NULL OR u.role != 'Admin')
+       GROUP BY DATE(timestamp)
+       ORDER BY DATE(timestamp)`
+    );
 
-    res.json(trafficData);
+    res.json(trafficData.rows);
   } catch (error) {
     console.error('Get weekly traffic error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -6648,7 +2209,7 @@ app.get('/api/analytics/weekly-traffic', authenticateToken, requireBetaAccess, a
 });
 
 // Get monthly matches data for performance analytics
-app.get('/api/analytics/monthly-matches', authenticateToken, requireBetaAccess, async (req, res) => {
+app.get('/api/analytics/monthly-matches', authenticateToken, async (req, res) => {
   try {
     // Check if user is admin
     const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
@@ -6656,933 +2217,1229 @@ app.get('/api/analytics/monthly-matches', authenticateToken, requireBetaAccess, 
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Return default monthly matches data
-    // TODO: Implement real match_completions tracking
-    const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const matchData = months.map(month => ({
-      month: month,
-      matches: 0
-    }));
+    // Get last 6 months of successful matches
+    const matchData = await db.query(
+      `SELECT 
+         CASE CAST(strftime('%m', DATE(completedAt)) AS INTEGER)
+           WHEN 1 THEN 'Jan'
+           WHEN 2 THEN 'Feb'
+           WHEN 3 THEN 'Mar'
+           WHEN 4 THEN 'Apr'
+           WHEN 5 THEN 'May'
+           WHEN 6 THEN 'Jun'
+           WHEN 7 THEN 'Jul'
+           WHEN 8 THEN 'Aug'
+           WHEN 9 THEN 'Sep'
+           WHEN 10 THEN 'Oct'
+           WHEN 11 THEN 'Nov'
+           WHEN 12 THEN 'Dec'
+         END as month,
+         COUNT(*) as matches
+       FROM match_completions
+       WHERE completionStatus = 'confirmed' 
+         AND DATE(completedAt) >= date('now', '-6 months')
+       GROUP BY strftime('%Y-%m', DATE(completedAt))
+       ORDER BY DATE(completedAt)`
+    );
 
-    res.json(matchData);
+    res.json(matchData.rows);
   } catch (error) {
     console.error('Get monthly matches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ========== FORUM ENDPOINTS ==========
-
-// Profanity filter
-const profanityList = [
-  'damn', 'hell', 'crap', 'bastard', 'bitch', 'ass', 'asshole',
-  'shit', 'fuck', 'fucking', 'motherfucker', 'dick', 'cock', 
-  'pussy', 'cunt', 'whore', 'slut', 'piss', 'nigger', 'nigga',
-  'fag', 'faggot', 'retard', 'retarded', 'idiot', 'moron',
-  'kill yourself', 'kys', 'die', 'hate you', 'loser', 'pathetic'
-];
-
-function containsProfanity(text) {
-  const lowerText = text.toLowerCase();
-  for (const word of profanityList) {
-    const regex = new RegExp(`\\\\b${word.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\\\b`, 'i');
-    if (regex.test(lowerText)) return true;
-    const pattern = word.split('').join('[*@!#$%^&]?');
-    const variationRegex = new RegExp(pattern, 'i');
-    if (variationRegex.test(lowerText)) return true;
-  }
-  return false;
-}
-
-// GET /api/forum/posts - Get all posts
-app.get('/api/forum/posts', async (req, res) => {
+// Get AI-powered analytics insights
+app.post('/api/analytics/insights', authenticateToken, async (req, res) => {
   try {
-    const { category } = req.query;
-    
-    // Use a transaction to ensure cleanup and fetch are atomic
-    const client = db.dbType === 'postgresql' ? await db.pool.connect() : null;
-    
-    try {
-      if (client) {
-        // PostgreSQL transaction
-        await client.query('BEGIN');
-        
-        // Clean up any posts with null IDs - aggressive approach
-        console.log('🧹 Aggressively cleaning up posts with null IDs...');
-        try {
-          const deleteResult = await client.query('DELETE FROM forum_posts WHERE id IS NULL');
-          console.log(`✅ Deleted ${deleteResult.rowCount} posts with null IDs`);
-        } catch (deleteError) {
-          console.warn('⚠️ Could not delete null ID posts:', deleteError.message);
-          // Try alternative cleanup
-          try {
-            await client.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id IS NULL');
-            console.log('✅ Marked null ID posts as deleted');
-          } catch (updateError) {
-            console.warn('⚠️ Could not mark null ID posts as deleted:', updateError.message);
-          }
-        }
-        
-        // Now fetch posts
-        let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE AND id IS NOT NULL';
-        const params = [];
-
-        if (category) {
-          query += ' AND category = $' + (params.length + 1);
-          params.push(category);
-        }
-
-        query += ' ORDER BY created_at DESC';
-        console.log('🔍 Executing forum posts query:', { query, params });
-        
-        const result = await client.query(query, params);
-        console.log('🔍 Query result:', { 
-          rowCount: result.rowCount, 
-          rowsLength: result.rows ? result.rows.length : 'undefined',
-          firstRow: result.rows && result.rows[0] ? { id: result.rows[0].id, title: result.rows[0].title } : 'no rows'
-        });
-
-        await client.query('COMMIT');
-        
-        // Filter out any posts with null IDs as a safety measure
-        const validPosts = (result.rows || []).filter(post => post.id != null);
-        console.log(`Fetched ${validPosts.length} forum posts`);
-        
-        // Ensure we always return a valid array
-        const safePosts = Array.isArray(validPosts) ? validPosts : [];
-        res.json(safePosts);
-      } else {
-        // SQLite approach (no transactions needed)
-        // Clean up any posts with null IDs - aggressive approach
-        console.log('🧹 Aggressively cleaning up posts with null IDs...');
-        try {
-          const deleteResult = await db.query('DELETE FROM forum_posts WHERE id IS NULL');
-          console.log(`✅ Deleted ${deleteResult.changes} posts with null IDs`);
-        } catch (deleteError) {
-          console.warn('⚠️ Could not delete null ID posts:', deleteError.message);
-          // Try alternative cleanup
-          try {
-            await db.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id IS NULL');
-            console.log('✅ Marked null ID posts as deleted');
-          } catch (updateError) {
-            console.warn('⚠️ Could not mark null ID posts as deleted:', updateError.message);
-          }
-        }
-        
-        let query = 'SELECT * FROM forum_posts WHERE is_deleted = FALSE AND id IS NOT NULL';
-        const params = [];
-
-        if (category) {
-          query += ' AND category = ?';
-          params.push(category);
-        }
-
-        query += ' ORDER BY created_at DESC';
-        console.log('🔍 Executing forum posts query:', { query, params });
-        
-        const result = await db.query(query, params);
-        console.log('🔍 Query result:', { 
-          rowCount: result.rowCount, 
-          rowsLength: result.rows ? result.rows.length : 'undefined',
-          firstRow: result.rows && result.rows[0] ? { id: result.rows[0].id, title: result.rows[0].title } : 'no rows'
-        });
-
-        // Filter out any posts with null IDs as a safety measure
-        const validPosts = (result.rows || []).filter(post => post.id != null);
-        console.log(`Fetched ${validPosts.length} forum posts`);
-        
-        // Ensure we always return a valid array
-        const safePosts = Array.isArray(validPosts) ? validPosts : [];
-        res.json(safePosts);
-      }
-    } catch (dbError) {
-      console.error('Database error in forum posts fetch:', dbError);
-      if (client) {
-        await client.query('ROLLBACK');
-      }
-      throw dbError;
-    } finally {
-      if (client) {
-        client.release();
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching forum posts:', error);
-    res.status(500).json({ error: 'Failed to fetch posts' });
-  }
-});
-
-// GET /api/forum/posts/:id - Get single post
-app.get('/api/forum/posts/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Validate ID is not null or invalid
-    if (!id || id === 'null' || id === 'undefined') {
-      return res.status(400).json({ error: 'Invalid post ID' });
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const result = await db.query(
-      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-      [id]
+    const insights = [];
+
+    // Insight 1: User engagement trend
+    const sessionStats = await db.query(
+      `SELECT 
+         AVG((julianday(lastActivity) - julianday(startTime)) * 24 * 60) as avg_minutes,
+         COUNT(*) as total_sessions
+       FROM user_sessions 
+       WHERE startTime > datetime('now', '-7 days')`
     );
 
-    if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(404).json({ error: 'Post not found' });
+    const prevWeekSessions = await db.query(
+      `SELECT 
+         AVG((julianday(lastActivity) - julianday(startTime)) * 24 * 60) as avg_minutes
+       FROM user_sessions 
+       WHERE startTime BETWEEN datetime('now', '-14 days') AND datetime('now', '-7 days')`
+    );
+
+    if (sessionStats.rows[0] && prevWeekSessions.rows[0]) {
+      const currentAvg = sessionStats.rows[0].avg_minutes || 0;
+      const prevAvg = prevWeekSessions.rows[0].avg_minutes || 0;
+      const change = prevAvg > 0 ? ((currentAvg - prevAvg) / prevAvg) * 100 : 0;
+
+      if (Math.abs(change) > 10) {
+        insights.push({
+          id: 'insight_engagement_' + Date.now(),
+          type: change > 0 ? 'trend' : 'warning',
+          title: change > 0 ? 'Increasing User Engagement' : 'Declining User Engagement',
+          description: `User session duration has ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change).toFixed(0)}% over the past week (${currentAvg.toFixed(0)} mins vs ${prevAvg.toFixed(0)} mins).`,
+          confidence: 85,
+          impact: 'high',
+          category: 'User Behavior',
+          actionable: true,
+          timestamp: Date.now()
+        });
+      }
     }
 
-    const post = result.rows[0];
+    // Insight 2: New user registrations trend
+    const newUsersThisWeek = await db.query(
+      `SELECT COUNT(*) as count FROM users WHERE createdAt >= datetime('now', '-7 days')`
+    );
+    const newUsersLastWeek = await db.query(
+      `SELECT COUNT(*) as count FROM users 
+       WHERE createdAt BETWEEN datetime('now', '-14 days') AND datetime('now', '-7 days')`
+    );
 
-    // Double-check the post has a valid ID
-    if (!post.id) {
-      console.error('Post found but has null ID:', post);
-      return res.status(404).json({ error: 'Post not found' });
+    if (newUsersThisWeek.rows[0] && newUsersLastWeek.rows[0]) {
+      const thisWeek = newUsersThisWeek.rows[0].count;
+      const lastWeek = newUsersLastWeek.rows[0].count;
+      const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
+
+      if (Math.abs(change) > 20) {
+        insights.push({
+          id: 'insight_registrations_' + Date.now(),
+          type: 'trend',
+          title: change > 0 ? 'Registration Growth' : 'Registration Slowdown',
+          description: `New user registrations ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change).toFixed(0)}% this week (${thisWeek} vs ${lastWeek} users).`,
+          confidence: 92,
+          impact: 'high',
+          category: 'Growth',
+          actionable: true,
+          timestamp: Date.now()
+        });
+      }
     }
 
-    res.json(post);
-  } catch (error) {
-    console.error('Error fetching forum post:', error);
-    res.status(500).json({ error: 'Failed to fetch post' });
-  }
-});
+    // Insight 3: Match completion success rate
+    const totalMatches = await db.query('SELECT COUNT(*) as count FROM match_completions');
+    const confirmedMatches = await db.query(
+      'SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"'
+    );
 
-// POST /api/forum/posts - Create new post
-app.post('/api/forum/posts', async (req, res) => {
-  try {
-    const { user_id, user_role, author_name, title, content, category } = req.body;
-
-    console.log('🔍 Creating forum post:', { user_id, user_role, author_name, title, category });
-
-    if (!user_id || !user_role || !author_name || !title || !content) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
-    const postCategory = category && validCategories.includes(category) ? category : 'General Discussions';
-
-    if (containsProfanity(title) || containsProfanity(content)) {
-      return res.status(400).json({
-        error: 'Your post contains inappropriate language. Please revise and try again.',
-        profanityDetected: true
+    if (totalMatches.rows[0] && confirmedMatches.rows[0]) {
+      const successRate = (confirmedMatches.rows[0].count / totalMatches.rows[0].count) * 100;
+      
+      insights.push({
+        id: 'insight_matches_' + Date.now(),
+        type: 'recommendation',
+        title: 'Match Success Rate',
+        description: `${successRate.toFixed(0)}% of match attempts are successfully confirmed. ${successRate < 60 ? 'Consider improving match quality or follow-up process.' : 'Strong match quality indicates good platform fit.'}`,
+        confidence: 88,
+        impact: successRate < 60 ? 'high' : 'medium',
+        category: 'Product',
+        actionable: successRate < 60,
+        timestamp: Date.now()
       });
     }
 
-    // Check database type and table structure
-    console.log('📊 Database type:', db.dbType);
-
-    // Check if table exists and has correct structure
-    try {
-      if (db.dbType === 'postgresql') {
-        const tableCheck = await db.query(`
-          SELECT column_name, data_type, is_nullable, column_default
-          FROM information_schema.columns
-          WHERE table_name = 'forum_posts'
-          ORDER BY ordinal_position
-        `);
-        console.log('📋 forum_posts table structure:', tableCheck.rows);
-
-        // Check if there's a sequence for the id column
-        const sequenceCheck = await db.query(`
-          SELECT sequence_name
-          FROM information_schema.sequences
-          WHERE sequence_name LIKE '%forum_posts%'
-        `);
-        console.log('🔢 Sequences for forum_posts:', sequenceCheck.rows);
-
-        // Check primary key constraint
-        const pkCheck = await db.query(`
-          SELECT conname, conkey
-          FROM pg_constraint
-          WHERE conrelid = 'forum_posts'::regclass
-          AND contype = 'p'
-        `);
-        console.log('🔑 Primary key constraint:', pkCheck.rows);
-
-        // Check current max id
-        const maxIdCheck = await db.query('SELECT MAX(id) as max_id FROM forum_posts');
-        console.log('📊 Current max ID in forum_posts:', maxIdCheck.rows[0]);
-
-        // If no sequence exists, create one and set it up
-        if (sequenceCheck.rows.length === 0) {
-          console.log('⚠️ No sequence found for forum_posts.id - creating sequence...');
-          
-          // Create sequence
-          await db.query('CREATE SEQUENCE forum_posts_id_seq');
-          
-          // Set the sequence to start after the current max ID
-          const maxId = maxIdCheck.rows[0].max_id || 0;
-          await db.query(`SELECT setval('forum_posts_id_seq', ${maxId + 1})`);
-          
-          // Alter the column to use the sequence as default
-          await db.query(`ALTER TABLE forum_posts ALTER COLUMN id SET DEFAULT nextval('forum_posts_id_seq')`);
-          
-          console.log('✅ Created sequence and set as default for forum_posts.id');
-        }
-      } else {
-        const tableCheck = await db.query('PRAGMA table_info(forum_posts)');
-        console.log('📋 forum_posts table structure:', tableCheck.rows);
+    // Insight 4: Active listings trend
+    const activeVacancies = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
+    const activeAvailability = await db.query('SELECT COUNT(*) as count FROM player_availability');
+    
+    const totalListings = activeVacancies.rows[0].count + activeAvailability.rows[0].count;
+    
+    if (totalListings > 0) {
+      const ratio = activeVacancies.rows[0].count / activeAvailability.rows[0].count;
+      
+      if (ratio > 2 || ratio < 0.5) {
+        insights.push({
+          id: 'insight_balance_' + Date.now(),
+          type: 'anomaly',
+          title: 'Supply/Demand Imbalance',
+          description: `There are ${activeVacancies.rows[0].count} team vacancies vs ${activeAvailability.rows[0].count} player listings. ${ratio > 2 ? 'More teams seeking players.' : 'More players seeking teams.'}`,
+          confidence: 90,
+          impact: 'medium',
+          category: 'Marketplace',
+          actionable: true,
+          timestamp: Date.now()
+        });
       }
-    } catch (schemaError) {
-      console.log('⚠️ Could not check table schema:', schemaError.message);
     }
 
-    // Use a transaction to ensure data consistency
-    const client = db.dbType === 'postgresql' ? await db.pool.connect() : null;
+    // Insight 5: Peak traffic times
+    const peakHours = await db.query(
+      `SELECT strftime('%H', timestamp) as hour, COUNT(*) as visits
+       FROM page_views
+       WHERE DATE(timestamp) >= date('now', '-7 days')
+       GROUP BY hour
+       ORDER BY visits DESC
+       LIMIT 3`
+    );
 
-    try {
-      if (client) {
-        // PostgreSQL transaction
-        console.log('🔄 Starting PostgreSQL transaction');
-        await client.query('BEGIN');
+    if (peakHours.rows && peakHours.rows.length > 0) {
+      const topHours = peakHours.rows.map(r => `${r.hour}:00`).join(', ');
+      insights.push({
+        id: 'insight_traffic_' + Date.now(),
+        type: 'recommendation',
+        title: 'Peak Traffic Hours',
+        description: `Highest traffic occurs at ${topHours}. Consider scheduling important updates or communications outside these hours to minimize disruption.`,
+        confidence: 85,
+        impact: 'low',
+        category: 'Traffic',
+        actionable: true,
+        timestamp: Date.now()
+      });
+    }
 
-        // Get next ID manually to ensure we have a valid ID
-        const nextIdResult = await client.query("SELECT nextval('forum_posts_id_seq') as next_id");
-        const nextId = nextIdResult.rows[0].next_id;
-        console.log('🔢 Next ID from sequence:', nextId);
+    res.json(insights);
+  } catch (error) {
+    console.error('Get analytics insights error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
-        const insertResult = await client.query(
-          `INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [nextId, user_id, user_role, author_name, title, content, postCategory]
+// Get conversion funnel analysis
+app.post('/api/analytics/funnel', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Calculate funnel metrics based on actual user journey
+    const totalVisitors = await db.query(
+      'SELECT COUNT(DISTINCT sessionId) as count FROM page_views WHERE DATE(timestamp) >= date("now", "-30 days")'
+    );
+
+    const registeredUsers = await db.query(
+      'SELECT COUNT(*) as count FROM users WHERE DATE(createdAt) >= date("now", "-30 days")'
+    );
+
+    const profilesCompleted = await db.query(
+      `SELECT COUNT(*) as count FROM users 
+       WHERE DATE(createdAt) >= date("now", "-30 days")
+       AND (firstName IS NOT NULL AND firstName != '')`
+    );
+
+    const firstActionUsers = await db.query(
+      `SELECT COUNT(DISTINCT userId) as count FROM page_views 
+       WHERE userId IS NOT NULL 
+       AND DATE(timestamp) >= date("now", "-30 days")
+       AND page NOT IN ('/login', '/register', '/dashboard')`
+    );
+
+    const returningUsers = await db.query(
+      `SELECT COUNT(DISTINCT userId) as count FROM user_sessions
+       WHERE userId IS NOT NULL
+       AND startTime >= datetime("now", "-30 days")
+       GROUP BY userId
+       HAVING COUNT(*) > 1`
+    );
+
+    const visitors = totalVisitors.rows[0].count || 1;
+    const registered = registeredUsers.rows[0].count || 0;
+    const profiles = profilesCompleted.rows[0].count || 0;
+    const firstAction = firstActionUsers.rows[0].count || 0;
+    const returning = returningUsers.rows.length || 0;
+
+    const funnelData = [
+      { 
+        name: 'Landing Page', 
+        users: visitors, 
+        conversionRate: 100, 
+        dropoffRate: 0 
+      },
+      { 
+        name: 'Registration', 
+        users: registered, 
+        conversionRate: ((registered / visitors) * 100).toFixed(1), 
+        dropoffRate: (((visitors - registered) / visitors) * 100).toFixed(1)
+      },
+      { 
+        name: 'Profile Setup', 
+        users: profiles, 
+        conversionRate: registered > 0 ? ((profiles / registered) * 100).toFixed(1) : 0, 
+        dropoffRate: registered > 0 ? (((registered - profiles) / registered) * 100).toFixed(1) : 0
+      },
+      { 
+        name: 'First Action', 
+        users: firstAction, 
+        conversionRate: profiles > 0 ? ((firstAction / profiles) * 100).toFixed(1) : 0, 
+        dropoffRate: profiles > 0 ? (((profiles - firstAction) / profiles) * 100).toFixed(1) : 0
+      },
+      { 
+        name: 'Return Visit', 
+        users: returning, 
+        conversionRate: firstAction > 0 ? ((returning / firstAction) * 100).toFixed(1) : 0, 
+        dropoffRate: firstAction > 0 ? (((firstAction - returning) / firstAction) * 100).toFixed(1) : 0
+      }
+    ];
+
+    res.json(funnelData);
+  } catch (error) {
+    console.error('Get funnel analysis error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get cohort retention analysis
+app.post('/api/analytics/cohort', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Calculate weekly cohort retention
+    const cohorts = [];
+    
+    for (let weekOffset = 0; weekOffset < 4; weekOffset++) {
+      const cohortStart = await db.query(
+        `SELECT COUNT(*) as size FROM users 
+         WHERE DATE(createdAt) BETWEEN date('now', '-${(weekOffset + 1) * 7} days') AND date('now', '-${weekOffset * 7} days')`
+      );
+
+      const cohortSize = cohortStart.rows[0].size;
+      if (cohortSize === 0) continue;
+
+      const retention = [100]; // Week 0 is always 100%
+
+      // Calculate retention for each subsequent week
+      for (let retentionWeek = 1; retentionWeek <= 7; retentionWeek++) {
+        const activeUsers = await db.query(
+          `SELECT COUNT(DISTINCT us.userId) as count
+           FROM user_sessions us
+           JOIN users u ON us.userId = u.id
+           WHERE DATE(u.createdAt) BETWEEN date('now', '-${(weekOffset + 1) * 7} days') AND date('now', '-${weekOffset * 7} days')
+           AND DATE(us.startTime) BETWEEN date('now', '-${weekOffset * 7 + retentionWeek * 7} days') AND date('now', '-${weekOffset * 7 + (retentionWeek - 1) * 7} days')`
         );
 
-        console.log('✅ PostgreSQL insert result:', {
-          rowCount: insertResult.rowCount
-        });
-
-        // Fetch the inserted post
-        const fetchResult = await client.query('SELECT * FROM forum_posts WHERE id = $1', [nextId]);
-        
-        await client.query('COMMIT');
-
-        if (fetchResult.rows && fetchResult.rows.length > 0) {
-          const newPost = fetchResult.rows[0];
-          console.log('🎉 Forum post created successfully (PostgreSQL):', { id: newPost.id, title: newPost.title });
-          return res.status(201).json(newPost);
-        } else {
-          console.error('❌ PostgreSQL could not fetch inserted post');
-          await client.query('ROLLBACK');
-        }
-      } else {
-        // SQLite approach
-        console.log('🔄 Using SQLite approach');
-        
-        // Get next ID manually
-        const maxIdResult = await db.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM forum_posts');
-        const nextId = maxIdResult.rows[0].next_id;
-        console.log('🔢 Next ID for SQLite:', nextId);
-
-        const insertResult = await db.query(
-          `INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [nextId, user_id, user_role, author_name, title, content, postCategory]
-        );
-
-        console.log('✅ SQLite insert result:', insertResult);
-
-        // Get the inserted post
-        const newPostResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [nextId]);
-
-        console.log('📖 SQLite select result:', newPostResult.rows);
-
-        if (newPostResult.rows && newPostResult.rows.length > 0) {
-          const newPost = newPostResult.rows[0];
-          console.log('🎉 Forum post created successfully (SQLite):', { id: newPost.id, title: newPost.title });
-          return res.status(201).json(newPost);
-        }
+        const retentionRate = cohortSize > 0 ? Math.round((activeUsers.rows[0].count / cohortSize) * 100) : 0;
+        retention.push(retentionRate);
       }
 
-      // Fallback: query by content if RETURNING/last_insert_rowid failed
-      console.log('🔄 Using fallback query to retrieve inserted post...');
-      const fallbackResult = await db.query(
-        `SELECT * FROM forum_posts WHERE user_id = ? AND title = ? AND content = ? ORDER BY created_at DESC LIMIT 1`,
-        [user_id, title, content]
-      );
-
-      console.log('📖 Fallback query result:', fallbackResult.rows);
-
-      if (fallbackResult.rows && fallbackResult.rows.length > 0) {
-        let newPost = fallbackResult.rows[0];
-        
-        // If the post has a null ID, try to fix it
-        if (newPost.id === null || newPost.id === undefined) {
-          console.log('⚠️ Post has null ID, attempting to fix...');
-          
-          // Generate a new ID manually
-          const maxIdResult = await db.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM forum_posts');
-          const nextId = maxIdResult.rows[0].next_id;
-          
-          // Update the post with the new ID
-          await db.query('UPDATE forum_posts SET id = ? WHERE user_id = ? AND title = ? AND content = ? AND created_at = ?', 
-            [nextId, user_id, title, content, newPost.created_at]);
-          
-          // Fetch the updated post
-          const updatedResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [nextId]);
-          if (updatedResult.rows && updatedResult.rows.length > 0) {
-            newPost = updatedResult.rows[0];
-            console.log('✅ Fixed null ID, new post:', { id: newPost.id, title: newPost.title });
-          }
-        }
-        
-        if (newPost.id) {
-          console.log('🎉 Forum post retrieved via fallback:', { id: newPost.id, title: newPost.title });
-          return res.status(201).json(newPost);
-        } else {
-          console.error('❌ Fallback query returned post with null ID:', newPost);
-        }
-      }
-
-      throw new Error('Failed to retrieve inserted post');
-
-    } catch (insertError) {
-      console.error('❌ Error during post insertion:', insertError);
-      if (client) {
-        await client.query('ROLLBACK');
-      }
-      throw insertError;
-    } finally {
-      if (client) {
-        client.release();
-      }
-    }
-
-  } catch (error) {
-    console.error('❌ Error creating forum post:', error);
-    res.status(500).json({ error: 'Failed to create post' });
-  }
-});
-
-// PUT /api/forum/posts/:id - Update post
-app.put('/api/forum/posts/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, content, user_id, category } = req.body;
-
-    const existingResult = await db.query(
-      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-      [id]
-    );
-
-    if (!existingResult.rows || existingResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
-
-    const existingPost = existingResult.rows[0];
-    if (existingPost.user_id !== user_id) {
-      return res.status(403).json({ error: 'You can only edit your own posts' });
-    }
-
-    const validCategories = ['General Discussions', 'Website Discussions', 'Grassroots Discussions'];
-    const postCategory = category && validCategories.includes(category) ? category : existingPost.category;
-
-    if (containsProfanity(title) || containsProfanity(content)) {
-      return res.status(400).json({
-        error: 'Your post contains inappropriate language. Please revise and try again.',
-        profanityDetected: true
+      cohorts.push({
+        cohort: `Week ${weekOffset + 1}`,
+        size: cohortSize,
+        retention: retention
       });
     }
 
-    // Update the post
-    await db.query(
-      `UPDATE forum_posts
-       SET title = ?, content = ?, category = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [title, content, postCategory, id]
-    );
-
-    // Get the updated post
-    const updatedResult = await db.query('SELECT * FROM forum_posts WHERE id = ?', [id]);
-    const updatedPost = updatedResult.rows[0];
-
-    if (!updatedPost) {
-      return res.status(500).json({ error: 'Post updated but could not retrieve data' });
-    }
-
-    console.log('Forum post updated successfully:', { id: updatedPost.id, title: updatedPost.title });
-    res.json(updatedPost);
+    res.json(cohorts.reverse()); // Most recent first
   } catch (error) {
-    console.error('Error updating forum post:', error);
-    res.status(500).json({ error: 'Failed to update post' });
+    console.error('Get cohort analysis error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /api/forum/posts/:id - Soft delete post
-app.delete('/api/forum/posts/:id', async (req, res) => {
+// Get user segmentation analysis
+app.post('/api/analytics/segments', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { user_id, user_role } = req.body;
-    
-    const existingResult = await db.query(
-      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-      [id]
-    );
-    
-    if (!existingResult.rows || existingResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Post not found' });
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
     }
-    
-    const existingPost = existingResult.rows[0];
-    if (user_role !== 'Admin' && existingPost.user_id !== user_id) {
-      return res.status(403).json({ error: 'You can only delete your own posts' });
-    }
-    
-    await db.query(
-      'UPDATE forum_posts SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [id]
-    );
-    
-    res.json({ message: 'Post deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting forum post:', error);
-    res.status(500).json({ error: 'Failed to delete post' });
-  }
-});
 
-// PATCH /api/forum/posts/:id/lock - Lock/unlock thread (admin only)
-app.patch('/api/forum/posts/:id/lock', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { user_role, is_locked } = req.body;
-    
-    if (user_role !== 'Admin') {
-      return res.status(403).json({ error: 'Only admins can lock/unlock threads' });
-    }
-    
-    const existingResult = await db.query(
-      'SELECT * FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-      [id]
-    );
-    
-    if (!existingResult.rows || existingResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
-    
-    const result = await db.query(
-      `UPDATE forum_posts 
-       SET is_locked = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? RETURNING *`,
-      [is_locked, id]
-    );
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error locking/unlocking thread:', error);
-    res.status(500).json({ error: 'Failed to lock/unlock thread' });
-  }
-});
+    const segments = [];
 
-// GET /api/forum/posts/user/:userId - Get posts by user
-app.get('/api/forum/posts/user/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const result = await db.query(
-      'SELECT * FROM forum_posts WHERE user_id = ? AND is_deleted = FALSE ORDER BY created_at DESC',
-      [userId]
+    // Power Users: 5+ sessions, avg session > 5 minutes
+    const powerUsers = await db.query(
+      `SELECT 
+         COUNT(DISTINCT userId) as size,
+         AVG((julianday(lastActivity) - julianday(startTime)) * 24 * 60) as avg_minutes
+       FROM user_sessions
+       WHERE userId IS NOT NULL
+       GROUP BY userId
+       HAVING COUNT(*) >= 5 AND avg_minutes > 5`
     );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching user posts:', error);
-    res.status(500).json({ error: 'Failed to fetch user posts' });
-  }
-});
 
-// GET /api/forum/posts/:postId/replies - Get all replies for a post
-app.get('/api/forum/posts/:postId/replies', async (req, res) => {
-  try {
-    const { postId } = req.params;
-    const result = await db.query(
-      `SELECT r.*, parent.author_name as parent_author_name
-       FROM forum_replies r
-       LEFT JOIN forum_replies parent ON r.parent_reply_id = parent.id
-       WHERE r.post_id = ? AND r.is_deleted = FALSE
-       ORDER BY r.created_at ASC`,
-      [postId]
-    );
-    res.json(result.rows || []);
-  } catch (error) {
-    console.error('Error fetching replies:', error);
-    res.status(500).json({ error: 'Failed to fetch replies' });
-  }
-});
+    const powerUserCount = powerUsers.rows.length;
+    const powerUserAvgSession = powerUsers.rows.length > 0 
+      ? powerUsers.rows.reduce((sum, r) => sum + (r.avg_minutes || 0), 0) / powerUsers.rows.length 
+      : 0;
 
-// POST /api/forum/posts/:postId/replies - Create a reply
-app.post('/api/forum/posts/:postId/replies', async (req, res) => {
-  try {
-    const { postId } = req.params;
-    const { user_id, user_role, author_name, content, parent_reply_id } = req.body;
-    
-    if (!user_id || !user_role || !author_name || !content) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const postResult = await db.query(
-      'SELECT id, is_locked FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-      [postId]
-    );
-    
-    if (!postResult.rows || postResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
-    
-    if (postResult.rows[0].is_locked) {
-      return res.status(403).json({ error: 'This thread has been locked by an administrator' });
-    }
-    
-    if (parent_reply_id) {
-      const parentResult = await db.query(
-        'SELECT id FROM forum_replies WHERE id = ? AND post_id = ? AND is_deleted = FALSE',
-        [parent_reply_id, postId]
-      );
-      if (!parentResult.rows || parentResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Parent reply not found' });
-      }
-    }
-    
-    if (containsProfanity(content)) {
-      return res.status(400).json({ 
-        error: 'Your reply contains inappropriate language. Please revise and try again.',
-        profanityDetected: true
-      });
-    }
-    
-    const result = await db.query(
-      `INSERT INTO forum_replies (post_id, parent_reply_id, user_id, user_role, author_name, content)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
-      [postId, parent_reply_id || null, user_id, user_role, author_name, content]
-    );
-    
-    const newReply = result.rows[0];
-    
-    if (parent_reply_id) {
-      const parentResult = await db.query(
-        'SELECT author_name FROM forum_replies WHERE id = ?',
-        [parent_reply_id]
-      );
-      if (parentResult.rows && parentResult.rows.length > 0) {
-        newReply.parent_author_name = parentResult.rows[0].author_name;
-      }
-    }
-    
-    res.status(201).json(newReply);
-  } catch (error) {
-    console.error('Error creating reply:', error);
-    res.status(500).json({ error: 'Failed to create reply' });
-  }
-});
-
-// DELETE /api/forum/replies/:id - Delete a reply
-app.delete('/api/forum/replies/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { user_id, user_role } = req.body;
-    
-    const existingResult = await db.query(
-      'SELECT * FROM forum_replies WHERE id = ? AND is_deleted = FALSE',
-      [id]
-    );
-    
-    if (!existingResult.rows || existingResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Reply not found' });
-    }
-    
-    const existingReply = existingResult.rows[0];
-    if (user_role !== 'Admin' && existingReply.user_id !== user_id) {
-      return res.status(403).json({ error: 'You can only delete your own replies' });
-    }
-    
-    await db.query(
-      'UPDATE forum_replies SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [id]
-    );
-    
-    res.json({ message: 'Reply deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting reply:', error);
-    res.status(500).json({ error: 'Failed to delete reply' });
-  }
-});
-
-// POST /api/forum/flag - Flag content as inappropriate
-app.post('/api/forum/flag', async (req, res) => {
-  try {
-    const { content_type, content_id, user_id, user_name, reason } = req.body;
-    
-    if (!content_type || !content_id || !user_id || !user_name) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    if (!['post', 'reply'].includes(content_type)) {
-      return res.status(400).json({ error: 'Invalid content type' });
-    }
-    
-    if (content_type === 'post') {
-      const postResult = await db.query(
-        'SELECT id FROM forum_posts WHERE id = ? AND is_deleted = FALSE',
-        [content_id]
-      );
-      if (!postResult.rows || postResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
-    } else {
-      const replyResult = await db.query(
-        'SELECT id FROM forum_replies WHERE id = ? AND is_deleted = FALSE',
-        [content_id]
-      );
-      if (!replyResult.rows || replyResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Reply not found' });
-      }
-    }
-    
-    const existingResult = await db.query(
-      'SELECT id FROM content_flags WHERE content_type = ? AND content_id = ? AND flagged_by_user_id = ?',
-      [content_type, content_id, user_id]
-    );
-    
-    if (existingResult.rows && existingResult.rows.length > 0) {
-      return res.status(400).json({ error: 'You have already flagged this content' });
-    }
-    
-    const result = await db.query(
-      `INSERT INTO content_flags (content_type, content_id, flagged_by_user_id, flagged_by_name, reason)
-       VALUES (?, ?, ?, ?, ?) RETURNING *`,
-      [content_type, content_id, user_id, user_name, reason || 'No reason provided']
-    );
-    
-    res.status(201).json({ message: 'Content flagged successfully', flag: result.rows[0] });
-  } catch (error) {
-    console.error('Error flagging content:', error);
-    res.status(500).json({ error: 'Failed to flag content' });
-  }
-});
-
-// GET /api/forum/fix-table - Emergency table fix (admin only)
-app.get('/api/forum/fix-table', async (req, res) => {
-  try {
-    console.log('🚨 EMERGENCY TABLE FIX: Recreating forum_posts table...');
-    
-    // Backup existing posts with valid IDs
-    const validPostsResult = await db.query('SELECT * FROM forum_posts WHERE id IS NOT NULL AND id IS NOT NULL');
-    const validPosts = validPostsResult.rows || [];
-    console.log(`📦 Backed up ${validPosts.length} valid posts`);
-    
-    // Drop and recreate table
-    await db.query('DROP TABLE IF EXISTS forum_posts CASCADE');
-    await db.query(`
-      CREATE TABLE forum_posts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        user_role VARCHAR NOT NULL,
-        author_name VARCHAR NOT NULL,
-        title VARCHAR NOT NULL,
-        content TEXT NOT NULL,
-        category VARCHAR DEFAULT 'General Discussions',
-        is_locked BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_deleted BOOLEAN DEFAULT FALSE,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )
-    `);
-    
-    // Restore valid posts
-    let restoredCount = 0;
-    if (validPosts.length > 0) {
-      for (const post of validPosts) {
-        try {
-          await db.query(`
-            INSERT INTO forum_posts (id, user_id, user_role, author_name, title, content, category, is_locked, created_at, updated_at, is_deleted)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [post.id, post.user_id, post.user_role, post.author_name, post.title, post.content, post.category, post.is_locked, post.created_at, post.updated_at, post.is_deleted]);
-          restoredCount++;
-        } catch (restoreError) {
-          console.warn('⚠️ Could not restore post:', post.title, restoreError.message);
-        }
-      }
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `Table recreated. Backed up ${validPosts.length} posts, restored ${restoredCount} posts.` 
+    segments.push({
+      name: 'Power Users',
+      size: powerUserCount,
+      characteristics: ['High activity', 'Long sessions', 'Feature adopters'],
+      conversionRate: 85,
+      avgSessionDuration: Math.round(powerUserAvgSession),
+      topPages: ['/dashboard', '/search', '/teams']
     });
+
+    // Casual Users: 2-4 sessions, moderate engagement
+    const casualUsers = await db.query(
+      `SELECT 
+         COUNT(DISTINCT userId) as size,
+         AVG((julianday(lastActivity) - julianday(startTime)) * 24 * 60) as avg_minutes
+       FROM user_sessions
+       WHERE userId IS NOT NULL
+       GROUP BY userId
+       HAVING COUNT(*) BETWEEN 2 AND 4`
+    );
+
+    const casualUserCount = casualUsers.rows.length;
+    const casualUserAvgSession = casualUsers.rows.length > 0 
+      ? casualUsers.rows.reduce((sum, r) => sum + (r.avg_minutes || 0), 0) / casualUsers.rows.length 
+      : 0;
+
+    segments.push({
+      name: 'Casual Users',
+      size: casualUserCount,
+      characteristics: ['Moderate activity', 'Browse-focused', 'Mobile-first'],
+      conversionRate: 45,
+      avgSessionDuration: Math.round(casualUserAvgSession),
+      topPages: ['/search', '/teams', '/players']
+    });
+
+    // New Users: Registered in last 7 days, 1 session or less
+    const newUsers = await db.query(
+      `SELECT COUNT(*) as count FROM users 
+       WHERE createdAt >= datetime('now', '-7 days')`
+    );
+
+    segments.push({
+      name: 'New Users',
+      size: newUsers.rows[0].count,
+      characteristics: ['First-time visitors', 'Exploration phase', 'High bounce risk'],
+      conversionRate: 25,
+      avgSessionDuration: 90,
+      topPages: ['/home', '/about', '/register']
+    });
+
+    res.json(segments);
   } catch (error) {
-    console.error('Error in emergency table fix:', error);
-    res.status(500).json({ error: 'Failed to fix table' });
-  }
-});
-  try {
-    console.log('🧪 Testing forum_posts sequence...');
-
-    const results = {};
-
-    // Check if sequence exists
-    const sequenceCheck = await db.query(`
-      SELECT sequence_name
-      FROM information_schema.sequences
-      WHERE sequence_name LIKE '%forum_posts%'
-    `);
-    results.sequences = sequenceCheck.rows;
-    console.log('🔢 Sequences found:', sequenceCheck.rows);
-
-    // Check table structure
-    const tableCheck = await db.query(`
-      SELECT column_name, data_type, column_default
-      FROM information_schema.columns
-      WHERE table_name = 'forum_posts' AND column_name = 'id'
-    `);
-    results.tableStructure = tableCheck.rows;
-    console.log('📋 ID column info:', tableCheck.rows);
-
-    // Check current max id
-    const maxIdCheck = await db.query('SELECT MAX(id) as max_id FROM forum_posts');
-    results.maxId = maxIdCheck.rows[0];
-    console.log('📊 Current max ID:', maxIdCheck.rows[0]);
-
-    // Test inserting a post
-    console.log('🧪 Testing post insertion...');
-    const testResult = await db.query(`
-      INSERT INTO forum_posts (user_id, user_role, author_name, title, content, category)
-      VALUES (1, 'Admin', 'Sequence Test', 'Sequence Test ${Date.now()}', 'Testing sequence generation', 'General Discussions')
-      RETURNING id, title
-    `);
-
-    results.insertResult = testResult.rows;
-    console.log('✅ Insert result:', testResult.rows);
-
-    if (testResult.rows && testResult.rows[0] && testResult.rows[0].id) {
-      console.log('🎉 SUCCESS: Post created with ID:', testResult.rows[0].id);
-      results.success = true;
-      results.generatedId = testResult.rows[0].id;
-
-      // Clean up test post
-      await db.query('DELETE FROM forum_posts WHERE id = ?', [testResult.rows[0].id]);
-      console.log('🧹 Cleaned up test post');
-    } else {
-      console.log('❌ FAILED: No ID returned');
-      results.success = false;
-    }
-
-    res.json(results);
-
-  } catch (error) {
-    console.error('❌ Error testing sequence:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Get user segmentation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get flagged content for admin review
-app.get('/api/forum/flags', requireAdmin, async (req, res) => {
+// Calendar Events Endpoints
+
+// Get calendar events for a user
+app.get('/api/calendar/events', authenticateToken, async (req, res) => {
   try {
-    const { user_role, status } = req.query;
-    
-    if (user_role !== 'Admin') {
-      return res.status(403).json({ error: 'Only admins can view flags' });
-    }
+    const { startDate, endDate, eventType } = req.query;
     
     let query = `
-      SELECT 
-        f.*,
-        CASE 
-          WHEN f.content_type = 'post' THEN p.title
-          WHEN f.content_type = 'reply' THEN SUBSTRING(r.content, 1, 100)
-        END as content_preview,
-        CASE 
-          WHEN f.content_type = 'post' THEN p.author_name
-          WHEN f.content_type = 'reply' THEN r.author_name
-        END as content_author,
-        CASE 
-          WHEN f.content_type = 'post' THEN p.user_id
-          WHEN f.content_type = 'reply' THEN r.user_id
-        END as content_author_id
-      FROM content_flags f
-      LEFT JOIN forum_posts p ON f.content_type = 'post' AND f.content_id = p.id
-      LEFT JOIN forum_replies r ON f.content_type = 'reply' AND f.content_id = r.id
-      WHERE 1=1
+      SELECT ce.*, u.firstName, u.lastName, u.email as creatorEmail,
+             (SELECT COUNT(*) FROM event_participants WHERE eventId = ce.id) as participantCount
+      FROM calendar_events ce
+      JOIN users u ON ce.createdBy = u.id
+      WHERE (ce.createdBy = ? OR ce.id IN (
+        SELECT eventId FROM event_participants WHERE userId = ?
+      ) OR ce.id IN (
+        SELECT eventId FROM trial_invitations WHERE playerId = ?
+      ))
     `;
     
-    const params = [];
-    if (status) {
-      query += ' AND f.status = ?';
-      params.push(status);
+    const queryParams = [req.user.userId, req.user.userId, req.user.userId];
+    
+    if (startDate && endDate) {
+      query += ' AND ce.date BETWEEN ? AND ?';
+      queryParams.push(startDate, endDate);
     }
     
-    query += ' ORDER BY f.created_at DESC';
+    if (eventType) {
+      query += ' AND ce.eventType = ?';
+      queryParams.push(eventType);
+    }
     
-    const result = await db.query(query, params);
-    res.json(result.rows || []);
+    query += ' ORDER BY ce.date ASC, ce.startTime ASC';
+    
+    const events = await db.query(query, queryParams);
+    res.json({ events: events.rows || [] });
   } catch (error) {
-    console.error('Error fetching flags:', error);
-    res.status(500).json({ error: 'Failed to fetch flags' });
+    console.error('Get calendar events error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PATCH /api/forum/flags/:id - Update flag status (admin only)
-app.patch('/api/forum/flags/:id', async (req, res) => {
+// Set up recurring training schedule (creates calendar events for the season)
+app.post('/api/calendar/training-schedule', [
+  authenticateToken,
+  body('teamName').notEmpty().withMessage('Team name is required'),
+  body('dayOfWeek').isIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']).withMessage('Valid day is required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required'),
+  body('location').notEmpty().withMessage('Location is required'),
+  body('weeksAhead').isInt({ min: 1, max: 52 }).withMessage('Weeks ahead must be between 1 and 52')
+], async (req, res) => {
   try {
-    const { id } = req.params;
-    const { user_role, user_id, status, action } = req.body;
-    
-    if (user_role !== 'Admin') {
-      return res.status(403).json({ error: 'Only admins can review flags' });
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can set up training schedules' });
     }
-    
-    if (!['pending', 'reviewed', 'dismissed'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    
-    const flagResult = await db.query('SELECT * FROM content_flags WHERE id = ?', [id]);
-    
-    if (!flagResult.rows || flagResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Flag not found' });
-    }
-    
-    const flag = flagResult.rows[0];
-    
-    if (action === 'delete') {
-      if (flag.content_type === 'post') {
-        await db.query('UPDATE forum_posts SET is_deleted = TRUE WHERE id = ?', [flag.content_id]);
-      } else {
-        await db.query('UPDATE forum_replies SET is_deleted = TRUE WHERE id = ?', [flag.content_id]);
+
+    const { teamName, dayOfWeek, startTime, endTime, location, weeksAhead, description, latitude, longitude, locationData, hasVacancies } = req.body;
+
+    // Calculate dates for the next X weeks on the specified day
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetDay = daysOfWeek.indexOf(dayOfWeek);
+    const today = new Date();
+    const trainingDates = [];
+
+    for (let week = 0; week < weeksAhead; week++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + (targetDay - today.getDay() + 7) % 7 + (week * 7));
+      
+      // Only add future dates
+      if (date > today) {
+        trainingDates.push(date.toISOString().split('T')[0]);
       }
     }
-    
-    const result = await db.query(
-      `UPDATE content_flags 
-       SET status = ?, reviewed_by_user_id = ?, reviewed_at = CURRENT_TIMESTAMP
-       WHERE id = ? RETURNING *`,
-      [status, user_id, id]
-    );
-    
-    res.json({ message: 'Flag updated successfully', flag: result.rows[0] });
+
+    // Create calendar events for each training session
+    let createdCount = 0;
+    for (const date of trainingDates) {
+      try {
+        const result = await db.query(
+          `INSERT INTO calendar_events 
+           (title, description, eventType, date, startTime, endTime, location, createdBy, isRecurring, latitude, longitude, locationData, teamName, hasVacancies) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            `${teamName} Training`,
+            description || `Regular training session for ${teamName}`,
+            'training',
+            date,
+            startTime,
+            endTime,
+            location,
+            req.user.userId,
+            true,
+            latitude || null,
+            longitude || null,
+            locationData ? JSON.stringify(locationData) : null,
+            teamName,
+            hasVacancies === true || hasVacancies === 1 ? 1 : 0
+          ]
+        );
+
+        // Add creator as organizer
+        await db.query(
+          'INSERT INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
+          [result.lastID, req.user.userId, 'organizer']
+        );
+
+        createdCount++;
+      } catch (err) {
+        console.error(`Error creating event for ${date}:`, err);
+      }
+    }
+
+    res.status(201).json({
+      message: `Training schedule created: ${createdCount} sessions added`,
+      eventsCreated: createdCount,
+      schedule: {
+        teamName,
+        dayOfWeek,
+        startTime,
+        endTime,
+        location
+      }
+    });
   } catch (error) {
-    console.error('Error updating flag:', error);
-    res.status(500).json({ error: 'Failed to update flag' });
+    console.error('Create training schedule error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ========== END FORUM ENDPOINTS ==========
+// Create calendar event
+app.post('/api/calendar/events', [
+  authenticateToken,
+  body('title').notEmpty().withMessage('Title is required'),
+  body('eventType').isIn(['training', 'match', 'trial', 'open_trial']).withMessage('Valid event type is required'),
+  body('date').isISO8601().withMessage('Valid date is required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-// Serve static files from the React app build (for production)
-const path = require('path');
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
-  
-  // Handle React routing, return all requests to React app
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../dist', 'index.html'));
+    const {
+      title,
+      description,
+      eventType,
+      date,
+      startTime,
+      endTime,
+      location,
+      teamId,
+      isRecurring,
+      recurringPattern,
+      maxParticipants,
+      latitude,
+      longitude,
+      locationData,
+      teamName,
+      hasVacancies
+    } = req.body;
+
+    const result = await db.query(
+      `INSERT INTO calendar_events 
+       (title, description, eventType, date, startTime, endTime, location, 
+        createdBy, teamId, isRecurring, recurringPattern, maxParticipants, 
+        latitude, longitude, locationData, teamName, hasVacancies) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, description, eventType, date, startTime, endTime, location,
+       req.user.userId, teamId, isRecurring || false, recurringPattern, maxParticipants,
+       latitude || null, longitude || null, locationData ? JSON.stringify(locationData) : null,
+       teamName, hasVacancies === true || hasVacancies === 1 ? 1 : 0]
+    );
+
+    const eventId = result.lastID;
+    
+    // Add creator as organizer participant
+    await db.query(
+      'INSERT INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
+      [eventId, req.user.userId, 'organizer']
+    );
+
+    res.status(201).json({
+      message: 'Calendar event created successfully',
+      eventId,
+      event: {
+        id: eventId,
+        title,
+        description,
+        eventType,
+        date,
+        startTime,
+        endTime,
+        location,
+        createdBy: req.user.userId,
+        teamId,
+        isRecurring: isRecurring || false,
+        recurringPattern,
+        maxParticipants,
+        status: 'scheduled',
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Create calendar event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update calendar event
+app.put('/api/calendar/events/:eventId', [
+  authenticateToken,
+  body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+  body('eventType').optional().isIn(['training', 'match', 'trial', 'open_trial']).withMessage('Valid event type is required')
+], async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    // Verify event exists and user is creator
+    const eventResult = await db.query(
+      'SELECT * FROM calendar_events WHERE id = ?',
+      [eventId]
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (eventResult.rows[0].createdBy !== req.user.userId) {
+      return res.status(403).json({ error: 'Only event creator can update this event' });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+    
+    ['title', 'description', 'eventType', 'date', 'startTime', 'endTime', 
+     'location', 'maxParticipants', 'status'].forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateFields.push(`${field} = ?`);
+        updateValues.push(req.body[field]);
+      }
+    });
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateValues.push(eventId);
+
+    await db.query(
+      `UPDATE calendar_events SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({ message: 'Event updated successfully' });
+  } catch (error) {
+    console.error('Update calendar event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete calendar event
+app.delete('/api/calendar/events/:eventId', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    // Verify event exists and user is creator
+    const eventResult = await db.query(
+      'SELECT * FROM calendar_events WHERE id = ?',
+      [eventId]
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (eventResult.rows[0].createdBy !== req.user.userId) {
+      return res.status(403).json({ error: 'Only event creator can delete this event' });
+    }
+
+    await db.query('DELETE FROM calendar_events WHERE id = ?', [eventId]);
+    res.json({ message: 'Event deleted successfully' });
+  } catch (error) {
+    console.error('Delete calendar event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get nearby training locations with vacancies (for map view)
+app.get('/api/calendar/training-locations', authenticateToken, async (req, res) => {
+  try {
+    const { latitude, longitude, radius, hasVacancies } = req.query;
+    
+    // Get all training events with coordinates
+    let query = `
+      SELECT ce.*, u.firstName, u.lastName, u.email as contactEmail,
+             (SELECT COUNT(*) FROM event_participants WHERE eventId = ce.id) as participantCount
+      FROM calendar_events ce
+      JOIN users u ON ce.createdBy = u.id
+      WHERE ce.eventType = 'training' 
+        AND ce.latitude IS NOT NULL 
+        AND ce.longitude IS NOT NULL
+        AND ce.date >= date('now')
+    `;
+    
+    const queryParams = [];
+    
+    // Filter by vacancy status if requested
+    if (hasVacancies === 'true') {
+      query += ' AND ce.hasVacancies = 1';
+    }
+    
+    query += ' ORDER BY ce.date ASC, ce.startTime ASC';
+    
+    const events = await db.query(query, queryParams);
+    
+    // If location provided, calculate distances and filter by radius
+    if (latitude && longitude && events.rows) {
+      const userLat = parseFloat(latitude);
+      const userLon = parseFloat(longitude);
+      const maxRadius = radius ? parseFloat(radius) : 50; // Default 50km radius
+      
+      // Calculate distance for each event using Haversine formula
+      const eventsWithDistance = events.rows.map(event => {
+        const eventLat = event.latitude;
+        const eventLon = event.longitude;
+        
+        // Haversine formula to calculate distance in km
+        const R = 6371; // Earth's radius in km
+        const dLat = (eventLat - userLat) * Math.PI / 180;
+        const dLon = (eventLon - userLon) * Math.PI / 180;
+        const a = 
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(userLat * Math.PI / 180) * Math.cos(eventLat * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+        
+        return {
+          ...event,
+          distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+          locationData: event.locationData ? JSON.parse(event.locationData) : null
+        };
+      })
+      .filter(event => event.distance <= maxRadius)
+      .sort((a, b) => a.distance - b.distance);
+      
+      res.json({ 
+        trainingLocations: eventsWithDistance,
+        userLocation: { latitude: userLat, longitude: userLon },
+        radius: maxRadius
+      });
+    } else {
+      // Return all events without distance calculation
+      res.json({ 
+        trainingLocations: events.rows.map(event => ({
+          ...event,
+          locationData: event.locationData ? JSON.parse(event.locationData) : null
+        }))
+      });
+    }
+  } catch (error) {
+    console.error('Get training locations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Invite player to trial
+app.post('/api/calendar/events/:eventId/invite', [
+  authenticateToken,
+  body('playerId').isInt().withMessage('Valid player ID is required'),
+  body('message').optional()
+], async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { playerId, message } = req.body;
+    
+    // Verify event exists and is a trial
+    const eventResult = await db.query(
+      'SELECT ce.*, u.firstName, u.lastName FROM calendar_events ce JOIN users u ON ce.createdBy = u.id WHERE ce.id = ? AND ce.eventType IN (?, ?)',
+      [eventId, 'trial', 'open_trial']
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trial event not found' });
+    }
+
+    const event = eventResult.rows[0];
+
+    if (event.createdBy !== req.user.userId) {
+      return res.status(403).json({ error: 'Only event creator can invite players' });
+    }
+
+    // Check if invitation already exists
+    const existingInvite = await db.query(
+      'SELECT * FROM trial_invitations WHERE eventId = ? AND playerId = ?',
+      [eventId, playerId]
+    );
+
+    if (existingInvite.rows && existingInvite.rows.length > 0) {
+      return res.status(400).json({ error: 'Player already invited to this trial' });
+    }
+
+    // Create invitation
+    await db.query(
+      'INSERT INTO trial_invitations (eventId, playerId, invitedBy, message) VALUES (?, ?, ?, ?)',
+      [eventId, playerId, req.user.userId, message]
+    );
+
+    // Create notification for player
+    await db.query(
+      `INSERT INTO notifications (userId, type, title, message, relatedId, relatedType) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        playerId,
+        'trial_invitation',
+        'Trial Invitation',
+        `${event.firstName} ${event.lastName} has invited you to "${event.title}" on ${event.date}`,
+        eventId,
+        'trial'
+      ]
+    );
+
+    res.status(201).json({ message: 'Player invited successfully' });
+  } catch (error) {
+    console.error('Invite player error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Respond to trial invitation
+app.put('/api/calendar/invitations/:invitationId/respond', [
+  authenticateToken,
+  body('status').isIn(['accepted', 'declined']).withMessage('Status must be accepted or declined')
+], async (req, res) => {
+  try {
+    const { invitationId } = req.params;
+    const { status } = req.body;
+    
+    // Verify invitation exists and belongs to user
+    const inviteResult = await db.query(
+      `SELECT ti.*, ce.title, ce.date, u.firstName, u.lastName 
+       FROM trial_invitations ti
+       JOIN calendar_events ce ON ti.eventId = ce.id
+       JOIN users u ON u.id = ?
+       WHERE ti.id = ? AND ti.playerId = ?`,
+      [req.user.userId, invitationId, req.user.userId]
+    );
+
+    if (!inviteResult.rows || inviteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+
+    const invitation = inviteResult.rows[0];
+
+    await db.query(
+      'UPDATE trial_invitations SET status = ?, responseDate = ? WHERE id = ?',
+      [status, new Date().toISOString(), invitationId]
+    );
+
+    // If accepted, add to event participants
+    if (status === 'accepted') {
+      const eventId = invitation.eventId;
+      await db.query(
+        'INSERT OR IGNORE INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
+        [eventId, req.user.userId, 'participant']
+      );
+    }
+
+    // Notify coach of response
+    await db.query(
+      `INSERT INTO notifications (userId, type, title, message, relatedId, relatedType) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        invitation.invitedBy,
+        status === 'accepted' ? 'invitation_accepted' : 'invitation_declined',
+        `Trial Invitation ${status === 'accepted' ? 'Accepted' : 'Declined'}`,
+        `${invitation.firstName} ${invitation.lastName} has ${status} your invitation to "${invitation.title}"`,
+        invitation.eventId,
+        'trial'
+      ]
+    );
+
+    res.json({ message: 'Response recorded successfully' });
+  } catch (error) {
+    console.error('Respond to invitation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get trial invitations for user
+app.get('/api/calendar/invitations', authenticateToken, async (req, res) => {
+  try {
+    const invitations = await db.query(
+      `SELECT ti.*, ce.title, ce.date, ce.startTime, ce.endTime, ce.location,
+              u.firstName as inviterFirstName, u.lastName as inviterLastName
+       FROM trial_invitations ti
+       JOIN calendar_events ce ON ti.eventId = ce.id
+       JOIN users u ON ti.invitedBy = u.id
+       WHERE ti.playerId = ?
+       ORDER BY ce.date ASC`,
+      [req.user.userId]
+    );
+
+    res.json({ invitations: invitations.rows || [] });
+  } catch (error) {
+    console.error('Get invitations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Join/leave open event
+app.post('/api/calendar/events/:eventId/join', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    // Verify event exists
+    const eventResult = await db.query(
+      'SELECT * FROM calendar_events WHERE id = ?',
+      [eventId]
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const event = eventResult.rows[0];
+
+    // Check if event is full
+    if (event.maxParticipants && event.currentParticipants >= event.maxParticipants) {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    // Check if already joined
+    const existingParticipant = await db.query(
+      'SELECT * FROM event_participants WHERE eventId = ? AND userId = ?',
+      [eventId, req.user.userId]
+    );
+
+    if (existingParticipant.rows && existingParticipant.rows.length > 0) {
+      return res.status(400).json({ error: 'Already joined this event' });
+    }
+
+    await db.query(
+      'INSERT INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
+      [eventId, req.user.userId, 'participant']
+    );
+
+    await db.query(
+      'UPDATE calendar_events SET currentParticipants = currentParticipants + 1 WHERE id = ?',
+      [eventId]
+    );
+
+    res.json({ message: 'Joined event successfully' });
+  } catch (error) {
+    console.error('Join event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/calendar/events/:eventId/leave', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    await db.query(
+      'DELETE FROM event_participants WHERE eventId = ? AND userId = ?',
+      [eventId, req.user.userId]
+    );
+
+    await db.query(
+      'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+      [eventId]
+    );
+
+    res.json({ message: 'Left event successfully' });
+  } catch (error) {
+    console.error('Leave event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Helper function to create recurring training events
+async function createRecurringTrainingEvents(teamId, coachId, trainingDays, startTime, endTime, location, weeksAhead = 12) {
+  try {
+    const today = new Date();
+    const daysOfWeek = {
+      'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 
+      'Friday': 5, 'Saturday': 6, 'Sunday': 0
+    };
+
+    for (const day of trainingDays) {
+      const targetDay = daysOfWeek[day];
+      
+      // Find next occurrence of this day
+      let currentDate = new Date(today);
+      const currentDay = currentDate.getDay();
+      const daysUntilTarget = (targetDay - currentDay + 7) % 7 || 7;
+      currentDate.setDate(currentDate.getDate() + daysUntilTarget);
+
+      // Create events for the next X weeks
+      for (let week = 0; week < weeksAhead; week++) {
+        const eventDate = new Date(currentDate);
+        eventDate.setDate(eventDate.getDate() + (week * 7));
+        
+        const dateString = eventDate.toISOString().split('T')[0];
+        
+        await db.query(
+          `INSERT INTO calendar_events 
+           (title, description, eventType, date, startTime, endTime, location, 
+            createdBy, teamId, isRecurring, recurringPattern, status) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            `Training - ${day}`,
+            'Regular team training session',
+            'training',
+            dateString,
+            startTime,
+            endTime,
+            location,
+            coachId,
+            teamId,
+            true,
+            `Weekly on ${day}`,
+            'scheduled'
+          ]
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error creating recurring training events:', error);
+    throw error;
+  }
+}
+
+// Set up team training schedule
+app.post('/api/team/training-schedule', [
+  authenticateToken,
+  body('trainingDays').isArray({ min: 1 }).withMessage('At least one training day required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can set training schedules' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { teamId, trainingDays, startTime, endTime, location } = req.body;
+
+    // Verify coach owns this team (if teamId provided)
+    if (teamId) {
+      const teamResult = await db.query(
+        'SELECT * FROM team_rosters WHERE id = ? AND coachId = ?',
+        [teamId, req.user.userId]
+      );
+
+      if (!teamResult.rows || teamResult.rows.length === 0) {
+        return res.status(403).json({ error: 'Team not found or access denied' });
+      }
+    }
+
+    // Delete existing future training events for this team/coach
+    await db.query(
+      `DELETE FROM calendar_events 
+       WHERE createdBy = ? AND eventType = ? AND isRecurring = ? AND date >= ? ${teamId ? 'AND teamId = ?' : ''}`,
+      teamId 
+        ? [req.user.userId, 'training', true, new Date().toISOString().split('T')[0], teamId]
+        : [req.user.userId, 'training', true, new Date().toISOString().split('T')[0]]
+    );
+
+    // Create new recurring training events
+    await createRecurringTrainingEvents(
+      teamId,
+      req.user.userId,
+      trainingDays,
+      startTime,
+      endTime,
+      location
+    );
+
+    res.status(201).json({ 
+      message: 'Training schedule created successfully',
+      eventsCreated: trainingDays.length * 12 // days * weeks
+    });
+  } catch (error) {
+    console.error('Set training schedule error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get invitation responses for a trial (coach view)
+app.get('/api/calendar/events/:eventId/responses', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    
+    // Verify user is the event creator
+    const eventResult = await db.query(
+      'SELECT * FROM calendar_events WHERE id = ? AND createdBy = ?',
+      [eventId, req.user.userId]
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found or access denied' });
+    }
+
+    const responses = await db.query(
+      `SELECT ti.*, u.firstName, u.lastName, u.email, up.preferredPosition
+       FROM trial_invitations ti
+       JOIN users u ON ti.playerId = u.id
+       LEFT JOIN user_profiles up ON u.id = up.userId
+       WHERE ti.eventId = ?
+       ORDER BY ti.status ASC, u.lastName ASC`,
+      [eventId]
+    );
+
+    res.json({ responses: responses.rows || [] });
+  } catch (error) {
+    console.error('Get responses error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Notification Endpoints
+
+// Get user notifications
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const { unreadOnly } = req.query;
+    
+    let query = 'SELECT * FROM notifications WHERE userId = ?';
+    const params = [req.user.userId];
+    
+    if (unreadOnly === 'true') {
+      query += ' AND isRead = ?';
+      params.push(false);
+    }
+    
+    query += ' ORDER BY createdAt DESC LIMIT 50';
+    
+    const notifications = await db.query(query, params);
+    
+    res.json({ notifications: notifications.rows || [] });
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:notificationId/read', authenticateToken, async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    await db.query(
+      'UPDATE notifications SET isRead = ? WHERE id = ? AND userId = ?',
+      [true, notificationId, req.user.userId]
+    );
+    
+    res.json({ message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Mark notification read error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE notifications SET isRead = ? WHERE userId = ? AND isRead = ?',
+      [true, req.user.userId, false]
+    );
+    
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Mark all read error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get unread notification count
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE userId = ? AND isRead = ?',
+      [req.user.userId, false]
+    );
+    
+    res.json({ count: result.rows[0]?.count || 0 });
+  } catch (error) {
+    console.error('Get unread count error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Graceful shutdown (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  process.on('SIGINT', () => {
+    db.close((err) => {
+      if (err) {
+        console.error(err.message);
+      }
+      console.log('Database connection closed.');
+      process.exit(0);
+    });
   });
 }
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Shutting down gracefully...');
-  db.close((err) => {
-    if (err) {
-      console.error('Error closing database:', err.message);
-    } else {
-      console.log('🔒 Database connection closed.');
-    }
-    process.exit(0);
-  });
-});
-
+// Export the app for use in other servers (like railway-server.js)
+module.exports = app;
 

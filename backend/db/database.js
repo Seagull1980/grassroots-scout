@@ -15,7 +15,13 @@ class Database {
     this.dbType = process.env.DB_TYPE || 'sqlite';
     this.pool = null;
     this.db = null;
-    this.init();
+    try {
+      this.init();
+    } catch (error) {
+      console.error('❌ Database initialization failed, but continuing:', error.message);
+      // Don't throw - allow the server to start even without database
+      this.dbType = 'none';
+    }
     
     instance = this;
   }
@@ -77,7 +83,9 @@ class Database {
 
   initSQLite() {
     console.log('📁 Initializing SQLite connection...');
-    this.db = new sqlite3.Database('./database.sqlite', (err) => {
+    // Use /tmp for Railway compatibility, or fallback to relative path
+    const dbPath = process.env.RAILWAY_ENVIRONMENT ? '/tmp/database.sqlite' : './database.sqlite';
+    this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
         console.error('❌ Error opening SQLite database:', err.message);
       } else {
@@ -101,6 +109,9 @@ class Database {
   }
 
   async query(sql, params = []) {
+    if (this.dbType === 'none') {
+      throw new Error('Database not available');
+    }
     if (this.dbType === 'postgresql') {
       return this.queryPostgreSQL(sql, params);
     } else {
@@ -196,6 +207,11 @@ class Database {
 
   async createTables() {
     try {
+      // Skip table creation if database is not available
+      if (this.dbType === 'none') {
+        console.log('⚠️  Skipping table creation - database not available');
+        return;
+      }
       const tables = [
       `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
