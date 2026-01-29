@@ -84,8 +84,8 @@ class Database {
   initSQLite() {
     console.log('📁 Initializing SQLite connection...');
     console.log('Current working directory:', process.cwd());
-    // Use /tmp for Railway compatibility
-    const dbPath = process.env.RAILWAY_ENVIRONMENT ? '/tmp/database.sqlite' : './database.sqlite';
+    // Use absolute path based on current working directory
+    const dbPath = process.env.RAILWAY_ENVIRONMENT ? `${process.cwd()}/database.sqlite` : './database.sqlite';
     console.log('Database path:', dbPath);
     this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
