@@ -374,11 +374,11 @@ app.post('/api/auth/register', [
 
     // Insert user with email verification fields
     const result = await db.query(
-      'INSERT INTO users (email, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (email, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
       [email, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
     );
 
-    const userId = result.lastID;
+    const userId = result.rows[0].id;
 
     // Send verification email
     try {
