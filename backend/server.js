@@ -368,14 +368,17 @@ app.post('/api/auth/register', [
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generate email hash for uniqueness and privacy
+    const emailHash = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+
     // Generate email verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Insert user with email verification fields
     const result = await db.query(
-      'INSERT INTO users (email, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
-      [email, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      [email, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
     );
 
     const userId = result.rows[0].id;
