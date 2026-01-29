@@ -999,7 +999,6 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(date)',
       'CREATE INDEX IF NOT EXISTS idx_trial_invitations_player ON trial_invitations(playerId)',
       'CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(eventId)',
-      'CREATE INDEX IF NOT EXISTS idx_team_rosters_coach ON team_rosters(coachId)',
       'CREATE INDEX IF NOT EXISTS idx_team_players_team ON team_players(teamId)',
       'CREATE INDEX IF NOT EXISTS idx_team_players_position ON team_players(bestPosition)',
       'CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipientId)',
