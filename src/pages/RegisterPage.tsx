@@ -151,14 +151,9 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      const success = await register(registrationData);
-
-      if (success) {
-        // Navigate directly to dashboard (email verification disabled)
-        navigate('/dashboard');
-      } else {
-        setError('Registration failed. Please try again.');
-      }
+      await register(registrationData);
+      // Navigate directly to dashboard (email verification disabled)
+      navigate('/dashboard');
     } catch (error: any) {
       if (error.response?.data?.ageRestriction) {
         setError(error.response.data.error);
