@@ -5,11 +5,12 @@ import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory } from '../types';
 // Dynamic API URL configuration for different environments
 
 const getAPIUrl = () => {
-  // Require environment variable for all environments
+  // Use environment variable if set, otherwise use relative URL for Vercel proxying
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  throw new Error('VITE_API_URL environment variable must be set.');
+  // Return empty string for relative URLs (Vercel proxying)
+  return '';
 };
 
 
@@ -17,7 +18,8 @@ const getRosterAPIUrl = () => {
   if (import.meta.env.VITE_ROSTER_API_URL) {
     return import.meta.env.VITE_ROSTER_API_URL;
   }
-  throw new Error('VITE_ROSTER_API_URL environment variable must be set.');
+  // Return empty string for relative URLs (Vercel proxying)
+  return '';
 };
 
 const API_URL = getAPIUrl();
@@ -51,7 +53,7 @@ let csrfToken: string | null = null;
 const getCsrfToken = async (): Promise<string> => {
   if (!csrfToken) {
     try {
-      const response = await axios.get(`${API_URL}/auth/csrf-token`);
+      const response = await axios.get(`${API_URL}/api/auth/csrf-token`);
       csrfToken = response.data.csrfToken;
     } catch (error) {
       console.warn('CSRF token endpoint not available, using fallback token:', error instanceof Error ? error.message : String(error));
@@ -439,27 +441,27 @@ export const authAPI = {
   },
 
   register: async (userData: RegisterData): Promise<RegisterResponse> => {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/api/auth/register', userData);
     return response.data;
   },
 
   getCurrentUser: async (): Promise<{ user: User }> => {
-    const response = await api.get('/auth/me');
+    const response = await api.get('/api/auth/me');
     return response.data;
   },
 
   resendVerification: async (data: { email: string }): Promise<{ message: string }> => {
-    const response = await api.post('/auth/resend-verification', data);
+    const response = await api.post('/api/auth/resend-verification', data);
     return response.data;
   },
 
   verifyEmail: async (token: string): Promise<{ message: string; verified: boolean }> => {
-    const response = await api.get(`/auth/verify-email/${token}`);
+    const response = await api.get(`/api/auth/verify-email/${token}`);
     return response.data;
   },
 
   changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
-    const response = await api.put('/change-password', { currentPassword, newPassword });
+    const response = await api.put('/api/change-password', { currentPassword, newPassword });
     return response.data;
   },
 };
@@ -467,12 +469,12 @@ export const authAPI = {
 // Profile API
 export const profileAPI = {
   get: async (): Promise<{ profile: UserProfile }> => {
-    const response = await api.get('/profile');
+    const response = await api.get('/api/profile');
     return response.data;
   },
 
   update: async (profileData: ProfileUpdateData): Promise<{ message: string }> => {
-    const response = await api.put('/profile', profileData);
+    const response = await api.put('/api/profile', profileData);
     return response.data;
   },
 };
@@ -480,7 +482,7 @@ export const profileAPI = {
 // Vacancies API
 export const vacanciesAPI = {
   create: async (vacancyData: VacancyData): Promise<{ message: string; vacancyId: number }> => {
-    const response = await api.post('/vacancies', vacancyData);
+    const response = await api.post('/api/vacancies', vacancyData);
     return response.data;
   },
 
@@ -492,7 +494,7 @@ export const vacanciesAPI = {
     search?: string;
     teamGender?: string;
   }): Promise<{ vacancies: TeamVacancy[] }> => {
-    const response = await api.get('/vacancies', { params: filters });
+    const response = await api.get('/api/vacancies', { params: filters });
     return response.data;
   },
 };
@@ -503,13 +505,13 @@ export const leaguesAPI = {
   getForSearch: async (includePending: boolean = true): Promise<League[]> => {
     const token = localStorage.getItem('token');
     const params = token && includePending ? '?includePending=true' : '';
-    const response = await api.get(`/leagues${params}`);
+    const response = await api.get(`/api/leagues${params}`);
     return response.data.leagues || response.data;
   },
 
   // Admin endpoints for league management
   getAll: async (): Promise<{ leagues: League[] }> => {
-    const response = await rosterApi.get('/admin/leagues');
+    const response = await rosterApi.get('/api/admin/leagues');
     // Normalize response shape: some servers return { leagues: { rows: [...] } }
     const data = response.data || {};
     if (data.leagues && data.leagues.rows) {
@@ -526,7 +528,7 @@ export const leaguesAPI = {
     url?: string; 
     description?: string 
   }): Promise<{ message: string; league: League }> => {
-    const response = await rosterApi.post('/admin/leagues', leagueData);
+    const response = await rosterApi.post('/api/admin/leagues', leagueData);
     return response.data;
   },
 
@@ -539,12 +541,12 @@ export const leaguesAPI = {
     description?: string; 
     isActive?: boolean 
   }): Promise<{ message: string; league: League }> => {
-    const response = await rosterApi.put(`/admin/leagues/${id}`, leagueData);
+    const response = await rosterApi.put(`/api/admin/leagues/${id}`, leagueData);
     return response.data;
   },
 
   delete: async (id: number): Promise<{ message: string }> => {
-    const response = await rosterApi.delete(`/admin/leagues/${id}`);
+    const response = await rosterApi.delete(`/api/admin/leagues/${id}`);
     return response.data;
   },
 
@@ -554,7 +556,7 @@ export const leaguesAPI = {
 // Calendar API
 export const calendarAPI = {
   getEvents: async (startDate: Date, endDate: Date): Promise<{ events: CalendarEvent[] }> => {
-    const response = await api.get('/calendar/events', {
+    const response = await api.get('/api/calendar/events', {
       params: {
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
@@ -564,7 +566,7 @@ export const calendarAPI = {
   },
 
   createEvent: async (eventData: CreateEventData): Promise<{ message: string; event: CalendarEvent }> => {
-    const response = await api.post('/calendar/events', eventData);
+    const response = await api.post('/api/calendar/events', eventData);
     return response.data;
   },
 
@@ -579,12 +581,12 @@ export const calendarAPI = {
   },
 
   createTrial: async (trialData: CreateTrialData): Promise<{ message: string; trial: CalendarEvent }> => {
-    const response = await api.post('/calendar/trials', trialData);
+    const response = await api.post('/api/calendar/trials', trialData);
     return response.data;
   },
 
   getTrialInvitations: async (): Promise<{ invitations: TrialInvitation[] }> => {
-    const response = await api.get('/calendar/trial-invitations');
+    const response = await api.get('/api/calendar/trial-invitations');
     return response.data;
   },
 
@@ -594,7 +596,7 @@ export const calendarAPI = {
   },
 
   sendTrialInvites: async (inviteData: TrialInviteData): Promise<{ message: string; invitesSent: number }> => {
-    const response = await api.post('/calendar/send-trial-invites', inviteData);
+    const response = await api.post('/api/calendar/send-trial-invites', inviteData);
     return response.data;
   },
 };
@@ -602,7 +604,7 @@ export const calendarAPI = {
 // Health check
 export const healthAPI = {
   check: async (): Promise<{ status: string; message: string }> => {
-    const response = await api.get('/health');
+    const response = await api.get('/api/health');
     return response.data;
   },
 };
@@ -620,7 +622,7 @@ export const adminAPI = {
   },
   
   freezeLeague: async (id: number, freeze: boolean): Promise<{ message: string; league: League }> => {
-    const response = await api.patch(`/admin/leagues/${id}/freeze`, { freeze });
+    const response = await api.patch(`/api/admin/leagues/${id}/freeze`, { freeze });
     return response.data;
   },
 };
@@ -634,7 +636,7 @@ export const getTeamVacancies = async (): Promise<TeamVacancy[]> => {
 // Player availability API
 export const playerAvailabilityAPI = {
   create: async (data: Omit<PlayerAvailability, 'id' | 'createdAt' | 'status' | 'postedBy'>): Promise<{ message: string; availabilityId: number }> => {
-    const response = await api.post('/player-availability', data);
+    const response = await api.post('/api/player-availability', data);
     return response.data;
   },
 
@@ -673,7 +675,7 @@ export const getTeamVacanciesWithLocationType = async (params: {
   hasVacancies?: boolean;
 }): Promise<{ trainingLocations: any[] }> => {
   try {
-    const response = await axios.get(`${API_URL}/calendar/training-locations`, {
+    const response = await axios.get(`${API_URL}/api/calendar/training-locations`, {
       params,
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
@@ -697,13 +699,13 @@ export const emailAlertAPI = {
       coordinates: { lat: number; lng: number }[];
     };
   }): Promise<{ message: string; alertId: string }> => {
-    const response = await api.post('/email-alerts', alertData);
+    const response = await api.post('/api/email-alerts', alertData);
     return response.data;
   },
 
   // Get all email alerts for the current user
   getAll: async (): Promise<{ alerts: EmailAlert[] }> => {
-    const response = await api.get('/email-alerts');
+    const response = await api.get('/api/email-alerts');
     return response.data;
   },
 
@@ -737,7 +739,7 @@ export const emailAlertAPI = {
 export const teamRosterAPI = {
   // Get all rosters for the authenticated coach
   getAll: async (): Promise<{ rosters: TeamRoster[] }> => {
-    const response = await api.get('/team-rosters');
+    const response = await api.get('/api/team-rosters');
     return response.data;
   },
 
@@ -754,7 +756,7 @@ export const teamRosterAPI = {
     ageGroup: string;
     league: string;
   }): Promise<{ message: string; roster: TeamRoster }> => {
-    const response = await api.post('/team-rosters', rosterData);
+    const response = await api.post('/api/team-rosters', rosterData);
     return response.data;
   },
 
@@ -872,7 +874,7 @@ export const playingHistoryAPI = {
         'Authorization': `Bearer ${storage.getItem('token')}`
       }
     });
-    const response = await historyAPI.post('/playing-history', historyData);
+    const response = await historyAPI.post('/api/playing-history', historyData);
     return response.data;
   },
 
@@ -920,7 +922,7 @@ export const playingHistoryAPI = {
 export const trainingAPI = {
   // Get training sessions (coaches see their own, players see all)
   getSessions: async (): Promise<{ sessions: TrainingSession[] }> => {
-    const response = await api.get('/training/sessions');
+    const response = await api.get('/api/training/sessions');
     return response.data;
   },
 
@@ -940,7 +942,7 @@ export const trainingAPI = {
     refund_policy?: string;
     special_offers?: string;
   }): Promise<{ id: number; message: string }> => {
-    const response = await api.post('/training/sessions', sessionData);
+    const response = await api.post('/api/training/sessions', sessionData);
     return response.data;
   },
 
