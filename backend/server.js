@@ -1207,6 +1207,25 @@ app.get('/api/public/site-stats', async (req, res) => {
   }
 });
 
+// Get all active leagues (public endpoint)
+app.get('/api/leagues', async (req, res) => {
+  try {
+    const leaguesResult = await db.query(
+      'SELECT id, name, region, ageGroups, country, url, description, hits FROM leagues WHERE isActive = true ORDER BY name'
+    );
+
+    const leagues = (leaguesResult.rows || []).map(league => ({
+      ...league,
+      ageGroups: league.ageGroups ? JSON.parse(league.ageGroups) : []
+    }));
+
+    res.json({ leagues });
+  } catch (error) {
+    console.error('Get leagues error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Match Completion Endpoints
 
 // Create a match completion (when a coach/player confirms a successful match)
