@@ -1,19 +1,27 @@
-const express = require('express');
-const path = require('path');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
-const DatabaseUtils = require('./backend/utils/dbUtils.js');
-require('dotenv').config();
+import express from 'express';
+import path from 'path';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { body, validationResult } from 'express-validator';
+import DatabaseUtils from './backend/utils/dbUtils.js';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+import dotenv from 'dotenv';
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Middleware (let backend app handle its own middleware)
+// app.use(cors());
+// app.use(express.json());
 
 // Database connection
 const db = new DatabaseUtils();
@@ -39,46 +47,37 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Load all API routes from team-roster-server
-// We'll import the routes dynamically
-const teamRosterServerPath = path.join(__dirname, 'backend', 'team-roster-server.js');
-delete require.cache[teamRosterServerPath]; // Clear cache to avoid port binding
+// Load all API routes from backend server
+process.env.RAILWAY_SERVER_MODE = 'true';
+const backendApp = require('./backend/server.js');
 
-// Instead of loading the full server, we'll duplicate critical routes here
-// This is simpler than refactoring the entire team-roster-server
+// Initialize database tables before starting server
+(async () => {
+  console.log('🚀 Initializing database tables...');
+  try {
+    await db.db.createTables();
+    console.log('✅ Database tables initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize database tables:', error);
+    console.log('⚠️  Continuing without database initialization - some features may not work');
+  }
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+  // Use backend routes (this includes all API endpoints)
+  app.use(backendApp);
 
-// Import routes from backend (simplified - you can expand this)
-// For now, pointing to documentation
-app.get('/api', (req, res) => {
-  res.json({ 
-    message: 'The Grassroots Scout API',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth/*',
-      feedback: '/api/feedback/*',
-      rosters: '/api/team-rosters/*',
-      clubs: '/api/club-*'
-    }
+  // Remove the duplicate health check and API documentation since backend has them
+  // The backend server already handles /api/health and /api routes
+
+  // Serve React app for all other routes (must be last)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
-});
 
-console.log('⚠️  Note: For production, you need to migrate team-roster-server routes here');
-console.log('⚠️  Or use a process manager to run both servers');
-
-// Serve React app for all other routes (must be last)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 The Grassroots Scout running on port ${PORT}`);
-  console.log(`📱 Access at: http://localhost:${PORT}`);
-  console.log(`🔧 API: http://localhost:${PORT}/api`);
-  console.log(`📊 Database: ${db ? 'Connected' : 'Not connected'}`);
-});
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 The Grassroots Scout running on port ${PORT}`);
+    console.log(`📱 Access at: http://localhost:${PORT}`);
+    console.log(`🔧 API: http://localhost:${PORT}/api`);
+    console.log(`📊 Database: ${db ? 'Connected' : 'Not connected'}`);
+  });
+})();
 
