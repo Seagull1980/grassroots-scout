@@ -155,6 +155,7 @@ const RegisterPage: React.FC = () => {
       // Navigate directly to dashboard (email verification disabled)
       navigate('/dashboard');
     } catch (error: any) {
+      console.log('Registration error caught:', error);
       if (error.response?.data?.ageRestriction) {
         setError(error.response.data.error);
       } else {
