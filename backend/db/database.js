@@ -794,6 +794,7 @@ class Database {
 
     for (const table of tables) {
       try {
+        console.log('🔄 Creating table:', table.substring(13, 50) + '...');
         await this.query(table);
         console.log('✅ Table created/verified');
       } catch (error) {
