@@ -305,7 +305,7 @@ class Database {
         clubName VARCHAR,
         ageGroup VARCHAR NOT NULL,
         league VARCHAR NOT NULL,
-        teamGender VARCHAR NOT NULL DEFAULT 'Mixed' CHECK(teamGender IN ('Boys', 'Girls', 'Mixed')),
+        teamGender VARCHAR NOT NULL DEFAULT 'Mixed',
         location VARCHAR,
         locationData JSONB,
         contactEmail VARCHAR,
