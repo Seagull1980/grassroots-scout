@@ -797,9 +797,10 @@ class Database {
         await this.query(table);
         console.log('✅ Table created/verified');
       } catch (error) {
-        console.error('❌ Error creating table:', error);
+        console.error('❌ Error creating table:', error.message);
         console.error('❌ Table SQL:', table.substring(0, 100) + '...');
-        throw error;
+        // Don't throw - continue with other tables
+        console.log('⚠️  Continuing with next table...');
       }
     }
 
