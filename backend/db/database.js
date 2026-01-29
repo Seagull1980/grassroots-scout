@@ -216,7 +216,7 @@ class Database {
       }
       const tables = [
       `CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         email VARCHAR NOT NULL,
         emailHash VARCHAR UNIQUE NOT NULL,
         password VARCHAR NOT NULL,
@@ -234,7 +234,7 @@ class Database {
       )`,
 
       `CREATE TABLE IF NOT EXISTS user_profiles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         userId INTEGER UNIQUE NOT NULL,
         phone VARCHAR,
         dateOfBirth DATE,
@@ -264,7 +264,7 @@ class Database {
       )`,
 
       `CREATE TABLE IF NOT EXISTS leagues (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR UNIQUE NOT NULL,
         region VARCHAR,
         ageGroups JSON,
@@ -278,7 +278,7 @@ class Database {
       )`,
 
       `CREATE TABLE IF NOT EXISTS league_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR NOT NULL,
         region VARCHAR,
         ageGroups JSON,
@@ -316,7 +316,7 @@ class Database {
       )`,
 
       `CREATE TABLE IF NOT EXISTS team_vacancies (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         title VARCHAR NOT NULL,
         description VARCHAR NOT NULL,
         league VARCHAR NOT NULL,
@@ -328,8 +328,8 @@ class Database {
         contactInfo VARCHAR,
         postedBy INTEGER NOT NULL,
         teamId INTEGER,
-        hasMatchRecording BOOLEAN DEFAULT 0,
-        hasPathwayToSenior BOOLEAN DEFAULT 0,
+        hasMatchRecording BOOLEAN DEFAULT FALSE,
+        hasPathwayToSenior BOOLEAN DEFAULT FALSE,
         status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'filled', 'expired')),
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (postedBy) REFERENCES users (id),
@@ -337,7 +337,7 @@ class Database {
       )`,
 
       `CREATE TABLE IF NOT EXISTS player_availability (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         title VARCHAR NOT NULL,
         description VARCHAR NOT NULL,
         preferredLeagues TEXT, -- Changed to TEXT and nullable to support JSON array
