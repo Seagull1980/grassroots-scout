@@ -413,8 +413,10 @@ app.post('/api/auth/register', [
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Registration error details:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
