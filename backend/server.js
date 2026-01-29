@@ -229,6 +229,7 @@ const sendPasswordResetEmail = async (email, firstName, resetToken) => {
 
 // Initialize database tables on startup
 (async () => {
+  console.log('🚀 Starting server initialization with table order fix...');
   try {
     await db.createTables();
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
