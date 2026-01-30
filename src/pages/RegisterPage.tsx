@@ -90,6 +90,7 @@ const RegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
     // Prevent default behavior for both form submission and button click
     e.preventDefault();
+    console.log('handleSubmit called');
     setError('');
 
     // Validation
@@ -151,7 +152,9 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
+      console.log('About to call register');
       await register(registrationData);
+      console.log('Register succeeded, navigating to dashboard');
       // Navigate directly to dashboard (email verification disabled)
       navigate('/dashboard');
     } catch (error: any) {
