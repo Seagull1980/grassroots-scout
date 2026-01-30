@@ -195,6 +195,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Throw other API errors so the component can display the specific message
+      console.log('AuthContext throwing error:', error);
       throw error;
     } finally {
       setIsLoading(false);

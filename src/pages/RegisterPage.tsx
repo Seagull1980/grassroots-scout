@@ -156,10 +156,14 @@ const RegisterPage: React.FC = () => {
       navigate('/dashboard');
     } catch (error: any) {
       console.log('Registration error caught:', error);
+      console.log('Error response:', error.response);
+      console.log('Error data:', error.response?.data);
       if (error.response?.data?.ageRestriction) {
         setError(error.response.data.error);
       } else {
-        setError(error.response?.data?.error || 'Registration failed. Please try again.');
+        const errorMessage = error.response?.data?.error || 'Registration failed. Please try again.';
+        console.log('Setting error message:', errorMessage);
+        setError(errorMessage);
       }
     }
   };
