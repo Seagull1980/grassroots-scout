@@ -593,13 +593,6 @@ app.post('/api/auth/forgot-password', [
 
     const user = userResult.rows[0];
 
-    // Check if user is verified
-    if (!user.isEmailVerified) {
-      return res.status(400).json({ 
-        error: 'Please verify your email address before resetting your password.' 
-      });
-    }
-
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
@@ -725,15 +718,6 @@ app.post('/api/auth/login', [
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      return res.status(401).json({ 
-        error: 'Please verify your email before logging in. Check your email for the verification link.',
-        emailVerificationRequired: true,
-        canResendVerification: true
-      });
     }
 
     // Generate token
