@@ -1189,35 +1189,40 @@ app.get('/api/public/child-player-availability', async (req, res) => {
     const { league, ageGroup, position, location } = req.query;
     
     let query = `
-      SELECT cpa.*, c.firstName, c.lastName, c.dateOfBirth, u.email as parentEmail
+      SELECT cpa.*, c."firstName", c."lastName", c."dateOfBirth", u.email as "parentEmail"
       FROM child_player_availability cpa 
-      JOIN children c ON cpa.childId = c.id 
-      JOIN users u ON cpa.parentId = u.id
-      WHERE cpa.status = 'active' AND c.isActive = true
+      JOIN children c ON cpa."childId" = c.id 
+      JOIN users u ON cpa."parentId" = u.id
+      WHERE cpa.status = $1 AND c."isActive" = $2
     `;
-    const params = [];
+    const params = ['active', true];
+    let paramIndex = 3;
 
     if (league) {
-      query += ` AND cpa.preferredLeagues LIKE ?`;
+      query += ` AND cpa."preferredLeagues" LIKE $${paramIndex}`;
       params.push(`%"${league}"%`);
+      paramIndex++;
     }
 
     if (ageGroup) {
-      query += ` AND cpa.ageGroup = ?`;
+      query += ` AND cpa."ageGroup" = $${paramIndex}`;
       params.push(ageGroup);
+      paramIndex++;
     }
 
     if (position) {
-      query += ` AND cpa.positions LIKE ?`;
+      query += ` AND cpa.positions LIKE $${paramIndex}`;
       params.push(`%"${position}"%`);
+      paramIndex++;
     }
 
     if (location) {
-      query += ` AND cpa.location LIKE ?`;
+      query += ` AND cpa.location LIKE $${paramIndex}`;
       params.push(`%${location}%`);
+      paramIndex++;
     }
 
-    query += ` ORDER BY cpa.createdAt DESC`;
+    query += ` ORDER BY cpa."createdAt" DESC`;
 
     const availabilityResult = await db.query(query, params);
 
@@ -1240,13 +1245,13 @@ app.get('/api/public/child-player-availability', async (req, res) => {
 app.get('/api/public/site-stats', async (req, res) => {
   try {
     // Get total active teams (from team_vacancies table - count distinct users who posted vacancies)
-    const activeTeams = await db.query('SELECT COUNT(DISTINCT postedBy) as count FROM team_vacancies WHERE status = "active"');
+    const activeTeams = await db.query("SELECT COUNT(DISTINCT \"postedBy\") as count FROM team_vacancies WHERE status = 'active'");
     
     // Get total registered players (from users table, excluding admins)
-    const registeredPlayers = await db.query('SELECT COUNT(*) as count FROM users WHERE role != "Admin"');
+    const registeredPlayers = await db.query("SELECT COUNT(*) as count FROM users WHERE role != 'Admin'");
     
     // Get successful matches (confirmed match completions)
-    const successfulMatches = await db.query('SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"');
+    const successfulMatches = await db.query("SELECT COUNT(*) as count FROM match_completions WHERE \"completionStatus\" = 'confirmed'");
 
     res.json({
       activeTeams: activeTeams.rows[0].count,
