@@ -41,6 +41,9 @@ const api = axios.create({
   },
 });
 
+console.log('[API Config] API_URL:', API_URL);
+console.log('[API Config] ROSTER_API_URL:', ROSTER_API_URL);
+
 // Create axios instance for roster API (team-roster-server on port 3002)
 const rosterApi = axios.create({
   baseURL: ROSTER_API_URL,
@@ -71,6 +74,15 @@ const getCsrfToken = async (): Promise<string> => {
 
 // Add auth token and CSRF token to requests for both instances
 api.interceptors.request.use(async (config) => {
+  // Log all auth requests for debugging
+  if (config.url?.includes('/auth/')) {
+    console.log('[API Request] Auth endpoint called', {
+      url: config.url,
+      method: config.method,
+      fullUrl: config.baseURL + config.url,
+    });
+  }
+
   // Log registration requests for debugging
   if (config.url?.includes('/auth/register')) {
     console.log('[API Request] Register endpoint called', {
@@ -458,6 +470,7 @@ export interface TrainingBooking {
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
+    console.log('[API] Login attempt:', { email, baseURL: api.defaults.baseURL });
     const response = await api.post('/api/auth/login', { email, password });
     return response.data;
   },
