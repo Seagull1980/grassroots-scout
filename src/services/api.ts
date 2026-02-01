@@ -71,6 +71,16 @@ const getCsrfToken = async (): Promise<string> => {
 
 // Add auth token and CSRF token to requests for both instances
 api.interceptors.request.use(async (config) => {
+  // Log registration requests for debugging
+  if (config.url?.includes('/auth/register')) {
+    console.log('[API Request] Register endpoint called', {
+      url: config.url,
+      method: config.method,
+      data: config.data,
+      headers: config.headers,
+    });
+  }
+
   const token = storage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -110,6 +120,16 @@ rosterApi.interceptors.request.use(async (config) => {
 
 // Handle auth errors for both instances
 const handleAuthError = (error: any) => {
+  // Log all errors to console for debugging
+  console.error('[API Error Interceptor]', {
+    url: error.config?.url,
+    method: error.config?.method,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    message: error.message,
+  });
+
   if (error.response?.status === 401) {
     // Only redirect if we're not already on the login/register pages
     // and we're not in the middle of a login/register request
