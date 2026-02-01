@@ -115,6 +115,14 @@ const emailTransporter = nodemailer.createTransport({
   }
 });
 
+// Check email configuration on startup
+if (process.env.EMAIL_USER === 'your-email@gmail.com' || !process.env.EMAIL_USER) {
+  console.warn('⚠️  WARNING: Email credentials not configured! Password reset emails will not send.');
+  console.warn('⚠️  Set EMAIL_USER and EMAIL_PASS environment variables to enable email sending.');
+} else {
+  console.log('✅ Email service configured for:', process.env.EMAIL_USER);
+}
+
 // Helper function to calculate age from date of birth
 const calculateAge = (dateOfBirth) => {
   const today = new Date();
@@ -166,9 +174,11 @@ const sendVerificationEmail = async (email, firstName, verificationToken) => {
 
   try {
     await emailTransporter.sendMail(mailOptions);
-    console.log(`Verification email sent to ${email}`);
+    console.log(`✅ Verification email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending verification email:', error);
+    console.error('❌ Error sending verification email:', error.message);
+    console.error('Email config - USER:', process.env.EMAIL_USER);
+    console.error('Email config - PASS set:', !!process.env.EMAIL_PASS);
     throw error;
   }
 };
@@ -220,9 +230,11 @@ const sendPasswordResetEmail = async (email, firstName, resetToken) => {
 
   try {
     await emailTransporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to ${email}`);
+    console.log(`✅ Password reset email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error('❌ Error sending password reset email:', error.message);
+    console.error('Email config - USER:', process.env.EMAIL_USER);
+    console.error('Email config - PASS set:', !!process.env.EMAIL_PASS);
     throw error;
   }
 };
