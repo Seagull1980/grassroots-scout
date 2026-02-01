@@ -181,7 +181,7 @@ const RegisterPage: React.FC = () => {
         console.error('Validation errors:', errorMessage);
       } else if (error?.response?.data?.error) {
         errorMessage = error.response.data.error;
-        console.error('API error:', errorMessage);
+        console.error('API error (single):', errorMessage);
       } else if (error?.response?.data) {
         errorMessage = JSON.stringify(error.response.data);
         console.error('Response data:', errorMessage);
@@ -194,7 +194,11 @@ const RegisterPage: React.FC = () => {
       console.error('Full error response:', error?.response);
       console.error('=====================================');
       
+      // ALWAYS set the error message
       setError(errorMessage);
+      
+      // Also show as window alert for debugging
+      window.alert('Registration Error: ' + errorMessage);
     }
   };
 
