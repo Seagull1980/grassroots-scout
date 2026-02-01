@@ -10,3 +10,4 @@ backend/database.sqlite
 backend/database.sqlite-*
 backend/*.log
 .vercel
+.env*.local

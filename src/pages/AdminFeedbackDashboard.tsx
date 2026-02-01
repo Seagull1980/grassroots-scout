@@ -120,7 +120,7 @@ const AdminFeedbackDashboard: React.FC = () => {
       if (priorityFilter) params.priority = priorityFilter;
       if (categoryFilter) params.category = categoryFilter;
 
-      const response = await axios.get(`${ROSTER_API_URL}/admin/feedback`, {
+      const response = await axios.get(`${ROSTER_API_URL}/api/admin/feedback`, {
         headers: { Authorization: `Bearer ${token}` },
         params,
       });
@@ -164,7 +164,7 @@ const AdminFeedbackDashboard: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `${ROSTER_API_URL}/admin/feedback/${selectedFeedback.id}`,
+        `${ROSTER_API_URL}/api/admin/feedback/${selectedFeedback.id}`,
         updates,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -205,7 +205,7 @@ const AdminFeedbackDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${ROSTER_API_URL}/admin/feedback/${feedbackId}`, {
+      await axios.delete(`${ROSTER_API_URL}/api/admin/feedback/${feedbackId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

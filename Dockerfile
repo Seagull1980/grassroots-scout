@@ -1,23 +1,20 @@
-# Use Node.js 20 as the base image
+# Backend deployment Dockerfile for Railway
 FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy backend package files
+COPY backend/package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy the rest of the application
-COPY . .
+# Copy backend source
+COPY backend/ .
 
-# Build the frontend
-RUN npm run build
+# Expose port (Railway will set PORT environment variable)
+EXPOSE 3000
 
-# Expose the port the app runs on
-EXPOSE 3001
-
-# Start the application
+# Start the backend server (updated)
 CMD ["npm", "start"]

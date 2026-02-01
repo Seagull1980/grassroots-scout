@@ -32,7 +32,6 @@ vercel env add VITE_ROSTER_API_URL
 vercel env add VITE_GOOGLE_MAPS_API_KEY
 vercel env add VITE_GOOGLE_CLIENT_ID
 vercel env add VITE_OUTLOOK_CLIENT_ID
-vercel env add VITE_WEATHER_API_KEY
 ```
 
 ## Step 4: Deploy

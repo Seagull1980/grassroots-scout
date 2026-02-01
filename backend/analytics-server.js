@@ -63,7 +63,7 @@ app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, 
     
     // Get real user count from database
     const totalUsersResult = await db.runQuery('SELECT COUNT(*) as count FROM users');
-    const totalTeamsResult = await db.runQuery('SELECT COUNT(DISTINCT teamName) as count FROM team_vacancies');
+    const totalTeamsResult = await db.runQuery('SELECT COUNT(DISTINCT postedBy) as count FROM team_vacancies');
     const totalPlayersResult = await db.runQuery('SELECT COUNT(*) as count FROM player_availability');
     
     const overview = {

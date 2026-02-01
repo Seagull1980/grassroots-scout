@@ -22,6 +22,7 @@ interface QuickMatchCompletionProps {
   childAvailabilityId?: string;
   prefilledData?: Partial<MatchCompletionFormData>;
   onSuccess?: () => void;
+  hideFab?: boolean;
 }
 
 const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
@@ -29,7 +30,8 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
   availabilityId,
   childAvailabilityId,
   prefilledData,
-  onSuccess
+  onSuccess,
+  hideFab = false
 }) => {
   const { user } = useAuth();
   
@@ -122,21 +124,23 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
 
   return (
     <>
-      <Tooltip title="Report a successful match">
-        <Fab
-          color="success"
-          aria-label="report match"
-          onClick={() => setOpen(true)}
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            zIndex: 1000
-          }}
-        >
-          <CheckCircleIcon />
-        </Fab>
-      </Tooltip>
+      {!open && !hideFab && (
+        <Tooltip title="Report a successful match">
+          <Fab
+            color="success"
+            aria-label="report match"
+            onClick={() => setOpen(true)}
+            sx={{
+              position: 'fixed',
+              bottom: 16,
+              right: 16,
+              zIndex: 1000
+            }}
+          >
+            <CheckCircleIcon />
+          </Fab>
+        </Tooltip>
+      )}
 
       {success && (
         <Alert 

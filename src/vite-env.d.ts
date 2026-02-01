@@ -1,4 +1,4 @@
-﻿/// <reference types="vite/client" />
+/// <reference types="vite/client" />
 /// <reference types="node" />
 /// <reference types="@types/google.maps" />
 /// <reference types="@types/react-dom" />
@@ -8,7 +8,6 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   readonly VITE_WS_URL?: string;
   readonly VITE_ROSTER_API_URL?: string;
-  readonly VITE_WEATHER_API_KEY?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_OUTLOOK_CLIENT_ID?: string;
   readonly DEV?: boolean;

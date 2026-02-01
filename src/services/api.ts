@@ -7,7 +7,8 @@ import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory } from '../types';
 const getAPIUrl = () => {
   // Use environment variable if set, otherwise use relative URL for Vercel proxying
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    // If URL is set, append /api for direct backend connections
+    return import.meta.env.VITE_API_URL + '/api';
   }
   // Return empty string for relative URLs (Vercel proxying)
   return '';
@@ -16,7 +17,8 @@ const getAPIUrl = () => {
 
 const getRosterAPIUrl = () => {
   if (import.meta.env.VITE_ROSTER_API_URL) {
-    return import.meta.env.VITE_ROSTER_API_URL;
+    // If URL is set, append /api for direct backend connections
+    return import.meta.env.VITE_ROSTER_API_URL + '/api';
   }
   // Return empty string for relative URLs (Vercel proxying)
   return '';

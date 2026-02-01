@@ -39,7 +39,6 @@ DATABASE_URL=<your-postgresql-connection-string>
 VITE_GOOGLE_MAPS_API_KEY=<your-google-maps-api-key>
 VITE_GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
 VITE_OUTLOOK_CLIENT_ID=<your-outlook-client-id>
-VITE_WEATHER_API_KEY=<your-weather-api-key>
 ```
 
 #### Email Configuration

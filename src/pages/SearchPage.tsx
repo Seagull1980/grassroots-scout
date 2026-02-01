@@ -1421,7 +1421,9 @@ const SearchPage: React.FC = () => {
       />
 
       {/* Quick Match Completion Floating Button */}
-      <QuickMatchCompletion />
+      <QuickMatchCompletion 
+        hideFab={contactDialogOpen || quickAddTrialOpen || leagueRequestOpen || savedSearchesOpen}
+      />
     </Container>
   );
 };

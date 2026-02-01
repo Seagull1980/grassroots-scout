@@ -22,24 +22,15 @@ import {
   InputLabel,
   Select,
   SelectChangeEvent,
-  FormControlLabel,
-  Switch,
   AlertTitle,
 } from '@mui/material';
 import { CalendarEvent, calendarAPI } from '../services/api';
 import {
   CalendarIntegration,
   ConflictDetection,
-  WeatherInfo,
 } from '../types/calendar';
-import { calendarIntegrationService } from '../services/calendarIntegration';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 // import EnhancedEventDialog from './EnhancedEventDialog'; // Temporarily disabled
-
-// Extended CalendarEvent with weather data
-interface ExtendedCalendarEvent extends CalendarEvent {
-  weather?: WeatherInfo;
-}
 
 import {
   ChevronLeft,
@@ -53,11 +44,6 @@ import {
   CalendarToday,
   Google,
   Microsoft,
-  WbSunny,
-  Cloud,
-  Grain,
-  Thunderstorm,
-  AcUnit,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -82,7 +68,7 @@ const mockCalendarAPI = {
 const Calendar = () => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [events, setEvents] = useState<ExtendedCalendarEvent[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [conflicts, setConflicts] = useState<ConflictDetection[]>([]);
   
   // View settings
@@ -95,7 +81,6 @@ const Calendar = () => {
   
   // Calendar Integration states
   const [integrations] = useState<CalendarIntegration[]>([]);
-  const [showWeather, setShowWeather] = useState<boolean>(false);
   // const [showEnhancedEventDialog, setShowEnhancedEventDialog] = useState<boolean>(false);
   const [showConflictsDialog, setShowConflictsDialog] = useState<boolean>(false);
   
@@ -161,48 +146,16 @@ const Calendar = () => {
       
       const response = await mockCalendarAPI.getEvents(startDate, endDate);
       
-      // Load weather data for each event
-      const eventsWithWeather = await Promise.all(
-        response.events.map(async (event: CalendarEvent) => {
-          if (event.location && event.eventType === 'training') {
-            try {
-              const weather = await calendarIntegrationService.getWeatherForEvent(event.location, event.date);
-              return { ...event, weather };
-            } catch (error) {
-              console.error('Failed to load weather for event:', event.id, error);
-              return event;
-            }
-          }
-          return event;
-        })
-      );
-      
       // Detect conflicts - for now, just initialize empty array
       setConflicts([]);
       
-      setEvents(eventsWithWeather);
+      setEvents(response.events);
     } catch (error) {
       console.error('Error loading events:', error);
       setError('Failed to load calendar events');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getWeatherIcon = (condition: string) => {
-    const lowerCondition = condition.toLowerCase();
-    if (lowerCondition.includes('sun') || lowerCondition.includes('clear')) {
-      return <WbSunny sx={{ fontSize: 14 }} />;
-    } else if (lowerCondition.includes('rain') || lowerCondition.includes('drizzle')) {
-      return <Grain sx={{ fontSize: 14 }} />;
-    } else if (lowerCondition.includes('storm') || lowerCondition.includes('thunder')) {
-      return <Thunderstorm sx={{ fontSize: 14 }} />;
-    } else if (lowerCondition.includes('snow') || lowerCondition.includes('ice')) {
-      return <AcUnit sx={{ fontSize: 14 }} />;
-    } else if (lowerCondition.includes('cloud')) {
-      return <Cloud sx={{ fontSize: 14 }} />;
-    }
-    return <Cloud sx={{ fontSize: 14 }} />;
   };
 
   const handleDateClick = (date: Date) => {
@@ -368,7 +321,6 @@ const Calendar = () => {
                     <Box mt={1}>
                       {dayEvents.slice(0, 3).map((event, eventIndex) => {
                         const typeConfig = getEventTypeConfig(event.eventType);
-                        const eventWithWeather = event as ExtendedCalendarEvent;
                         return (
                           <Box key={eventIndex} sx={{ mb: 0.5 }}>
                             <Chip
@@ -387,23 +339,6 @@ const Calendar = () => {
                                 },
                               }}
                             />
-                            {showWeather && eventWithWeather.weather && (
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 0.5,
-                                  fontSize: '0.65rem',
-                                  color: 'text.secondary',
-                                  mt: 0.3,
-                                }}
-                              >
-                                {getWeatherIcon(eventWithWeather.weather.forecast.condition)}
-                                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>
-                                  {Math.round(eventWithWeather.weather.forecast.temperature)}°C
-                                </Typography>
-                              </Box>
-                            )}
                           </Box>
                         );
                       })}
@@ -684,18 +619,6 @@ const Calendar = () => {
               </Select>
             </FormControl>
 
-            {/* Weather Toggle */}
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={showWeather}
-                  onChange={(e) => setShowWeather(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="Weather"
-            />
-
             {/* Integration Settings */}
             <IconButton 
               onClick={() => setShowIntegrationSettings(true)}
@@ -747,8 +670,8 @@ const Calendar = () => {
 
       {renderMonthView()}
 
-      {/* Floating Action Button for Coaches */}
-      {user?.role === 'Coach' && (
+      {/* Floating Action Button for Coaches - Hidden when dialogs are open */}
+      {user?.role === 'Coach' && !showEventDialog && !showTrialDialog && !showIntegrationSettings && (
         <Fab
           color="primary"
           sx={{ position: 'fixed', bottom: 16, right: 16 }}

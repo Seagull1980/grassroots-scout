@@ -779,6 +779,45 @@ class Database {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (flagged_by_user_id) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS analytics_events (
+        id SERIAL PRIMARY KEY,
+        event VARCHAR(100) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        label VARCHAR(255),
+        value INTEGER,
+        user_id INTEGER,
+        session_id VARCHAR(100) NOT NULL,
+        timestamp BIGINT NOT NULL,
+        metadata TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS user_sessions (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(100) UNIQUE NOT NULL,
+        user_id INTEGER,
+        start_time BIGINT NOT NULL,
+        end_time BIGINT,
+        duration INTEGER,
+        page_views INTEGER DEFAULT 0,
+        events_count INTEGER DEFAULT 0,
+        device_type VARCHAR(50),
+        browser VARCHAR(50),
+        operating_system VARCHAR(50),
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        referrer VARCHAR(500),
+        landing_page VARCHAR(500),
+        exit_page VARCHAR(500),
+        bounced BOOLEAN DEFAULT FALSE,
+        converted BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
       )`
     ];
 

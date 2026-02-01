@@ -15,7 +15,6 @@ coverage
 *.swo
 *~
 .DS_Store
-dist/
 build/
 .cache/
 *.log

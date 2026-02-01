@@ -48,7 +48,6 @@ JWT_SECRET=<generate-a-secure-random-string>
 VITE_GOOGLE_MAPS_API_KEY=<your-google-maps-api-key>
 VITE_GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
 VITE_OUTLOOK_CLIENT_ID=<your-outlook-client-id>
-VITE_WEATHER_API_KEY=<your-weather-api-key>
 ```
 
 ### Email Configuration (for notifications)
@@ -114,7 +113,6 @@ DATABASE_URL=<postgresql-connection-string>
 | `VITE_GOOGLE_MAPS_API_KEY` | Yes | Google Maps API key |
 | `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `VITE_OUTLOOK_CLIENT_ID` | No | Outlook OAuth client ID |
-| `VITE_WEATHER_API_KEY` | No | Weather API key |
 | `EMAIL_USER` | No | Email address for notifications |
 | `EMAIL_PASS` | No | Email app password |
 | `DATABASE_URL` | No | PostgreSQL connection string |

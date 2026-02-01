@@ -15,7 +15,23 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-jwt-secret';
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173', 
+    'http://localhost:5174', 
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://localhost:3000',
+    'http://192.168.0.44:5173', // Your network IP
+    'http://192.168.0.44:5174', // Your network IP alternate port
+    process.env.FRONTEND_URL, // Environment variable for production deployment
+    'https://grassroots-scout-frontend.vercel.app', // Explicit Vercel URL
+    true // Allow all origins for local development
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Session-Id']
+}));
 app.use(express.json());
 
 // Analytics middleware to track page views
@@ -1070,7 +1086,7 @@ app.get('/api/public/child-player-availability', async (req, res) => {
 app.get('/api/public/site-stats', async (req, res) => {
   try {
     // Get total active teams (from team_vacancies table)
-    const activeTeams = await db.query('SELECT COUNT(DISTINCT teamName) as count FROM team_vacancies WHERE status = "active"');
+    const activeTeams = await db.query('SELECT COUNT(DISTINCT postedBy) as count FROM team_vacancies WHERE status = "active"');
     
     // Get total registered players (from users table, excluding admins)
     const registeredPlayers = await db.query('SELECT COUNT(*) as count FROM users WHERE role != "Admin"');

@@ -60,35 +60,6 @@ export interface ConflictDetection {
   }[];
 }
 
-export interface WeatherInfo {
-  location: {
-    lat: number;
-    lng: number;
-    name: string;
-  };
-  forecast: {
-    datetime: string;
-    temperature: number;
-    condition: string;
-    humidity: number;
-    windSpeed: number;
-    precipitation: number;
-    uvIndex: number;
-    visibility: number;
-  };
-  alerts: {
-    type: 'rain' | 'wind' | 'temperature' | 'severe';
-    severity: 'low' | 'medium' | 'high';
-    message: string;
-    impact: string;
-  }[];
-  recommendation: {
-    suitable: boolean;
-    message: string;
-    alternatives?: string[];
-  };
-}
-
 export interface AutoSchedulingPreferences {
   userId: string;
   preferredTimes: {
@@ -113,7 +84,6 @@ export interface CalendarView {
     eventTypes: ('training' | 'match' | 'trial' | 'meeting')[];
     teams: string[];
     locations: string[];
-    showWeather: boolean;
     showConflicts: boolean;
   };
 }

@@ -277,7 +277,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Analytics tracking endpoint (allows anonymous tracking)
-app.post('/api/analytics/track', (req, res) => {
+app.post('/api/analytics/track', async (req, res) => {
   try {
     // Check for authentication token (optional for anonymous users)
     const authHeader = req.headers['authorization'];
@@ -301,14 +301,70 @@ app.post('/api/analytics/track', (req, res) => {
       return res.status(400).json({ error: 'Events must be an array' });
     }
 
-    // Log analytics events (in production, you'd store these in a database)
+    // Store analytics events in database
     const authStatus = userId ? 'authenticated' : 'anonymous';
     console.log(`📊 Analytics: ${events.length} events from ${authStatus} user (session: ${sessionId})`);
-    
-    // For now, just acknowledge the events - in production you'd store them
-    events.forEach(event => {
-      console.log(`  - ${event.type}: ${event.page || event.action || 'unknown'}`);
-    });
+
+    // Insert events into database
+    for (const event of events) {
+      try {
+        console.log('Inserting event:', event);
+        await db.query(
+          `INSERT INTO analytics_events (event, category, action, label, value, user_id, session_id, timestamp, metadata)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            event.event,
+            event.category,
+            event.action,
+            event.label,
+            event.value,
+            userId,
+            sessionId,
+            event.timestamp,
+            JSON.stringify(event.metadata || {})
+          ]
+        );
+        console.log('Event inserted successfully');
+      } catch (insertError) {
+        console.error('Error inserting analytics event:', insertError);
+        // Continue processing other events even if one fails
+      }
+    }
+
+    // Update or create user session
+    try {
+      const existingSession = await db.query(
+        'SELECT id FROM user_sessions WHERE session_id = ?',
+        [sessionId]
+      );
+
+      if (existingSession.rows.length === 0) {
+        // Create new session
+        await db.query(
+          `INSERT INTO user_sessions (session_id, user_id, start_time, page_views, events_count, user_agent, referrer, landing_page)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            sessionId,
+            userId,
+            Date.now(),
+            0, // Will be updated by page view events
+            events.length,
+            req.get('User-Agent'),
+            req.get('Referer'),
+            req.originalUrl
+          ]
+        );
+      } else {
+        // Update existing session
+        await db.query(
+          'UPDATE user_sessions SET events_count = events_count + ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?',
+          [events.length, sessionId]
+        );
+      }
+    } catch (sessionError) {
+      console.error('Error updating user session:', sessionError);
+      // Don't fail the request for session errors
+    }
 
     res.json({ success: true, eventsProcessed: events.length });
   } catch (error) {
@@ -3464,6 +3520,17 @@ if (process.env.NODE_ENV !== 'production') {
     });
   });
 }
+
+// Global error handler
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
 // Export the app for use in other servers (like railway-server.js)
 module.exports = app;

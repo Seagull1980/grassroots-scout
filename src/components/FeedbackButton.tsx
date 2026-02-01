@@ -28,21 +28,24 @@ const FeedbackButton: React.FC = () => {
 
   return (
     <>
-      <Tooltip title="Send Feedback" placement="left">
-        <Fab
-          color="secondary"
-          aria-label="feedback"
-          onClick={handleClick}
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            left: 16,
-            zIndex: 1000,
-          }}
-        >
-          <Feedback />
-        </Fab>
-      </Tooltip>
+      {/* Hide FAB when dialog is open to prevent accessibility issues */}
+      {!dialogOpen && (
+        <Tooltip title="Send Feedback" placement="left">
+          <Fab
+            color="secondary"
+            aria-label="feedback"
+            onClick={handleClick}
+            sx={{
+              position: 'fixed',
+              bottom: 16,
+              left: 16,
+              zIndex: 1000,
+            }}
+          >
+            <Feedback />
+          </Fab>
+        </Tooltip>
+      )}
 
       <Menu
         anchorEl={anchorEl}

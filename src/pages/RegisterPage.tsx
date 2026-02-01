@@ -162,9 +162,21 @@ const RegisterPage: React.FC = () => {
       console.log('Registration error caught:', error);
       console.log('Error response:', error.response);
       console.log('Error data:', error.response?.data);
+      
+      // Handle age restriction errors
       if (error.response?.data?.ageRestriction) {
         setError(error.response.data.error);
-      } else {
+      } 
+      // Handle validation errors (array format from express-validator)
+      else if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        const validationErrors = error.response.data.errors
+          .map((err: any) => err.msg)
+          .join('. ');
+        console.log('Setting validation error message:', validationErrors);
+        setError(validationErrors);
+      } 
+      // Handle single error message
+      else {
         const errorMessage = error.response?.data?.error || 'Registration failed. Please try again.';
         console.log('Setting error message:', errorMessage);
         setError(errorMessage);
