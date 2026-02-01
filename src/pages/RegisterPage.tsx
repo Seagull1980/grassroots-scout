@@ -58,7 +58,8 @@ const RegisterPage: React.FC = () => {
       ...formData,
       [name]: value,
     });
-    setError('');
+    // Don't clear error on every change - let user see what went wrong
+    // setError('');
     setAgeWarning('');
 
     // Check age when date of birth changes and role is Player
@@ -76,7 +77,8 @@ const RegisterPage: React.FC = () => {
       ...formData,
       role: newRole,
     });
-    setError('');
+    // Don't clear error on every change - let user see what went wrong
+    // setError('');
     setAgeWarning('');
 
     // Check age when role changes to Player and date of birth is already set
@@ -196,9 +198,6 @@ const RegisterPage: React.FC = () => {
       
       // ALWAYS set the error message
       setError(errorMessage);
-      
-      // Also show as window alert for debugging
-      window.alert('Registration Error: ' + errorMessage);
     }
   };
 
