@@ -153,33 +153,57 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      console.log('About to call register');
+      console.log('About to call register with data:', {
+        email: registrationData.email,
+        firstName: registrationData.firstName,
+        lastName: registrationData.lastName,
+        role: registrationData.role,
+        hasPassword: !!registrationData.password,
+        dateOfBirth: registrationData.dateOfBirth
+      });
       await register(registrationData);
       console.log('Register succeeded, navigating to dashboard');
       // Navigate directly to dashboard (email verification disabled)
       navigate('/dashboard');
     } catch (error: any) {
-      console.log('Registration error caught:', error);
-      console.log('Error response:', error.response);
-      console.log('Error data:', error.response?.data);
+      console.error('===== REGISTRATION ERROR DEBUG =====');
+      console.error('Error object:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      console.error('Error message:', error?.message);
+      console.error('Error response:', error?.response);
+      console.error('Error response status:', error?.response?.status);
+      console.error('Error response data:', error?.response?.data);
+      console.error('Error config:', error?.config);
+      console.error('Error config URL:', error?.config?.url);
+      console.error('=====================================');
       
       // Handle age restriction errors
-      if (error.response?.data?.ageRestriction) {
+      if (error?.response?.data?.ageRestriction) {
         setError(error.response.data.error);
       } 
       // Handle validation errors (array format from express-validator)
-      else if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+      else if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
         const validationErrors = error.response.data.errors
-          .map((err: any) => err.msg)
+          .map((err: any) => err.msg || err.message)
           .join('. ');
         console.log('Setting validation error message:', validationErrors);
         setError(validationErrors);
       } 
       // Handle single error message
+      else if (error?.response?.data?.error) {
+        console.log('Setting error message:', error.response.data.error);
+        setError(error.response.data.error);
+      }
+      // Handle network errors or missing response
+      else if (error?.message) {
+        console.log('Setting error from message:', error.message);
+        setError(error.message);
+      }
+      // Fallback error message
       else {
-        const errorMessage = error.response?.data?.error || 'Registration failed. Please try again.';
-        console.log('Setting error message:', errorMessage);
-        setError(errorMessage);
+        console.log('Setting fallback error message');
+        setError('Registration failed. Please try again.');
       }
     }
   };

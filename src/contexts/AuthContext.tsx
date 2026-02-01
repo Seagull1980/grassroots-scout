@@ -174,7 +174,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         registerData.dateOfBirth = userData.dateOfBirth;
       }
       
+      console.log('[AuthContext] Sending registration data:', registerData);
       const response = await authAPI.register(registerData);
+      console.log('[AuthContext] Registration successful:', response);
       
       // Registration successful - log the user in directly (email verification disabled)
       if (response.user && response.token) {
@@ -186,7 +188,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       return true;
     } catch (error: unknown) {
-      console.error('Registration error:', error);
+      console.error('[AuthContext] Registration error:', error);
+      console.error('[AuthContext] Error object:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        console.error('[AuthContext] Response status:', (error as any).response?.status);
+        console.error('[AuthContext] Response data:', (error as any).response?.data);
+      }
       
       // Handle age restriction errors
       if (isApiError(error) && error.response?.data?.ageRestriction) {
@@ -195,7 +202,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Throw other API errors so the component can display the specific message
-      console.log('AuthContext throwing error:', error);
+      console.log('[AuthContext] Throwing error for component to handle:', error);
       throw error;
     } finally {
       setIsLoading(false);
