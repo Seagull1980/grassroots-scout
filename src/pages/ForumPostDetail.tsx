@@ -30,7 +30,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost, ForumReply } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const ForumPostDetail: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
