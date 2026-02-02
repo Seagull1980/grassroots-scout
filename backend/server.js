@@ -346,31 +346,27 @@ app.post('/api/analytics/track', async (req, res) => {
     // Update or create user session
     try {
       const existingSession = await db.query(
-        'SELECT id FROM user_sessions WHERE session_id = ?',
+        'SELECT id FROM user_sessions WHERE sessionid = ?',
         [sessionId]
       );
 
       if (existingSession.rows.length === 0) {
         // Create new session
         await db.query(
-          `INSERT INTO user_sessions (session_id, user_id, start_time, page_views, events_count, user_agent, referrer, landing_page)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO user_sessions (sessionid, userid, ipaddress, useragent, lastactivity)
+           VALUES (?, ?, ?, ?, datetime('now'))`,
           [
             sessionId,
             userId,
-            Date.now(),
-            0, // Will be updated by page view events
-            events.length,
-            req.get('User-Agent'),
-            req.get('Referer'),
-            req.originalUrl
+            req.ip || req.connection.remoteAddress,
+            req.get('User-Agent')
           ]
         );
       } else {
         // Update existing session
         await db.query(
-          'UPDATE user_sessions SET events_count = events_count + ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?',
-          [events.length, sessionId]
+          'UPDATE user_sessions SET lastactivity = datetime(\'now\') WHERE sessionid = ?',
+          [sessionId]
         );
       }
     } catch (sessionError) {
