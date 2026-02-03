@@ -69,6 +69,21 @@ class ErrorBoundary extends Component<Props, State> {
         retryCount: this.retryCount
       });
 
+      // Send error details to backend for diagnostics (best-effort)
+      fetch('/api/client-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          errorId: this.state.errorId,
+          message: error.message,
+          stack: error.stack,
+          componentStack: errorInfo.componentStack,
+          userAgent: navigator.userAgent,
+          url: window.location.href,
+          timestamp: new Date().toISOString()
+        })
+      }).catch(() => undefined);
+
       // Could send to external error tracking service here
       // Example: Sentry, LogRocket, etc.
     } catch (reportError) {

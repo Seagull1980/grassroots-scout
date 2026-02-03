@@ -35,6 +35,25 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Client-side error reporting (from ErrorBoundary)
+app.post('/api/client-error', async (req, res) => {
+  try {
+    console.error('🚨 Client Error Report:', {
+      message: req.body?.message,
+      stack: req.body?.stack,
+      componentStack: req.body?.componentStack,
+      errorId: req.body?.errorId,
+      url: req.body?.url,
+      userAgent: req.body?.userAgent,
+      timestamp: req.body?.timestamp
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to log client error:', error);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Security headers with CSP
 app.use(helmet({
   contentSecurityPolicy: {
