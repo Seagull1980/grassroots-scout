@@ -2469,15 +2469,15 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
 
     res.json({
       overview: {
-        totalUsers: totalUsers.rows[0].count,
-        totalTeams: totalTeams.rows[0].count,
-        totalPlayers: totalPlayers.rows[0].count,
-        totalMatches: totalMatches.rows[0].count,
-        todayUsers: todayUsers.rows[0].count,
-        todayTeams: todayTeams.rows[0].count,
-        todayPlayers: todayPlayers.rows[0].count,
-        activeSessions: activeSessions.rows[0].count,
-        todayPageViews: todayPageViews.rows[0].count,
+        totalUsers: totalUsers.rows[0]?.count || 0,
+        totalTeams: totalTeams.rows[0]?.count || 0,
+        totalPlayers: totalPlayers.rows[0]?.count || 0,
+        totalMatches: totalMatches.rows[0]?.count || 0,
+        todayUsers: todayUsers.rows[0]?.count || 0,
+        todayTeams: todayTeams.rows[0]?.count || 0,
+        todayPlayers: todayPlayers.rows[0]?.count || 0,
+        activeSessions: activeSessions.rows[0]?.count || 0,
+        todayPageViews: todayPageViews.rows[0]?.count || 0,
         todayUniqueVisitors: todayUniqueVisitors.rows[0].count
       },
       roleBreakdown: roleBreakdown.rows,
@@ -2485,7 +2485,9 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Get analytics overview error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
