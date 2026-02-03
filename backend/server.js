@@ -1241,13 +1241,13 @@ app.get('/api/public/child-player-availability', async (req, res) => {
 app.get('/api/public/site-stats', async (req, res) => {
   try {
     // Get total active teams (from team_vacancies table - count distinct users who posted vacancies)
-    const activeTeams = await db.query("SELECT COUNT(DISTINCT \"postedBy\") as count FROM team_vacancies WHERE status = 'active'");
+    const activeTeams = await db.query("SELECT COUNT(DISTINCT postedby) as count FROM team_vacancies WHERE status = 'active'");
     
     // Get total registered players (from users table, excluding admins)
     const registeredPlayers = await db.query("SELECT COUNT(*) as count FROM users WHERE role != 'Admin'");
     
     // Get successful matches (confirmed match completions)
-    const successfulMatches = await db.query("SELECT COUNT(*) as count FROM match_completions WHERE \"completionStatus\" = 'confirmed'");
+    const successfulMatches = await db.query("SELECT COUNT(*) as count FROM match_completions WHERE completionstatus = 'confirmed'");
 
     res.json({
       activeTeams: activeTeams.rows[0].count,
