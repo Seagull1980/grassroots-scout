@@ -239,6 +239,57 @@ const sendPasswordResetEmail = async (email, firstName, resetToken) => {
   }
 };
 
+// Emergency admin creation endpoint (remove after use)
+app.post('/api/admin/create-cgill', async (req, res) => {
+  try {
+    const email = 'cgill1980@hotmail.com';
+    const password = 'TempPassword123!';
+    
+    // Check if user exists
+    const existing = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    if (existing.rows && existing.rows.length > 0) {
+      console.log('✅ User exists, updating role to Admin');
+      await db.query('UPDATE users SET role = $1 WHERE email = $2', ['Admin', email]);
+      
+      // Update password if provided
+      const hashedPassword = await bcryptjs.hash(password, 10);
+      await db.query('UPDATE users SET password = $1 WHERE email = $2', [hashedPassword, email]);
+      
+      return res.json({ message: 'Admin updated', email, password });
+    }
+    
+    // Create new admin
+    const hashedPassword = await bcryptjs.hash(password, 10);
+    const result = await db.query(
+      `INSERT INTO users (email, password, firstname, lastname, role, betaaccess, emailverified) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, email, role`,
+      [email, hashedPassword, 'Chris', 'Gill', 'Admin', true, true]
+    );
+    
+    console.log('✅ Admin created:', result.rows[0]);
+    res.json({
+      message: 'Admin created successfully',
+      user: result.rows[0],
+      tempPassword: password
+    });
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all users (for debugging)
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, email, firstname, role FROM users LIMIT 20');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Initialize database tables on startup
 (async () => {
   console.log('🚀 Starting server initialization with table order fix...');
