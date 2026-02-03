@@ -946,7 +946,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     const user = userResult.rows[0];
     
     // Get user profile data (use quoted names for case sensitivity)
-    const profileResult = await db.query('SELECT * FROM user_profiles WHERE "userId" = ?', [userId]);
+    const profileResult = await db.query('SELECT * FROM user_profiles WHERE userid = ?', [userId]);
     const profile = profileResult.rows && profileResult.rows.length > 0 ? profileResult.rows[0] : {};
     
     console.log('Profile data retrieved:', {
@@ -1025,13 +1025,13 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     } = req.body;
 
     // Check if profile exists
-    const existingProfile = await db.query('SELECT * FROM user_profiles WHERE "userId" = ?', [userId]);
+    const existingProfile = await db.query('SELECT * FROM user_profiles WHERE userid = ?', [userId]);
     
     if (!existingProfile.rows || existingProfile.rows.length === 0) {
       // Create new profile with quoted column names
       await db.query(
         `INSERT INTO user_profiles (
-          "userId", phone, "dateOfBirth", location, bio, position, "preferredFoot",
+          userid, phone, "dateOfBirth", location, bio, position, "preferredFoot",
           height, weight, "experienceLevel", availability, "coachingLicense",
           "yearsExperience", specializations, "trainingLocation", "matchLocation",
           "trainingDays", "ageGroupsCoached", "emergencyContact", "emergencyPhone",
@@ -1082,7 +1082,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       }
 
       values.push(userId);
-      const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE "userId" = ?`;
+      const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE userid = ?`;
 
       await db.query(query, values);
     }
