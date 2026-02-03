@@ -86,9 +86,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const connectWebSocket = useCallback(() => {
     if (!user) return;
 
-    // Skip WebSocket connection if in production (not localhost)
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      console.log('🔔 WebSocket disabled for production deployment');
+    // Skip WebSocket connection if in production or Vercel deployment
+    const isProduction = window.location.hostname !== 'localhost' && 
+                        window.location.hostname !== '127.0.0.1' &&
+                        !window.location.hostname.startsWith('192.168');
+    
+    if (isProduction) {
+      console.log('🔔 WebSocket disabled for production deployment:', window.location.hostname);
       setConnectionStatus('disconnected');
       return;
     }
