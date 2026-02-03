@@ -72,6 +72,37 @@ app.post('/api/engagement/track', (req, res) => {
   }
 });
 
+// Bookmarks endpoint (temporary mock until full implementation)
+app.get('/api/bookmarks', (req, res) => {
+  try {
+    console.log('📑 Bookmarks requested');
+    // Return empty bookmarks array for now
+    res.json({ 
+      bookmarks: [],
+      total: 0 
+    });
+  } catch (error) {
+    console.error('Failed to fetch bookmarks:', error);
+    res.status(500).json({ bookmarks: [], total: 0 });
+  }
+});
+
+// Recommendations endpoint (temporary mock until full implementation)
+app.get('/api/recommendations', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 6;
+    console.log('💡 Recommendations requested, limit:', limit);
+    // Return empty recommendations array for now
+    res.json({ 
+      recommendations: [],
+      total: 0 
+    });
+  } catch (error) {
+    console.error('Failed to fetch recommendations:', error);
+    res.status(500).json({ recommendations: [], total: 0 });
+  }
+});
+
 // Security headers with CSP
 app.use(helmet({
   contentSecurityPolicy: {
