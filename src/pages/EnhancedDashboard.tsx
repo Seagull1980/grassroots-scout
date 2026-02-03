@@ -85,10 +85,10 @@ const EnhancedDashboard: React.FC = () => {
       setLoading(true);
       
       // Load recent bookmarks
-      const bookmarksResponse = await api.get('/bookmarks?limit=5');
+      const bookmarksResponse = await api.get('/api/bookmarks?limit=5');
 
       // Transform bookmarks to recent activity format
-      const bookmarkActivities = bookmarksResponse.data.bookmarks.map((bookmark: BookmarkData) => ({
+      const bookmarkActivities = (bookmarksResponse.data?.bookmarks || []).map((bookmark: BookmarkData) => ({
         id: bookmark.id,
         type: bookmark.targetType,
         title: bookmark.targetData?.title || 'Bookmarked Item',

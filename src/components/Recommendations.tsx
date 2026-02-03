@@ -64,8 +64,8 @@ const Recommendations: React.FC<RecommendationsProps> = ({
       setLoading(true);
       setError('');
       
-      const response = await api.get(`/recommendations?limit=${limit}`);
-      setRecommendations(response.data.recommendations);
+      const response = await api.get(`/api/recommendations?limit=${limit}`);
+      setRecommendations(response.data.recommendations || []);
     } catch (error: any) {
       setError('Failed to load recommendations');
       console.error('Error loading recommendations:', error);
