@@ -244,13 +244,14 @@ app.post('/api/admin/create-cgill', async (req, res) => {
   try {
     const email = 'cgill1980@hotmail.com';
     const password = 'TempPassword123!';
+    const emailHash = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
     
     // Check if user exists
     const existing = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     
     if (existing.rows && existing.rows.length > 0) {
       console.log('✅ User exists, updating role to Admin');
-      await db.query('UPDATE users SET role = $1 WHERE email = $2', ['Admin', email]);
+      await db.query('UPDATE users SET role = $1, emailhash = $2 WHERE email = $3', ['Admin', emailHash, email]);
       
       // Update password if provided
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -262,10 +263,10 @@ app.post('/api/admin/create-cgill', async (req, res) => {
     // Create new admin
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      `INSERT INTO users (email, password, firstname, lastname, role, betaaccess, isemailverified) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO users (email, emailhash, password, firstname, lastname, role, betaaccess, isemailverified) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, email, role`,
-      [email, hashedPassword, 'Chris', 'Gill', 'Admin', true, true]
+      [email, emailHash, hashedPassword, 'Chris', 'Gill', 'Admin', true, true]
     );
     
     console.log('✅ Admin created:', result.rows[0]);
