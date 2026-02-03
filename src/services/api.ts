@@ -516,7 +516,16 @@ export const profileAPI = {
   },
 
   update: async (profileData: ProfileUpdateData): Promise<{ message: string }> => {
-    const response = await api.put('/api/profile', profileData);
+    // Convert camelCase field names to lowercase for backend compatibility
+    const transformedData: Record<string, any> = {};
+    
+    for (const [key, value] of Object.entries(profileData)) {
+      // Convert camelCase to lowercase
+      const lowerKey = key.toLowerCase();
+      transformedData[lowerKey] = value;
+    }
+    
+    const response = await api.put('/api/profile', transformedData);
     return response.data;
   },
 };
