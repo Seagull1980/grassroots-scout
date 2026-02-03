@@ -54,6 +54,24 @@ app.post('/api/client-error', async (req, res) => {
   }
 });
 
+// Engagement tracking endpoint (safe no-op logger)
+app.post('/api/engagement/track', (req, res) => {
+  try {
+    console.log('📊 Engagement track:', {
+      actionType: req.body?.actionType,
+      targetType: req.body?.targetType,
+      targetId: req.body?.targetId,
+      metadata: req.body?.metadata,
+      userAgent: req.headers['user-agent'],
+      url: req.headers['referer'] || req.body?.metadata?.url
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to track engagement:', error);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Security headers with CSP
 app.use(helmet({
   contentSecurityPolicy: {
