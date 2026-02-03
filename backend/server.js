@@ -951,8 +951,10 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     
     console.log('Profile data retrieved:', {
       userId,
-      profileExists: !!profile.userId,
-      profileKeys: Object.keys(profile)
+      profileExists: !!profile.userid,
+      profileKeys: Object.keys(profile),
+      dateofbirth: profile.dateofbirth,
+      phone: profile.phone
     });
     
     // Return combined profile (map camelCase to lowercase for frontend)
