@@ -870,14 +870,6 @@ app.post('/api/auth/login', [
   }
 });
 
-// Export the app for use in other servers (like railway-server.js)
-module.exports = app;
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
 // Middleware to authenticate JWT tokens
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -893,6 +885,50 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// Change password endpoint (for logged-in users)
+app.put('/api/change-password', [
+  authenticateToken,
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    // Get user from database
+    const userResult = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Verify current password
+    const validPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+
+    console.log(`✅ Password changed successfully for user ID: ${userId}`);
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Children Management Endpoints
 
