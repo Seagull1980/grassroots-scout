@@ -354,7 +354,7 @@ app.post('/api/analytics/track', async (req, res) => {
         // Create new session
         await db.query(
           `INSERT INTO user_sessions (sessionid, userid, ipaddress, useragent, lastactivity)
-           VALUES (?, ?, ?, ?, datetime('now'))`,
+           VALUES (?, ?, ?, ?, NOW())`,
           [
             sessionId,
             userId,
@@ -365,7 +365,7 @@ app.post('/api/analytics/track', async (req, res) => {
       } else {
         // Update existing session
         await db.query(
-          'UPDATE user_sessions SET lastactivity = datetime(\'now\') WHERE sessionid = ?',
+          'UPDATE user_sessions SET lastactivity = NOW() WHERE sessionid = ?',
           [sessionId]
         );
       }
