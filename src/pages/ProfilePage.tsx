@@ -150,6 +150,11 @@ const ProfilePage: React.FC = () => {
       const normalizedDob = profileResponse.dateofbirth
         ? new Date(profileResponse.dateofbirth).toISOString().split('T')[0]
         : '';
+
+      console.log('DOB load:', {
+        raw: profileResponse.dateofbirth,
+        normalized: normalizedDob
+      });
       
       setProfileData({
         firstName: profileResponse.firstname || '',
@@ -236,6 +241,10 @@ const ProfilePage: React.FC = () => {
         })
       );
       
+      console.log('DOB save:', {
+        value: profileData.dateOfBirth,
+        cleanedValue: cleanedProfileData.dateOfBirth
+      });
       console.log('Sending profile data:', cleanedProfileData);
       await profileAPI.update(cleanedProfileData);
       setSuccess(true);

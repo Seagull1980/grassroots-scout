@@ -2209,7 +2209,7 @@ app.get('/api/match-progress', authenticateToken, async (req, res) => {
 app.get('/api/leagues', async (req, res) => {
   try {
     const leaguesResult = await db.query(
-      'SELECT id, name, description, isActive, createdAt FROM leagues WHERE isActive = true ORDER BY name'
+      'SELECT id, name, description, isactive, createdat FROM leagues WHERE isactive = true ORDER BY name'
     );
 
     res.json({
@@ -2217,6 +2217,111 @@ app.get('/api/leagues', async (req, res) => {
     });
   } catch (error) {
     console.error('Get leagues error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin leagues endpoints
+app.get('/api/admin/leagues', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const leaguesResult = await db.query(
+      'SELECT id, name, description, isactive, createdat FROM leagues ORDER BY name'
+    );
+
+    res.json({ leagues: leaguesResult.rows || [] });
+  } catch (error) {
+    console.error('Get admin leagues error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/admin/leagues', authenticateToken, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE name = ?', [name]);
+    if (existingLeague.rows && existingLeague.rows.length > 0) {
+      return res.status(400).json({ error: 'League name already exists' });
+    }
+
+    const leagueResult = await db.query(
+      'INSERT INTO leagues (name, description, createdby) VALUES (?, ?, ?) RETURNING *',
+      [name, description || '', req.user.userId]
+    );
+
+    res.status(201).json({
+      message: 'League created successfully',
+      league: leagueResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Create admin league error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE id = ?', [id]);
+    if (!existingLeague.rows || existingLeague.rows.length === 0) {
+      return res.status(404).json({ error: 'League not found' });
+    }
+
+    if (name) {
+      const nameConflict = await db.query('SELECT id FROM leagues WHERE name = ? AND id != ?', [name, id]);
+      if (nameConflict.rows && nameConflict.rows.length > 0) {
+        return res.status(400).json({ error: 'League name already exists' });
+      }
+    }
+
+    await db.query(
+      'UPDATE leagues SET name = ?, description = ? WHERE id = ?',
+      [name, description || '', id]
+    );
+
+    res.json({ message: 'League updated successfully' });
+  } catch (error) {
+    console.error('Update admin league error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const existingLeague = await db.query('SELECT id FROM leagues WHERE id = ?', [id]);
+    if (!existingLeague.rows || existingLeague.rows.length === 0) {
+      return res.status(404).json({ error: 'League not found' });
+    }
+
+    await db.query('UPDATE leagues SET isactive = false WHERE id = ?', [id]);
+
+    res.json({ message: 'League deleted successfully' });
+  } catch (error) {
+    console.error('Delete admin league error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -2338,16 +2443,18 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
     const totalUsers = await db.query('SELECT COUNT(*) as count FROM users');
     const totalTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
     const totalPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability');
-    const totalMatches = await db.query('SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"');
+    const totalMatches = await db.query("SELECT COUNT(*) as count FROM match_completions WHERE completionstatus = 'confirmed'");
 
     // Get today's stats
-    const todayUsers = await db.query('SELECT COUNT(*) as count FROM users WHERE DATE(createdAt) = ?', [today]);
-    const todayTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE DATE(createdAt) = ?', [today]);
-    const todayPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE DATE(createdAt) = ?', [today]);
+    const todayUsers = await db.query('SELECT COUNT(*) as count FROM users WHERE DATE(createdat) = ?', [today]);
+    const todayTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE DATE(createdat) = ?', [today]);
+    const todayPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE DATE(createdat) = ?', [today]);
 
     // Get active sessions (last 24 hours)
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const activeSessions = await db.query(
-      'SELECT COUNT(DISTINCT sessionId) as count FROM user_sessions WHERE lastActivity > datetime("now", "-24 hours")'
+      'SELECT COUNT(DISTINCT sessionid) as count FROM user_sessions WHERE lastactivity > ?',
+      [last24Hours]
     );
 
     // Get page views today
@@ -2357,7 +2464,7 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
 
     // Get unique visitors today
     const todayUniqueVisitors = await db.query(
-      'SELECT COUNT(DISTINCT sessionId) as count FROM page_views WHERE DATE(timestamp) = ?', [today]
+      'SELECT COUNT(DISTINCT sessionid) as count FROM page_views WHERE DATE(timestamp) = ?', [today]
     );
 
     // Get user types breakdown
@@ -2412,10 +2519,10 @@ app.get('/api/analytics/daily-stats', authenticateToken, async (req, res) => {
 
     // Get daily user registrations
     const dailyUsers = await db.query(
-      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+      `SELECT DATE(createdat) as date, COUNT(*) as count 
        FROM users 
-       WHERE DATE(createdAt) >= ? 
-       GROUP BY DATE(createdAt) 
+       WHERE DATE(createdat) >= ? 
+       GROUP BY DATE(createdat) 
        ORDER BY date`,
       [startDate]
     );
@@ -2434,30 +2541,30 @@ app.get('/api/analytics/daily-stats', authenticateToken, async (req, res) => {
 
     // Get daily team creations
     const dailyTeams = await db.query(
-      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+      `SELECT DATE(createdat) as date, COUNT(*) as count 
        FROM team_vacancies 
-       WHERE DATE(createdAt) >= ? 
-       GROUP BY DATE(createdAt) 
+       WHERE DATE(createdat) >= ? 
+       GROUP BY DATE(createdat) 
        ORDER BY date`,
       [startDate]
     );
 
     // Get daily player availability posts
     const dailyPlayers = await db.query(
-      `SELECT DATE(createdAt) as date, COUNT(*) as count 
+      `SELECT DATE(createdat) as date, COUNT(*) as count 
        FROM player_availability 
-       WHERE DATE(createdAt) >= ? 
-       GROUP BY DATE(createdAt) 
+       WHERE DATE(createdat) >= ? 
+       GROUP BY DATE(createdat) 
        ORDER BY date`,
       [startDate]
     );
 
     // Get daily match completions
     const dailyMatches = await db.query(
-      `SELECT DATE(completedAt) as date, COUNT(*) as count 
+      `SELECT DATE(completedat) as date, COUNT(*) as count 
        FROM match_completions 
-       WHERE DATE(completedAt) >= ? AND completionStatus = 'confirmed'
-       GROUP BY DATE(completedAt) 
+       WHERE DATE(completedat) >= ? AND completionstatus = 'confirmed'
+       GROUP BY DATE(completedat) 
        ORDER BY date`,
       [startDate]
     );
