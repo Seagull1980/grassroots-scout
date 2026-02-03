@@ -1001,6 +1001,15 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
+    
+    console.log('Profile update request body:', {
+      userId,
+      bodyKeys: Object.keys(req.body),
+      phone: req.body.phone,
+      dateofbirth: req.body.dateofbirth,
+      location: req.body.location
+    });
+    
     const {
       phone,
       dateofbirth,
