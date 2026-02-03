@@ -2205,22 +2205,6 @@ app.get('/api/match-progress', authenticateToken, async (req, res) => {
 
 // Leagues API endpoints
 
-// Get all leagues
-app.get('/api/leagues', async (req, res) => {
-  try {
-    const leaguesResult = await db.query(
-      'SELECT id, name, description, isactive, createdat FROM leagues WHERE isactive = true ORDER BY name'
-    );
-
-    res.json({
-      leagues: leaguesResult.rows || []
-    });
-  } catch (error) {
-    console.error('Get leagues error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Admin leagues endpoints
 app.get('/api/admin/leagues', authenticateToken, async (req, res) => {
   try {
