@@ -965,28 +965,28 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         role: user.role,
         createdat: user.createdat,
         phone: profile.phone,
-        dateofbirth: profile.dateOfBirth,
+        dateofbirth: profile.dateofbirth,
         location: profile.location,
         bio: profile.bio,
         position: profile.position,
-        preferredfoot: profile.preferredFoot,
+        preferredfoot: profile.preferredfoot,
         height: profile.height,
         weight: profile.weight,
-        experiencelevel: profile.experienceLevel,
+        experiencelevel: profile.experiencelevel,
         availability: profile.availability,
-        coachinglicense: profile.coachingLicense,
-        yearsexperience: profile.yearsExperience,
+        coachinglicense: profile.coachinglicense,
+        yearsexperience: profile.yearsexperience,
         specializations: profile.specializations,
-        traininglocation: profile.trainingLocation,
-        matchlocation: profile.matchLocation,
-        trainingdays: profile.trainingDays,
-        agegroupscoached: profile.ageGroupsCoached,
-        emergencycontact: profile.emergencyContact,
-        emergencyphone: profile.emergencyPhone,
-        medicalinfo: profile.medicalInfo,
-        profilepicture: profile.profilePicture,
-        isprofilecomplete: profile.isProfileComplete,
-        lastupdated: profile.lastUpdated
+        traininglocation: profile.traininglocation,
+        matchlocation: profile.matchlocation,
+        trainingdays: profile.trainingdays,
+        agegroupscoached: profile.agegroupscoached,
+        emergencycontact: profile.emergencycontact,
+        emergencyphone: profile.emergencyphone,
+        medicalinfo: profile.medicalinfo,
+        profilepicture: profile.profilepicture,
+        isprofilecomplete: profile.isprofilecomplete,
+        lastupdated: profile.lastupdated
       }
     });
   } catch (error) {
@@ -1028,14 +1028,14 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     const existingProfile = await db.query('SELECT * FROM user_profiles WHERE userid = ?', [userId]);
     
     if (!existingProfile.rows || existingProfile.rows.length === 0) {
-      // Create new profile with quoted column names
+      // Create new profile with lowercase column names
       await db.query(
         `INSERT INTO user_profiles (
-          userid, phone, "dateOfBirth", location, bio, position, "preferredFoot",
-          height, weight, "experienceLevel", availability, "coachingLicense",
-          "yearsExperience", specializations, "trainingLocation", "matchLocation",
-          "trainingDays", "ageGroupsCoached", "emergencyContact", "emergencyPhone",
-          "medicalInfo", "profilePicture", "isProfileComplete", "lastUpdated"
+          userid, phone, dateofbirth, location, bio, position, preferredfoot,
+          height, weight, experiencelevel, availability, coachinglicense,
+          yearsexperience, specializations, traininglocation, matchlocation,
+          trainingdays, agegroupscoached, emergencycontact, emergencyphone,
+          medicalinfo, profilepicture, isprofilecomplete, lastupdated
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           userId, phone, dateofbirth, location, bio, position, preferredfoot,
@@ -1047,35 +1047,35 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
         ]
       );
     } else {
-      // Update existing profile with quoted column names
+      // Update existing profile with lowercase column names
       const updates = [];
       const values = [];
 
       if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
-      if (dateofbirth !== undefined) { updates.push('"dateOfBirth" = ?'); values.push(dateofbirth); }
+      if (dateofbirth !== undefined) { updates.push('dateofbirth = ?'); values.push(dateofbirth); }
       if (location !== undefined) { updates.push('location = ?'); values.push(location); }
       if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
       if (position !== undefined) { updates.push('position = ?'); values.push(position); }
-      if (preferredfoot !== undefined) { updates.push('"preferredFoot" = ?'); values.push(preferredfoot); }
+      if (preferredfoot !== undefined) { updates.push('preferredfoot = ?'); values.push(preferredfoot); }
       if (height !== undefined) { updates.push('height = ?'); values.push(height); }
       if (weight !== undefined) { updates.push('weight = ?'); values.push(weight); }
-      if (experiencelevel !== undefined) { updates.push('"experienceLevel" = ?'); values.push(experiencelevel); }
+      if (experiencelevel !== undefined) { updates.push('experiencelevel = ?'); values.push(experiencelevel); }
       if (availability !== undefined) { updates.push('availability = ?'); values.push(JSON.stringify(availability)); }
-      if (coachinglicense !== undefined) { updates.push('"coachingLicense" = ?'); values.push(coachinglicense); }
-      if (yearsexperience !== undefined) { updates.push('"yearsExperience" = ?'); values.push(yearsexperience); }
+      if (coachinglicense !== undefined) { updates.push('coachinglicense = ?'); values.push(coachinglicense); }
+      if (yearsexperience !== undefined) { updates.push('yearsexperience = ?'); values.push(yearsexperience); }
       if (specializations !== undefined) { updates.push('specializations = ?'); values.push(JSON.stringify(specializations)); }
-      if (traininglocation !== undefined) { updates.push('"trainingLocation" = ?'); values.push(traininglocation); }
-      if (matchlocation !== undefined) { updates.push('"matchLocation" = ?'); values.push(matchlocation); }
-      if (trainingdays !== undefined) { updates.push('"trainingDays" = ?'); values.push(JSON.stringify(trainingdays)); }
-      if (agegroupscoached !== undefined) { updates.push('"ageGroupsCoached" = ?'); values.push(JSON.stringify(agegroupscoached)); }
-      if (emergencycontact !== undefined) { updates.push('"emergencyContact" = ?'); values.push(emergencycontact); }
-      if (emergencyphone !== undefined) { updates.push('"emergencyPhone" = ?'); values.push(emergencyphone); }
-      if (medicalinfo !== undefined) { updates.push('"medicalInfo" = ?'); values.push(medicalinfo); }
-      if (profilepicture !== undefined) { updates.push('"profilePicture" = ?'); values.push(profilepicture); }
-      if (isprofilecomplete !== undefined) { updates.push('"isProfileComplete" = ?'); values.push(isprofilecomplete); }
+      if (traininglocation !== undefined) { updates.push('traininglocation = ?'); values.push(traininglocation); }
+      if (matchlocation !== undefined) { updates.push('matchlocation = ?'); values.push(matchlocation); }
+      if (trainingdays !== undefined) { updates.push('trainingdays = ?'); values.push(JSON.stringify(trainingdays)); }
+      if (agegroupscoached !== undefined) { updates.push('agegroupscoached = ?'); values.push(JSON.stringify(agegroupscoached)); }
+      if (emergencycontact !== undefined) { updates.push('emergencycontact = ?'); values.push(emergencycontact); }
+      if (emergencyphone !== undefined) { updates.push('emergencyphone = ?'); values.push(emergencyphone); }
+      if (medicalinfo !== undefined) { updates.push('medicalinfo = ?'); values.push(medicalinfo); }
+      if (profilepicture !== undefined) { updates.push('profilepicture = ?'); values.push(profilepicture); }
+      if (isprofilecomplete !== undefined) { updates.push('isprofilecomplete = ?'); values.push(isprofilecomplete); }
       
-      // Always update lastUpdated
-      updates.push('"lastUpdated" = NOW()');
+      // Always update lastupdated
+      updates.push('lastupdated = NOW()');
 
       if (updates.length === 1) {
         return res.status(400).json({ error: 'No fields to update' });
