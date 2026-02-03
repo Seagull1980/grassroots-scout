@@ -222,27 +222,26 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
     try {
       // Alerts endpoint not available, using simulated data
       const simulatedAlerts: PerformanceAlert[] = [
-          {
-            id: 'alert_1',
-            type: 'warning',
-            title: 'High Error Rate',
-            message: 'Error rate has increased by 15% in the last hour',
-            timestamp: Date.now() - 600000,
-            isRead: false,
-            actionRequired: true
-          },
-          {
-            id: 'alert_2',
-            type: 'info',
-            title: 'Traffic Spike',
-            message: 'Page views increased by 40% compared to yesterday',
-            timestamp: Date.now() - 1200000,
-            isRead: false,
-            actionRequired: false
-          }
-        ];
-        setAlerts(simulatedAlerts);
-      }
+        {
+          id: 'alert_1',
+          type: 'warning',
+          title: 'High Error Rate',
+          message: 'Error rate has increased by 15% in the last hour',
+          timestamp: Date.now() - 600000,
+          isRead: false,
+          actionRequired: true
+        },
+        {
+          id: 'alert_2',
+          type: 'info',
+          title: 'Traffic Spike',
+          message: 'Page views increased by 40% compared to yesterday',
+          timestamp: Date.now() - 1200000,
+          isRead: false,
+          actionRequired: false
+        }
+      ];
+      setAlerts(simulatedAlerts);
     } catch (error) {
       console.error('Failed to load alerts:', error);
     }
@@ -276,22 +275,6 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
       loadMetrics();
       loadRecentEvents();
     }, 5000); // Poll every 5 seconds
-  };
-
-  const handleRealTimeUpdate = (data: any) => {
-    switch (data.type) {
-      case 'metrics_update':
-        setMetrics(prev => ({ ...prev, ...data.metrics }));
-        break;
-      case 'new_event':
-        setLiveEvents(prev => [data.event, ...prev.slice(0, 49)]);
-        break;
-      case 'alert':
-        setAlerts(prev => [data.alert, ...prev]);
-        break;
-      default:
-        console.log('Unknown real-time update type:', data.type);
-    }
   };
 
   const generateChartData = () => {
