@@ -86,7 +86,7 @@ const Recommendations: React.FC<RecommendationsProps> = ({
 
   const trackInteraction = async (actionType: string, recommendation: Recommendation) => {
     try {
-      await api.post('/engagement/track', {
+      await api.post('/api/engagement/track', {
         actionType,
         targetId: recommendation.id,
         targetType: recommendation.type === 'vacancy' ? 'vacancy' : 'player_availability',
