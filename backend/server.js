@@ -3948,6 +3948,97 @@ app.get('/api/notifications/unread-count', authenticateToken, async (req, res) =
   }
 });
 
+// Real-time analytics endpoints
+app.get('/api/analytics/real-time/metrics', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const range = req.query.range || '1h';
+    const timeAgo = range === '1h' ? '-1 hours' : range === '24h' ? '-24 hours' : '-7 days';
+
+    // Get active users (sessions in last time period)
+    const activeUsers = await db.query(
+      `SELECT COUNT(DISTINCT userid) as count FROM user_sessions 
+       WHERE lastactivity > datetime('now', ?)`,
+      [timeAgo]
+    );
+
+    // Get page views
+    const pageViews = await db.query(
+      `SELECT COUNT(*) as count FROM page_views 
+       WHERE timestamp > datetime('now', ?)`,
+      [timeAgo]
+    );
+
+    // Get new signups
+    const newSignups = await db.query(
+      `SELECT COUNT(*) as count FROM users 
+       WHERE createdat > datetime('now', ?)`,
+      [timeAgo]
+    );
+
+    // Get error rate (estimate from failed requests - would need error logging table in production)
+    const errorRate = 0.5; // Placeholder
+
+    // Get API response time (would need performance tracking in production)
+    const apiResponseTime = 85; // Placeholder
+
+    res.json({
+      activeUsers: activeUsers.rows[0]?.count || 0,
+      pageViews: pageViews.rows[0]?.count || 0,
+      conversionRate: 2.5, // Placeholder
+      avgSessionDuration: 180, // Placeholder
+      bounceRate: 25, // Placeholder
+      errorRate: errorRate,
+      apiResponseTime: apiResponseTime,
+      newSignups: newSignups.rows[0]?.count || 0
+    });
+  } catch (error) {
+    console.error('Get real-time metrics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/analytics/real-time/events', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const limit = req.query.limit || 50;
+
+    // Get recent page views
+    const events = await db.query(
+      `SELECT 
+        id,
+        page,
+        userid,
+        timestamp
+       FROM page_views 
+       ORDER BY timestamp DESC 
+       LIMIT ?`,
+      [parseInt(limit)]
+    );
+
+    const formattedEvents = (events.rows || []).map((event, index) => ({
+      id: `event_${event.id}`,
+      type: 'pageview',
+      user: event.userid ? `User ${event.userid}` : 'Anonymous',
+      action: `Visited ${event.page}`,
+      timestamp: new Date(event.timestamp).getTime()
+    }));
+
+    res.json(formattedEvents);
+  } catch (error) {
+    console.error('Get real-time events error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Graceful shutdown (only in development)
 if (process.env.NODE_ENV !== 'production') {
   process.on('SIGINT', () => {
