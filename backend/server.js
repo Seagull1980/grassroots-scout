@@ -949,6 +949,12 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     const profileResult = await db.query('SELECT * FROM user_profiles WHERE "userId" = ?', [userId]);
     const profile = profileResult.rows && profileResult.rows.length > 0 ? profileResult.rows[0] : {};
     
+    console.log('Profile data retrieved:', {
+      userId,
+      profileExists: !!profile.userId,
+      profileKeys: Object.keys(profile)
+    });
+    
     // Return combined profile (map camelCase to lowercase for frontend)
     res.json({
       profile: {
@@ -959,28 +965,28 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         role: user.role,
         createdat: user.createdat,
         phone: profile.phone,
-        dateofbirth: profile.dateofbirth || profile.dateOfBirth,
+        dateofbirth: profile.dateOfBirth,
         location: profile.location,
         bio: profile.bio,
         position: profile.position,
-        preferredfoot: profile.preferredfoot || profile.preferredFoot,
+        preferredfoot: profile.preferredFoot,
         height: profile.height,
         weight: profile.weight,
-        experiencelevel: profile.experiencelevel || profile.experienceLevel,
+        experiencelevel: profile.experienceLevel,
         availability: profile.availability,
-        coachinglicense: profile.coachinglicense || profile.coachingLicense,
-        yearsexperience: profile.yearsexperience || profile.yearsExperience,
+        coachinglicense: profile.coachingLicense,
+        yearsexperience: profile.yearsExperience,
         specializations: profile.specializations,
-        traininglocation: profile.traininglocation || profile.trainingLocation,
-        matchlocation: profile.matchlocation || profile.matchLocation,
-        trainingdays: profile.trainingdays || profile.trainingDays,
-        agegroupscoached: profile.agegroupscoached || profile.ageGroupsCoached,
-        emergencycontact: profile.emergencycontact || profile.emergencyContact,
-        emergencyphone: profile.emergencyphone || profile.emergencyPhone,
-        medicalinfo: profile.medicalinfo || profile.medicalInfo,
-        profilepicture: profile.profilepicture || profile.profilePicture,
-        isprofilecomplete: profile.isprofilecomplete || profile.isProfileComplete,
-        lastupdated: profile.lastupdated || profile.lastUpdated
+        traininglocation: profile.trainingLocation,
+        matchlocation: profile.matchLocation,
+        trainingdays: profile.trainingDays,
+        agegroupscoached: profile.ageGroupsCoached,
+        emergencycontact: profile.emergencyContact,
+        emergencyphone: profile.emergencyPhone,
+        medicalinfo: profile.medicalInfo,
+        profilepicture: profile.profilePicture,
+        isprofilecomplete: profile.isProfileComplete,
+        lastupdated: profile.lastUpdated
       }
     });
   } catch (error) {
