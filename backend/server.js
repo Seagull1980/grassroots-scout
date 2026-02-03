@@ -262,7 +262,7 @@ app.post('/api/admin/create-cgill', async (req, res) => {
     // Create new admin
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      `INSERT INTO users (email, password, firstname, lastname, role, betaaccess, emailverified) 
+      `INSERT INTO users (email, password, firstname, lastname, role, betaaccess, isemailverified) 
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, email, role`,
       [email, hashedPassword, 'Chris', 'Gill', 'Admin', true, true]
