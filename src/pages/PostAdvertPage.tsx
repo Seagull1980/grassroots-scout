@@ -44,6 +44,7 @@ const PostAdvertPage: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [showValidation, setShowValidation] = useState(false);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
@@ -148,6 +149,7 @@ const PostAdvertPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShowValidation(true);
 
     // Validation
     const isCoach = user?.role === 'Coach';
@@ -231,6 +233,15 @@ const PostAdvertPage: React.FC = () => {
   const descriptionPlaceholder = isCoach 
     ? 'Describe the position, team expectations, training schedule, etc.'
     : 'Describe your playing experience, availability, goals, etc.';
+  const positionValidForForm = isCoach ? !!formData.position : formData.positions.length > 0;
+  const teamValidForForm = isCoach ? !!formData.teamId : true;
+  const leagueValidForForm = isCoach ? !!formData.league : true;
+  const isFormValid = !!formData.title && !!formData.description && leagueValidForForm && !!formData.ageGroup && positionValidForForm && teamValidForForm;
+  const previewPositions = isCoach
+    ? [formData.position].filter(Boolean)
+    : formData.positions.filter(Boolean);
+  const previewTitle = formData.title || (isCoach ? 'Team Vacancy Title' : 'Player Availability Title');
+  const previewDescription = formData.description || 'Your advert description will appear here.';
 
   const ageGroups = [
     'Under 6',
@@ -295,348 +306,425 @@ const PostAdvertPage: React.FC = () => {
         )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                required
-                label="Title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder={titlePlaceholder}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                required
-                multiline
-                rows={4}
-                label="Description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder={descriptionPlaceholder}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <Autocomplete
-                fullWidth
-                options={[...leagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], isPending: false }]}
-                getOptionLabel={(option) => typeof option === 'string' ? option : (option.name || '')}
-                value={leagues.find(l => l.name === formData.league) || null}
-                onChange={(_, newValue) => {
-                  if (typeof newValue === 'object' && newValue?.id === -1) {
-                    setLeagueRequestOpen(true);
-                  } else if (typeof newValue === 'object' && newValue?.name) {
-                    setFormData(prev => ({
-                      ...prev,
-                      league: newValue.name,
-                    }));
-                  } else if (typeof newValue === 'string') {
-                    setFormData(prev => ({
-                      ...prev,
-                      league: newValue,
-                    }));
-                  }
-                }}
-                freeSolo={true}
-                onInputChange={(_, inputValue, reason) => {
-                  if (reason === 'input') {
-                    setFormData(prev => ({
-                      ...prev,
-                      league: inputValue,
-                    }));
-                  }
-                }}
-                loading={loadingLeagues}
-                renderInput={(params) => (
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={7}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
                   <TextField
-                    {...params}
-                    label={isCoach ? "League *" : "Preferred League"}
-                    placeholder="Type to search leagues..."
-                    required={isCoach}
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {loadingLeagues ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
+                    fullWidth
+                    required
+                    label="Title"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    placeholder={titlePlaceholder}
+                    error={showValidation && !formData.title}
+                    helperText={showValidation && !formData.title ? 'Title is required' : undefined}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    required
+                    multiline
+                    rows={4}
+                    label="Description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    placeholder={descriptionPlaceholder}
+                    error={showValidation && !formData.description}
+                    helperText={showValidation && !formData.description
+                      ? 'Description is required'
+                      : (isCoach
+                          ? 'Include training days, expectations, and facilities.'
+                          : 'Include availability, experience, and travel radius.')}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Autocomplete
+                    fullWidth
+                    options={[...leagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], isPending: false }]}
+                    getOptionLabel={(option) => typeof option === 'string' ? option : (option.name || '')}
+                    value={leagues.find(l => l.name === formData.league) || null}
+                    onChange={(_, newValue) => {
+                      if (typeof newValue === 'object' && newValue?.id === -1) {
+                        setLeagueRequestOpen(true);
+                      } else if (typeof newValue === 'object' && newValue?.name) {
+                        setFormData(prev => ({
+                          ...prev,
+                          league: newValue.name,
+                        }));
+                      } else if (typeof newValue === 'string') {
+                        setFormData(prev => ({
+                          ...prev,
+                          league: newValue,
+                        }));
+                      }
+                    }}
+                    freeSolo={true}
+                    onInputChange={(_, inputValue, reason) => {
+                      if (reason === 'input') {
+                        setFormData(prev => ({
+                          ...prev,
+                          league: inputValue,
+                        }));
+                      }
+                    }}
+                    loading={loadingLeagues}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label={isCoach ? "League *" : "Preferred League"}
+                        placeholder="Type to search leagues..."
+                        required={isCoach}
+                        error={showValidation && isCoach && !formData.league}
+                        helperText={showValidation && isCoach && !formData.league ? 'League is required' : undefined}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingLeagues ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                    renderOption={(props, option) => {
+                      if (option.id === -1) {
+                        const { key, ...otherProps } = props;
+                        return (
+                          <Box 
+                            component="li" 
+                            key={key}
+                            {...otherProps}
+                            sx={{ 
+                              borderTop: '1px solid #e0e0e0',
+                              backgroundColor: '#f5f5f5',
+                              fontStyle: 'italic',
+                              color: 'primary.main'
+                            }}
+                          >
+                            <Typography variant="body2" color="primary">
+                              {option.name}
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      
+                      const { key, ...otherProps } = props;
+                      return (
+                        <Box component="li" key={key} {...otherProps}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                                {option.name}
+                              </Typography>
+                              {option.isPending && (
+                                <Chip 
+                                  label="Under Review" 
+                                  size="small" 
+                                  color="warning" 
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.7rem', height: '20px' }}
+                                />
+                              )}
+                            </Box>
+                            {option.isPending && (
+                              <Typography variant="caption" color="text.secondary" noWrap>
+                                Awaiting Admin Approval
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    }}
+                    noOptionsText={loadingLeagues ? "Loading leagues..." : "No leagues found"}
+                    filterOptions={(options, { inputValue }) => {
+                      const filtered = options.filter(option => {
+                        if (option.id === -1) return true; // Always show "Request New League"
+                        if (!inputValue) return true;
+                        return option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                          (option.region && option.region.toLowerCase().includes(inputValue.toLowerCase())) ||
+                          (option.ageGroups && option.ageGroups.some(age => age.toLowerCase().includes(inputValue.toLowerCase())));
+                      });
+                      return filtered;
                     }}
                   />
-                )}
-                renderOption={(props, option) => {
-                  if (option.id === -1) {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <Box 
-                        component="li" 
-                        key={key}
-                        {...otherProps}
-                        sx={{ 
-                          borderTop: '1px solid #e0e0e0',
-                          backgroundColor: '#f5f5f5',
-                          fontStyle: 'italic',
-                          color: 'primary.main'
-                        }}
+                </Grid>
+
+                {isCoach && (
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth required error={showValidation && !formData.teamId}>
+                      <InputLabel>Team</InputLabel>
+                      <Select
+                        name="teamId"
+                        value={formData.teamId}
+                        label="Team"
+                        onChange={handleSelectChange}
+                        disabled={loadingTeams}
                       >
-                        <Typography variant="body2" color="primary">
-                          {option.name}
-                        </Typography>
-                      </Box>
-                    );
-                  }
-                  
-                  const { key, ...otherProps } = props;
-                  return (
-                    <Box component="li" key={key} {...otherProps}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                            {option.name}
+                        {teams.map((team) => (
+                          <MenuItem key={team.id} value={team.id}>
+                            {team.teamName}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {loadingTeams && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                          <CircularProgress size={16} sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading teams...
                           </Typography>
-                          {option.isPending && (
-                            <Chip 
-                              label="Under Review" 
-                              size="small" 
-                              color="warning" 
-                              variant="outlined"
-                              sx={{ fontSize: '0.7rem', height: '20px' }}
-                            />
-                          )}
-                        </Box>
-                        {option.isPending && (
-                          <Typography variant="caption" color="text.secondary" noWrap>
-                            Awaiting Admin Approval
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  );
-                }}
-                noOptionsText={loadingLeagues ? "Loading leagues..." : "No leagues found"}
-                filterOptions={(options, { inputValue }) => {
-                  const filtered = options.filter(option => {
-                    if (option.id === -1) return true; // Always show "Request New League"
-                    if (!inputValue) return true;
-                    return option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                      (option.region && option.region.toLowerCase().includes(inputValue.toLowerCase())) ||
-                      (option.ageGroups && option.ageGroups.some(age => age.toLowerCase().includes(inputValue.toLowerCase())));
-                  });
-                  return filtered;
-                }}
-              />
-            </Grid>
-
-            {isCoach && (
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Team</InputLabel>
-                  <Select
-                    name="teamId"
-                    value={formData.teamId}
-                    label="Team"
-                    onChange={handleSelectChange}
-                    disabled={loadingTeams}
-                  >
-                    {teams.map((team) => (
-                      <MenuItem key={team.id} value={team.id}>
-                        {team.teamName}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {loadingTeams && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      <CircularProgress size={16} sx={{ mr: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Loading teams...
-                      </Typography>
-                    </Box>
-                  )}
-                  {teams.length === 0 && !loadingTeams && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      No teams found. Create a team first to post vacancies.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-            )}
-
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Age Group</InputLabel>
-                <Select
-                  name="ageGroup"
-                  value={formData.ageGroup}
-                  label="Age Group"
-                  onChange={handleSelectChange}
-                >
-                  {ageGroups.map((age) => (
-                    <MenuItem key={age} value={age}>
-                      {age}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>{isCoach ? 'Position' : 'Preferred Positions'}</InputLabel>
-                {isCoach ? (
-                  <Select
-                    name="position"
-                    value={formData.position}
-                    label="Position"
-                    onChange={handleSelectChange}
-                  >
-                    {positions.map((position) => (
-                      <MenuItem key={position} value={position}>
-                        {position}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                ) : (
-                  <>
-                    <Select
-                      multiple
-                      value={formData.positions}
-                      label="Preferred Positions"
-                      onChange={handlePositionsChange}
-                      input={<OutlinedInput label="Preferred Positions" />}
-                      renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {selected.map((value, index) => (
-                            <Chip 
-                              key={value} 
-                              label={`${index + 1}. ${value}`} 
-                              size="small"
-                              color={index === 0 ? 'primary' : 'default'}
-                            />
-                          ))}
                         </Box>
                       )}
+                      {teams.length === 0 && !loadingTeams && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            No teams found. Create a team first to post vacancies.
+                          </Typography>
+                          <Button size="small" variant="outlined" onClick={() => navigate('/team-management')}>
+                            Create Team
+                          </Button>
+                        </Box>
+                      )}
+                      {showValidation && !formData.teamId && (
+                        <FormHelperText>Team is required</FormHelperText>
+                      )}
+                    </FormControl>
+                  </Grid>
+                )}
+
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth required error={showValidation && !formData.ageGroup}>
+                    <InputLabel>Age Group</InputLabel>
+                    <Select
+                      name="ageGroup"
+                      value={formData.ageGroup}
+                      label="Age Group"
+                      onChange={handleSelectChange}
                     >
-                      {positions.map((position) => (
-                        <MenuItem key={position} value={position}>
-                          {position}
+                      {ageGroups.map((age) => (
+                        <MenuItem key={age} value={age}>
+                          {age}
                         </MenuItem>
                       ))}
                     </Select>
-                    <FormHelperText>
-                      Select positions in order of preference (1st choice will be highlighted)
-                    </FormHelperText>
-                  </>
-                )}
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <GoogleMapsWrapper>
-                <LocationInput
-                  fullWidth
-                  label="Location"
-                  value={formData.location}
-                  onChange={(location) => {
-                    setLocationData(location);
-                    setFormData(prev => ({
-                      ...prev,
-                      location: location?.address || ''
-                    }));
-                  }}
-                  placeholder="Start typing an address..."
-                  debugId="post-advert-location"
-                />
-              </GoogleMapsWrapper>
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Contact Information"
-                name="contactInfo"
-                value={formData.contactInfo}
-                onChange={handleChange}
-                placeholder="Email or phone number for interested parties"
-                helperText="This will be visible to users who view your advert"
-              />
-            </Grid>
-
-            {/* Additional coach-only fields */}
-            {isCoach && (
-              <>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, fontWeight: 500 }}>
-                    Team Facilities & Opportunities
-                  </Typography>
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Playing Time Policy</InputLabel>
-                    <Select
-                      name="playingTimePolicy"
-                      value={formData.playingTimePolicy}
-                      label="Playing Time Policy"
-                      onChange={handleSelectChange}
-                    >
-                      <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
-                      <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
-                      <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
-                    </Select>
-                    <FormHelperText>Helps players and parents understand your approach</FormHelperText>
+                    {showValidation && !formData.ageGroup && (
+                      <FormHelperText>Age group is required</FormHelperText>
+                    )}
                   </FormControl>
                 </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.hasMatchRecording}
-                        onChange={(e) => setFormData({ ...formData, hasMatchRecording: e.target.checked })}
-                        name="hasMatchRecording"
-                      />
-                    }
-                    label="We have match recording facilities (e.g. VEO)"
-                  />
-                </Grid>
-                
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.hasPathwayToSenior}
-                        onChange={(e) => setFormData({ ...formData, hasPathwayToSenior: e.target.checked })}
-                        name="hasPathwayToSenior"
-                      />
-                    }
-                    label="We provide a pathway to a senior team"
-                  />
-                </Grid>
-              </>
-            )}
 
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                <Button
-                  variant="outlined"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                >
-                  Post Advert
-                </Button>
-              </Box>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth required error={showValidation && !positionValidForForm}>
+                    <InputLabel>{isCoach ? 'Position' : 'Preferred Positions'}</InputLabel>
+                    {isCoach ? (
+                      <Select
+                        name="position"
+                        value={formData.position}
+                        label="Position"
+                        onChange={handleSelectChange}
+                      >
+                        {positions.map((position) => (
+                          <MenuItem key={position} value={position}>
+                            {position}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    ) : (
+                      <>
+                        <Select
+                          multiple
+                          value={formData.positions}
+                          label="Preferred Positions"
+                          onChange={handlePositionsChange}
+                          input={<OutlinedInput label="Preferred Positions" />}
+                          renderValue={(selected) => (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {selected.map((value, index) => (
+                                <Chip 
+                                  key={value} 
+                                  label={`${index + 1}. ${value}`} 
+                                  size="small"
+                                  color={index === 0 ? 'primary' : 'default'}
+                                />
+                              ))}
+                            </Box>
+                          )}
+                        >
+                          {positions.map((position) => (
+                            <MenuItem key={position} value={position}>
+                              {position}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        <FormHelperText>
+                          Select positions in order of preference (1st choice will be highlighted)
+                        </FormHelperText>
+                      </>
+                    )}
+                    {showValidation && !positionValidForForm && (
+                      <FormHelperText>Position is required</FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <GoogleMapsWrapper>
+                    <LocationInput
+                      fullWidth
+                      label="Location"
+                      value={formData.location}
+                      onChange={(location) => {
+                        setLocationData(location);
+                        setFormData(prev => ({
+                          ...prev,
+                          location: location?.address || ''
+                        }));
+                      }}
+                      placeholder="Start typing an address..."
+                      debugId="post-advert-location"
+                    />
+                  </GoogleMapsWrapper>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Contact Information"
+                    name="contactInfo"
+                    value={formData.contactInfo}
+                    onChange={handleChange}
+                    placeholder="Email or phone number for interested parties"
+                    helperText="Visible to logged-in users. Use a contact email you check regularly."
+                  />
+                </Grid>
+
+            {/* Additional coach-only fields */}
+                {isCoach && (
+                  <>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, fontWeight: 500 }}>
+                        Team Facilities & Opportunities
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={12}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Playing Time Policy</InputLabel>
+                        <Select
+                          name="playingTimePolicy"
+                          value={formData.playingTimePolicy}
+                          label="Playing Time Policy"
+                          onChange={handleSelectChange}
+                        >
+                          <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
+                          <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
+                          <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
+                        </Select>
+                        <FormHelperText>Helps players and parents understand your approach</FormHelperText>
+                      </FormControl>
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.hasMatchRecording}
+                            onChange={(e) => setFormData({ ...formData, hasMatchRecording: e.target.checked })}
+                            name="hasMatchRecording"
+                          />
+                        }
+                        label="We have match recording facilities (e.g. VEO)"
+                      />
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.hasPathwayToSenior}
+                            onChange={(e) => setFormData({ ...formData, hasPathwayToSenior: e.target.checked })}
+                            name="hasPathwayToSenior"
+                          />
+                        }
+                        label="We provide a pathway to a senior team"
+                      />
+                    </Grid>
+                  </>
+                )}
+
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => navigate('/dashboard')}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={!isFormValid}
+                    >
+                      Post Advert
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Grid>
+
+            <Grid item xs={12} md={5}>
+              <Paper
+                elevation={1}
+                sx={{
+                  p: 3,
+                  position: { md: 'sticky' },
+                  top: { md: 24 },
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Live Preview
+                </Typography>
+                <Typography variant="h6" gutterBottom>
+                  {previewTitle}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {previewDescription}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  {formData.league && <Chip label={formData.league} size="small" color="primary" />}
+                  {formData.ageGroup && <Chip label={formData.ageGroup} size="small" color="secondary" />}
+                  {previewPositions.map((position) => (
+                    <Chip key={position} label={position} size="small" />
+                  ))}
+                  {isCoach && formData.hasMatchRecording && (
+                    <Chip label="Match Recording" size="small" color="info" variant="outlined" />
+                  )}
+                  {isCoach && formData.hasPathwayToSenior && (
+                    <Chip label="Pathway to Senior" size="small" color="success" variant="outlined" />
+                  )}
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Location: {formData.location || 'Add a location'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Contact: {formData.contactInfo || 'Add contact info'}
+                </Typography>
+                {isCoach && formData.playingTimePolicy && (
+                  <Typography variant="body2" color="text.secondary">
+                    Playing time policy: {formData.playingTimePolicy}
+                  </Typography>
+                )}
+              </Paper>
             </Grid>
           </Grid>
         </Box>

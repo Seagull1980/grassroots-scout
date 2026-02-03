@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS, POSITION_OPTIONS } from '../constants/options';
 import {
@@ -23,104 +23,132 @@ import {
   Tab,
   CircularProgress,
   Alert,
+  Tooltip,
   Slider,
-  Checkbox,
-  FormGroup,
-  FormControlLabel,
-  ListItemText,
-  OutlinedInput,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Link,
-  Autocomplete,
-} from '@mui/material';
-import { 
-  Search, 
-  LocationOn, 
-  Group, 
-  Sports, 
-  ExpandMore, 
-  FilterList, 
-  OpenInNew, 
-  Map,
-  Bookmark as BookmarkIcon 
-} from '@mui/icons-material';
-import api, { leaguesAPI, League } from '../services/api';
-import { useDebounce } from '../utils/performance';
-import QuickMatchCompletion from '../components/QuickMatchCompletion';
-// import TrainingInviteDialog from '../components/TrainingInviteDialog'; // Temporarily disabled
-import QuickAddToTrialDialog from '../components/QuickAddToTrialDialog';
-import LeagueRequestDialog from '../components/LeagueRequestDialog';
-import { useAuth } from '../contexts/AuthContext';
-import { useResponsiveSpacing } from '../hooks/useResponsive';
-import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
-import { SavedSearchesDialog } from '../components/SavedSearches';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-interface TeamVacancy {
-  id: number;
-  title: string;
-  description: string;
-  league: string;
-  ageGroup: string; // Backend uses ageGroup
-  position: string;
-  location: string;
-  contactInfo?: string;
-  status: string;
-  teamGender?: string; // Add missing teamGender property
-  hasMatchRecording?: boolean;
-  hasPathwayToSenior?: boolean;
-  createdAt: string;
-  firstName: string;
-  lastName: string;
-  postedBy: number; // ID of the user who posted the vacancy
-}
-
-interface PlayerAvailability {
-  id: number;
-  playerId: number; // Match QuickAddToTrialDialog interface
-  userId: number; // Add userId for training invitations
-  playerName: string;
-  firstName: string; // Add missing properties
-  lastName: string; // Add missing properties
-  age: number;
-  position: string;
-  positions: string[]; // Add positions array to match API
-  location: string;
-  experience: string;
-  description: string;
-  title: string; // Add title property
-}
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`search-tabpanel-${index}`}
-      aria-labelledby={`search-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-    </div>
+          {sortedData.length === 0 ? (
+            <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" gutterBottom>
+                No results found
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Try adjusting your filters or post an advert to be seen faster.
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Button variant="outlined" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+                <Button variant="contained" onClick={() => navigate('/post-advert')}>
+                  Post Advert
+                </Button>
+              </Box>
+            </Paper>
+          ) : (
+            <Grid container spacing={cardSpacing}>
+              {sortedData.map((item) => (
+                <Grid item xs={12} md={6} key={item.id}>
+                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      {tabValue === 0 ? (
+                        // Team Vacancy Card
+                        <>
+                          <Typography variant="h6" component="h3" gutterBottom>
+                            {(item as TeamVacancy).title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            {(item as TeamVacancy).description}
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                            <Chip label={(item as TeamVacancy).league} size="small" color="primary" />
+                            <Chip label={(item as TeamVacancy).ageGroup} size="small" color="secondary" />
+                            <Chip label={(item as TeamVacancy).position} size="small" />
+                            {(item as TeamVacancy).hasMatchRecording && (
+                              <Chip label="Match Recording" size="small" color="info" variant="outlined" />
+                            )}
+                            {(item as TeamVacancy).hasPathwayToSenior && (
+                              <Chip label="Pathway to Senior" size="small" color="success" variant="outlined" />
+                            )}
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <LocationOn fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {(item as TeamVacancy).location}
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {new Date((item as TeamVacancy).createdAt).toLocaleDateString()}
+                          </Typography>
+                        </>
+                      ) : (
+                        // Player Availability Card
+                        <>
+                          <Typography variant="h6" component="h3" gutterBottom>
+                            {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            {(item as PlayerAvailability).description}
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                            <Chip label={`Age ${(item as PlayerAvailability).age}`} size="small" color="primary" />
+                            {(item as PlayerAvailability).positions?.map((position) => (
+                              <Chip key={position} label={position} size="small" color="secondary" />
+                            ))}
+                            <Chip label={`${(item as PlayerAvailability).experience} experience`} size="small" />
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <LocationOn fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {(item as PlayerAvailability).location}
+                            </Typography>
+                          </Box>
+                          {(item as PlayerAvailability).createdAt && (
+                            <Typography variant="body2" color="text.secondary">
+                              Posted {new Date((item as PlayerAvailability).createdAt as string).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </>
+                      )}
+                    </CardContent>
+                    <CardActions>
+                      {tabValue === 0 ? (
+                        <Button 
+                          size="small" 
+                          variant="contained"
+                          onClick={() => handleContact(item as TeamVacancy)}
+                        >
+                          Express Interest
+                        </Button>
+                      ) : (
+                        <Tooltip title={user?.role === 'Coach' ? '' : 'Only coaches can send training invitations'}>
+                          <span>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={user?.role !== 'Coach'}
+                              onClick={() => handleSendTrainingInvite(item as PlayerAvailability)}
+                            >
+                              Send Training Invite
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      )}
+                      {tabValue === 1 && user?.role === 'Coach' && (
+                        <Button 
+                          size="small" 
+                          variant="outlined"
+                          onClick={() => {
+                            setSelectedPlayerForTrial(item as PlayerAvailability);
+                            setQuickAddTrialOpen(true);
+                          }}
+                        >
+                          Add to Trial
+                        </Button>
+                      )}
+                    </CardActions>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
   );
 }
 
@@ -148,6 +176,7 @@ const SearchPage: React.FC = () => {
     hasPathwayToSenior: false,
     playingTimePolicy: [] as string[],
   });
+  const [sortBy, setSortBy] = useState('newest');
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -207,6 +236,7 @@ const SearchPage: React.FC = () => {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     setPage(1);
+    setSortBy('newest');
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -430,6 +460,7 @@ const SearchPage: React.FC = () => {
         experience: player.experience || 'Unknown',
         description: player.description || player.title || '',
         title: player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available',
+        createdAt: player.createdAt || player.created_at,
       })) : [];
       
       setPlayerAvailability(transformedPlayers);
@@ -451,6 +482,7 @@ const SearchPage: React.FC = () => {
           experience: '8 years',
           title: 'Looking for competitive team',
           description: 'Experienced central midfielder with excellent passing and vision.',
+          createdAt: new Date().toISOString(),
         },
         {
           id: 2,
@@ -466,6 +498,7 @@ const SearchPage: React.FC = () => {
           experience: '3 years',
           title: 'Seeking striker position',
           description: 'Fast and aggressive striker seeking opportunities in competitive league.',
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
         },
       ]);
     } finally {
@@ -525,7 +558,9 @@ const SearchPage: React.FC = () => {
       player.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       player.location.toLowerCase().includes(debouncedSearch.toLowerCase());
     
-    const matchesPosition = !filters.position || player.position === filters.position;
+    const matchesPosition = !filters.position ||
+      player.position === filters.position ||
+      (Array.isArray(player.positions) && player.positions.includes(filters.position));
     const matchesLocation = !filters.location || 
       player.location.toLowerCase().includes(filters.location.toLowerCase());
 
@@ -534,6 +569,65 @@ const SearchPage: React.FC = () => {
 
   const currentData = tabValue === 0 ? filteredVacancies : filteredPlayers;
   const tabLabel = tabValue === 0 ? 'Team Vacancies' : 'Player Availability';
+  const sortOptions = tabValue === 0
+    ? [
+        { value: 'newest', label: 'Newest' },
+        { value: 'oldest', label: 'Oldest' },
+        { value: 'league', label: 'League (A-Z)' },
+        { value: 'ageGroup', label: 'Age Group' },
+        { value: 'position', label: 'Position' },
+        { value: 'location', label: 'Location' },
+      ]
+    : [
+        { value: 'newest', label: 'Newest' },
+        { value: 'oldest', label: 'Oldest' },
+        { value: 'age', label: 'Age' },
+        { value: 'position', label: 'Position' },
+        { value: 'location', label: 'Location' },
+      ];
+
+  const sortedData = useMemo(() => {
+    const items = [...(currentData || [])];
+    if (items.length === 0) return items;
+
+    const getDate = (value?: string) => value ? new Date(value).getTime() : 0;
+
+    if (tabValue === 0) {
+      const vacanciesData = items as TeamVacancy[];
+      switch (sortBy) {
+        case 'newest':
+          return vacanciesData.sort((a, b) => getDate(b.createdAt) - getDate(a.createdAt));
+        case 'oldest':
+          return vacanciesData.sort((a, b) => getDate(a.createdAt) - getDate(b.createdAt));
+        case 'league':
+          return vacanciesData.sort((a, b) => a.league.localeCompare(b.league));
+        case 'ageGroup':
+          return vacanciesData.sort((a, b) => a.ageGroup.localeCompare(b.ageGroup));
+        case 'position':
+          return vacanciesData.sort((a, b) => a.position.localeCompare(b.position));
+        case 'location':
+          return vacanciesData.sort((a, b) => a.location.localeCompare(b.location));
+        default:
+          return vacanciesData;
+      }
+    }
+
+    const playerData = items as PlayerAvailability[];
+    switch (sortBy) {
+      case 'newest':
+        return playerData.sort((a, b) => getDate(b.createdAt) - getDate(a.createdAt));
+      case 'oldest':
+        return playerData.sort((a, b) => getDate(a.createdAt) - getDate(b.createdAt));
+      case 'age':
+        return playerData.sort((a, b) => a.age - b.age);
+      case 'position':
+        return playerData.sort((a, b) => a.position.localeCompare(b.position));
+      case 'location':
+        return playerData.sort((a, b) => a.location.localeCompare(b.location));
+      default:
+        return playerData;
+    }
+  }, [currentData, sortBy, tabValue]);
 
   return (
     <Container maxWidth="lg">
@@ -790,6 +884,23 @@ const SearchPage: React.FC = () => {
                 {positions.map((position) => (
                   <MenuItem key={position} value={position}>
                     {position}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Sort By</InputLabel>
+              <Select
+                name="sortBy"
+                value={sortBy}
+                label="Sort By"
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                {sortOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
                   </MenuItem>
                 ))}
               </Select>
