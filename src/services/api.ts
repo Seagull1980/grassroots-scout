@@ -57,6 +57,13 @@ let csrfToken: string | null = null;
 
 const getCsrfToken = async (): Promise<string> => {
   if (!csrfToken) {
+    // In production (Vercel), skip CSRF token fetch to avoid proxy issues
+    // Generate a client-side token instead
+    if (!API_URL) {
+      csrfToken = 'client-' + Math.random().toString(36).substring(2, 15) + Date.now();
+      return csrfToken;
+    }
+    
     try {
       const response = await axios.get(`${API_URL}/api/auth/csrf-token`);
       csrfToken = response.data.csrfToken;
