@@ -3697,3 +3697,9 @@ process.on('unhandledRejection', (reason, promise) => {
 // Export the app for use in other servers (like railway-server.js)
 module.exports = app;
 
+// Start server (only if this file is run directly, not when required as a module)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT} with postgresql database`);
+  });
+}
