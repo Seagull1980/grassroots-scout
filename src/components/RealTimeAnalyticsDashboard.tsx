@@ -173,11 +173,11 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
         setMetrics({
           activeUsers: data.overview?.activeSessions || 0,
           pageViews: data.overview?.todayPageViews || 0,
-          conversionRate: 2.5,
-          avgSessionDuration: 180,
-          bounceRate: 25,
-          errorRate: 0.5,
-          apiResponseTime: 85,
+          conversionRate: 0,
+          avgSessionDuration: 0,
+          bounceRate: 0,
+          errorRate: 0,
+          apiResponseTime: 0,
           newSignups: data.overview?.todayUsers || 0
         });
       } else {
@@ -253,9 +253,9 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
       return hour.getHours() + ':00';
     }).reverse();
 
-    const pageViewData = hours.map(() => Math.floor(Math.random() * 100) + 20);
-    const userActionData = hours.map(() => Math.floor(Math.random() * 50) + 10);
-    const conversionData = hours.map(() => Math.floor(Math.random() * 10) + 2);
+    const pageViewData = hours.map(() => 0);
+    const userActionData = hours.map(() => 0);
+    const conversionData = hours.map(() => 0);
 
     setChartData({
       labels: hours,

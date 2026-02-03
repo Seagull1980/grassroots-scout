@@ -2434,11 +2434,11 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
     const todayTeams = await db.query('SELECT COUNT(*) as count FROM team_vacancies WHERE DATE(createdat) = ?', [today]);
     const todayPlayers = await db.query('SELECT COUNT(*) as count FROM player_availability WHERE DATE(createdat) = ?', [today]);
 
-    // Get active sessions (last 24 hours)
-    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Get active sessions (last 15 minutes)
+    const last15Minutes = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const activeSessions = await db.query(
       'SELECT COUNT(DISTINCT sessionid) as count FROM user_sessions WHERE lastactivity > ?',
-      [last24Hours]
+      [last15Minutes]
     );
 
     // Get page views today
