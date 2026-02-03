@@ -2478,10 +2478,10 @@ app.get('/api/analytics/overview', authenticateToken, async (req, res) => {
         todayPlayers: todayPlayers.rows[0]?.count || 0,
         activeSessions: activeSessions.rows[0]?.count || 0,
         todayPageViews: todayPageViews.rows[0]?.count || 0,
-        todayUniqueVisitors: todayUniqueVisitors.rows[0].count
+        todayUniqueVisitors: todayUniqueVisitors.rows[0]?.count || 0
       },
-      roleBreakdown: roleBreakdown.rows,
-      popularPages: popularPages.rows
+      roleBreakdown: roleBreakdown.rows || [],
+      popularPages: popularPages.rows || []
     });
   } catch (error) {
     console.error('Get analytics overview error:', error);
