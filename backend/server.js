@@ -253,14 +253,14 @@ app.post('/api/admin/create-cgill', async (req, res) => {
       await db.query('UPDATE users SET role = $1 WHERE email = $2', ['Admin', email]);
       
       // Update password if provided
-      const hashedPassword = await bcryptjs.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
       await db.query('UPDATE users SET password = $1 WHERE email = $2', [hashedPassword, email]);
       
       return res.json({ message: 'Admin updated', email, password });
     }
     
     // Create new admin
-    const hashedPassword = await bcryptjs.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
       `INSERT INTO users (email, password, firstname, lastname, role, betaaccess, emailverified) 
        VALUES ($1, $2, $3, $4, $5, $6, $7)
