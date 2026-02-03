@@ -930,6 +930,149 @@ app.put('/api/change-password', [
   }
 });
 
+// Profile Endpoints
+
+// Get user profile
+app.get('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const userResult = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    
+    // Return profile with all fields
+    res.json({
+      profile: {
+        id: user.id,
+        email: user.email,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        role: user.role,
+        createdat: user.createdat,
+        phone: user.phone,
+        dateofbirth: user.dateofbirth,
+        location: user.location,
+        bio: user.bio,
+        position: user.position,
+        preferredfoot: user.preferredfoot,
+        height: user.height,
+        weight: user.weight,
+        experiencelevel: user.experiencelevel,
+        availability: user.availability,
+        coachinglicense: user.coachinglicense,
+        yearsexperience: user.yearsexperience,
+        specializations: user.specializations,
+        traininglocation: user.traininglocation,
+        matchlocation: user.matchlocation,
+        trainingdays: user.trainingdays,
+        agegroupscoached: user.agegroupscoached,
+        teamname: user.teamname,
+        currentagegroup: user.currentagegroup,
+        trainingtime: user.trainingtime,
+        matchday: user.matchday,
+        emergencycontact: user.emergencycontact,
+        emergencyphone: user.emergencyphone,
+        medicalinfo: user.medicalinfo,
+        profilepicture: user.profilepicture,
+        isprofilecomplete: user.isprofilecomplete,
+        lastupdated: user.lastupdated
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user profile
+app.put('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      phone,
+      dateofbirth,
+      location,
+      bio,
+      position,
+      preferredfoot,
+      height,
+      weight,
+      experiencelevel,
+      availability,
+      coachinglicense,
+      yearsexperience,
+      specializations,
+      traininglocation,
+      matchlocation,
+      trainingdays,
+      agegroupscoached,
+      teamname,
+      currentagegroup,
+      trainingtime,
+      matchday,
+      emergencycontact,
+      emergencyphone,
+      medicalinfo,
+      profilepicture,
+      isprofilecomplete
+    } = req.body;
+
+    // Prepare update query
+    const updates = [];
+    const values = [];
+
+    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
+    if (dateofbirth !== undefined) { updates.push('dateofbirth = ?'); values.push(dateofbirth); }
+    if (location !== undefined) { updates.push('location = ?'); values.push(location); }
+    if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
+    if (position !== undefined) { updates.push('position = ?'); values.push(position); }
+    if (preferredfoot !== undefined) { updates.push('preferredfoot = ?'); values.push(preferredfoot); }
+    if (height !== undefined) { updates.push('height = ?'); values.push(height); }
+    if (weight !== undefined) { updates.push('weight = ?'); values.push(weight); }
+    if (experiencelevel !== undefined) { updates.push('experiencelevel = ?'); values.push(experiencelevel); }
+    if (availability !== undefined) { updates.push('availability = ?'); values.push(JSON.stringify(availability)); }
+    if (coachinglicense !== undefined) { updates.push('coachinglicense = ?'); values.push(coachinglicense); }
+    if (yearsexperience !== undefined) { updates.push('yearsexperience = ?'); values.push(yearsexperience); }
+    if (specializations !== undefined) { updates.push('specializations = ?'); values.push(JSON.stringify(specializations)); }
+    if (traininglocation !== undefined) { updates.push('traininglocation = ?'); values.push(traininglocation); }
+    if (matchlocation !== undefined) { updates.push('matchlocation = ?'); values.push(matchlocation); }
+    if (trainingdays !== undefined) { updates.push('trainingdays = ?'); values.push(JSON.stringify(trainingdays)); }
+    if (agegroupscoached !== undefined) { updates.push('agegroupscoached = ?'); values.push(JSON.stringify(agegroupscoached)); }
+    if (teamname !== undefined) { updates.push('teamname = ?'); values.push(teamname); }
+    if (currentagegroup !== undefined) { updates.push('currentagegroup = ?'); values.push(currentagegroup); }
+    if (trainingtime !== undefined) { updates.push('trainingtime = ?'); values.push(trainingtime); }
+    if (matchday !== undefined) { updates.push('matchday = ?'); values.push(matchday); }
+    if (emergencycontact !== undefined) { updates.push('emergencycontact = ?'); values.push(emergencycontact); }
+    if (emergencyphone !== undefined) { updates.push('emergencyphone = ?'); values.push(emergencyphone); }
+    if (medicalinfo !== undefined) { updates.push('medicalinfo = ?'); values.push(medicalinfo); }
+    if (profilepicture !== undefined) { updates.push('profilepicture = ?'); values.push(profilepicture); }
+    if (isprofilecomplete !== undefined) { updates.push('isprofilecomplete = ?'); values.push(isprofilecomplete); }
+    
+    // Always update lastupdated
+    updates.push('lastupdated = NOW()');
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(userId);
+    const query = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+
+    await db.query(query, values);
+
+    console.log(`✅ Profile updated successfully for user ID: ${userId}`);
+
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Children Management Endpoints
 
 // Get all children for a parent
