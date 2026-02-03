@@ -25,130 +25,98 @@ import {
   Alert,
   Tooltip,
   Slider,
-          {sortedData.length === 0 ? (
-            <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" gutterBottom>
-                No results found
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Try adjusting your filters or post an advert to be seen faster.
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-                <Button variant="outlined" onClick={clearFilters}>
-                  Clear Filters
-                </Button>
-                <Button variant="contained" onClick={() => navigate('/post-advert')}>
-                  Post Advert
-                </Button>
-              </Box>
-            </Paper>
-          ) : (
-            <Grid container spacing={cardSpacing}>
-              {sortedData.map((item) => (
-                <Grid item xs={12} md={6} key={item.id}>
-                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <CardContent sx={{ flexGrow: 1 }}>
-                      {tabValue === 0 ? (
-                        // Team Vacancy Card
-                        <>
-                          <Typography variant="h6" component="h3" gutterBottom>
-                            {(item as TeamVacancy).title}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {(item as TeamVacancy).description}
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                            <Chip label={(item as TeamVacancy).league} size="small" color="primary" />
-                            <Chip label={(item as TeamVacancy).ageGroup} size="small" color="secondary" />
-                            <Chip label={(item as TeamVacancy).position} size="small" />
-                            {(item as TeamVacancy).hasMatchRecording && (
-                              <Chip label="Match Recording" size="small" color="info" variant="outlined" />
-                            )}
-                            {(item as TeamVacancy).hasPathwayToSenior && (
-                              <Chip label="Pathway to Senior" size="small" color="success" variant="outlined" />
-                            )}
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <LocationOn fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
-                              {(item as TeamVacancy).location}
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" color="text.secondary">
-                            Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {new Date((item as TeamVacancy).createdAt).toLocaleDateString()}
-                          </Typography>
-                        </>
-                      ) : (
-                        // Player Availability Card
-                        <>
-                          <Typography variant="h6" component="h3" gutterBottom>
-                            {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {(item as PlayerAvailability).description}
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                            <Chip label={`Age ${(item as PlayerAvailability).age}`} size="small" color="primary" />
-                            {(item as PlayerAvailability).positions?.map((position) => (
-                              <Chip key={position} label={position} size="small" color="secondary" />
-                            ))}
-                            <Chip label={`${(item as PlayerAvailability).experience} experience`} size="small" />
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <LocationOn fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
-                              {(item as PlayerAvailability).location}
-                            </Typography>
-                          </Box>
-                          {(item as PlayerAvailability).createdAt && (
-                            <Typography variant="body2" color="text.secondary">
-                              Posted {new Date((item as PlayerAvailability).createdAt as string).toLocaleDateString()}
-                            </Typography>
-                          )}
-                        </>
-                      )}
-                    </CardContent>
-                    <CardActions>
-                      {tabValue === 0 ? (
-                        <Button 
-                          size="small" 
-                          variant="contained"
-                          onClick={() => handleContact(item as TeamVacancy)}
-                        >
-                          Express Interest
-                        </Button>
-                      ) : (
-                        <Tooltip title={user?.role === 'Coach' ? '' : 'Only coaches can send training invitations'}>
-                          <span>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              disabled={user?.role !== 'Coach'}
-                              onClick={() => handleSendTrainingInvite(item as PlayerAvailability)}
-                            >
-                              Send Training Invite
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      )}
-                      {tabValue === 1 && user?.role === 'Coach' && (
-                        <Button 
-                          size="small" 
-                          variant="outlined"
-                          onClick={() => {
-                            setSelectedPlayerForTrial(item as PlayerAvailability);
-                            setQuickAddTrialOpen(true);
-                          }}
-                        >
-                          Add to Trial
-                        </Button>
-                      )}
-                    </CardActions>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          )}
+  Checkbox,
+  FormGroup,
+  FormControlLabel,
+  ListItemText,
+  OutlinedInput,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Link,
+  Autocomplete,
+} from '@mui/material';
+import {
+  Search,
+  LocationOn,
+  Group,
+  Sports,
+  ExpandMore,
+  FilterList,
+  OpenInNew,
+  Map,
+  Bookmark as BookmarkIcon,
+} from '@mui/icons-material';
+import api, { leaguesAPI, League } from '../services/api';
+import { useDebounce } from '../utils/performance';
+import QuickMatchCompletion from '../components/QuickMatchCompletion';
+// import TrainingInviteDialog from '../components/TrainingInviteDialog'; // Temporarily disabled
+import QuickAddToTrialDialog from '../components/QuickAddToTrialDialog';
+import LeagueRequestDialog from '../components/LeagueRequestDialog';
+import { useAuth } from '../contexts/AuthContext';
+import { useResponsiveSpacing } from '../hooks/useResponsive';
+import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
+import { SavedSearchesDialog } from '../components/SavedSearches';
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+interface TeamVacancy {
+  id: number;
+  title: string;
+  description: string;
+  league: string;
+  ageGroup: string; // Backend uses ageGroup
+  position: string;
+  location: string;
+  contactInfo?: string;
+  status: string;
+  teamGender?: string; // Add missing teamGender property
+  hasMatchRecording?: boolean;
+  hasPathwayToSenior?: boolean;
+  createdAt: string;
+  firstName: string;
+  lastName: string;
+  postedBy: number; // ID of the user who posted the vacancy
+}
+
+interface PlayerAvailability {
+  id: number;
+  playerId: number; // Match QuickAddToTrialDialog interface
+  userId: number; // Add userId for training invitations
+  playerName: string;
+  firstName: string; // Add missing properties
+  lastName: string; // Add missing properties
+  age: number;
+  position: string;
+  positions: string[]; // Add positions array to match API
+  location: string;
+  experience: string;
+  description: string;
+  title: string; // Add title property
+  createdAt?: string;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`search-tabpanel-${index}`}
+      aria-labelledby={`search-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    </div>
   );
 }
 
