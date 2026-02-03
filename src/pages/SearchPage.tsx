@@ -268,6 +268,19 @@ const SearchPage: React.FC = () => {
     setSavedAds((prev) => prev.filter((item) => !(item.id === ad.id && item.type === ad.type)));
   };
 
+  const formatRelativeDate = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const diffMs = Date.now() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters({
       ...filters,
@@ -1369,7 +1382,7 @@ const SearchPage: React.FC = () => {
                               </Typography>
                             </Box>
                             <Typography variant="body2" color="text.secondary">
-                              Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {new Date((item as TeamVacancy).createdAt).toLocaleDateString()}
+                              Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {formatRelativeDate((item as TeamVacancy).createdAt)}
                             </Typography>
                           </>
                         ) : (
@@ -1413,7 +1426,7 @@ const SearchPage: React.FC = () => {
                             </Box>
                             {(item as PlayerAvailability).createdAt && (
                               <Typography variant="body2" color="text.secondary">
-                                Posted {new Date((item as PlayerAvailability).createdAt as string).toLocaleDateString()}
+                                Posted {formatRelativeDate((item as PlayerAvailability).createdAt as string)}
                               </Typography>
                             )}
                           </>
@@ -1613,7 +1626,7 @@ const SearchPage: React.FC = () => {
                   </Typography>
                   {ad.createdAt && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                      Posted {new Date(ad.createdAt).toLocaleDateString()}
+                      Posted {formatRelativeDate(ad.createdAt)}
                     </Typography>
                   )}
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
