@@ -200,19 +200,8 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
 
   const loadRecentEvents = async () => {
     try {
-      // Real-time events endpoint not yet available, using simulated data
-      const simulatedEvents: LiveEvent[] = [];
-      for (let i = 0; i < 20; i++) {
-        simulatedEvents.push({
-          id: `event_${i}`,
-          timestamp: Date.now() - (i * 30000),
-          event: ['page_view', 'user_action', 'conversion'][Math.floor(Math.random() * 3)],
-          page: ['/dashboard', '/search', '/profile', '/analytics'][Math.floor(Math.random() * 4)],
-          type: ['page_view', 'user_action', 'conversion', 'error'][Math.floor(Math.random() * 4)] as any,
-          userId: Math.random() > 0.3 ? `user_${Math.floor(Math.random() * 100)}` : undefined
-        });
-      }
-      setLiveEvents(simulatedEvents);
+      // Real-time events endpoint not yet available
+      setLiveEvents([]);
     } catch (error) {
       console.error('Failed to load events:', error);
     }
@@ -220,28 +209,8 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
 
   const loadAlerts = async () => {
     try {
-      // Alerts endpoint not available, using simulated data
-      const simulatedAlerts: PerformanceAlert[] = [
-        {
-          id: 'alert_1',
-          type: 'warning',
-          title: 'High Error Rate',
-          message: 'Error rate has increased by 15% in the last hour',
-          timestamp: Date.now() - 600000,
-          isRead: false,
-          actionRequired: true
-        },
-        {
-          id: 'alert_2',
-          type: 'info',
-          title: 'Traffic Spike',
-          message: 'Page views increased by 40% compared to yesterday',
-          timestamp: Date.now() - 1200000,
-          isRead: false,
-          actionRequired: false
-        }
-      ];
-      setAlerts(simulatedAlerts);
+      // Alerts endpoint not available
+      setAlerts([]);
     } catch (error) {
       console.error('Failed to load alerts:', error);
     }
