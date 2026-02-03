@@ -345,7 +345,7 @@ const SearchPage: React.FC = () => {
       const response = await api.get('/vacancies', { params: cleanFilters });
       // Handle the API response structure
       const vacanciesData = response.data.vacancies || response.data;
-      setVacancies(vacanciesData);
+      setVacancies(Array.isArray(vacanciesData) ? vacanciesData : []);
     } catch (err) {
       console.error('Error fetching vacancies:', err);
       setError('Failed to load team vacancies');
@@ -504,7 +504,7 @@ const SearchPage: React.FC = () => {
   const positions = POSITION_OPTIONS;
 
   // Filter and search logic
-  const filteredVacancies = (vacancies || []).filter((vacancy) => {
+  const filteredVacancies = (Array.isArray(vacancies) ? vacancies : []).filter((vacancy) => {
     const matchesSearch = !debouncedSearch || 
       vacancy.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       vacancy.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
@@ -520,7 +520,7 @@ const SearchPage: React.FC = () => {
     return matchesSearch && matchesLeague && matchesAgeGroup && matchesPosition && matchesTeamGender && matchesLocation;
   });
 
-  const filteredPlayers = (playerAvailability || []).filter((player) => {
+  const filteredPlayers = (Array.isArray(playerAvailability) ? playerAvailability : []).filter((player) => {
     const matchesSearch = !debouncedSearch || 
       player.playerName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       player.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
