@@ -181,16 +181,16 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
           newSignups: data.overview?.todayUsers || 0
         });
       } else {
-        // Fallback to mock data if API fails
+        console.warn('Analytics overview request failed:', response.status);
         setMetrics({
-          activeUsers: Math.floor(Math.random() * 50) + 10,
-          pageViews: Math.floor(Math.random() * 500) + 100,
-          conversionRate: Math.random() * 5 + 2,
-          avgSessionDuration: Math.floor(Math.random() * 300) + 120,
-          bounceRate: Math.random() * 30 + 20,
-          errorRate: Math.random() * 2,
-          apiResponseTime: Math.floor(Math.random() * 200) + 50,
-          newSignups: Math.floor(Math.random() * 10) + 1
+          activeUsers: 0,
+          pageViews: 0,
+          conversionRate: 0,
+          avgSessionDuration: 0,
+          bounceRate: 0,
+          errorRate: 0,
+          apiResponseTime: 0,
+          newSignups: 0
         });
       }
     } catch (error) {
