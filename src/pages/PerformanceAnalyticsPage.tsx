@@ -102,9 +102,16 @@ const PerformanceAnalyticsPage: React.FC = () => {
         api.get('/analytics/monthly-matches', { headers: {} })
       ]);
 
-      setStats(statsRes.data);
-      setTrafficData(trafficRes.data);
-      setMatchData(matchesRes.data);
+      setStats({
+        totalVisits: statsRes.data?.totalVisits || 0,
+        uniqueVisitors: statsRes.data?.uniqueVisitors || 0,
+        newUsers: statsRes.data?.newUsers || 0,
+        searchesPerformed: statsRes.data?.searchesPerformed || 0,
+        successfulMatches: statsRes.data?.successfulMatches || 0,
+        activeListings: statsRes.data?.activeListings || 0,
+      });
+      setTrafficData(trafficRes.data || []);
+      setMatchData(matchesRes.data || []);
     } catch (err) {
       console.error('Failed to load analytics:', err);
       // Fallback to mock data if API fails
@@ -169,7 +176,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.totalVisits.toLocaleString()}
+                    {(stats.totalVisits || 0).toLocaleString()}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     Total Site Visits
@@ -192,7 +199,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.uniqueVisitors.toLocaleString()}
+                    {(stats.uniqueVisitors || 0).toLocaleString()}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     Unique Visitors
@@ -215,7 +222,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.successfulMatches}
+                    {stats.successfulMatches || 0}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     Successful Matches
@@ -238,7 +245,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.newUsers}
+                    {stats.newUsers || 0}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     New Users
@@ -261,7 +268,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.searchesPerformed.toLocaleString()}
+                    {(stats.searchesPerformed || 0).toLocaleString()}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     Searches Performed
@@ -284,7 +291,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h3" fontWeight="bold">
-                    {stats.activeListings}
+                    {stats.activeListings || 0}
                   </Typography>
                   <Typography variant="subtitle1" sx={{ opacity: 0.9, mt: 1 }}>
                     Active Listings
