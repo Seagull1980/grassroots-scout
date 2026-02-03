@@ -147,13 +147,14 @@ const ProfilePage: React.FC = () => {
       
       // Parse JSON fields and populate form
       const profileResponse = response.profile;
-      console.log('Loading profile - raw dateofbirth:', profileResponse.dateofbirth);
-      console.log('Profile response keys:', Object.keys(profileResponse));
+      const normalizedDob = profileResponse.dateofbirth
+        ? new Date(profileResponse.dateofbirth).toISOString().split('T')[0]
+        : '';
       
       setProfileData({
         firstName: profileResponse.firstname || '',
         lastName: profileResponse.lastname || '',
-        dateOfBirth: profileResponse.dateofbirth || '',
+        dateOfBirth: normalizedDob,
         location: profileResponse.location || '',
         bio: profileResponse.bio || '',
         position: profileResponse.position || '',
@@ -236,9 +237,6 @@ const ProfilePage: React.FC = () => {
       );
       
       console.log('Sending profile data:', cleanedProfileData);
-      console.log('dateOfBirth value before sending:', profileData.dateOfBirth);
-      console.log('dateOfBirth in cleanedData:', cleanedProfileData.dateOfBirth);
-      
       await profileAPI.update(cleanedProfileData);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
