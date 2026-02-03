@@ -312,12 +312,13 @@ const PerformanceAnalyticsPage: React.FC = () => {
   };
 
   const renderTrafficChart = () => {
+    const safeTrafficData = Array.isArray(trafficData) ? trafficData : [];
     const chartData = {
-      labels: trafficData.map(d => d.date),
+      labels: safeTrafficData.map(d => d.date),
       datasets: [
         {
           label: 'Total Visits',
-          data: trafficData.map(d => d.visits),
+          data: safeTrafficData.map(d => d.visits),
           borderColor: '#667eea',
           backgroundColor: 'rgba(102, 126, 234, 0.1)',
           fill: true,
@@ -325,7 +326,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
         },
         {
           label: 'Unique Visitors',
-          data: trafficData.map(d => d.uniqueUsers),
+          data: safeTrafficData.map(d => d.uniqueUsers),
           borderColor: '#764ba2',
           backgroundColor: 'rgba(118, 75, 162, 0.1)',
           fill: true,
@@ -359,12 +360,13 @@ const PerformanceAnalyticsPage: React.FC = () => {
   };
 
   const renderMatchesChart = () => {
+    const safeMatchData = Array.isArray(matchData) ? matchData : [];
     const chartData = {
-      labels: matchData.map(d => d.month),
+      labels: safeMatchData.map(d => d.month),
       datasets: [
         {
           label: 'Successful Matches',
-          data: matchData.map(d => d.matches),
+          data: safeMatchData.map(d => d.matches),
           backgroundColor: 'rgba(75, 192, 192, 0.6)',
           borderColor: 'rgba(75, 192, 192, 1)',
           borderWidth: 2,
