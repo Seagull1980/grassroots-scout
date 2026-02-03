@@ -1095,7 +1095,15 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       values.push(userId);
       const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE userid = ?`;
 
+      console.log('UPDATE Query:', query);
+      console.log('UPDATE Values:', values);
+      console.log('dateofbirth being updated:', dateofbirth);
+      
       await db.query(query, values);
+      
+      // Verify what was saved
+      const verifyResult = await db.query('SELECT dateofbirth, location FROM user_profiles WHERE userid = ?', [userId]);
+      console.log('After UPDATE - dateofbirth in DB:', verifyResult.rows[0]);
     }
 
     console.log(`✅ Profile updated successfully for user ID: ${userId}`);

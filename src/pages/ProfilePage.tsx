@@ -147,6 +147,9 @@ const ProfilePage: React.FC = () => {
       
       // Parse JSON fields and populate form
       const profileResponse = response.profile;
+      console.log('Loading profile - raw dateofbirth:', profileResponse.dateofbirth);
+      console.log('Profile response keys:', Object.keys(profileResponse));
+      
       setProfileData({
         firstName: profileResponse.firstname || '',
         lastName: profileResponse.lastname || '',
@@ -233,6 +236,9 @@ const ProfilePage: React.FC = () => {
       );
       
       console.log('Sending profile data:', cleanedProfileData);
+      console.log('dateOfBirth value before sending:', profileData.dateOfBirth);
+      console.log('dateOfBirth in cleanedData:', cleanedProfileData.dateOfBirth);
+      
       await profileAPI.update(cleanedProfileData);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
