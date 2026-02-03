@@ -571,8 +571,11 @@ app.post('/api/auth/forgot-password', [
   body('email').isEmail().withMessage('Valid email is required')
 ], async (req, res) => {
   try {
+    console.log('📧 Forgot password request for:', req.body.email);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -580,7 +583,10 @@ app.post('/api/auth/forgot-password', [
 
     // Find user
     const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    console.log('📋 User lookup result rows:', userResult.rows?.length || 0);
+    
     if (!userResult.rows || userResult.rows.length === 0) {
+      console.log('⚠️  Email not found in database:', email);
       // Don't reveal if email exists or not for security
       return res.json({
         message: 'If an account with that email exists, a password reset link has been sent.'
@@ -588,6 +594,7 @@ app.post('/api/auth/forgot-password', [
     }
 
     const user = userResult.rows[0];
+    console.log('✅ User found:', user.id, user.email);
 
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -598,15 +605,17 @@ app.post('/api/auth/forgot-password', [
       'UPDATE users SET passwordResetToken = ?, passwordResetExpires = ? WHERE id = ?',
       [resetToken, resetExpires, user.id]
     );
+    console.log('💾 Token saved to database');
 
     // Send reset email
+    console.log('📨 Sending reset email...');
     await sendPasswordResetEmail(email, user.firstName, resetToken);
 
     res.json({
       message: 'If an account with that email exists, a password reset link has been sent.'
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('❌ Forgot password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
