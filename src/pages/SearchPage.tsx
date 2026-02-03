@@ -8,6 +8,7 @@ import {
   Paper,
   TextField,
   Button,
+  IconButton,
   FormControl,
   InputLabel,
   Select,
@@ -39,6 +40,8 @@ import {
   DialogActions,
   Link,
   Autocomplete,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Search,
@@ -104,6 +107,15 @@ interface PlayerAvailability {
   createdAt?: string;
 }
 
+interface SavedAd {
+  id: number;
+  type: 'vacancy' | 'player';
+  title: string;
+  subtitle: string;
+  location: string;
+  createdAt?: string;
+}
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
 
@@ -124,6 +136,8 @@ const SearchPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // const { isMobile } = useResponsive();
   const { cardSpacing } = useResponsiveSpacing();
   const [tabValue, setTabValue] = useState(0);
@@ -177,6 +191,16 @@ const SearchPage: React.FC = () => {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [savedSearchesOpen, setSavedSearchesOpen] = useState(false);
+  const [savedAdsOpen, setSavedAdsOpen] = useState(false);
+  const [savedAds, setSavedAds] = useState<SavedAd[]>(() => {
+    try {
+      const stored = localStorage.getItem('savedAdverts');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   // const { recentSearches, addRecentSearch } = useRecentSearches();
   
   // Contact dialog state
@@ -205,6 +229,43 @@ const SearchPage: React.FC = () => {
     setTabValue(newValue);
     setPage(1);
     setSortBy('newest');
+  };
+
+  const handleToggleSave = (item: TeamVacancy | PlayerAvailability, type: 'vacancy' | 'player') => {
+    const id = item.id;
+    const exists = savedAds.some((ad) => ad.id === id && ad.type === type);
+
+    if (exists) {
+      setSavedAds((prev) => prev.filter((ad) => !(ad.id === id && ad.type === type)));
+      return;
+    }
+
+    const title = type === 'vacancy'
+      ? (item as TeamVacancy).title
+      : (item as PlayerAvailability).playerName;
+    const subtitle = type === 'vacancy'
+      ? `${(item as TeamVacancy).ageGroup} • ${(item as TeamVacancy).position}`
+      : `${(item as PlayerAvailability).age} • ${(item as PlayerAvailability).position}`;
+    const location = item.location;
+    const createdAt = type === 'vacancy'
+      ? (item as TeamVacancy).createdAt
+      : (item as PlayerAvailability).createdAt;
+
+    setSavedAds((prev) => [
+      {
+        id,
+        type,
+        title,
+        subtitle,
+        location,
+        createdAt,
+      },
+      ...prev,
+    ]);
+  };
+
+  const handleRemoveSaved = (ad: SavedAd) => {
+    setSavedAds((prev) => prev.filter((item) => !(item.id === ad.id && item.type === ad.type)));
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -479,6 +540,14 @@ const SearchPage: React.FC = () => {
     fetchPlayerAvailability();
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('savedAdverts', JSON.stringify(savedAds));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [savedAds]);
+
   // Fetch data when filters change
   useEffect(() => {
     fetchVacancies();
@@ -617,6 +686,14 @@ const SearchPage: React.FC = () => {
               sx={{ mt: 1 }}
             >
               Saved Searches
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<BookmarkIcon />}
+              onClick={() => setSavedAdsOpen(true)}
+              sx={{ mt: 1 }}
+            >
+              Saved Ads
             </Button>
             <Button
               variant="outlined"
@@ -1251,20 +1328,33 @@ const SearchPage: React.FC = () => {
                 {sortedData.map((item) => (
                   <Grid item xs={12} md={6} key={item.id}>
                     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                      <CardContent sx={{ flexGrow: 1 }}>
+                      <CardContent sx={{ flexGrow: 1, p: isMobile ? 2 : 3 }}>
                         {tabValue === 0 ? (
                           // Team Vacancy Card
                           <>
-                            <Typography variant="h6" component="h3" gutterBottom>
+                            <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
                               {(item as TeamVacancy).title}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                mb: 2,
+                                display: '-webkit-box',
+                                WebkitLineClamp: isMobile ? 2 : 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}
+                            >
                               {(item as TeamVacancy).description}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                               <Chip label={(item as TeamVacancy).league} size="small" color="primary" />
-                              <Chip label={(item as TeamVacancy).ageGroup} size="small" color="secondary" />
+                              {!isMobile && <Chip label={(item as TeamVacancy).ageGroup} size="small" color="secondary" />}
                               <Chip label={(item as TeamVacancy).position} size="small" />
+                              {isMobile && (item as TeamVacancy).ageGroup && (
+                                <Chip label={(item as TeamVacancy).ageGroup} size="small" variant="outlined" />
+                              )}
                               {(item as TeamVacancy).hasMatchRecording && (
                                 <Chip label="Match Recording" size="small" color="info" variant="outlined" />
                               )}
@@ -1285,17 +1375,34 @@ const SearchPage: React.FC = () => {
                         ) : (
                           // Player Availability Card
                           <>
-                            <Typography variant="h6" component="h3" gutterBottom>
+                            <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
                               {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                mb: 2,
+                                display: '-webkit-box',
+                                WebkitLineClamp: isMobile ? 2 : 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}
+                            >
                               {(item as PlayerAvailability).description}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                               <Chip label={`Age ${(item as PlayerAvailability).age}`} size="small" color="primary" />
-                              {(item as PlayerAvailability).positions?.map((position) => (
+                              {(item as PlayerAvailability).positions?.slice(0, isMobile ? 2 : 4).map((position) => (
                                 <Chip key={position} label={position} size="small" color="secondary" />
                               ))}
+                              {isMobile && (item as PlayerAvailability).positions?.length > 2 && (
+                                <Chip
+                                  label={`+${(item as PlayerAvailability).positions.length - 2}`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
                               <Chip label={`${(item as PlayerAvailability).experience} experience`} size="small" />
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -1312,7 +1419,7 @@ const SearchPage: React.FC = () => {
                           </>
                         )}
                       </CardContent>
-                      <CardActions>
+                      <CardActions sx={{ px: isMobile ? 2 : 2, pb: isMobile ? 2 : 2, flexWrap: 'wrap', gap: 1 }}>
                         {tabValue === 0 ? (
                           <Button 
                             size="small" 
@@ -1347,6 +1454,13 @@ const SearchPage: React.FC = () => {
                             Add to Trial
                           </Button>
                         )}
+                        <IconButton
+                          size="small"
+                          onClick={() => handleToggleSave(item as any, tabValue === 0 ? 'vacancy' : 'player')}
+                          aria-label={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'Unsave advert' : 'Save advert'}
+                        >
+                          <BookmarkIcon color={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'primary' : 'inherit'} />
+                        </IconButton>
                       </CardActions>
                     </Card>
                   </Grid>
@@ -1470,6 +1584,72 @@ const SearchPage: React.FC = () => {
           >
             {sendingMessage ? 'Sending...' : 'Send Message'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Saved Ads Dialog */}
+      <Dialog
+        open={savedAdsOpen}
+        onClose={() => setSavedAdsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Saved Ads</DialogTitle>
+        <DialogContent>
+          {savedAds.length === 0 ? (
+            <Alert severity="info">No saved ads yet.</Alert>
+          ) : (
+            <Box sx={{ pt: 1 }}>
+              {savedAds.map((ad) => (
+                <Paper key={`${ad.type}-${ad.id}`} sx={{ p: 2, mb: 2 }} variant="outlined">
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    {ad.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {ad.subtitle}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {ad.location}
+                  </Typography>
+                  {ad.createdAt && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                      Posted {new Date(ad.createdAt).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => {
+                        setSavedAdsOpen(false);
+                        navigate(`/search?tab=${ad.type === 'vacancy' ? 'vacancies' : 'availability'}&id=${ad.id}`);
+                      }}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleRemoveSaved(ad)}
+                    >
+                      Remove
+                    </Button>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {savedAds.length > 0 && (
+            <Button
+              onClick={() => setSavedAds([])}
+              color="error"
+            >
+              Clear All
+            </Button>
+          )}
+          <Button onClick={() => setSavedAdsOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
