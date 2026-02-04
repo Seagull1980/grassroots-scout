@@ -31,7 +31,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
+import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -82,6 +82,7 @@ const ProfilePage: React.FC = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [showCompletionAlert, setShowCompletionAlert] = useState(true);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -420,8 +421,22 @@ const ProfilePage: React.FC = () => {
       </Box>
       
       {/* Welcome message and profile completion for new users */}
-      {!profile?.isprofilecomplete && (
-        <Alert severity="info" sx={{ mb: 3 }}>
+      {!profile?.isprofilecomplete && showCompletionAlert && (
+        <Alert 
+          severity="info" 
+          sx={{ mb: 3 }}
+          onClose={() => setShowCompletionAlert(false)}
+          action={
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              size="small"
+              onClick={() => setShowCompletionAlert(false)}
+            >
+              <Close fontSize="inherit" />
+            </IconButton>
+          }
+        >
           <Typography variant="h6" gutterBottom>
             Welcome to The Grassroots Scout! 🎉
           </Typography>
