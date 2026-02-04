@@ -2321,13 +2321,25 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Fetch all users
-    const result = await db.query('SELECT id, username, email, role, isverified, createdat FROM users ORDER BY createdat DESC');
+    // Fetch all users - map database columns to frontend schema
+    const result = await db.query(`
+      SELECT 
+        id, 
+        email, 
+        firstname as firstName, 
+        lastname as lastName, 
+        role, 
+        isemailverified as isEmailVerified,
+        isblocked as isBlocked,
+        createdat as createdAt
+      FROM users 
+      ORDER BY createdat DESC
+    `);
     
     console.log(`[Admin Users] Found ${result.rows ? result.rows.length : 0} users`);
     console.log('[Admin Users] Users data:', result.rows);
     
-    res.json(result.rows || []);
+    res.json({ users: result.rows || [] });
   } catch (error) {
     console.error('[Admin Users] Error:', error);
     res.status(500).json({ error: 'Internal server error' });
