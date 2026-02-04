@@ -176,8 +176,10 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const leagues = ['County League', 'Regional League', 'Youth League', 'Premier Youth League', 'Championship Youth', 'Local League'];
   const ageGroups = AGE_GROUP_OPTIONS;
 
-  // Load saved regions from localStorage
+  // Load saved regions from localStorage (after Maps is ready)
   useEffect(() => {
+    if (!window.google?.maps) return;
+
     const saved = localStorage.getItem(SAVED_REGIONS_KEY);
     if (saved) {
       try {
@@ -191,7 +193,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         console.error('Error loading saved regions:', error);
       }
     }
-  }, []);
+  }, [map]);
 
   // Load email alerts
   useEffect(() => {
