@@ -20,6 +20,14 @@ import {
   Autocomplete,
   FormControlLabel,
   Checkbox,
+  Stepper,
+  Step,
+  StepLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -50,6 +58,18 @@ const PostAdvertPage: React.FC = () => {
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [drafts, setDrafts] = useState<Array<{ id: string; name: string; role: string; data: any; createdAt: string }>>(() => {
+    try {
+      const stored = localStorage.getItem('post_advert_drafts');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [draftName, setDraftName] = useState('');
+  const [selectedDraftId, setSelectedDraftId] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -148,6 +168,10 @@ const PostAdvertPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await submitAdvert();
+  };
+
+  const submitAdvert = async () => {
     setError('');
     setShowValidation(true);
 
@@ -242,6 +266,61 @@ const PostAdvertPage: React.FC = () => {
     : formData.positions.filter(Boolean);
   const previewTitle = formData.title || (isCoach ? 'Team Vacancy Title' : 'Player Availability Title');
   const previewDescription = formData.description || 'Your advert description will appear here.';
+  const steps = ['Basic Info', 'Details', 'Review'];
+
+  const isStepOneComplete = !!formData.title && !!formData.description;
+  const isStepTwoComplete = leagueValidForForm && !!formData.ageGroup && positionValidForForm && !!formData.location;
+  const activeStep = isFormValid ? 2 : isStepTwoComplete ? 1 : 0;
+
+  const selectedTeam = teams.find((team) => team.id.toString() === formData.teamId);
+  const titleSuggestions = isCoach
+    ? [
+        `${formData.position || 'Striker'} Wanted - ${formData.ageGroup || 'U14'} ${selectedTeam?.teamName || 'Team'}`,
+        `${formData.ageGroup || 'U16'} ${selectedTeam?.teamName || 'Team'} seeking ${formData.position || 'midfielder'}`,
+      ]
+    : [
+        `${formData.positions[0] || 'Player'} Looking for Team`,
+        `${formData.ageGroup || 'U18'} ${formData.positions[0] || 'midfielder'} available`,
+      ];
+
+  const applyTemplate = () => {
+    if (isCoach) {
+      const teamLabel = selectedTeam?.teamName || 'Our team';
+      setFormData((prev) => ({
+        ...prev,
+        title: prev.title || `${prev.position || 'Striker'} Wanted - ${prev.ageGroup || 'U14'} ${teamLabel}`,
+        description: prev.description || `${teamLabel} is looking for a committed ${prev.position || 'player'} to join our ${prev.ageGroup || 'youth'} squad. Training sessions run weekly, and we focus on development, teamwork, and match readiness.`
+      }));
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      title: prev.title || `${prev.positions[0] || 'Player'} Looking for Team`,
+      description: prev.description || `I am a dedicated ${prev.positions[0] || 'player'} seeking a competitive team. I am available for training, open to feedback, and eager to contribute on match days.`
+    }));
+  };
+
+  const handleSaveDraft = () => {
+    if (!draftName.trim()) return;
+    const newDraft = {
+      id: Date.now().toString(),
+      name: draftName.trim(),
+      role: user.role,
+      data: { formData, locationData },
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [newDraft, ...drafts];
+    setDrafts(updated);
+    localStorage.setItem('post_advert_drafts', JSON.stringify(updated));
+    setDraftName('');
+  };
+
+  const handleLoadDraft = () => {
+    const draft = drafts.find((item) => item.id === selectedDraftId);
+    if (!draft) return;
+    setFormData(draft.data.formData);
+    setLocationData(draft.data.locationData || null);
+  };
 
   const ageGroups = [
     'Under 6',
@@ -293,6 +372,16 @@ const PostAdvertPage: React.FC = () => {
       </Box>
 
       <Paper elevation={3} sx={{ p: 4 }}>
+        <Box sx={{ mb: 3 }}>
+          <Stepper activeStep={activeStep} alternativeLabel>
+            {steps.map((label, index) => (
+              <Step key={label} completed={index === 0 ? isStepOneComplete : index === 1 ? isStepTwoComplete : isFormValid}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </Box>
+
         {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
             Your advert has been posted successfully! Redirecting to dashboard...
@@ -321,6 +410,17 @@ const PostAdvertPage: React.FC = () => {
                     error={showValidation && !formData.title}
                     helperText={showValidation && !formData.title ? 'Title is required' : undefined}
                   />
+                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {titleSuggestions.map((suggestion) => (
+                      <Chip
+                        key={suggestion}
+                        label={suggestion}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setFormData((prev) => ({ ...prev, title: suggestion }))}
+                      />
+                    ))}
+                  </Box>
                 </Grid>
 
                 <Grid item xs={12}>
@@ -341,6 +441,43 @@ const PostAdvertPage: React.FC = () => {
                           ? 'Include training days, expectations, and facilities.'
                           : 'Include availability, experience, and travel radius.')}
                   />
+                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button size="small" variant="outlined" onClick={applyTemplate}>
+                      Use Suggested Template
+                    </Button>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                    <TextField
+                      size="small"
+                      label="Draft name"
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      placeholder="e.g. U16 Striker Draft"
+                    />
+                    <Button variant="outlined" onClick={handleSaveDraft} disabled={!draftName.trim()}>
+                      Save Draft
+                    </Button>
+                    <FormControl size="small" sx={{ minWidth: 180 }}>
+                      <InputLabel>Load Draft</InputLabel>
+                      <Select
+                        value={selectedDraftId}
+                        label="Load Draft"
+                        onChange={(e) => setSelectedDraftId(e.target.value)}
+                      >
+                        {drafts.filter((draft) => draft.role === user.role).map((draft) => (
+                          <MenuItem key={draft.id} value={draft.id}>
+                            {draft.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Button variant="outlined" onClick={handleLoadDraft} disabled={!selectedDraftId}>
+                      Load
+                    </Button>
+                  </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
@@ -667,6 +804,13 @@ const PostAdvertPage: React.FC = () => {
                       Cancel
                     </Button>
                     <Button
+                      variant="outlined"
+                      onClick={() => setReviewOpen(true)}
+                      disabled={!isStepOneComplete}
+                    >
+                      Review Advert
+                    </Button>
+                    <Button
                       type="submit"
                       variant="contained"
                       size="large"
@@ -724,11 +868,56 @@ const PostAdvertPage: React.FC = () => {
                     Playing time policy: {formData.playingTimePolicy}
                   </Typography>
                 )}
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="body2" color="text.secondary">
+                  Step {activeStep + 1} of {steps.length}
+                </Typography>
               </Paper>
             </Grid>
           </Grid>
         </Box>
       </Paper>
+
+      <Dialog open={reviewOpen} onClose={() => setReviewOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Review Your Advert</DialogTitle>
+        <DialogContent>
+          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            {previewTitle}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {previewDescription}
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="body2" gutterBottom>
+            <strong>League:</strong> {formData.league || 'Not specified'}
+          </Typography>
+          <Typography variant="body2" gutterBottom>
+            <strong>Age Group:</strong> {formData.ageGroup || 'Not specified'}
+          </Typography>
+          <Typography variant="body2" gutterBottom>
+            <strong>Positions:</strong> {previewPositions.join(', ') || 'Not specified'}
+          </Typography>
+          <Typography variant="body2" gutterBottom>
+            <strong>Location:</strong> {formData.location || 'Not specified'}
+          </Typography>
+          <Typography variant="body2" gutterBottom>
+            <strong>Contact:</strong> {formData.contactInfo || 'Not specified'}
+          </Typography>
+          {isCoach && (
+            <Typography variant="body2" gutterBottom>
+              <strong>Playing Time Policy:</strong> {formData.playingTimePolicy || 'Not specified'}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviewOpen(false)}>
+            Back to Edit
+          </Button>
+          <Button variant="contained" onClick={submitAdvert} disabled={!isFormValid}>
+            Submit Advert
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* League Request Dialog */}
       <LeagueRequestDialog

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS, POSITION_OPTIONS } from '../constants/options';
 import {
@@ -19,6 +19,7 @@ import {
   CardContent,
   CardActions,
   Chip,
+  Collapse,
   Pagination,
   Tabs,
   Tab,
@@ -39,6 +40,8 @@ import {
   DialogContent,
   DialogActions,
   Link,
+  Switch,
+  Divider,
   Autocomplete,
   useMediaQuery,
   useTheme,
@@ -53,6 +56,10 @@ import {
   OpenInNew,
   Map,
   Bookmark as BookmarkIcon,
+  NotificationsActive,
+  Send,
+  Folder,
+  Add,
 } from '@mui/icons-material';
 import api, { leaguesAPI, League } from '../services/api';
 import { useDebounce } from '../utils/performance';
@@ -63,7 +70,8 @@ import LeagueRequestDialog from '../components/LeagueRequestDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsiveSpacing } from '../hooks/useResponsive';
 import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
-import { SavedSearchesDialog } from '../components/SavedSearches';
+import { SavedSearchesDialog, useRecentSearches } from '../components/SavedSearches';
+import { requestNotificationPermission } from '../utils/pwa';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -114,6 +122,21 @@ interface SavedAd {
   subtitle: string;
   location: string;
   createdAt?: string;
+  contactUserId?: number;
+  contactName?: string;
+}
+
+interface SavedCollection {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+interface AdActivity {
+  views: number;
+  contacts: number;
+  lastViewedAt?: string;
+  lastContactedAt?: string;
 }
 
 function TabPanel(props: TabPanelProps) {
@@ -201,7 +224,52 @@ const SearchPage: React.FC = () => {
       return [];
     }
   });
-  // const { recentSearches, addRecentSearch } = useRecentSearches();
+  const { recentSearches, addRecentSearch, clearRecentSearches } = useRecentSearches();
+  const recentSearchKeyRef = useRef<string>('');
+
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [activityByAd, setActivityByAd] = useState<Record<string, AdActivity>>(() => {
+    try {
+      const stored = localStorage.getItem('adActivity');
+      const parsed = stored ? JSON.parse(stored) : {};
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [alertsEnabled, setAlertsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('grassroots_alerts_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [collections, setCollections] = useState<SavedCollection[]>(() => {
+    try {
+      const stored = localStorage.getItem('savedAdCollections');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [savedAdCollections, setSavedAdCollections] = useState<Record<string, string[]>>(() => {
+    try {
+      const stored = localStorage.getItem('savedAdCollectionsMap');
+      const parsed = stored ? JSON.parse(stored) : {};
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+  const [collectionName, setCollectionName] = useState('');
+  const [collectionFilter, setCollectionFilter] = useState('all');
+  const [selectedSavedAds, setSelectedSavedAds] = useState<string[]>([]);
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [bulkSending, setBulkSending] = useState(false);
   
   // Contact dialog state
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
@@ -250,6 +318,12 @@ const SearchPage: React.FC = () => {
     const createdAt = type === 'vacancy'
       ? (item as TeamVacancy).createdAt
       : (item as PlayerAvailability).createdAt;
+    const contactUserId = type === 'vacancy'
+      ? (item as TeamVacancy).postedBy
+      : (item as PlayerAvailability).userId;
+    const contactName = type === 'vacancy'
+      ? `${(item as TeamVacancy).firstName} ${(item as TeamVacancy).lastName}`.trim()
+      : (item as PlayerAvailability).playerName;
 
     setSavedAds((prev) => [
       {
@@ -259,6 +333,8 @@ const SearchPage: React.FC = () => {
         subtitle,
         location,
         createdAt,
+        contactUserId,
+        contactName,
       },
       ...prev,
     ]);
@@ -343,6 +419,7 @@ const SearchPage: React.FC = () => {
       if (response.data.success) {
         // Show success message
         alert('Your message has been sent successfully! The coach will receive your interest and can respond through the platform.');
+        recordContact(`vacancy-${selectedVacancy.id}`);
         handleCloseContactDialog();
       }
     } catch (error) {
@@ -357,6 +434,7 @@ const SearchPage: React.FC = () => {
     // Training invite flow temporarily disabled
     // setSelectedPlayer({ id: player.userId, name: player.playerName });
     // setTrainingInviteOpen(true);
+    recordContact(`player-${_player.id}`);
   };
 
   // const handleCloseTrainingInvite = () => {
@@ -561,6 +639,31 @@ const SearchPage: React.FC = () => {
     }
   }, [savedAds]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('adActivity', JSON.stringify(activityByAd));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [activityByAd]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('savedAdCollections', JSON.stringify(collections));
+      localStorage.setItem('savedAdCollectionsMap', JSON.stringify(savedAdCollections));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [collections, savedAdCollections]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('grassroots_alerts_enabled', alertsEnabled ? 'true' : 'false');
+    } catch {
+      // Ignore storage errors
+    }
+  }, [alertsEnabled]);
+
   // Fetch data when filters change
   useEffect(() => {
     fetchVacancies();
@@ -678,6 +781,235 @@ const SearchPage: React.FC = () => {
         return playerData;
     }
   }, [currentData, sortBy, tabValue]);
+
+  const recentSearchSignature = useMemo(() => {
+    return JSON.stringify({
+      tabValue,
+      filters: {
+        ...filters,
+        search: debouncedSearch,
+      }
+    });
+  }, [tabValue, filters, debouncedSearch]);
+
+  useEffect(() => {
+    const hasFilters = Object.values({
+      ...filters,
+      search: debouncedSearch,
+    }).some((value) => Array.isArray(value) ? value.length > 0 : !!value);
+
+    if (!hasFilters) return;
+    if (recentSearchSignature === recentSearchKeyRef.current) return;
+
+    const timeout = setTimeout(() => {
+      addRecentSearch({ ...filters, search: debouncedSearch }, tabValue);
+      recentSearchKeyRef.current = recentSearchSignature;
+    }, 700);
+
+    return () => clearTimeout(timeout);
+  }, [recentSearchSignature, filters, debouncedSearch, tabValue, addRecentSearch]);
+
+  const getSavedAdKey = (ad: SavedAd) => `${ad.type}-${ad.id}`;
+
+  const recordView = (key: string) => {
+    setActivityByAd((prev) => {
+      const current = prev[key] || { views: 0, contacts: 0 };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          views: current.views + 1,
+          lastViewedAt: new Date().toISOString(),
+        },
+      };
+    });
+  };
+
+  const recordContact = (key: string) => {
+    setActivityByAd((prev) => {
+      const current = prev[key] || { views: 0, contacts: 0 };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          contacts: current.contacts + 1,
+          lastContactedAt: new Date().toISOString(),
+        },
+      };
+    });
+  };
+
+  const toggleExpand = (key: string) => {
+    setExpandedCards((prev) => {
+      const nextValue = !prev[key];
+      if (nextValue) {
+        recordView(key);
+      }
+      return {
+        ...prev,
+        [key]: nextValue,
+      };
+    });
+  };
+
+  const activeCriteriaCount = useMemo(() => {
+    if (tabValue === 0) {
+      const values = [
+        filters.search,
+        filters.league,
+        filters.ageGroup,
+        filters.position,
+        filters.location,
+        filters.teamGender,
+      ];
+      return values.filter(Boolean).length;
+    }
+    const values = [filters.search, filters.position, filters.location];
+    return values.filter(Boolean).length;
+  }, [filters, tabValue]);
+
+  const closeMatches = useMemo(() => {
+    if (activeCriteriaCount < 3) return [] as Array<{ item: TeamVacancy | PlayerAvailability; matchCount: number }>;
+
+    const isMatch = (text: string, query: string) => text.toLowerCase().includes(query.toLowerCase());
+    const getCountVacancy = (vacancy: TeamVacancy) => {
+      let count = 0;
+      if (filters.search && (isMatch(vacancy.title, filters.search) || isMatch(vacancy.description, filters.search) || isMatch(vacancy.location, filters.search))) count += 1;
+      if (filters.league && vacancy.league === filters.league) count += 1;
+      if (filters.ageGroup && vacancy.ageGroup === filters.ageGroup) count += 1;
+      if (filters.position && vacancy.position === filters.position) count += 1;
+      if (filters.location && isMatch(vacancy.location, filters.location)) count += 1;
+      if (filters.teamGender && vacancy.teamGender === filters.teamGender) count += 1;
+      return count;
+    };
+
+    const getCountPlayer = (player: PlayerAvailability) => {
+      let count = 0;
+      if (filters.search && (isMatch(player.playerName, filters.search) || isMatch(player.description, filters.search) || isMatch(player.location, filters.search))) count += 1;
+      if (filters.position && (player.position === filters.position || player.positions?.includes(filters.position))) count += 1;
+      if (filters.location && isMatch(player.location, filters.location)) count += 1;
+      return count;
+    };
+
+    const items = tabValue === 0 ? (Array.isArray(vacancies) ? vacancies : []) : (Array.isArray(playerAvailability) ? playerAvailability : []);
+    const filteredIds = new Set((currentData || []).map((item) => item.id));
+
+    return items
+      .filter((item) => !filteredIds.has(item.id))
+      .map((item) => ({
+        item,
+        matchCount: tabValue === 0 ? getCountVacancy(item as TeamVacancy) : getCountPlayer(item as PlayerAvailability)
+      }))
+      .filter((entry) => entry.matchCount >= 3)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .slice(0, 4);
+  }, [activeCriteriaCount, tabValue, vacancies, playerAvailability, currentData, filters]);
+
+  const recentPopular = useMemo(() => {
+    const items = tabValue === 0 ? (Array.isArray(vacancies) ? vacancies : []) : (Array.isArray(playerAvailability) ? playerAvailability : []);
+    const getDate = (value?: string) => value ? new Date(value).getTime() : 0;
+    return [...items].sort((a, b) => getDate((b as any).createdAt) - getDate((a as any).createdAt)).slice(0, 3);
+  }, [tabValue, vacancies, playerAvailability]);
+
+  const emptyStateTitle = useMemo(() => {
+    const agePart = filters.ageGroup ? `${filters.ageGroup} ` : '';
+    const positionPart = filters.position ? `${filters.position} ` : '';
+    const locationPart = filters.location ? `in ${filters.location}` : '';
+    const noun = tabValue === 0 ? 'teams' : 'players';
+    const label = `${agePart}${positionPart}${noun}`.trim();
+    if (label && locationPart) return `No ${label} found ${locationPart}`;
+    if (label) return `No ${label} found`;
+    if (locationPart) return `No ${noun} found ${locationPart}`;
+    return 'No results found';
+  }, [filters.ageGroup, filters.position, filters.location, tabValue]);
+
+  const emptyStateSuggestions = useMemo(() => {
+    const suggestions: { label: string; action: () => void }[] = [];
+    if (filters.location) {
+      suggestions.push({
+        label: 'Clear location filter',
+        action: () => setFilters({ ...filters, location: '' })
+      });
+    }
+    if (filters.position) {
+      suggestions.push({
+        label: 'Clear position filter',
+        action: () => setFilters({ ...filters, position: '' })
+      });
+    }
+    suggestions.push({
+      label: 'Expand travel radius to 50km',
+      action: () => {
+        setShowAdvancedFilters(true);
+        handleSliderChange('travelDistance', 50);
+      }
+    });
+    suggestions.push({
+      label: 'Clear all filters',
+      action: clearFilters
+    });
+    return suggestions.slice(0, 4);
+  }, [filters, clearFilters]);
+
+  const handleCreateCollection = () => {
+    if (!collectionName.trim()) return;
+    const newCollection: SavedCollection = {
+      id: Date.now().toString(),
+      name: collectionName.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setCollections((prev) => [newCollection, ...prev]);
+    setCollectionName('');
+  };
+
+  const handleAssignToCollection = (collectionId: string) => {
+    if (!selectedSavedAds.length) return;
+    setSavedAdCollections((prev) => {
+      const next = { ...prev };
+      selectedSavedAds.forEach((key) => {
+        const existing = next[key] || [];
+        next[key] = Array.from(new Set([...existing, collectionId]));
+      });
+      return next;
+    });
+  };
+
+  const handleToggleSavedSelection = (key: string) => {
+    setSelectedSavedAds((prev) =>
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    );
+  };
+
+  const handleBulkMessageSend = async () => {
+    const selectedAds = savedAds.filter((ad) => selectedSavedAds.includes(getSavedAdKey(ad)));
+    const targetAds = selectedAds.filter((ad) => ad.type === 'vacancy' && ad.contactUserId);
+    if (targetAds.length === 0 || !bulkMessage.trim()) return;
+
+    try {
+      setBulkSending(true);
+      await Promise.all(
+        targetAds.map((ad) =>
+          api.post('/messages', {
+            recipientId: ad.contactUserId,
+            subject: `Interest in ${ad.title}`,
+            message: bulkMessage.trim(),
+            relatedVacancyId: ad.id,
+            messageType: 'vacancy_interest'
+          })
+        )
+      );
+
+      targetAds.forEach((ad) => recordContact(getSavedAdKey(ad)));
+      alert('Your message has been sent to all selected teams.');
+      setBulkMessage('');
+      setBulkMessageOpen(false);
+    } catch (err) {
+      console.error('Error sending bulk messages:', err);
+      alert('There was an error sending your messages. Please try again.');
+    } finally {
+      setBulkSending(false);
+    }
+  };
 
   return (
     <Container maxWidth="lg">
@@ -1020,6 +1352,74 @@ const SearchPage: React.FC = () => {
           </Grid>
         </Grid>
 
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Common Searches
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label="Nearest Teams"
+              icon={<LocationOn />}
+              onClick={() => {
+                setShowAdvancedFilters(true);
+                handleSliderChange('travelDistance', 10);
+              }}
+              variant="outlined"
+            />
+            <Chip
+              label="My Age Group"
+              icon={<Group />}
+              onClick={() => {
+                const fallbackAgeGroup = user?.role === 'Player' ? 'Under 16' : 'Adult (18+)';
+                setFilters({
+                  ...filters,
+                  ageGroup: filters.ageGroup || fallbackAgeGroup,
+                });
+              }}
+              variant="outlined"
+            />
+            <Chip
+              label="Favorite Positions"
+              icon={<Sports />}
+              onClick={() => {
+                setFilters({
+                  ...filters,
+                  position: filters.position || 'Striker',
+                });
+              }}
+              variant="outlined"
+            />
+          </Box>
+        </Box>
+
+        {recentSearches.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle2">Recent Searches</Typography>
+              <Button size="small" onClick={clearRecentSearches}>
+                Clear
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              {recentSearches.slice(0, 6).map((search) => (
+                <Chip
+                  key={search.id}
+                  label={search.filters.search || search.filters.position || search.filters.league || 'Recent search'}
+                  onClick={() => {
+                    setFilters({
+                      ...filters,
+                      ...search.filters,
+                      hasMatchRecording: search.filters.hasMatchRecording || false,
+                      hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
+                    });
+                    setTabValue(search.tabIndex);
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+
         {/* Advanced Filters */}
         {showAdvancedFilters && (
           <Accordion expanded sx={{ mt: 3, mb: 0 }}>
@@ -1284,6 +1684,42 @@ const SearchPage: React.FC = () => {
         </Box>
       </Paper>
 
+      <Paper elevation={1} sx={{ p: 2, mb: 3, border: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <NotificationsActive color="primary" />
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600}>
+                Get alerts for new matches
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Receive notifications when adverts match your saved searches.
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={alertsEnabled}
+                  onChange={async () => {
+                    if (!alertsEnabled) {
+                      const granted = await requestNotificationPermission();
+                      if (!granted) return;
+                    }
+                    setAlertsEnabled(!alertsEnabled);
+                  }}
+                />
+              }
+              label={alertsEnabled ? 'Enabled' : 'Disabled'}
+            />
+            <Button variant="outlined" onClick={() => navigate('/alert-preferences')}>
+              Manage Alerts
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
+
       {/* Results */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -1321,10 +1757,10 @@ const SearchPage: React.FC = () => {
           {sortedData.length === 0 ? (
             <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
               <Typography variant="h6" gutterBottom>
-                No results found
+                {emptyStateTitle}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Try adjusting your filters or post an advert to be seen faster.
+                Try adjusting your filters or explore recent postings below.
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
                 <Button variant="outlined" onClick={clearFilters}>
@@ -1334,6 +1770,76 @@ const SearchPage: React.FC = () => {
                   Post Advert
                 </Button>
               </Box>
+
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Suggested next steps
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {emptyStateSuggestions.map((suggestion) => (
+                    <Button
+                      key={suggestion.label}
+                      size="small"
+                      variant="outlined"
+                      onClick={suggestion.action}
+                    >
+                      {suggestion.label}
+                    </Button>
+                  ))}
+                </Box>
+              </Box>
+
+              {savedAds.length > 0 && (
+                <Box sx={{ mt: 4, textAlign: 'left' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    From your saved adverts
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {savedAds.slice(0, 3).map((ad) => (
+                      <Grid item xs={12} md={4} key={getSavedAdKey(ad)}>
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                            {ad.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {ad.subtitle}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            {ad.location}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+
+              {recentPopular.length > 0 && (
+                <Box sx={{ mt: 4, textAlign: 'left' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Popular recent postings
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {recentPopular.map((item) => (
+                      <Grid item xs={12} md={4} key={`popular-${item.id}`}>
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                            {tabValue === 0 ? (item as TeamVacancy).title : (item as PlayerAvailability).playerName}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {tabValue === 0
+                              ? (item as TeamVacancy).position
+                              : (item as PlayerAvailability).position}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            {(item as any).location}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
             </Paper>
           ) : (
             <>
@@ -1345,9 +1851,14 @@ const SearchPage: React.FC = () => {
                         {tabValue === 0 ? (
                           // Team Vacancy Card
                           <>
-                            <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
-                              {(item as TeamVacancy).title}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
+                                {(item as TeamVacancy).title}
+                              </Typography>
+                              {expandedCards[`vacancy-${item.id}`] && (
+                                <Chip label="Full Details" size="small" color="info" variant="outlined" />
+                              )}
+                            </Box>
                             <Typography
                               variant="body2"
                               color="text.secondary"
@@ -1384,13 +1895,43 @@ const SearchPage: React.FC = () => {
                             <Typography variant="body2" color="text.secondary">
                               Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {formatRelativeDate((item as TeamVacancy).createdAt)}
                             </Typography>
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Activity: {(activityByAd[`vacancy-${item.id}`]?.views || 0)} views • {(activityByAd[`vacancy-${item.id}`]?.contacts || 0)} contacts
+                                {activityByAd[`vacancy-${item.id}`]?.lastContactedAt && (
+                                  <> • Last contacted {formatRelativeDate(activityByAd[`vacancy-${item.id}`]?.lastContactedAt)}</>
+                                )}
+                              </Typography>
+                            </Box>
+                            <Collapse in={expandedCards[`vacancy-${item.id}`]} timeout="auto" unmountOnExit>
+                              <Divider sx={{ my: 2 }} />
+                              <Typography variant="subtitle2" gutterBottom>
+                                Full Description
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                {(item as TeamVacancy).description}
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                {(item as TeamVacancy).hasMatchRecording && (
+                                  <Chip label="Match Recording Available" size="small" color="info" variant="outlined" />
+                                )}
+                                {(item as TeamVacancy).hasPathwayToSenior && (
+                                  <Chip label="Pathway to Senior" size="small" color="success" variant="outlined" />
+                                )}
+                              </Box>
+                            </Collapse>
                           </>
                         ) : (
                           // Player Availability Card
                           <>
-                            <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
-                              {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
+                                {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
+                              </Typography>
+                              {expandedCards[`player-${item.id}`] && (
+                                <Chip label="Full Details" size="small" color="info" variant="outlined" />
+                              )}
+                            </Box>
                             <Typography
                               variant="body2"
                               color="text.secondary"
@@ -1429,6 +1970,23 @@ const SearchPage: React.FC = () => {
                                 Posted {formatRelativeDate((item as PlayerAvailability).createdAt as string)}
                               </Typography>
                             )}
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Activity: {(activityByAd[`player-${item.id}`]?.views || 0)} views • {(activityByAd[`player-${item.id}`]?.contacts || 0)} contacts
+                                {activityByAd[`player-${item.id}`]?.lastContactedAt && (
+                                  <> • Last contacted {formatRelativeDate(activityByAd[`player-${item.id}`]?.lastContactedAt)}</>
+                                )}
+                              </Typography>
+                            </Box>
+                            <Collapse in={expandedCards[`player-${item.id}`]} timeout="auto" unmountOnExit>
+                              <Divider sx={{ my: 2 }} />
+                              <Typography variant="subtitle2" gutterBottom>
+                                Full Description
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                {(item as PlayerAvailability).description}
+                              </Typography>
+                            </Collapse>
                           </>
                         )}
                       </CardContent>
@@ -1455,6 +2013,13 @@ const SearchPage: React.FC = () => {
                             </span>
                           </Tooltip>
                         )}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`)}
+                        >
+                          {expandedCards[`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`] ? 'Hide Details' : 'View Full Details'}
+                        </Button>
                         {tabValue === 1 && user?.role === 'Coach' && (
                           <Button 
                             size="small" 
@@ -1479,6 +2044,64 @@ const SearchPage: React.FC = () => {
                   </Grid>
                 ))}
               </Grid>
+
+              {closeMatches.length > 0 && (
+                <Box sx={{ mt: 4 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Close Matches
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    These results match at least 3 of your filters.
+                  </Typography>
+                  <Grid container spacing={cardSpacing}>
+                    {closeMatches.map(({ item, matchCount }) => (
+                      <Grid item xs={12} md={6} key={`close-${item.id}`}>
+                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <CardContent sx={{ flexGrow: 1, p: isMobile ? 2 : 3 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
+                                {tabValue === 0
+                                  ? (item as TeamVacancy).title
+                                  : `${(item as PlayerAvailability).playerName} - ${(item as PlayerAvailability).position}`}
+                              </Typography>
+                              <Chip label={`Close Match • ${matchCount}`} size="small" color="warning" variant="outlined" />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {tabValue === 0
+                                ? (item as TeamVacancy).description
+                                : (item as PlayerAvailability).description}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {(item as any).location}
+                            </Typography>
+                          </CardContent>
+                          <CardActions sx={{ px: isMobile ? 2 : 2, pb: isMobile ? 2 : 2 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                if (tabValue === 0) {
+                                  handleContact(item as TeamVacancy);
+                                } else {
+                                  handleSendTrainingInvite(item as PlayerAvailability);
+                                }
+                              }}
+                            >
+                              {tabValue === 0 ? 'Express Interest' : 'Send Training Invite'}
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`)}
+                            >
+                              View Full Details
+                            </Button>
+                          </CardActions>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
 
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                 <Pagination
@@ -1613,8 +2236,72 @@ const SearchPage: React.FC = () => {
             <Alert severity="info">No saved ads yet.</Alert>
           ) : (
             <Box sx={{ pt: 1 }}>
+              <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                    <InputLabel>Collection</InputLabel>
+                    <Select
+                      value={collectionFilter}
+                      label="Collection"
+                      onChange={(e) => setCollectionFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All Collections</MenuItem>
+                      {collections.map((collection) => (
+                        <MenuItem key={collection.id} value={collection.id}>
+                          {collection.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    size="small"
+                    value={collectionName}
+                    onChange={(e) => setCollectionName(e.target.value)}
+                    placeholder="New collection name"
+                    InputProps={{
+                      startAdornment: <Folder sx={{ mr: 1 }} />
+                    }}
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<Add />}
+                    onClick={handleCreateCollection}
+                    disabled={!collectionName.trim()}
+                  >
+                    Create
+                  </Button>
+                  {collections.length > 0 && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleAssignToCollection(collectionFilter === 'all' ? collections[0].id : collectionFilter)}
+                      disabled={!selectedSavedAds.length || collections.length === 0}
+                    >
+                      Add Selected to Collection
+                    </Button>
+                  )}
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<Send />}
+                    onClick={() => setBulkMessageOpen(true)}
+                    disabled={!selectedSavedAds.length}
+                  >
+                    Message Selected Teams
+                  </Button>
+                </Box>
+              </Box>
+
               {savedAds.map((ad) => (
+                (collectionFilter === 'all' || (savedAdCollections[getSavedAdKey(ad)] || []).includes(collectionFilter)) && (
                 <Paper key={`${ad.type}-${ad.id}`} sx={{ p: 2, mb: 2 }} variant="outlined">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Checkbox
+                      checked={selectedSavedAds.includes(getSavedAdKey(ad))}
+                      onChange={() => handleToggleSavedSelection(getSavedAdKey(ad))}
+                    />
+                    <Box sx={{ flex: 1 }}>
                   <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                     {ad.title}
                   </Typography>
@@ -1628,6 +2315,16 @@ const SearchPage: React.FC = () => {
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                       Posted {formatRelativeDate(ad.createdAt)}
                     </Typography>
+                  )}
+                  {(savedAdCollections[getSavedAdKey(ad)] || []).length > 0 && (
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                      {(savedAdCollections[getSavedAdKey(ad)] || []).map((collectionId) => {
+                        const collection = collections.find((item) => item.id === collectionId);
+                        return collection ? (
+                          <Chip key={collectionId} label={collection.name} size="small" variant="outlined" />
+                        ) : null;
+                      })}
+                    </Box>
                   )}
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                     <Button
@@ -1648,7 +2345,10 @@ const SearchPage: React.FC = () => {
                       Remove
                     </Button>
                   </Box>
+                    </Box>
+                  </Box>
                 </Paper>
+                )
               ))}
             </Box>
           )}
@@ -1663,6 +2363,35 @@ const SearchPage: React.FC = () => {
             </Button>
           )}
           <Button onClick={() => setSavedAdsOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={bulkMessageOpen} onClose={() => setBulkMessageOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Message Selected Teams</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Your message will be sent to all selected team vacancies. Player adverts are excluded from bulk messaging.
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            placeholder="Introduce yourself and share why you're interested..."
+            value={bulkMessage}
+            onChange={(e) => setBulkMessage(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkMessageOpen(false)} disabled={bulkSending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkMessageSend}
+            disabled={bulkSending || !bulkMessage.trim()}
+          >
+            {bulkSending ? 'Sending...' : 'Send to Teams'}
+          </Button>
         </DialogActions>
       </Dialog>
 
