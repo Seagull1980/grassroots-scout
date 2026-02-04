@@ -2340,14 +2340,14 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       SELECT 
         id, 
         email, 
-        firstName, 
-        lastName, 
+        firstname as firstName, 
+        lastname as lastName, 
         role, 
-        createdAt,
-        isVerified,
-        isBlocked
+        createdat as createdAt,
+        isemailverified as isEmailVerified,
+        isblocked as isBlocked
       FROM users 
-      ORDER BY createdAt DESC
+      ORDER BY createdat DESC
     `);
     
     console.log('[Admin Users] Query result:', result);
