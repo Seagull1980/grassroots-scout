@@ -76,6 +76,7 @@ const UserAdminPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messageSubject, setMessageSubject] = useState('');
   const [messageBody, setMessageBody] = useState('');
@@ -132,6 +133,12 @@ const UserAdminPage: React.FC = () => {
   const handleMessageClick = (user: User) => {
     setSelectedUser(user);
     setMessageDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handlePromoteClick = (user: User) => {
+    setSelectedUser(user);
+    setPromoteDialogOpen(true);
     handleMenuClose();
   };
 
@@ -196,6 +203,25 @@ const UserAdminPage: React.FC = () => {
       setMessageBody('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send message');
+    }
+  };
+
+  const handlePromoteToAdmin = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const token = storage.getItem('token');
+      await axios.post(
+        `${API_URL}/admin/users/${selectedUser.id}/promote`,
+        { role: 'Admin' },
+        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+      );
+      
+      setSuccess(`User ${selectedUser.email} promoted to Admin successfully`);
+      setPromoteDialogOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to promote user');
     }
   };
 
@@ -394,6 +420,11 @@ const UserAdminPage: React.FC = () => {
         <MenuItem onClick={() => menuUser && handleMessageClick(menuUser)}>
           <EmailIcon sx={{ mr: 1 }} /> Send Message
         </MenuItem>
+        {menuUser?.role !== 'Admin' && (
+          <MenuItem onClick={() => menuUser && handlePromoteClick(menuUser)}>
+            <CheckCircleIcon sx={{ mr: 1 }} /> Promote to Admin
+          </MenuItem>
+        )}
         <MenuItem onClick={() => menuUser && handleBlockClick(menuUser)}>
           <BlockIcon sx={{ mr: 1 }} />
           {menuUser?.isBlocked ? 'Unblock User' : 'Block User'}
@@ -480,6 +511,25 @@ const UserAdminPage: React.FC = () => {
             startIcon={<EmailIcon />}
           >
             Send Message
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Promote to Admin Confirmation Dialog */}
+      <Dialog open={promoteDialogOpen} onClose={() => setPromoteDialogOpen(false)}>
+        <DialogTitle>Promote User to Admin</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mt: 2 }}>
+            Are you sure you want to promote <strong>{selectedUser?.email}</strong> to Admin?
+          </Typography>
+          <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
+            ⚠️ This will grant them full administrative access to the system, including the ability to manage all users and system settings.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPromoteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handlePromoteToAdmin} color="primary" variant="contained">
+            Promote to Admin
           </Button>
         </DialogActions>
       </Dialog>

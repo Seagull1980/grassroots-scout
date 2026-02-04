@@ -536,10 +536,19 @@ const AdminPage: React.FC = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} lg={3}>
-            <Card sx={{ 
-              background: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
-              color: 'white'
-            }}>
+            <Card 
+              sx={{ 
+                background: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/users')}
+            >
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>

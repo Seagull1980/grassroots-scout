@@ -1997,6 +1997,139 @@ app.get('/api/calendar/training-locations', async (req, res) => {
   }
 });
 
+// User Management Admin Endpoints
+
+// Get all users (Admin only)
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const users = await db.getAll(
+      'SELECT id, email, firstName, lastName, role, createdAt, isEmailVerified, isBlocked FROM users ORDER BY createdAt DESC'
+    );
+    res.json({ users });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Delete user (Admin only)
+app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+
+    // Prevent deleting self
+    if (parseInt(id) === req.user.userId) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+
+    const user = await db.getOne('SELECT email FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await db.update('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ message: `User ${user.email} deleted successfully` });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Block/Unblock user (Admin only)
+app.post('/api/admin/users/:id/block', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { blocked } = req.body;
+
+    const user = await db.getOne('SELECT email FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await db.update('UPDATE users SET isBlocked = ? WHERE id = ?', [blocked ? 1 : 0, id]);
+    res.json({ message: `User ${user.email} ${blocked ? 'blocked' : 'unblocked'} successfully` });
+  } catch (error) {
+    console.error('Error blocking/unblocking user:', error);
+    res.status(500).json({ error: 'Failed to block/unblock user' });
+  }
+});
+
+// Send message to user (Admin only)
+app.post('/api/admin/users/:id/message', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { subject, message } = req.body;
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'Subject and message are required' });
+    }
+
+    const user = await db.getOne('SELECT id, email FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Store message in database for sending
+    // This is a placeholder - in production, you'd integrate with email service
+    const messageId = await db.insert(
+      'INSERT INTO admin_messages (userId, adminId, subject, message, sentAt) VALUES (?, ?, ?, ?, datetime("now"))',
+      [id, req.user.userId, subject, message]
+    );
+
+    res.json({ message: 'Message sent successfully', messageId });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Promote user to Admin (Admin only)
+app.post('/api/admin/users/:id/promote', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (role !== 'Admin') {
+      return res.status(400).json({ error: 'Can only promote to Admin role' });
+    }
+
+    const user = await db.getOne('SELECT email, role FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.role === 'Admin') {
+      return res.status(400).json({ error: 'User is already an Admin' });
+    }
+
+    await db.update('UPDATE users SET role = ? WHERE id = ?', ['Admin', id]);
+    res.json({ message: `User ${user.email} promoted to Admin successfully` });
+  } catch (error) {
+    console.error('Error promoting user:', error);
+    res.status(500).json({ error: 'Failed to promote user' });
+  }
+});
+
 // Get public site statistics (for homepage display)
 app.get('/api/public/site-stats', async (req, res) => {
   res.json({ message: 'Site stats working' });
