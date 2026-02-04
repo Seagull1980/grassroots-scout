@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AGE_GROUP_OPTIONS } from '../constants/options';
 import {
@@ -108,6 +108,22 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const [drawingPath, setDrawingPath] = useState<google.maps.LatLng[]>([]);
   const [drawingListeners, setDrawingListeners] = useState<google.maps.MapsEventListener[]>([]);
   const [drawingPolyline, setDrawingPolyline] = useState<google.maps.Polyline | null>(null);
+
+  const isDrawingModeRef = useRef(isDrawingMode);
+  const drawingPathRef = useRef<google.maps.LatLng[]>(drawingPath);
+  const drawingPolylineRef = useRef<google.maps.Polyline | null>(drawingPolyline);
+
+  useEffect(() => {
+    isDrawingModeRef.current = isDrawingMode;
+  }, [isDrawingMode]);
+
+  useEffect(() => {
+    drawingPathRef.current = drawingPath;
+  }, [drawingPath]);
+
+  useEffect(() => {
+    drawingPolylineRef.current = drawingPolyline;
+  }, [drawingPolyline]);
   const [drawnPolygon, setDrawnPolygon] = useState<google.maps.Polygon | null>(null);
   const [useDrawnArea, setUseDrawnArea] = useState(false);
   
@@ -230,8 +246,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   }, [touchStartY, isSwipeGestureActive, isMobile]);
 
   // Complete polygon drawing
-  const completePolygon = useCallback(() => {
-    if (!map || drawingPath.length < 3) return;
+  const completePolygon = useCallback((pathOverride?: google.maps.LatLng[]) => {
+    const pathToUse = pathOverride ?? drawingPath;
+    if (!map || pathToUse.length < 3) return;
     
     // Remove previous polygon if it exists
     if (drawnPolygon) {
@@ -256,7 +273,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     
     // Create polygon from path
     const polygon = new google.maps.Polygon({
-      paths: drawingPath,
+      paths: pathToUse,
       strokeColor: '#2196F3',
       strokeWeight: 3,
       fillColor: '#2196F3',
@@ -531,14 +548,15 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     setMap(loadedMap);
   }, []);
 
-  // Set up drawing listeners separately so they update when isDrawingMode changes
+  // Set up drawing listeners using refs to avoid stale state in event handlers
   useEffect(() => {
     if (!map) return;
 
     const handleMapClick = (event: google.maps.MapMouseEvent) => {
-      if (isDrawingMode && event.latLng) {
-        const newPath = [...drawingPath, event.latLng];
+      if (isDrawingModeRef.current && event.latLng) {
+        const newPath = [...drawingPathRef.current, event.latLng];
         setDrawingPath(newPath);
+        drawingPathRef.current = newPath;
         
         // Create markers for visual feedback during drawing
         const marker = new google.maps.Marker({
@@ -555,8 +573,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         });
         
         // Update drawing polyline for visual feedback
-        if (drawingPolyline) {
-          drawingPolyline.setMap(null);
+        if (drawingPolylineRef.current) {
+          drawingPolylineRef.current.setMap(null);
         }
         
         if (newPath.length > 1) {
@@ -568,6 +586,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
             map: map
           });
           setDrawingPolyline(polyline);
+          drawingPolylineRef.current = polyline;
         }
         
         // Store marker for cleanup
@@ -576,8 +595,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     };
     
     const handleMapDoubleClick = (_event: google.maps.MapMouseEvent) => {
-      if (isDrawingMode && drawingPath.length >= 3) {
-        completePolygon();
+      if (isDrawingModeRef.current && drawingPathRef.current.length >= 3) {
+        completePolygon(drawingPathRef.current);
       }
     };
     
@@ -591,7 +610,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       google.maps.event.removeListener(clickListener);
       google.maps.event.removeListener(doubleClickListener);
     };
-  }, [map, isDrawingMode, drawingPath, drawingPolyline, completePolygon]);
+  }, [map, completePolygon]);
   // Add edit listeners to polygon
   const addPolygonEditListeners = (polygon: google.maps.Polygon) => {
     google.maps.event.addListener(polygon.getPath(), 'set_at', () => {
