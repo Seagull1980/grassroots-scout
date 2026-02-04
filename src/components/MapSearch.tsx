@@ -529,8 +529,12 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
 
   const handleMapLoad = useCallback((loadedMap: google.maps.Map) => {
     setMap(loadedMap);
-    
-    // Custom drawing implementation to replace deprecated DrawingManager
+  }, []);
+
+  // Set up drawing listeners separately so they update when isDrawingMode changes
+  useEffect(() => {
+    if (!map) return;
+
     const handleMapClick = (event: google.maps.MapMouseEvent) => {
       if (isDrawingMode && event.latLng) {
         const newPath = [...drawingPath, event.latLng];
@@ -539,7 +543,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         // Create markers for visual feedback during drawing
         const marker = new google.maps.Marker({
           position: event.latLng,
-          map: loadedMap,
+          map: map,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 4,
@@ -561,7 +565,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
             strokeColor: '#2196F3',
             strokeWeight: 2,
             strokeOpacity: 0.8,
-            map: loadedMap
+            map: map
           });
           setDrawingPolyline(polyline);
         }
@@ -578,13 +582,16 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     };
     
     // Add event listeners
-    const clickListener = loadedMap.addListener('click', handleMapClick);
-    const doubleClickListener = loadedMap.addListener('dblclick', handleMapDoubleClick);
+    const clickListener = map.addListener('click', handleMapClick);
+    const doubleClickListener = map.addListener('dblclick', handleMapDoubleClick);
     
     setDrawingListeners([clickListener, doubleClickListener]);
-    
-  }, [isDrawingMode, drawingPath]);
 
+    return () => {
+      google.maps.event.removeListener(clickListener);
+      google.maps.event.removeListener(doubleClickListener);
+    };
+  }, [map, isDrawingMode, drawingPath, drawingPolyline, completePolygon]);
   // Add edit listeners to polygon
   const addPolygonEditListeners = (polygon: google.maps.Polygon) => {
     google.maps.event.addListener(polygon.getPath(), 'set_at', () => {
