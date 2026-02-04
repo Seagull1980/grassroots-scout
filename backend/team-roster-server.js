@@ -1278,6 +1278,35 @@ app.post('/api/feedback/:feedbackId/comments', authenticateToken, async (req, re
 
 // ADMIN ENDPOINTS
 
+// Get all users for admin
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.getOne('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck || adminCheck.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const users = await db.getAll(`
+      SELECT 
+        id,
+        email,
+        firstname as firstName,
+        lastname as lastName,
+        role,
+        createdat as createdAt,
+        isemailverified as isEmailVerified,
+        isblocked as isBlocked
+      FROM users
+      ORDER BY createdat DESC
+    `);
+
+    res.json({ users: users || [] });
+  } catch (error) {
+    console.error('[Admin Users] Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get all feedback for admin dashboard
 app.get('/api/admin/feedback', authenticateToken, async (req, res) => {
   try {
