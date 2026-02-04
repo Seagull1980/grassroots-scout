@@ -2,7 +2,7 @@
 export const GOOGLE_MAPS_CONFIG = {
   // You'll need to replace this with your actual Google Maps API key
   apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY',
-  libraries: ['places'] as ('places')[], // Only load places library for autocomplete
+  libraries: ['places', 'geometry'] as ('places' | 'geometry')[], // Include geometry for polygon operations
   version: 'quarterly', // Use quarterly version for better stability
   defaultCenter: {
     lat: 51.5074, // London coordinates as default
