@@ -108,6 +108,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const [drawingPath, setDrawingPath] = useState<google.maps.LatLng[]>([]);
   const [drawingListeners, setDrawingListeners] = useState<google.maps.MapsEventListener[]>([]);
   const [drawingPolyline, setDrawingPolyline] = useState<google.maps.Polyline | null>(null);
+  const [drawnPolygon, setDrawnPolygon] = useState<google.maps.Polygon | null>(null);
+  const [useDrawnArea, setUseDrawnArea] = useState(false);
 
   const isDrawingModeRef = useRef(isDrawingMode);
   const drawingPathRef = useRef<google.maps.LatLng[]>(drawingPath);
@@ -136,8 +138,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   useEffect(() => {
     drawingStateActiveRef.current = drawingState.isActive;
   }, [drawingState.isActive]);
-  const [drawnPolygon, setDrawnPolygon] = useState<google.maps.Polygon | null>(null);
-  const [useDrawnArea, setUseDrawnArea] = useState(false);
   
   // Saved regions functionality
   const [savedRegions, setSavedRegions] = useState<SavedSearchRegion[]>([]);
@@ -650,80 +650,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     };
   }, [map, completePolygon]);
 
-  // DOM click fallback for cases where map click events don't fire
-  useEffect(() => {
-    if (!map) return;
-    const mapDiv = map.getDiv();
-    if (!mapDiv) return;
-
-    const getLatLngFromDomEvent = (event: MouseEvent) => {
-      const overlay = mapOverlayRef.current;
-      const projection = overlay?.getProjection();
-      if (!projection) return null;
-
-      const rect = mapDiv.getBoundingClientRect();
-      const point = new google.maps.Point(
-        event.clientX - rect.left,
-        event.clientY - rect.top
-      );
-      return projection.fromContainerPixelToLatLng(point);
-    };
-
-    const handleDomClick = (event: MouseEvent) => {
-      const now = Date.now();
-      if (now - lastMapClickRef.current < 120) return;
-
-      const latLng = getLatLngFromDomEvent(event);
-      if (!latLng) return;
-
-      if (isDrawingModeRef.current) {
-        const newPath = [...drawingPathRef.current, latLng];
-        setDrawingPath(newPath);
-        drawingPathRef.current = newPath;
-
-        if (drawingPolylineRef.current) {
-          drawingPolylineRef.current.setMap(null);
-        }
-
-        if (newPath.length > 1) {
-          const polyline = new google.maps.Polyline({
-            path: newPath,
-            strokeColor: '#2196F3',
-            strokeWeight: 2,
-            strokeOpacity: 0.8,
-            map: map
-          });
-          setDrawingPolyline(polyline);
-          drawingPolylineRef.current = polyline;
-        }
-        return;
-      }
-
-      if (!drawingStateActiveRef.current && !useDrawnAreaRef.current) {
-        const center = { lat: latLng.lat(), lng: latLng.lng() };
-        setMapCenter(center);
-        searchInArea(center, searchRadius);
-      }
-    };
-
-    const handleDomDoubleClick = (event: MouseEvent) => {
-      const now = Date.now();
-      if (now - lastMapClickRef.current < 120) return;
-
-      if (isDrawingModeRef.current && drawingPathRef.current.length >= 3) {
-        event.preventDefault();
-        completePolygon(drawingPathRef.current);
-      }
-    };
-
-    mapDiv.addEventListener('click', handleDomClick);
-    mapDiv.addEventListener('dblclick', handleDomDoubleClick);
-
-    return () => {
-      mapDiv.removeEventListener('click', handleDomClick);
-      mapDiv.removeEventListener('dblclick', handleDomDoubleClick);
-    };
-  }, [map, completePolygon, searchInArea, searchRadius]);
   // Add edit listeners to polygon
   const addPolygonEditListeners = (polygon: google.maps.Polygon) => {
     google.maps.event.addListener(polygon.getPath(), 'set_at', () => {
@@ -985,6 +911,81 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       setLoading(false);
     }
   }, [searchType, selectedLeague, selectedAgeGroup, locationType]);
+
+  // DOM click fallback for cases where map click events don't fire
+  useEffect(() => {
+    if (!map) return;
+    const mapDiv = map.getDiv();
+    if (!mapDiv) return;
+
+    const getLatLngFromDomEvent = (event: MouseEvent) => {
+      const overlay = mapOverlayRef.current;
+      const projection = overlay?.getProjection();
+      if (!projection) return null;
+
+      const rect = mapDiv.getBoundingClientRect();
+      const point = new google.maps.Point(
+        event.clientX - rect.left,
+        event.clientY - rect.top
+      );
+      return projection.fromContainerPixelToLatLng(point);
+    };
+
+    const handleDomClick = (event: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastMapClickRef.current < 120) return;
+
+      const latLng = getLatLngFromDomEvent(event);
+      if (!latLng) return;
+
+      if (isDrawingModeRef.current) {
+        const newPath = [...drawingPathRef.current, latLng];
+        setDrawingPath(newPath);
+        drawingPathRef.current = newPath;
+
+        if (drawingPolylineRef.current) {
+          drawingPolylineRef.current.setMap(null);
+        }
+
+        if (newPath.length > 1) {
+          const polyline = new google.maps.Polyline({
+            path: newPath,
+            strokeColor: '#2196F3',
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+            map: map
+          });
+          setDrawingPolyline(polyline);
+          drawingPolylineRef.current = polyline;
+        }
+        return;
+      }
+
+      if (!drawingStateActiveRef.current && !useDrawnAreaRef.current) {
+        const center = { lat: latLng.lat(), lng: latLng.lng() };
+        setMapCenter(center);
+        searchInArea(center, searchRadius);
+      }
+    };
+
+    const handleDomDoubleClick = (event: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastMapClickRef.current < 120) return;
+
+      if (isDrawingModeRef.current && drawingPathRef.current.length >= 3) {
+        event.preventDefault();
+        completePolygon(drawingPathRef.current);
+      }
+    };
+
+    mapDiv.addEventListener('click', handleDomClick);
+    mapDiv.addEventListener('dblclick', handleDomDoubleClick);
+
+    return () => {
+      mapDiv.removeEventListener('click', handleDomClick);
+      mapDiv.removeEventListener('dblclick', handleDomDoubleClick);
+    };
+  }, [map, completePolygon, searchInArea, searchRadius]);
 
   // Initial search when component mounts
   useEffect(() => {
