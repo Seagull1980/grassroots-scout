@@ -2321,19 +2321,19 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Fetch all users - map database columns to frontend schema
+    // Fetch all users
     const result = await db.query(`
       SELECT 
         id, 
         email, 
-        firstname as firstName, 
-        lastname as lastName, 
+        firstName, 
+        lastName, 
         role, 
-        isemailverified as isEmailVerified,
-        isblocked as isBlocked,
-        createdat as createdAt
+        createdAt,
+        isVerified,
+        isBlocked
       FROM users 
-      ORDER BY createdat DESC
+      ORDER BY createdAt DESC
     `);
     
     console.log(`[Admin Users] Found ${result.rows ? result.rows.length : 0} users`);
