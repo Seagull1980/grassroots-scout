@@ -85,6 +85,8 @@ const UserAdminPage: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [menuUser, setMenuUser] = useState<User | null>(null);
 
+  const adminUsersBaseUrl = API_URL ? `${API_URL}/admin/users` : '/api/admin/users';
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -95,7 +97,7 @@ const UserAdminPage: React.FC = () => {
     
     try {
       const token = storage.getItem('token');
-      const url = `${API_URL}/admin/users`;
+      const url = adminUsersBaseUrl;
       console.log('[UserAdminPage] Fetching users from URL:', url);
       console.log('[UserAdminPage] API_URL is:', API_URL);
       
@@ -154,7 +156,7 @@ const UserAdminPage: React.FC = () => {
     
     try {
       const token = storage.getItem('token');
-      await axios.delete(`${API_URL}/admin/users/${selectedUser.id}`, {
+      await axios.delete(`${adminUsersBaseUrl}/${selectedUser.id}`, {
         headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
       });
       
@@ -172,7 +174,7 @@ const UserAdminPage: React.FC = () => {
     try {
       const token = storage.getItem('token');
       await axios.post(
-        `${API_URL}/admin/users/${selectedUser.id}/block`,
+        `${adminUsersBaseUrl}/${selectedUser.id}/block`,
         { blocked: !selectedUser.isBlocked },
         { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
       );
@@ -196,7 +198,7 @@ const UserAdminPage: React.FC = () => {
     try {
       const token = storage.getItem('token');
       await axios.post(
-        `${API_URL}/admin/users/${selectedUser.id}/message`,
+        `${adminUsersBaseUrl}/${selectedUser.id}/message`,
         {
           subject: messageSubject,
           message: messageBody
@@ -219,7 +221,7 @@ const UserAdminPage: React.FC = () => {
     try {
       const token = storage.getItem('token');
       await axios.post(
-        `${API_URL}/admin/users/${selectedUser.id}/promote`,
+        `${adminUsersBaseUrl}/${selectedUser.id}/promote`,
         { role: 'Admin' },
         { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
       );
