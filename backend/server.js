@@ -408,6 +408,72 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Team vacancies endpoint
+app.get('/api/vacancies', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        tv.id,
+        tv.title,
+        tv.description,
+        tv.league,
+        tv.ageGroup,
+        tv.position,
+        tv.teamGender,
+        tv.location,
+        tv.locationData,
+        tv.contactInfo,
+        tv.postedBy,
+        tv.hasMatchRecording,
+        tv.hasPathwayToSenior,
+        tv.createdAt,
+        tv.status,
+        u.firstname as firstName,
+        u.lastname as lastName
+      FROM team_vacancies tv
+      LEFT JOIN users u ON tv.postedBy = u.id
+      WHERE tv.status = 'active'
+      ORDER BY tv.createdAt DESC
+    `);
+
+    const vacancies = (result.rows || []).map((row) => {
+      let locationData = row.locationData;
+      if (typeof locationData === 'string') {
+        try {
+          locationData = JSON.parse(locationData);
+        } catch {
+          locationData = null;
+        }
+      }
+
+      return {
+        id: row.id?.toString() ?? row.id,
+        title: row.title,
+        description: row.description,
+        league: row.league,
+        ageGroup: row.ageGroup,
+        position: row.position,
+        teamGender: row.teamGender,
+        location: row.location,
+        locationData,
+        contactInfo: row.contactInfo,
+        postedBy: row.postedBy?.toString() ?? row.postedBy,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        hasMatchRecording: row.hasMatchRecording,
+        hasPathwayToSenior: row.hasPathwayToSenior,
+        createdAt: row.createdAt,
+        status: row.status
+      };
+    });
+
+    res.json({ vacancies });
+  } catch (error) {
+    console.error('Error fetching vacancies:', error);
+    res.status(500).json({ error: 'Failed to fetch vacancies' });
+  }
+});
+
 // Analytics tracking endpoint (allows anonymous tracking)
 app.post('/api/analytics/track', async (req, res) => {
   try {
