@@ -4,11 +4,16 @@ import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory } from '../types';
 
 // Dynamic API URL configuration for different environments
 
+const normalizeApiBase = (baseUrl: string) => {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+};
+
 const getAPIUrl = () => {
   // Use environment variable if set, otherwise use relative URL for Vercel proxying
   if (import.meta.env.VITE_API_URL) {
-    // If URL is set, append /api for direct backend connections
-    return import.meta.env.VITE_API_URL + '/api';
+    // If URL is set, ensure it ends with /api for direct backend connections
+    return normalizeApiBase(import.meta.env.VITE_API_URL);
   }
   // Return empty string for relative URLs (Vercel proxying)
   return '';
@@ -17,8 +22,8 @@ const getAPIUrl = () => {
 
 const getRosterAPIUrl = () => {
   if (import.meta.env.VITE_ROSTER_API_URL) {
-    // If URL is set, append /api for direct backend connections
-    return import.meta.env.VITE_ROSTER_API_URL + '/api';
+    // If URL is set, ensure it ends with /api for direct backend connections
+    return normalizeApiBase(import.meta.env.VITE_ROSTER_API_URL);
   }
   // Return empty string for relative URLs (Vercel proxying)
   return '';
