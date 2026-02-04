@@ -2310,6 +2310,128 @@ app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Get all users for admin
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    console.log('[Admin Users] Fetching users...');
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Fetch all users
+    const result = await db.query('SELECT id, username, email, role, isverified, createdat FROM users ORDER BY createdat DESC');
+    
+    console.log(`[Admin Users] Found ${result.rows ? result.rows.length : 0} users`);
+    console.log('[Admin Users] Users data:', result.rows);
+    
+    res.json(result.rows || []);
+  } catch (error) {
+    console.error('[Admin Users] Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete user (admin only)
+app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Prevent self-deletion
+    if (req.user.userId === id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    // Delete user
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('[Admin Users] Delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Block/Unblock user (admin only)
+app.post('/api/admin/users/:id/block', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Toggle blocked status
+    const userResult = await db.query('SELECT isblocked FROM users WHERE id = ?', [id]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newBlockedStatus = !userResult.rows[0].isblocked;
+    await db.query('UPDATE users SET isblocked = ? WHERE id = ?', [newBlockedStatus, id]);
+    
+    res.json({ 
+      message: newBlockedStatus ? 'User blocked successfully' : 'User unblocked successfully',
+      isblocked: newBlockedStatus
+    });
+  } catch (error) {
+    console.error('[Admin Users] Block error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Send message to user (admin only)
+app.post('/api/admin/users/:id/message', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Send message (could integrate with messaging system)
+    console.log(`[Admin Users] Message to user ${id}: ${message}`);
+    
+    res.json({ message: 'Message sent successfully' });
+  } catch (error) {
+    console.error('[Admin Users] Message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Promote user to admin (admin only)
+app.post('/api/admin/users/:id/promote', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Update user role to Admin
+    await db.query('UPDATE users SET role = ? WHERE id = ?', ['Admin', id]);
+    
+    res.json({ message: 'User promoted to admin successfully' });
+  } catch (error) {
+    console.error('[Admin Users] Promote error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create new league (admin only)
 app.post('/api/leagues', authenticateToken, async (req, res) => {
   try {
