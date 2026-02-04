@@ -16,13 +16,19 @@ import {
   SelectChangeEvent,
   IconButton,
   InputAdornment,
+  FormControlLabel,
+  Checkbox,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Visibility, VisibilityOff, CheckCircle, Cancel, Info } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const RegisterPage: React.FC = () => {
-  console.log('RegisterPage component rendered');
   const navigate = useNavigate();
   const { register, isLoading } = useAuth();
   const [formData, setFormData] = useState({
@@ -38,6 +44,8 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [ageWarning, setAgeWarning] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -52,15 +60,49 @@ const RegisterPage: React.FC = () => {
     return age;
   };
 
+  const getPasswordStrength = (password: string) => {
+    let strength = 0;
+    const checks = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[@$!%*?&]/.test(password),
+    };
+    
+    if (checks.length) strength += 20;
+    if (checks.uppercase) strength += 20;
+    if (checks.lowercase) strength += 20;
+    if (checks.number) strength += 20;
+    if (checks.special) strength += 20;
+    
+    return { strength, checks };
+  };
+
+  const getRoleGuidance = (role: string) => {
+    switch (role) {
+      case 'Coach':
+        return 'As a coach, you can post team vacancies, manage teams, and invite players to trials.';
+      case 'Player':
+        return 'As a player, you can browse teams, post your availability, and apply for team positions. Players under 16 must be registered by a parent/guardian.';
+      case 'Parent/Guardian':
+        return 'As a parent/guardian, you can manage profiles for players under 16, communicate with coaches, and monitor your child\'s activity.';
+      default:
+        return '';
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
       [name]: value,
     });
-    // Don't clear error on every change - let user see what went wrong
-    // setError('');
     setAgeWarning('');
+    
+    if (name === 'password') {
+      setPasswordTouched(true);
+    }
 
     // Check age when date of birth changes and role is Player
     if (name === 'dateOfBirth' && formData.role === 'Player' && value) {
@@ -77,8 +119,6 @@ const RegisterPage: React.FC = () => {
       ...formData,
       role: newRole,
     });
-    // Don't clear error on every change - let user see what went wrong
-    // setError('');
     setAgeWarning('');
 
     // Check age when role changes to Player and date of birth is already set
@@ -90,15 +130,18 @@ const RegisterPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
-    // Prevent default behavior for both form submission and button click
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('handleSubmit called');
     setError('');
 
     // Validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.role) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms of Service and Privacy Policy');
       return;
     }
 
@@ -155,22 +198,9 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      console.log('About to call register with data:', {
-        email: registrationData.email,
-        firstName: registrationData.firstName,
-        lastName: registrationData.lastName,
-        role: registrationData.role,
-        hasPassword: !!registrationData.password,
-        dateOfBirth: registrationData.dateOfBirth
-      });
       await register(registrationData);
-      console.log('Register succeeded, navigating to dashboard');
-      // Navigate directly to dashboard (email verification disabled)
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('===== REGISTRATION ERROR DEBUG =====');
-      console.error('Error object:', error);
-      console.error('Error type:', typeof error);
       
       // Force display of error for debugging
       let errorMessage = 'Registration failed. Please try again.';
@@ -180,23 +210,14 @@ const RegisterPage: React.FC = () => {
         errorMessage = error.response.data.errors
           .map((err: any) => err.msg || err.message || JSON.stringify(err))
           .join('. ');
-        console.error('Validation errors:', errorMessage);
       } else if (error?.response?.data?.error) {
         errorMessage = error.response.data.error;
-        console.error('API error (single):', errorMessage);
       } else if (error?.response?.data) {
         errorMessage = JSON.stringify(error.response.data);
-        console.error('Response data:', errorMessage);
       } else if (error?.message) {
         errorMessage = error.message;
-        console.error('Error message:', errorMessage);
       }
       
-      console.error('Final error message:', errorMessage);
-      console.error('Full error response:', error?.response);
-      console.error('=====================================');
-      
-      // ALWAYS set the error message
       setError(errorMessage);
     }
   };
@@ -225,7 +246,7 @@ const RegisterPage: React.FC = () => {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={(e) => handleSubmit(e)} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
                 margin="normal"
@@ -276,6 +297,12 @@ const RegisterPage: React.FC = () => {
                 <MenuItem value="Parent/Guardian">Parent/Guardian</MenuItem>
               </Select>
             </FormControl>
+            
+            {formData.role && (
+              <Alert severity="info" icon={<Info />} sx={{ mt: 1 }}>
+                {getRoleGuidance(formData.role)}
+              </Alert>
+            )}
             
             {formData.role === 'Player' && (
               <>
@@ -329,6 +356,82 @@ const RegisterPage: React.FC = () => {
                 ),
               }}
             />
+            
+            {passwordTouched && formData.password && (() => {
+              const { strength, checks } = getPasswordStrength(formData.password);
+              return (
+                <Box sx={{ mt: 1, mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Password strength:
+                    </Typography>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={strength} 
+                      sx={{ 
+                        flex: 1, 
+                        height: 6, 
+                        borderRadius: 3,
+                        backgroundColor: 'grey.300',
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: strength < 40 ? 'error.main' : strength < 80 ? 'warning.main' : 'success.main'
+                        }
+                      }} 
+                    />
+                    <Typography variant="caption" fontWeight={600} color={strength < 40 ? 'error' : strength < 80 ? 'warning.main' : 'success.main'}>
+                      {strength < 40 ? 'Weak' : strength < 80 ? 'Good' : 'Strong'}
+                    </Typography>
+                  </Box>
+                  <List dense disablePadding>
+                    <ListItem disableGutters sx={{ py: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        {checks.length ? <CheckCircle fontSize="small" color="success" /> : <Cancel fontSize="small" color="error" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="At least 8 characters" 
+                        primaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                    <ListItem disableGutters sx={{ py: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        {checks.uppercase ? <CheckCircle fontSize="small" color="success" /> : <Cancel fontSize="small" color="error" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="One uppercase letter" 
+                        primaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                    <ListItem disableGutters sx={{ py: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        {checks.lowercase ? <CheckCircle fontSize="small" color="success" /> : <Cancel fontSize="small" color="error" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="One lowercase letter" 
+                        primaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                    <ListItem disableGutters sx={{ py: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        {checks.number ? <CheckCircle fontSize="small" color="success" /> : <Cancel fontSize="small" color="error" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="One number" 
+                        primaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                    <ListItem disableGutters sx={{ py: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 28 }}>
+                        {checks.special ? <CheckCircle fontSize="small" color="success" /> : <Cancel fontSize="small" color="error" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="One special character (@$!%*?&)" 
+                        primaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </ListItem>
+                  </List>
+                </Box>
+              );
+            })()}
             <TextField
               margin="normal"
               required
@@ -353,13 +456,35 @@ const RegisterPage: React.FC = () => {
                 ),
               }}
             />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2">
+                  I agree to the{' '}
+                  <Link href="/terms" target="_blank" underline="hover">
+                    Terms of Service
+                  </Link>
+                  {' '}and{' '}
+                  <Link href="/privacy" target="_blank" underline="hover">
+                    Privacy Policy
+                  </Link>
+                </Typography>
+              }
+              sx={{ mt: 2 }}
+            />
+            
             <Button
-              type="button"
+              type="submit"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2, py: 1.5 }}
-              disabled={isLoading}
-              onClick={(e) => handleSubmit(e as any)}
+              disabled={isLoading || !agreedToTerms}
             >
               {isLoading ? <CircularProgress size={24} /> : 'Create Account'}
             </Button>

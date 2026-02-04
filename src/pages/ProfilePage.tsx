@@ -22,8 +22,16 @@ import {
   SelectChangeEvent,
   InputAdornment,
   IconButton,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemIcon,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff } from '@mui/icons-material';
+import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -71,6 +79,9 @@ const ProfilePage: React.FC = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -130,6 +141,46 @@ const ProfilePage: React.FC = () => {
 
   const matchDayOptions = ['Saturday', 'Sunday', 'Midweek'];
 
+  const getProfileCompletion = () => {
+    const requiredFields = ['firstName', 'lastName', 'dateOfBirth'];
+    const roleSpecificFields = user?.role === 'Player' 
+      ? ['position', 'preferredFoot', 'experienceLevel']
+      : user?.role === 'Coach'
+      ? ['coachingLicense', 'yearsExperience', 'teamName']
+      : [];
+    
+    const allFields = [...requiredFields, ...roleSpecificFields, 'location', 'bio'];
+    const completedFields = allFields.filter(field => {
+      const value = profileData[field as keyof ProfileUpdateData];
+      return value !== undefined && value !== '' && value !== null;
+    });
+    
+    const percentage = Math.round((completedFields.length / allFields.length) * 100);
+    const checklist = [
+      { field: 'firstName', label: 'First Name', completed: !!profileData.firstName },
+      { field: 'lastName', label: 'Last Name', completed: !!profileData.lastName },
+      { field: 'dateOfBirth', label: 'Date of Birth', completed: !!profileData.dateOfBirth },
+      { field: 'location', label: 'Location', completed: !!profileData.location },
+      { field: 'bio', label: 'Bio', completed: !!profileData.bio },
+    ];
+    
+    if (user?.role === 'Player') {
+      checklist.push(
+        { field: 'position', label: 'Playing Position', completed: !!profileData.position },
+        { field: 'preferredFoot', label: 'Preferred Foot', completed: !!profileData.preferredFoot },
+        { field: 'experienceLevel', label: 'Experience Level', completed: !!profileData.experienceLevel }
+      );
+    } else if (user?.role === 'Coach') {
+      checklist.push(
+        { field: 'coachingLicense', label: 'Coaching License', completed: !!profileData.coachingLicense },
+        { field: 'yearsExperience', label: 'Years of Experience', completed: !!profileData.yearsExperience },
+        { field: 'teamName', label: 'Team Name', completed: !!profileData.teamName }
+      );
+    }
+    
+    return { percentage, checklist };
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -138,6 +189,44 @@ const ProfilePage: React.FC = () => {
     
     loadProfile();
   }, [user, navigate]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation(`tab-${newValue}`);
+      setShowUnsavedDialog(true);
+    } else {
+      setTabValue(newValue);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setHasUnsavedChanges(false);
+    setShowUnsavedDialog(false);
+    
+    if (pendingNavigation?.startsWith('tab-')) {
+      const tabIndex = parseInt(pendingNavigation.split('-')[1]);
+      setTabValue(tabIndex);
+    }
+    setPendingNavigation(null);
+    loadProfile();
+  };
+
+  const handleKeepEditing = () => {
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+  };
 
   const loadProfile = async () => {
     try {
@@ -201,6 +290,7 @@ const ProfilePage: React.FC = () => {
         ? (value === '' ? undefined : parseInt(value)) 
         : value
     }));
+    setHasUnsavedChanges(true);
   };
 
   const handleSelectChange = (field: keyof ProfileUpdateData) => (
@@ -210,6 +300,7 @@ const ProfilePage: React.FC = () => {
       ...prev,
       [field]: e.target.value
     }));
+    setHasUnsavedChanges(true);
   };
 
   const handleMultiSelectChange = (field: keyof ProfileUpdateData) => (
@@ -220,6 +311,7 @@ const ProfilePage: React.FC = () => {
       ...prev,
       [field]: typeof value === 'string' ? value.split(',') : value
     }));
+    setHasUnsavedChanges(true);
   };
 
   const handleSaveProfile = async () => {
@@ -248,6 +340,7 @@ const ProfilePage: React.FC = () => {
       console.log('Sending profile data:', cleanedProfileData);
       await profileAPI.update(cleanedProfileData);
       setSuccess(true);
+      setHasUnsavedChanges(false);
       setTimeout(() => setSuccess(false), 3000);
       
       // Reload profile to get updated data
@@ -315,24 +408,66 @@ const ProfilePage: React.FC = () => {
     );
   }
 
+  const { percentage: completionPercentage, checklist: completionChecklist } = getProfileCompletion();
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>
           My Profile
         </Typography>
-        {user && <VerificationBadge isVerified={false} verifiedRole={user.role === 'Admin' ? 'Coach' : user.role} />}
+        {user && <VerificationBadge isVerified={user.isVerified || false} verifiedRole={user.role === 'Admin' ? 'Coach' : user.role} />}
       </Box>
       
-      {/* Welcome message for new users */}
+      {/* Welcome message and profile completion for new users */}
       {!profile?.isprofilecomplete && (
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Welcome to The Grassroots Scout! 🎉
           </Typography>
-          <Typography variant="body1">
+          <Typography variant="body1" sx={{ mb: 2 }}>
             Complete your profile to get started. This helps us connect you with the right {user?.role === 'Coach' ? 'players' : 'teams'} and opportunities.
           </Typography>
+          <Box sx={{ mt: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Typography variant="body2" fontWeight={600}>
+                Profile Completion: {completionPercentage}%
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={completionPercentage} 
+                sx={{ 
+                  flex: 1, 
+                  height: 8, 
+                  borderRadius: 4,
+                  backgroundColor: 'grey.300',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: completionPercentage < 50 ? 'error.main' : completionPercentage < 80 ? 'warning.main' : 'success.main'
+                  }
+                }} 
+              />
+            </Box>
+            <List dense>
+              {completionChecklist.map((item) => (
+                <ListItem key={item.field} disableGutters sx={{ py: 0.5 }}>
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    {item.completed ? (
+                      <CheckCircle fontSize="small" color="success" />
+                    ) : (
+                      <RadioButtonUnchecked fontSize="small" color="disabled" />
+                    )}
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={item.label} 
+                    primaryTypographyProps={{ 
+                      variant: 'body2',
+                      color: item.completed ? 'text.primary' : 'text.secondary'
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         </Alert>
       )}
       
@@ -350,7 +485,7 @@ const ProfilePage: React.FC = () => {
 
       <Paper sx={{ width: '100%' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+          <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab icon={<Person />} label="Basic Information" />
             {user?.role === 'Player' && <Tab icon={<Work />} label="Player Details" />}
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
@@ -400,7 +535,12 @@ const ProfilePage: React.FC = () => {
                 value={profileData.dateOfBirth}
                 onChange={handleInputChange('dateOfBirth')}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  max: new Date().toISOString().split('T')[0],
+                }}
                 required
+                error={!profileData.dateOfBirth}
+                helperText={!profileData.dateOfBirth ? 'Date of birth is required' : ''}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -827,6 +967,24 @@ const ProfilePage: React.FC = () => {
           </Typography>
         </Alert>
       )}
+
+      {/* Unsaved changes dialog */}
+      <Dialog open={showUnsavedDialog} onClose={handleKeepEditing}>
+        <DialogTitle>Unsaved Changes</DialogTitle>
+        <DialogContent>
+          <Typography>
+            You have unsaved changes. Do you want to discard them?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleKeepEditing} color="primary">
+            Keep Editing
+          </Button>
+          <Button onClick={handleDiscardChanges} color="error" variant="contained">
+            Discard Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
