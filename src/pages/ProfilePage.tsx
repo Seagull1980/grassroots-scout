@@ -82,7 +82,9 @@ const ProfilePage: React.FC = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
-  const [showCompletionAlert, setShowCompletionAlert] = useState(true);
+  const [showCompletionAlert, setShowCompletionAlert] = useState(() => {
+    return localStorage.getItem('profileCompletionAlertDismissed') !== 'true';
+  });
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -190,6 +192,11 @@ const ProfilePage: React.FC = () => {
     
     loadProfile();
   }, [user, navigate]);
+
+  const handleDismissCompletionAlert = () => {
+    localStorage.setItem('profileCompletionAlertDismissed', 'true');
+    setShowCompletionAlert(false);
+  };
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -425,13 +432,13 @@ const ProfilePage: React.FC = () => {
         <Alert 
           severity="info" 
           sx={{ mb: 3 }}
-          onClose={() => setShowCompletionAlert(false)}
+          onClose={handleDismissCompletionAlert}
           action={
             <IconButton
               aria-label="close"
               color="inherit"
               size="small"
-              onClick={() => setShowCompletionAlert(false)}
+              onClick={handleDismissCompletionAlert}
             >
               <Close fontSize="inherit" />
             </IconButton>
