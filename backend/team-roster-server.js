@@ -2006,12 +2006,19 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    console.log('[Admin Users] Fetching all users...');
     const users = await db.getAll(
       'SELECT id, email, firstName, lastName, role, createdAt, isEmailVerified, isBlocked FROM users ORDER BY createdAt DESC'
     );
-    res.json({ users });
+    console.log('[Admin Users] Found', users?.length || 0, 'users');
+    console.log('[Admin Users] Users data:', users);
+    
+    // Handle different response formats from database utility
+    const usersList = Array.isArray(users) ? users : (users?.rows || users?.data || []);
+    
+    res.json({ users: usersList });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('[Admin Users] Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });

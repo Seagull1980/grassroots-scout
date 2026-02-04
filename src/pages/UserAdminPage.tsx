@@ -95,13 +95,20 @@ const UserAdminPage: React.FC = () => {
     
     try {
       const token = storage.getItem('token');
-      const response = await axios.get(`${API_URL}/admin/users`, {
+      const url = `${API_URL}/admin/users`;
+      console.log('[UserAdminPage] Fetching users from URL:', url);
+      console.log('[UserAdminPage] API_URL is:', API_URL);
+      
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
       });
       
+      console.log('[UserAdminPage] Response received:', response.data);
       setUsers(response.data.users || []);
+      console.log('[UserAdminPage] Users set to:', response.data.users?.length || 0, 'users');
     } catch (err: any) {
-      console.error('Error fetching users:', err);
+      console.error('[UserAdminPage] Error fetching users:', err);
+      console.error('[UserAdminPage] Error response:', err.response);
       setError(err.response?.data?.error || 'Failed to fetch users');
     } finally {
       setLoading(false);
