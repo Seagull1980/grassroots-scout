@@ -552,6 +552,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   useEffect(() => {
     if (!map) return;
 
+    map.setOptions({ disableDoubleClickZoom: isDrawingModeRef.current });
+
     const handleMapClick = (event: google.maps.MapMouseEvent) => {
       if (isDrawingModeRef.current && event.latLng) {
         const newPath = [...drawingPathRef.current, event.latLng];
@@ -599,16 +601,24 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         completePolygon(drawingPathRef.current);
       }
     };
+
+    const handleMapMouseDown = (event: google.maps.MapMouseEvent) => {
+      if (isDrawingModeRef.current && event.latLng) {
+        handleMapClick(event);
+      }
+    };
     
     // Add event listeners
     const clickListener = map.addListener('click', handleMapClick);
     const doubleClickListener = map.addListener('dblclick', handleMapDoubleClick);
+    const mouseDownListener = map.addListener('mousedown', handleMapMouseDown);
     
     setDrawingListeners([clickListener, doubleClickListener]);
 
     return () => {
       google.maps.event.removeListener(clickListener);
       google.maps.event.removeListener(doubleClickListener);
+      google.maps.event.removeListener(mouseDownListener);
     };
   }, [map, completePolygon]);
   // Add edit listeners to polygon
