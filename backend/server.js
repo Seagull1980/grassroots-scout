@@ -967,7 +967,7 @@ app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, 
     
     // Get real user count from database
     const totalUsersResult = await db.query('SELECT COUNT(*) as count FROM users');
-    const totalTeamsResult = await db.query('SELECT COUNT(DISTINCT "postedBy") as count FROM team_vacancies');
+    const totalTeamsResult = await db.query('SELECT COUNT(DISTINCT postedBy) as count FROM team_vacancies');
     const totalPlayersResult = await db.query('SELECT COUNT(*) as count FROM player_availability');
     
     const overview = {
@@ -984,8 +984,8 @@ app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, 
     };
 
     // Get user type breakdown
-    const userTypesResult = await db.query('SELECT role as "userType", COUNT(*) as count FROM users GROUP BY role');
-    const userTypes = userTypesResult?.rows || [];
+    const userTypesResult = await db.query('SELECT role, COUNT(*) as count FROM users GROUP BY role');
+    const userTypes = (userTypesResult?.rows || []).map(row => ({ userType: row.role, count: row.count }));
     
     const popularPages = [
       { page: '/dashboard', views: 150 },
