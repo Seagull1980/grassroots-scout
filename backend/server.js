@@ -641,12 +641,17 @@ app.post('/api/auth/register', [
       // Continue with registration even if email fails - user can request resend
     }
 
-    // Create user profile with date of birth if provided
-    if (dateOfBirth) {
-      await db.query(
-        'INSERT INTO user_profiles (userId, dateOfBirth) VALUES (?, ?)',
-        [userId, dateOfBirth]
-      );
+    // Create user profile with date of birth if provided (only for Players)
+    if (dateOfBirth && role === 'Player') {
+      try {
+        await db.query(
+          'INSERT INTO user_profiles (userId, dateOfBirth) VALUES (?, ?)',
+          [userId, dateOfBirth]
+        );
+      } catch (profileError) {
+        console.warn('Failed to create user profile with dateOfBirth:', profileError.message);
+        // Continue - user profile is optional, don't block registration
+      }
     }
 
     res.status(201).json({
