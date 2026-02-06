@@ -654,9 +654,17 @@ app.post('/api/auth/register', [
       }
     }
 
+    // Generate JWT token for immediate login (email verification optional)
+    const token = jwt.sign(
+      { userId, email, role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(201).json({
       message: 'User created successfully. Please check your email to verify your account.',
       emailVerificationRequired: true,
+      token,
       user: {
         id: userId,
         email,
