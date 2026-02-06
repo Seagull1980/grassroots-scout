@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { Search, CheckCircle, Cancel } from '@mui/icons-material';
 import axios from 'axios';
+import { API_URL } from '../../services/api';
 
 interface User {
   id: number;
@@ -42,10 +43,10 @@ const BetaAccessManager: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      console.log('[BetaAccess] Fetching users...');
+      console.log('[BetaAccess] Fetching users from:', `${API_URL}/admin/users/beta-access`);
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/users/beta-access', {
+      const response = await axios.get(`${API_URL}/admin/users/beta-access`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('[BetaAccess] Received users data:', response.data);
@@ -75,7 +76,7 @@ const BetaAccessManager: React.FC = () => {
       console.log('[BetaAccess] Request body:', { betaAccess: !currentStatus });
       
       const response = await axios.patch(
-        `/api/admin/users/${userId}/beta-access`,
+        `${API_URL}/admin/users/${userId}/beta-access`,
         { betaAccess: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );

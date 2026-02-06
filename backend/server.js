@@ -2717,6 +2717,42 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
   }
 });
 
+// Update beta access for user (admin only) - PATCH handler
+app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { betaAccess } = req.body;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get current beta access status
+    const userCheck = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    if (!userCheck.rows || userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentBetaAccess = userCheck.rows[0].betaAccess;
+    const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
+
+    // Update beta access
+    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
+      [newBetaAccess, id]
+    );
+    
+    res.json({ 
+      message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
+      betaAccess: newBetaAccess
+    });
+  } catch (error) {
+    console.error('[Beta Access] PATCH error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Create new league (admin only)
 app.post('/api/leagues', authenticateToken, async (req, res) => {
   try {
