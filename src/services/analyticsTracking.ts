@@ -3,13 +3,9 @@
  * Provides comprehensive event tracking, user behavior analytics, and performance monitoring
  */
 
-// Get API URL based on environment
-const getAPIUrl = () => {
-  // Always use relative URL for Vercel proxying in production
-  return '';
-};
+import { API_URL } from './api';
 
-const API_BASE_URL = getAPIUrl();
+const API_BASE_URL = API_URL;
 
 interface AnalyticsEvent {
   event: string;
