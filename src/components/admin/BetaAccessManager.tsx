@@ -49,24 +49,39 @@ const BetaAccessManager: React.FC = () => {
       const response = await axios.get(`${API_URL}/admin/users/beta-access`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('[BetaAccess] Received users data:', response.data);
       
-      // Ensure response.data is an array
-      const usersData = Array.isArray(response.data) ? response.data : (response.data?.users || []);
-      console.log('[BetaAccess] Users array length:', usersData.length);
+      console.log('[BetaAccess] Raw response:', response);
+      console.log('[BetaAccess] Response.data type:', typeof response.data);
+      console.log('[BetaAccess] Is array?', Array.isArray(response.data));
+      console.log('[BetaAccess] Response.data:', response.data);
+      
+      // Backend returns array directly: [{ id, email, ... }]
+      let usersData: User[] = [];
+      
+      if (Array.isArray(response.data)) {
+        usersData = response.data;
+      } else if (response.data && typeof response.data === 'object' && response.data.users) {
+        usersData = response.data.users;
+      } else if (response.data && typeof response.data === 'object') {
+        // Maybe it's wrapped in another way
+        usersData = Object.values(response.data).find((v: any) => Array.isArray(v)) as User[] || [];
+      }
+      
+      console.log('[BetaAccess] Parsed users array, length:', usersData.length);
       
       if (usersData.length > 0) {
-        console.log('[BetaAccess] First user full data:', usersData[0]);
-        console.log('[BetaAccess] First 3 users betaAccess values:', 
-          usersData.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, createdAt: u.createdAt, type: typeof u.betaAccess }))
-        );
+        console.log('[BetaAccess] First user:', usersData[0]);
+      } else {
+        console.warn('[BetaAccess] No users found in response');
       }
       
       setUsers(usersData);
       setError('');
     } catch (err: any) {
       console.error('[BetaAccess] Error fetching users:', err);
-      setUsers([]); // Ensure users is always an array
+      console.error('[BetaAccess] Error message:', err.message);
+      console.error('[BetaAccess] Error response:', err.response?.data);
+      setUsers([]);
       setError(err.response?.data?.error || 'Failed to load users');
     } finally {
       setLoading(false);
