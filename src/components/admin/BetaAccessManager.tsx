@@ -50,14 +50,23 @@ const BetaAccessManager: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('[BetaAccess] Received users data:', response.data);
-      console.log('[BetaAccess] First user full data:', response.data[0]);
-      console.log('[BetaAccess] First 3 users betaAccess values:', 
-        response.data.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, createdAt: u.createdAt, type: typeof u.betaAccess }))
-      );
-      setUsers(response.data);
+      
+      // Ensure response.data is an array
+      const usersData = Array.isArray(response.data) ? response.data : (response.data?.users || []);
+      console.log('[BetaAccess] Users array length:', usersData.length);
+      
+      if (usersData.length > 0) {
+        console.log('[BetaAccess] First user full data:', usersData[0]);
+        console.log('[BetaAccess] First 3 users betaAccess values:', 
+          usersData.slice(0, 3).map((u: User) => ({ id: u.id, email: u.email, betaAccess: u.betaAccess, createdAt: u.createdAt, type: typeof u.betaAccess }))
+        );
+      }
+      
+      setUsers(usersData);
       setError('');
     } catch (err: any) {
       console.error('[BetaAccess] Error fetching users:', err);
+      setUsers([]); // Ensure users is always an array
       setError(err.response?.data?.error || 'Failed to load users');
     } finally {
       setLoading(false);
@@ -101,16 +110,16 @@ const BetaAccessManager: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = Array.isArray(users) ? users.filter(user => 
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.lastName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) : [];
 
   const stats = {
-    total: users.length,
-    withAccess: users.filter(u => u.betaAccess || u.role === 'Admin').length,
-    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length,
+    total: Array.isArray(users) ? users.length : 0,
+    withAccess: Array.isArray(users) ? users.filter(u => u.betaAccess || u.role === 'Admin').length : 0,
+    pending: Array.isArray(users) ? users.filter(u => !u.betaAccess && u.role !== 'Admin').length : 0,
   };
 
   if (loading) {
