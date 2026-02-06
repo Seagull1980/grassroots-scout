@@ -2568,7 +2568,6 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
         lastname as lastName, 
         role, 
         betaAccess,
-        betaAccessGrantedAt,
         createdat as createdAt,
         isemailverified as isEmailVerified,
         isblocked as isBlocked
@@ -2702,17 +2701,15 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
 
     const currentBetaAccess = userCheck.rows[0].betaAccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
-    const grantedAt = newBetaAccess ? new Date().toISOString() : null;
 
     // Update beta access
-    await db.query('UPDATE users SET betaAccess = ?, betaAccessGrantedAt = ? WHERE id = ?', 
-      [newBetaAccess, grantedAt, id]
+    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
+      [newBetaAccess, id]
     );
     
     res.json({ 
       message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
-      betaAccess: newBetaAccess,
-      betaAccessGrantedAt: grantedAt
+      betaAccess: newBetaAccess
     });
   } catch (error) {
     console.error('[Beta Access] Toggle error:', error);
