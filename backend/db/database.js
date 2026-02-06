@@ -192,17 +192,16 @@ class Database {
   }
 
   async close() {
-    console.trace('⚠️  WARNING: Database.close() was called from:');
+    // Silently close without spamming logs
     if (this.dbType === 'postgresql' && this.pool) {
-      await this.pool.end();
-      console.log('🔒 PostgreSQL connection pool closed');
+      try {
+        await this.pool.end();
+      } catch (err) {
+        // Ignore errors on close
+      }
     } else if (this.db) {
       this.db.close((err) => {
-        if (err) {
-          console.error('Error closing SQLite database:', err.message);
-        } else {
-          console.log('🔒 SQLite database connection closed');
-        }
+        // Silently ignore close errors
       });
     }
   }

@@ -2546,6 +2546,44 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
   }
 });
 
+// Get users for beta access management (admin only)
+app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
+  try {
+    console.log('[Beta Access] Checking admin access for user:', req.user?.userId);
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Fetch all users with beta access info
+    console.log('[Beta Access] Fetching users with beta access...');
+    const result = await db.query(`
+      SELECT 
+        id, 
+        email, 
+        firstname as firstName, 
+        lastname as lastName, 
+        role, 
+        betaAccess,
+        betaAccessGrantedAt,
+        createdat as createdAt,
+        isemailverified as isEmailVerified,
+        isblocked as isBlocked
+      FROM users 
+      ORDER BY createdat DESC
+    `);
+    
+    console.log(`[Beta Access] Found ${result.rows ? result.rows.length : 0} users`);
+    res.json(result.rows || []);
+  } catch (error) {
+    console.error('[Beta Access] ERROR:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Delete user (admin only)
 app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   try {
@@ -2641,6 +2679,44 @@ app.post('/api/admin/users/:id/promote', authenticateToken, async (req, res) => 
   } catch (error) {
     console.error('[Admin Users] Promote error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Toggle beta access for user (admin only)
+app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { betaAccess } = req.body;
+    
+    // Check if user is admin
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Get current beta access status
+    const userCheck = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    if (!userCheck.rows || userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentBetaAccess = userCheck.rows[0].betaAccess;
+    const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
+    const grantedAt = newBetaAccess ? new Date().toISOString() : null;
+
+    // Update beta access
+    await db.query('UPDATE users SET betaAccess = ?, betaAccessGrantedAt = ? WHERE id = ?', 
+      [newBetaAccess, grantedAt, id]
+    );
+    
+    res.json({ 
+      message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
+      betaAccess: newBetaAccess,
+      betaAccessGrantedAt: grantedAt
+    });
+  } catch (error) {
+    console.error('[Beta Access] Toggle error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
