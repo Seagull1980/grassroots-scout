@@ -137,6 +137,14 @@ const BetaAccessManager: React.FC = () => {
     pending: Array.isArray(users) ? users.filter(u => !u.betaAccess && u.role !== 'Admin').length : 0,
   };
 
+  // Debug logging on every render
+  console.log('[BetaAccess RENDER] Users state:', users);
+  console.log('[BetaAccess RENDER] Users is array?', Array.isArray(users));
+  console.log('[BetaAccess RENDER] Users length:', users?.length);
+  console.log('[BetaAccess RENDER] Filtered users length:', filteredUsers.length);
+  console.log('[BetaAccess RENDER] Loading:', loading);
+  console.log('[BetaAccess RENDER] API_URL:', API_URL);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -150,6 +158,16 @@ const BetaAccessManager: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         Beta Access Management
       </Typography>
+
+      {/* Debug Info */}
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <strong>Debug Info:</strong><br />
+        API URL: {API_URL || '(empty - using relative)'}<br />
+        Users in state: {users?.length || 0}<br />
+        Is Array: {Array.isArray(users) ? 'Yes' : 'No'}<br />
+        Filtered Users: {filteredUsers.length}<br />
+        Search Term: "{searchTerm}"
+      </Alert>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Paper sx={{ p: 2, flex: 1 }}>
