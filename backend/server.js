@@ -950,6 +950,30 @@ app.post('/api/auth/login', [
   }
 });
 
+// Middleware to authenticate JWT tokens
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.sendStatus(401);
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// Admin middleware
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
 // Get current user endpoint
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
@@ -979,30 +1003,6 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-// Middleware to authenticate JWT tokens
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.sendStatus(401);
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
-
-// Admin middleware
-const requireAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'Admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-};
 
 // Analytics endpoints
 app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, res) => {
