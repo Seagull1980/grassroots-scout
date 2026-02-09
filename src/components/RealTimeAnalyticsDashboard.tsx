@@ -217,12 +217,12 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
   };
 
   const startRealTimeUpdates = () => {
+    if (refreshIntervalRef.current) return;
     // Real-time stream endpoint not available, using polling instead
-    startPolling();
     refreshIntervalRef.current = setInterval(() => {
       loadMetrics();
       loadRecentEvents();
-    }, 30000); // Update every 30 seconds
+    }, 5000); // Update every 5 seconds
   };
 
   const stopRealTimeUpdates = () => {
@@ -235,15 +235,6 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
     }
-  };
-
-  const startPolling = () => {
-    if (refreshIntervalRef.current) return;
-    
-    refreshIntervalRef.current = setInterval(() => {
-      loadMetrics();
-      loadRecentEvents();
-    }, 5000); // Poll every 5 seconds
   };
 
   const generateChartData = () => {
