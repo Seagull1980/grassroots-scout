@@ -36,6 +36,7 @@ const BetaAccessManager: React.FC = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [updating, setUpdating] = useState<number | null>(null);
+  const adminUsersBaseUrl = API_URL ? `${API_URL}/admin/users` : '/api/admin/users';
 
   useEffect(() => {
     fetchUsers();
@@ -43,39 +44,18 @@ const BetaAccessManager: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      console.log('[BetaAccess] Fetching users from:', `${API_URL}/admin/users/beta-access`);
+      console.log('[BetaAccess] Fetching users from:', `${adminUsersBaseUrl}/beta-access`);
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/admin/users/beta-access`, {
+      const response = await axios.get(`${adminUsersBaseUrl}/beta-access`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log('[BetaAccess] Raw response:', response);
-      console.log('[BetaAccess] Response.data type:', typeof response.data);
-      console.log('[BetaAccess] Is array?', Array.isArray(response.data));
-      console.log('[BetaAccess] Response.data:', response.data);
-      
-      // Backend returns array directly: [{ id, email, ... }]
-      let usersData: User[] = [];
-      
-      if (Array.isArray(response.data)) {
-        usersData = response.data;
-      } else if (response.data && typeof response.data === 'object' && response.data.users) {
-        usersData = response.data.users;
-      } else if (response.data && typeof response.data === 'object') {
-        // Maybe it's wrapped in another way
-        usersData = Object.values(response.data).find((v: any) => Array.isArray(v)) as User[] || [];
-      }
-      
-      console.log('[BetaAccess] Parsed users array, length:', usersData.length);
-      
-      if (usersData.length > 0) {
-        console.log('[BetaAccess] First user:', usersData[0]);
-      } else {
-        console.warn('[BetaAccess] No users found in response');
-      }
-      
-      setUsers(usersData);
+
+      const usersData = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.users || []);
+
+      setUsers(usersData as User[]);
       setError('');
     } catch (err: any) {
       console.error('[BetaAccess] Error fetching users:', err);
@@ -100,7 +80,7 @@ const BetaAccessManager: React.FC = () => {
       console.log('[BetaAccess] Request body:', { betaAccess: !currentStatus });
       
       const response = await axios.patch(
-        `${API_URL}/admin/users/${userId}/beta-access`,
+        `${adminUsersBaseUrl}/${userId}/beta-access`,
         { betaAccess: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -137,14 +117,6 @@ const BetaAccessManager: React.FC = () => {
     pending: Array.isArray(users) ? users.filter(u => !u.betaAccess && u.role !== 'Admin').length : 0,
   };
 
-  // Debug logging on every render
-  console.log('[BetaAccess RENDER] Users state:', users);
-  console.log('[BetaAccess RENDER] Users is array?', Array.isArray(users));
-  console.log('[BetaAccess RENDER] Users length:', users?.length);
-  console.log('[BetaAccess RENDER] Filtered users length:', filteredUsers.length);
-  console.log('[BetaAccess RENDER] Loading:', loading);
-  console.log('[BetaAccess RENDER] API_URL:', API_URL);
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -158,16 +130,6 @@ const BetaAccessManager: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         Beta Access Management
       </Typography>
-
-      {/* Debug Info */}
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <strong>Debug Info:</strong><br />
-        API URL: {API_URL || '(empty - using relative)'}<br />
-        Users in state: {users?.length || 0}<br />
-        Is Array: {Array.isArray(users) ? 'Yes' : 'No'}<br />
-        Filtered Users: {filteredUsers.length}<br />
-        Search Term: "{searchTerm}"
-      </Alert>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Paper sx={{ p: 2, flex: 1 }}>
