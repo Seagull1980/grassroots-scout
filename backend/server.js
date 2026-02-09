@@ -2701,10 +2701,11 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
 
     const currentBetaAccess = userCheck.rows[0].betaAccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
+    const newValueInt = newBetaAccess ? 1 : 0;
 
-    // Update beta access
+    // Update beta access with proper integer conversion
     await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
-      [newBetaAccess, id]
+      [newValueInt, parseInt(id)]
     );
     
     res.json({ 
