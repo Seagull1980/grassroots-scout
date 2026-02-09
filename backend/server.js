@@ -2591,26 +2591,54 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
 
     // Fetch all users with beta access info
     console.log('[Beta Access] Fetching users with beta access...');
-    const result = await db.query(`
-      SELECT 
-        id, 
-        email, 
-        firstname as firstName, 
-        lastname as lastName, 
-        role, 
-        COALESCE(betaaccess, 0) as betaAccess,
-        createdat as createdAt,
-        isemailverified as isEmailVerified,
-        isblocked as isBlocked
-      FROM users 
-      ORDER BY createdat DESC
-    `);
+    let result;
+    try {
+      result = await db.query(`
+        SELECT 
+          id, 
+          email, 
+          firstname as firstName, 
+          lastname as lastName, 
+          role, 
+          COALESCE(betaaccess, false) as betaAccess,
+          createdat as createdAt,
+          isemailverified as isEmailVerified,
+          isblocked as isBlocked
+        FROM users 
+        ORDER BY createdat DESC
+      `);
+    } catch (queryError) {
+      console.error('[Beta Access] Query error (trying fallback):', queryError.message);
+      // Fallback: try without betaaccess column if it doesn't exist
+      result = await db.query(`
+        SELECT 
+          id, 
+          email, 
+          firstname as firstName, 
+          lastname as lastName, 
+          role, 
+          false as betaAccess,
+          createdat as createdAt,
+          isemailverified as isEmailVerified,
+          isblocked as isBlocked
+        FROM users 
+        ORDER BY createdat DESC
+      `);
+    }
     
     console.log(`[Beta Access] Found ${result.rows ? result.rows.length : 0} users`);
     console.log('[Beta Access] Sample user data:', result.rows?.[0]);
-    res.json(result.rows || []);
+    
+    // Ensure betaAccess is a boolean for all users
+    const usersWithBetaAccess = (result.rows || []).map(user => ({
+      ...user,
+      betaAccess: user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1'
+    }));
+    
+    res.json(usersWithBetaAccess);
   } catch (error) {
     console.error('[Beta Access] ERROR:', error);
+    console.error('[Beta Access] Error message:', error.message);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -2787,13 +2815,13 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     }
 
     // Verify the update by reading back
-    const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [parseInt(id)]);
-    const actualNewValue = verifyResult.rows?.[0]?.betaAccess;
+    const verifyResult = await db.query('SELECT betaaccess FROM users WHERE id = ?', [parseInt(id)]);
+    const actualNewValue = verifyResult.rows?.[0]?.betaaccess;
     
     console.log('[Beta Access PATCH] Verified value in DB:', actualNewValue, 'Type:', typeof actualNewValue);
     console.log('[Beta Access PATCH] Full verified row:', verifyResult.rows?.[0]);
     
-    // Convert SQLite 0/1 to boolean
+    // Convert to boolean (handle both 0/1 from SQLite and true/false from PostgreSQL)
     const boolValue = actualNewValue === 1 || actualNewValue === true;
     
     res.json({ 
