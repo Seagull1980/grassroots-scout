@@ -2589,10 +2589,21 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    // Check if betaaccess column exists in postgres information schema
+    const columnCheck = await db.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'betaaccess'
+    `).catch(() => ({ rows: [] }));
+    
+    const columnExists = columnCheck.rows && columnCheck.rows.length > 0;
+    console.log('[Beta Access] betaaccess column exists:', columnExists);
+
     // Fetch all users with beta access info
     console.log('[Beta Access] Fetching users with beta access...');
+    
     let result;
-    try {
+    if (columnExists) {
+      // Column exists - fetch with actual value
       result = await db.query(`
         SELECT 
           id, 
@@ -2607,9 +2618,19 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
         FROM users 
         ORDER BY createdat DESC
       `);
-    } catch (queryError) {
-      console.error('[Beta Access] Query error (trying fallback):', queryError.message);
-      // Fallback: try without betaaccess column if it doesn't exist
+      console.log('[Beta Access] Query successful with betaaccess column');
+    } else {
+      // Column doesn't exist - add it first
+      console.log('[Beta Access] betaaccess column does not exist - adding it now...');
+      try {
+        await db.query('ALTER TABLE users ADD COLUMN betaaccess BOOLEAN DEFAULT FALSE');
+        console.log('[Beta Access] Successfully added betaaccess column');
+      } catch (alterError) {
+        console.error('[Beta Access] Error adding column:', alterError.message);
+        // If column already exists, this is fine
+      }
+      
+      // Now fetch with the column
       result = await db.query(`
         SELECT 
           id, 
@@ -2617,13 +2638,14 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
           firstname as firstName, 
           lastname as lastName, 
           role, 
-          false as betaAccess,
+          COALESCE(betaaccess, false) as betaAccess,
           createdat as createdAt,
           isemailverified as isEmailVerified,
           isblocked as isBlocked
         FROM users 
         ORDER BY createdat DESC
       `);
+      console.log('[Beta Access] Query successful after adding betaaccess column');
     }
     
     console.log(`[Beta Access] Found ${result.rows ? result.rows.length : 0} users`);
