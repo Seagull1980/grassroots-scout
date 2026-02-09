@@ -2723,7 +2723,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     const { id } = req.params;
     const { betaAccess } = req.body;
     
-    console.log('[Beta Access PATCH] Request - ID:', id, 'BetaAccess:', betaAccess);
+    console.log('[Beta Access PATCH] Request - ID:', id, 'BetaAccess:', betaAccess, 'Type:', typeof betaAccess);
     
     // Check if user is admin
     const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
@@ -2739,30 +2739,39 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
 
     const currentBetaAccess = userCheck.rows[0].betaAccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
+    const newValueInt = newBetaAccess ? 1 : 0;
 
-    console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'New:', newBetaAccess);
+    console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'Type:', typeof currentBetaAccess, 'New:', newBetaAccess, 'AsInt:', newValueInt);
 
     // Update beta access
     const updateResult = await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
-      [newBetaAccess ? 1 : 0, id]
+      [newValueInt, parseInt(id)]
     );
     
-    console.log('[Beta Access PATCH] Update result:', updateResult);
+    console.log('[Beta Access PATCH] Update result:', updateResult, 'rowCount:', updateResult.rowCount);
+    if (!updateResult.rowCount || updateResult.rowCount === 0) {
+      console.warn('[Beta Access PATCH] WARNING: UPDATE did not affect any rows!');
+    }
 
     // Verify the update by reading back
-    const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [parseInt(id)]);
     const actualNewValue = verifyResult.rows?.[0]?.betaAccess;
     
-    console.log('[Beta Access PATCH] Verified value in DB:', actualNewValue);
+    console.log('[Beta Access PATCH] Verified value in DB:', actualNewValue, 'Type:', typeof actualNewValue);
+    console.log('[Beta Access PATCH] Full verified row:', verifyResult.rows?.[0]);
+    
+    // Convert SQLite 0/1 to boolean
+    const boolValue = actualNewValue === 1 || actualNewValue === true;
     
     res.json({ 
-      message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
-      betaAccess: actualNewValue || newBetaAccess
+      message: boolValue ? 'Beta access granted' : 'Beta access revoked',
+      betaAccess: boolValue
     });
   } catch (error) {
     console.error('[Beta Access PATCH] Error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
+});
 });
 
 // Create new league (admin only)
