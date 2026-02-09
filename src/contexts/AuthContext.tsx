@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     storage.removeItem('user');
   };
 
-  const refreshUserData = async () => {
+  const refreshUserData = useCallback(async () => {
     try {
       console.log('[AuthContext] Refreshing user data from server...');
       const response = await authAPI.getCurrentUser();
@@ -231,7 +231,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('[AuthContext] Error refreshing user data:', error);
     }
-  };
+  }, []);
 
   const impersonateUser = useCallback((userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
     console.log('🔄 AuthContext: impersonateUser called with:', userType);
