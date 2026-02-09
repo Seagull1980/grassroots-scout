@@ -221,7 +221,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshUserData = async () => {
     try {
       console.log('[AuthContext] Refreshing user data from server...');
-      const response = await authAPI.getProfile();
+      const response = await authAPI.getCurrentUser();
       if (response && response.user) {
         const updatedUser = response.user as User;
         console.log('[AuthContext] User data refreshed:', updatedUser.email, 'betaAccess:', updatedUser.betaAccess);
