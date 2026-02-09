@@ -940,11 +940,42 @@ app.post('/api/auth/login', [
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        isEmailVerified: user.isEmailVerified
+        isEmailVerified: user.isEmailVerified,
+        betaAccess: user.betaAccess || 0
       }
     });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get current user endpoint
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Fetch full user data from database
+    const userResult = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+        betaAccess: user.betaAccess || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
