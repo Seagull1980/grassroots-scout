@@ -941,7 +941,7 @@ app.post('/api/auth/login', [
         lastName: user.lastName,
         role: user.role,
         isEmailVerified: user.isEmailVerified,
-        betaAccess: user.betaAccess || 0
+        betaAccess: user.betaaccess || 0
       }
     });
   } catch (error) {
@@ -971,7 +971,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
         lastName: user.lastName,
         role: user.role,
         isEmailVerified: user.isEmailVerified,
-        betaAccess: user.betaAccess || 0
+        betaAccess: user.betaaccess || 0
       }
     });
   } catch (error) {
@@ -2598,7 +2598,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
         firstname as firstName, 
         lastname as lastName, 
         role, 
-        betaAccess,
+        COALESCE(betaaccess, 0) as betaAccess,
         createdat as createdAt,
         isemailverified as isEmailVerified,
         isblocked as isBlocked
@@ -2607,6 +2607,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
     `);
     
     console.log(`[Beta Access] Found ${result.rows ? result.rows.length : 0} users`);
+    console.log('[Beta Access] Sample user data:', result.rows?.[0]);
     res.json(result.rows || []);
   } catch (error) {
     console.error('[Beta Access] ERROR:', error);
@@ -2725,17 +2726,17 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
     }
 
     // Get current beta access status
-    const userCheck = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const userCheck = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
     if (!userCheck.rows || userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const currentBetaAccess = userCheck.rows[0].betaAccess;
+    const currentBetaAccess = userCheck.rows[0].betaaccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
     const newValueInt = newBetaAccess ? 1 : 0;
 
     // Update beta access with proper integer conversion
-    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
+    await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', 
       [newValueInt, parseInt(id)]
     );
     
@@ -2764,19 +2765,19 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     }
 
     // Get current beta access status
-    const userCheck = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const userCheck = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
     if (!userCheck.rows || userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const currentBetaAccess = userCheck.rows[0].betaAccess;
+    const currentBetaAccess = userCheck.rows[0].betaaccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
     const newValueInt = newBetaAccess ? 1 : 0;
 
     console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'Type:', typeof currentBetaAccess, 'New:', newBetaAccess, 'AsInt:', newValueInt);
 
     // Update beta access
-    const updateResult = await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
+    const updateResult = await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', 
       [newValueInt, parseInt(id)]
     );
     
