@@ -2611,7 +2611,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
           firstname as firstName, 
           lastname as lastName, 
           role, 
-          betaaccess,
+          betaaccess as betaAccess,
           createdat as createdAt,
           isemailverified as isEmailVerified,
           isblocked as isBlocked
@@ -2638,7 +2638,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
           firstname as firstName, 
           lastname as lastName, 
           role, 
-          betaaccess,
+          betaaccess as betaAccess,
           createdat as createdAt,
           isemailverified as isEmailVerified,
           isblocked as isBlocked
@@ -2653,10 +2653,11 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
     
     // Ensure betaAccess is a boolean for all users
     const usersWithBetaAccess = (result.rows || []).map(user => {
-      console.log('[Beta Access] User', user.id, 'betaAccess:', user.betaAccess, 'Type:', typeof user.betaAccess);
+      const rawBetaAccess = user.betaAccess ?? user.betaaccess;
+      console.log('[Beta Access] User', user.id, 'betaAccess:', rawBetaAccess, 'Type:', typeof rawBetaAccess);
       return {
         ...user,
-        betaAccess: Boolean(user.betaAccess)
+        betaAccess: Boolean(rawBetaAccess)
       };
     });
     
