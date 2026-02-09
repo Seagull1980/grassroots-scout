@@ -9,6 +9,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => Promise<boolean>;
   logout: () => void;
+  refreshUserData: () => Promise<void>;
   isLoading: boolean;
   impersonateUser: (userType: 'Coach' | 'Player' | 'Parent/Guardian') => void;
   stopImpersonation: () => void;
@@ -217,6 +218,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     storage.removeItem('user');
   };
 
+  const refreshUserData = async () => {
+    try {
+      console.log('[AuthContext] Refreshing user data from server...');
+      const response = await authAPI.getProfile();
+      if (response && response.user) {
+        const updatedUser = response.user as User;
+        console.log('[AuthContext] User data refreshed:', updatedUser.email, 'betaAccess:', updatedUser.betaAccess);
+        setUser(updatedUser);
+        storage.setItem('user', JSON.stringify(updatedUser));
+      }
+    } catch (error) {
+      console.error('[AuthContext] Error refreshing user data:', error);
+    }
+  };
+
   const impersonateUser = useCallback((userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
     console.log('🔄 AuthContext: impersonateUser called with:', userType);
     console.log('👤 Current user:', user);
@@ -275,6 +291,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    refreshUserData,
     isLoading,
     impersonateUser,
     stopImpersonation,

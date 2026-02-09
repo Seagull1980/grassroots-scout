@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
@@ -12,8 +12,24 @@ const ProtectedRoute = ({
   children, 
   requireAuth = true 
 }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshUserData } = useAuth();
   const location = useLocation();
+
+  // Refresh user data on mount and periodically to catch beta access changes
+  useEffect(() => {
+    if (user && requireAuth) {
+      console.log('[ProtectedRoute] Refreshing user data on mount');
+      refreshUserData();
+
+      // Refresh every 30 seconds to catch admin beta access toggles
+      const refreshInterval = setInterval(() => {
+        console.log('[ProtectedRoute] Periodic user data refresh');
+        refreshUserData();
+      }, 30000);
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [user, requireAuth, refreshUserData]);
 
   console.log('[ProtectedRoute]', {
     path: location.pathname,
