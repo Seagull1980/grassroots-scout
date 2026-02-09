@@ -941,7 +941,7 @@ app.post('/api/auth/login', [
         lastName: user.lastName,
         role: user.role,
         isEmailVerified: user.isEmailVerified,
-        betaAccess: user.betaaccess || 0
+        betaAccess: Boolean(user.betaaccess)
       }
     });
   } catch (error) {
@@ -995,7 +995,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
         lastName: user.lastName,
         role: user.role,
         isEmailVerified: user.isEmailVerified,
-        betaAccess: user.betaaccess || 0
+        betaAccess: Boolean(user.betaaccess)
       }
     });
   } catch (error) {
@@ -2611,7 +2611,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
           firstname as firstName, 
           lastname as lastName, 
           role, 
-          COALESCE(betaaccess, false) as betaAccess,
+          betaaccess,
           createdat as createdAt,
           isemailverified as isEmailVerified,
           isblocked as isBlocked
@@ -2638,7 +2638,7 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
           firstname as firstName, 
           lastname as lastName, 
           role, 
-          COALESCE(betaaccess, false) as betaAccess,
+          betaaccess,
           createdat as createdAt,
           isemailverified as isEmailVerified,
           isblocked as isBlocked
@@ -2652,10 +2652,13 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
     console.log('[Beta Access] Sample user data:', result.rows?.[0]);
     
     // Ensure betaAccess is a boolean for all users
-    const usersWithBetaAccess = (result.rows || []).map(user => ({
-      ...user,
-      betaAccess: user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1'
-    }));
+    const usersWithBetaAccess = (result.rows || []).map(user => {
+      console.log('[Beta Access] User', user.id, 'betaAccess:', user.betaAccess, 'Type:', typeof user.betaAccess);
+      return {
+        ...user,
+        betaAccess: Boolean(user.betaAccess)
+      };
+    });
     
     res.json(usersWithBetaAccess);
   } catch (error) {
@@ -2783,19 +2786,25 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
 
     const currentBetaAccess = userCheck.rows[0].betaaccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
-    const newValueInt = newBetaAccess ? 1 : 0;
 
-    // Update beta access with proper integer conversion
-    await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', 
-      [newValueInt, parseInt(id)]
+    // Update beta access with boolean value (PostgreSQL native type)
+    console.log('[Beta Access POST] Updating user', id, 'to betaAccess:', newBetaAccess);
+    const updateResult = await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', 
+      [newBetaAccess, parseInt(id)]
     );
+    console.log('[Beta Access POST] Update result rowCount:', updateResult.rowCount);
+
+    // Verify the update
+    const verifyResult = await db.query('SELECT betaaccess FROM users WHERE id = ?', [parseInt(id)]);
+    const savedValue = verifyResult.rows?.[0]?.betaaccess;
+    console.log('[Beta Access POST] Verified saved value:', savedValue, 'Type:', typeof savedValue);
     
     res.json({ 
       message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
       betaAccess: newBetaAccess
     });
   } catch (error) {
-    console.error('[Beta Access] Toggle error:', error);
+    console.error('[Beta Access POST] Toggle error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -2822,13 +2831,12 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
 
     const currentBetaAccess = userCheck.rows[0].betaaccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
-    const newValueInt = newBetaAccess ? 1 : 0;
 
-    console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'Type:', typeof currentBetaAccess, 'New:', newBetaAccess, 'AsInt:', newValueInt);
+    console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'Type:', typeof currentBetaAccess, 'New:', newBetaAccess);
 
-    // Update beta access
+    // Update beta access with boolean value (PostgreSQL native type)
     const updateResult = await db.query('UPDATE users SET betaaccess = ? WHERE id = ?', 
-      [newValueInt, parseInt(id)]
+      [newBetaAccess, parseInt(id)]
     );
     
     console.log('[Beta Access PATCH] Update result:', updateResult, 'rowCount:', updateResult.rowCount);
@@ -2843,12 +2851,13 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     console.log('[Beta Access PATCH] Verified value in DB:', actualNewValue, 'Type:', typeof actualNewValue);
     console.log('[Beta Access PATCH] Full verified row:', verifyResult.rows?.[0]);
     
-    // Convert to boolean (handle both 0/1 from SQLite and true/false from PostgreSQL)
-    const boolValue = actualNewValue === 1 || actualNewValue === true;
+    // Return the actual value from database (should be boolean for PostgreSQL)
+    const boolValue = Boolean(actualNewValue);
     
     res.json({ 
       message: boolValue ? 'Beta access granted' : 'Beta access revoked',
-      betaAccess: boolValue
+      betaAccess: boolValue,
+      debug: { savedValue: actualNewValue, returnedValue: boolValue }
     });
   } catch (error) {
     console.error('[Beta Access PATCH] Error:', error);
