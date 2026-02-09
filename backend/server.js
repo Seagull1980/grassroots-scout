@@ -2773,7 +2773,6 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
-});
 
 // Create new league (admin only)
 app.post('/api/leagues', authenticateToken, async (req, res) => {
