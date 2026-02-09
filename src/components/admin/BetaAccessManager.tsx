@@ -71,36 +71,32 @@ const BetaAccessManager: React.FC = () => {
   const toggleBetaAccess = async (userId: number, currentStatus: boolean) => {
     console.log('[BetaAccess] Toggle clicked for user:', userId, 'Current status:', currentStatus, 'Will set to:', !currentStatus);
     try {
-      console.log('[BetaAccess] Setting updating state...');
       setUpdating(userId);
-      console.log('[BetaAccess] Getting token...');
       const token = localStorage.getItem('token');
-      console.log('[BetaAccess] Token exists:', !!token);
-      console.log('[BetaAccess] Making API call to PATCH /api/admin/users/' + userId + '/beta-access');
-      console.log('[BetaAccess] Request body:', { betaAccess: !currentStatus });
       
+      const newStatus = !currentStatus;
       const response = await axios.patch(
         `${adminUsersBaseUrl}/${userId}/beta-access`,
-        { betaAccess: !currentStatus },
+        { betaAccess: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
       console.log('[BetaAccess] API response:', response.data);
-      console.log('[BetaAccess] Response betaAccess value:', response.data.betaAccess, 'Type:', typeof response.data.betaAccess);
       
-      // Refetch all users to get the actual database state
-      console.log('[BetaAccess] Refetching users to verify update...');
-      await fetchUsers();
-      console.log('[BetaAccess] Users refetched successfully');
+      // Update the user in state immediately
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === userId 
+            ? { ...user, betaAccess: response.data.betaAccess ?? newStatus }
+            : user
+        )
+      );
       
-      // Verify the user was actually updated
-      const updatedUser = users.find(u => u.id === userId);
-      console.log('[BetaAccess] Updated user in state:', updatedUser);
+      setError('');
     } catch (err: any) {
       console.error('[BetaAccess] Error:', err);
-      console.error('[BetaAccess] Error details:', err.message, err.response?.status, err.response?.data);
       setError(err.response?.data?.error || 'Failed to update beta access');
     } finally {
-      console.log('[BetaAccess] Clearing updating state...');
       setUpdating(null);
     }
   };

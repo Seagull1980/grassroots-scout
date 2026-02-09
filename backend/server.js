@@ -2723,6 +2723,8 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     const { id } = req.params;
     const { betaAccess } = req.body;
     
+    console.log('[Beta Access PATCH] Request - ID:', id, 'BetaAccess:', betaAccess);
+    
     // Check if user is admin
     const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
     if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
@@ -2738,17 +2740,27 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     const currentBetaAccess = userCheck.rows[0].betaAccess;
     const newBetaAccess = betaAccess !== undefined ? betaAccess : !currentBetaAccess;
 
+    console.log('[Beta Access PATCH] Current:', currentBetaAccess, 'New:', newBetaAccess);
+
     // Update beta access
-    await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
-      [newBetaAccess, id]
+    const updateResult = await db.query('UPDATE users SET betaAccess = ? WHERE id = ?', 
+      [newBetaAccess ? 1 : 0, id]
     );
+    
+    console.log('[Beta Access PATCH] Update result:', updateResult);
+
+    // Verify the update by reading back
+    const verifyResult = await db.query('SELECT betaAccess FROM users WHERE id = ?', [id]);
+    const actualNewValue = verifyResult.rows?.[0]?.betaAccess;
+    
+    console.log('[Beta Access PATCH] Verified value in DB:', actualNewValue);
     
     res.json({ 
       message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
-      betaAccess: newBetaAccess
+      betaAccess: actualNewValue || newBetaAccess
     });
   } catch (error) {
-    console.error('[Beta Access] PATCH error:', error);
+    console.error('[Beta Access PATCH] Error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
