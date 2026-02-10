@@ -136,7 +136,7 @@ const AdminPage: React.FC = () => {
       }
     };
     fetchLeagues();
-  }, [user]);
+  }, [user?.id, user?.role]);
 
   // Fetch analytics overview for live stats - only once on mount
   useEffect(() => {
