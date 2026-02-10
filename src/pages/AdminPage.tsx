@@ -138,7 +138,7 @@ const AdminPage: React.FC = () => {
     fetchLeagues();
   }, [user]);
 
-  // Fetch analytics overview for live stats
+  // Fetch analytics overview for live stats - only once on mount
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!user || user.role !== 'Admin') return;
@@ -158,7 +158,7 @@ const AdminPage: React.FC = () => {
       }
     };
     fetchAnalytics();
-  }, [user]);
+  }, []); // Empty dependency - fetch only once on mount, not when user object changes
 
   // Check user permissions AFTER all hooks are declared
   if (!user) {
