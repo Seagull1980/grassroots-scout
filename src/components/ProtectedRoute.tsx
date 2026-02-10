@@ -40,7 +40,7 @@ const ProtectedRoute = ({
   });
 
   // Show loading spinner while checking authentication
-  if (isLoading) {
+  if (isLoading && requireAuth) {
     console.log('[ProtectedRoute] Loading authentication state...');
     return (
       <Box 
