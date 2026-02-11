@@ -595,13 +595,16 @@ export const OnboardingFlow: React.FC = () => {
   };
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 1: // Role setup
-        return userData.interests.length > 0;
-      case 2: // Location setup
-        return userData.location.length > 0;
-      default:
-        return true;
+    // All steps are optional - users can skip any step
+    return true;
+  };
+
+  const handleSkipStep = () => {
+    // Skip current step and move to next
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      handleComplete();
     }
   };
 
@@ -655,9 +658,17 @@ export const OnboardingFlow: React.FC = () => {
             Back
           </Button>
           
-          <Button onClick={handleSkipOnboarding} color="inherit">
-            I'll complete my profile myself
-          </Button>
+          <Box display="flex" gap={2}>
+            {currentStep > 0 && currentStep < steps.length - 1 && (
+              <Button onClick={handleSkipStep} color="inherit">
+                Skip
+              </Button>
+            )}
+            
+            <Button onClick={handleSkipOnboarding} color="inherit" size="small">
+              Exit Setup
+            </Button>
+          </Box>
           
           {currentStep === steps.length - 1 ? (
             <Button
@@ -670,7 +681,6 @@ export const OnboardingFlow: React.FC = () => {
           ) : (
             <Button
               onClick={handleNext}
-              disabled={!canProceed()}
               variant="contained"
               endIcon={<ArrowForwardIcon />}
             >
