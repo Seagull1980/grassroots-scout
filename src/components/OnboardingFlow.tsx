@@ -594,11 +594,6 @@ export const OnboardingFlow: React.FC = () => {
     }
   };
 
-  const canProceed = () => {
-    // All steps are optional - users can skip any step
-    return true;
-  };
-
   const handleSkipStep = () => {
     // Skip current step and move to next
     if (currentStep < steps.length - 1) {
