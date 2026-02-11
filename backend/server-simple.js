@@ -110,6 +110,15 @@ const calculateAge = (dateOfBirth) => {
   return age;
 };
 
+// Helper function to send email with timeout to prevent blocking
+const sendEmailWithTimeout = async (emailPromise, timeoutMs = 5000) => {
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error(`Email service timeout after ${timeoutMs}ms`)), timeoutMs)
+  );
+  
+  return Promise.race([emailPromise, timeoutPromise]);
+};
+
 // Helper function to send verification email
 const sendVerificationEmail = async (email, firstName, verificationToken) => {
   const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${verificationToken}`;
@@ -287,13 +296,15 @@ app.post('/api/auth/register', [
 
     const userId = result.lastID;
 
-    // Send verification email
-    try {
-      await sendVerificationEmail(email, firstName, verificationToken);
-    } catch (emailError) {
-      console.error('Failed to send verification email:', emailError);
-      // Continue with registration even if email fails - user can request resend
-    }
+    // Send verification email with timeout (don't block registration on email failure)
+    sendEmailWithTimeout(sendVerificationEmail(email, firstName, verificationToken), 5000)
+      .then(() => {
+        console.log(`✅ Verification email sent to ${email}`);
+      })
+      .catch((emailError) => {
+        console.error(`Failed to send verification email to ${email}:`, emailError.message);
+        // Don't block registration - user can request resend later
+      });
 
     // Create user profile with date of birth if provided
     if (dateOfBirth) {
@@ -392,8 +403,15 @@ app.post('/api/auth/resend-verification', [
       [verificationToken, verificationExpires, user.id]
     );
 
-    // Send verification email
-    await sendVerificationEmail(email, user.firstName, verificationToken);
+    // Send verification email with timeout
+    sendEmailWithTimeout(sendVerificationEmail(email, user.firstName, verificationToken), 5000)
+      .then(() => {
+        console.log(`✅ Verification email resent to ${email}`);
+      })
+      .catch((emailError) => {
+        console.error(`Failed to resend verification email to ${email}:`, emailError.message);
+        // Still return success since the token was updated
+      });
 
     res.json({
       message: 'Verification email sent successfully. Please check your email.'
