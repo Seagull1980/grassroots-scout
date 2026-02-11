@@ -112,7 +112,7 @@ export const OnboardingFlow: React.FC = () => {
     loadLeagues();
   }, []);
 
-  // Check if user needs onboarding - show for new registrations and coaches on first login after beta access
+  // Check if user needs onboarding - show for new registrations and all users on first login after beta access
   useEffect(() => {
     if (user) {
       const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
@@ -135,10 +135,10 @@ export const OnboardingFlow: React.FC = () => {
       
       // Show onboarding if:
       // 1. New user hasn't completed onboarding AND account is recent, OR
-      // 2. Coach with recent beta access grant hasn't seen onboarding yet
+      // 2. Any non-admin user hasn't seen onboarding yet AND (account is recent OR beta access is recent)
       const shouldShowOnboarding = 
         (isNewUser && !hasCompletedOnboarding && isRecentlyCreated) ||
-        (user.role === 'Coach' && !hasSeenOnboarding && (isRecentlyCreated || isBetaAccessRecent));
+        (user.role !== 'Admin' && !hasSeenOnboarding && (isRecentlyCreated || isBetaAccessRecent));
       
       // Clean up stale flags for accounts older than 24 hours (unless beta access is recent)
       if (!isRecentlyCreated && !isBetaAccessRecent) {
@@ -158,8 +158,8 @@ export const OnboardingFlow: React.FC = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
       storage.removeItem(`new_user_${user.id}`);
-      // Mark onboarding as seen for coaches with beta access
-      if (user.role === 'Coach') {
+      // Mark onboarding as seen for all users granting beta access
+      if (user.role !== 'Admin') {
         storage.setItem(`seen_onboarding_${user.id}`, 'true');
       }
     }
@@ -170,8 +170,8 @@ export const OnboardingFlow: React.FC = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
       storage.removeItem(`new_user_${user.id}`);
-      // Mark onboarding as seen for coaches with beta access
-      if (user.role === 'Coach') {
+      // Mark onboarding as seen for all users granting beta access
+      if (user.role !== 'Admin') {
         storage.setItem(`seen_onboarding_${user.id}`, 'true');
       }
       
