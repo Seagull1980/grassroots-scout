@@ -128,17 +128,18 @@ router.post('/', [
         contactName, contactEmail, contactPhone, 
         submittedBy, status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      RETURNING id
     `, [
       name, region, JSON.stringify(ageGroups), url, description,
       contactName, contactEmail, contactPhone,
       req.user.userId
     ]);
-    console.log('✅ League request inserted successfully, ID:', result.lastID);
+    console.log('✅ League request inserted successfully, ID:', result.lastID || result.rows[0]?.id);
 
     res.status(201).json({
       message: 'League request submitted successfully. It will be reviewed by an administrator.',
       request: {
-        id: result.lastID,
+        id: result.lastID || result.rows[0]?.id,
         name,
         region,
         ageGroups,
@@ -311,6 +312,7 @@ router.post('/admin/:id/approve', requireAdmin, [
         name, region, ageGroups, url, description, 
         hits, isActive, createdBy
       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+      RETURNING id
     `, [
       leagueData?.name || request.name,
       leagueData?.region || request.region,
@@ -335,7 +337,7 @@ router.post('/admin/:id/approve', requireAdmin, [
     res.json({
       message: 'League request approved and league created successfully',
       league: {
-        id: leagueInsertResult.lastID,
+        id: leagueInsertResult.lastID || leagueInsertResult.rows[0]?.id,
         name: leagueData?.name || request.name,
         region: leagueData?.region || request.region,
         ageGroups: leagueData?.ageGroups || (request.ageGroups ? JSON.parse(request.ageGroups) : [])
