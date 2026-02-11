@@ -9,6 +9,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const DatabaseUtils = require('./db/database');
+const leagueRequestsRouter = require('./routes/league-requests');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -612,6 +613,9 @@ app.post('/api/auth/login', [
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Mount league requests router
+app.use('/api/league-requests', leagueRequestsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

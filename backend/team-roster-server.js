@@ -7,6 +7,7 @@ const expressValidator = require('express-validator');
 const { body, validationResult } = expressValidator;
 const DatabaseUtils = require('./utils/dbUtils.js');
 // const EncryptionService = require('./utils/encryption.js');
+const leagueRequestsRouter = require('./routes/league-requests');
 require('dotenv').config();
 
 const app = express();
@@ -2052,6 +2053,9 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
+
+// Mount league requests router
+app.use('/api/league-requests', leagueRequestsRouter);
 
 // Start server
 app.listen(PORT, () => {

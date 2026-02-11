@@ -10,6 +10,7 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 const DatabaseUtils = require('./db/database');
+const leagueRequestsRouter = require('./routes/league-requests');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -4637,6 +4638,9 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
+
+// Mount league requests router
+app.use('/api/league-requests', leagueRequestsRouter);
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
