@@ -112,11 +112,12 @@ export const OnboardingFlow: React.FC = () => {
     loadLeagues();
   }, []);
 
-  // Check if user needs onboarding - only show for new registrations
+  // Check if user needs onboarding - show for new registrations and coaches on first login after beta access
   useEffect(() => {
     if (user) {
       const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
       const isNewUser = storage.getItem(`new_user_${user.id}`);
+      const hasSeenOnboarding = storage.getItem(`seen_onboarding_${user.id}`);
       
       // Check if account was created within the last 24 hours
       const accountCreatedAt = new Date(user.createdAt);
@@ -132,6 +133,13 @@ export const OnboardingFlow: React.FC = () => {
         isBetaAccessRecent = hoursSinceBetaGrant < 24;
       }
       
+      // Show onboarding if:
+      // 1. New user hasn't completed onboarding AND account is recent, OR
+      // 2. Coach with recent beta access grant hasn't seen onboarding yet
+      const shouldShowOnboarding = 
+        (isNewUser && !hasCompletedOnboarding && isRecentlyCreated) ||
+        (user.role === 'Coach' && !hasSeenOnboarding && (isRecentlyCreated || isBetaAccessRecent));
+      
       // Clean up stale flags for accounts older than 24 hours (unless beta access is recent)
       if (!isRecentlyCreated && !isBetaAccessRecent) {
         storage.removeItem(`new_user_${user.id}`);
@@ -139,10 +147,8 @@ export const OnboardingFlow: React.FC = () => {
         return;
       }
       
-      // Only show onboarding for new users who haven't completed it AND (account is recent OR beta access is recent)
-      // This prevents the popup from showing to existing users
-      if (isNewUser && !hasCompletedOnboarding && (isRecentlyCreated || isBetaAccessRecent)) {
-        // Show onboarding after a short delay
+      // Show onboarding after a short delay
+      if (shouldShowOnboarding) {
         setTimeout(() => setOpen(true), 1000);
       }
     }
@@ -152,6 +158,10 @@ export const OnboardingFlow: React.FC = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
       storage.removeItem(`new_user_${user.id}`);
+      // Mark onboarding as seen for coaches with beta access
+      if (user.role === 'Coach') {
+        storage.setItem(`seen_onboarding_${user.id}`, 'true');
+      }
     }
     setOpen(false);
   };
@@ -160,6 +170,10 @@ export const OnboardingFlow: React.FC = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
       storage.removeItem(`new_user_${user.id}`);
+      // Mark onboarding as seen for coaches with beta access
+      if (user.role === 'Coach') {
+        storage.setItem(`seen_onboarding_${user.id}`, 'true');
+      }
       
       // Apply user preferences
       if (userData.location && userData.searchRadius) {

@@ -38,9 +38,12 @@ const BetaAccessDenied: React.FC = () => {
             <Typography variant="body2" gutterBottom>
               <strong>What happens next?</strong>
             </Typography>
-            <Typography variant="body2">
-              Our team reviews all new registrations. You'll receive an email when your account 
-              has been granted beta access. This usually takes 24-48 hours.
+            <Typography variant="body2" paragraph>
+              Our admin team reviews all new registrations and will contact you to advise when 
+              your beta access has been granted.
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
+              Please log out and wait for the admin's confirmation before logging back in.
             </Typography>
           </Alert>
 
