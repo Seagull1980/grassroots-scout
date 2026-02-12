@@ -98,7 +98,7 @@ const LoginPage: React.FC = () => {
 
           {loginError && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {loginError}
+              {typeof loginError === 'string' ? loginError : JSON.stringify(loginError)}
             </Alert>
           )}
 

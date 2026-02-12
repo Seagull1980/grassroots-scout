@@ -256,7 +256,7 @@ const AnalyticsPage: React.FC = () => {
     return (
       <Container maxWidth="xl">
         <Box sx={{ mt: 4 }}>
-          <Alert severity="error">{error}</Alert>
+          <Alert severity="error">{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>
         </Box>
       </Container>
     );

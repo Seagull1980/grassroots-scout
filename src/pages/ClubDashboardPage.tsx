@@ -358,7 +358,7 @@ const ClubDashboardPage: React.FC = () => {
         </Typography>
       </Breadcrumbs>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
       <Grid container spacing={3}>

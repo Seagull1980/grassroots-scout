@@ -501,7 +501,7 @@ const ProfilePage: React.FC = () => {
       
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
       )}
 
@@ -871,7 +871,7 @@ const ProfilePage: React.FC = () => {
           
           {passwordError && (
             <Alert severity="error" sx={{ mb: 3 }}>
-              {passwordError}
+              {typeof passwordError === 'string' ? passwordError : JSON.stringify(passwordError)}
             </Alert>
           )}
 

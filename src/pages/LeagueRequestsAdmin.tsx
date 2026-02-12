@@ -17,6 +17,10 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Grid,
   Card,
   CardContent,
@@ -39,6 +43,7 @@ import {
   Group
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { UK_REGIONS } from '../constants/locations';
 
 interface LeagueRequest {
   id: number;
@@ -61,7 +66,6 @@ interface LeagueRequest {
   reviewedAt?: string;
   reviewNotes?: string;
 }
-
 
 
 
@@ -282,7 +286,7 @@ const LeagueRequestsAdmin: React.FC = () => {
         </Grid>
       </Grid>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>}
 
       {/* Tabs for filtering by status */}
       <Paper sx={{ mb: 3 }}>
@@ -512,13 +516,22 @@ const LeagueRequestsAdmin: React.FC = () => {
                           />
                         </Grid>
                         <Grid item xs={12} sm={6}>
-                          <TextField
-                            label="Region"
-                            fullWidth
-                            value={leagueData.region}
-                            onChange={(e) => setLeagueData({ ...leagueData, region: e.target.value })}
-                            disabled={submittingReview}
-                          />
+                          <FormControl fullWidth disabled={submittingReview}>
+                            <InputLabel>Region</InputLabel>
+                            <Select
+                              value={leagueData.region}
+                              label="Region"
+                              displayEmpty
+                              onChange={(e) => setLeagueData({ ...leagueData, region: e.target.value as string })}
+                              renderValue={(selected) => (selected ? selected : 'Select region')}
+                            >
+                              {UK_REGIONS.map((option) => (
+                                <MenuItem key={option} value={option}>
+                                  {option}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
                         </Grid>
                         <Grid item xs={12} sm={6}>
                           <TextField

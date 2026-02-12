@@ -72,6 +72,7 @@ import { useResponsiveSpacing } from '../hooks/useResponsive';
 import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
 import { SavedSearchesDialog, useRecentSearches } from '../components/SavedSearches';
 import { requestNotificationPermission } from '../utils/pwa';
+import { UK_REGIONS } from '../constants/locations';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -168,6 +169,7 @@ const SearchPage: React.FC = () => {
     league: '',
     ageGroup: '',
     position: '',
+    region: '',
     location: '',
     search: '',
     teamGender: '',
@@ -447,6 +449,7 @@ const SearchPage: React.FC = () => {
       league: '',
       ageGroup: '',
       position: '',
+      region: '',
       location: '',
       search: '',
       teamGender: '',
@@ -472,6 +475,7 @@ const SearchPage: React.FC = () => {
         league: filters.league || undefined,
         ageGroup: filters.ageGroup || undefined,
         position: filters.position || undefined,
+        region: filters.region || undefined,
         location: filters.location || undefined,
         search: filters.search || undefined,
         teamGender: filters.teamGender || undefined,
@@ -543,6 +547,7 @@ const SearchPage: React.FC = () => {
         league: filters.league || undefined,
         ageGroup: filters.ageGroup || undefined,
         position: filters.position || undefined,
+        region: filters.region || undefined,
         location: filters.location || undefined,
         search: filters.search || undefined,
         preferredTeamGender: filters.teamGender || undefined,
@@ -672,6 +677,7 @@ const SearchPage: React.FC = () => {
     filters.league, 
     filters.ageGroup, 
     filters.position, 
+    filters.region,
     filters.location, 
     filters.search, 
     filters.teamGender,
@@ -687,9 +693,20 @@ const SearchPage: React.FC = () => {
   const ageGroups = AGE_GROUP_OPTIONS;
   const teamGenders = TEAM_GENDER_OPTIONS;
   const positions = POSITION_OPTIONS;
+  const leagueRegionByName = useMemo(() => {
+    const map = new Map<string, string>();
+    (Array.isArray(leagues) ? leagues : []).forEach((league) => {
+      if (league?.name) {
+        map.set(league.name, league.region || '');
+      }
+    });
+    return map;
+  }, [leagues]);
 
   // Filter and search logic
   const filteredVacancies = (Array.isArray(vacancies) ? vacancies : []).filter((vacancy) => {
+    const normalizedRegion = filters.region ? filters.region.toLowerCase() : '';
+    const leagueRegion = leagueRegionByName.get(vacancy.league) || '';
     const matchesSearch = !debouncedSearch || 
       vacancy.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       vacancy.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
@@ -699,13 +716,17 @@ const SearchPage: React.FC = () => {
     const matchesAgeGroup = !filters.ageGroup || vacancy.ageGroup === filters.ageGroup;
     const matchesPosition = !filters.position || vacancy.position === filters.position;
     const matchesTeamGender = !filters.teamGender || vacancy.teamGender === filters.teamGender;
+    const matchesRegion = !filters.region ||
+      vacancy.location.toLowerCase().includes(normalizedRegion) ||
+      (leagueRegion && leagueRegion.toLowerCase() === normalizedRegion);
     const matchesLocation = !filters.location || 
       vacancy.location.toLowerCase().includes(filters.location.toLowerCase());
 
-    return matchesSearch && matchesLeague && matchesAgeGroup && matchesPosition && matchesTeamGender && matchesLocation;
+    return matchesSearch && matchesLeague && matchesAgeGroup && matchesPosition && matchesTeamGender && matchesRegion && matchesLocation;
   });
 
   const filteredPlayers = (Array.isArray(playerAvailability) ? playerAvailability : []).filter((player) => {
+    const normalizedRegion = filters.region ? filters.region.toLowerCase() : '';
     const matchesSearch = !debouncedSearch || 
       player.playerName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       player.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
@@ -714,10 +735,12 @@ const SearchPage: React.FC = () => {
     const matchesPosition = !filters.position ||
       player.position === filters.position ||
       (Array.isArray(player.positions) && player.positions.includes(filters.position));
+    const matchesRegion = !filters.region ||
+      player.location.toLowerCase().includes(normalizedRegion);
     const matchesLocation = !filters.location || 
       player.location.toLowerCase().includes(filters.location.toLowerCase());
 
-    return matchesSearch && matchesPosition && matchesLocation;
+    return matchesSearch && matchesPosition && matchesRegion && matchesLocation;
   });
 
   const currentData = tabValue === 0 ? filteredVacancies : filteredPlayers;
@@ -1245,6 +1268,24 @@ const SearchPage: React.FC = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth>
+              <InputLabel>Region</InputLabel>
+              <Select
+                name="region"
+                value={filters.region}
+                label="Region"
+                onChange={handleSelectChange}
+              >
+                <MenuItem value="">All Regions</MenuItem>
+                {UK_REGIONS.map((region) => (
+                  <MenuItem key={region} value={region}>
+                    {region}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
               <InputLabel>Age Group</InputLabel>
               <Select
                 name="ageGroup"
@@ -1723,7 +1764,7 @@ const SearchPage: React.FC = () => {
       {/* Results */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
+          {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
       )}
 

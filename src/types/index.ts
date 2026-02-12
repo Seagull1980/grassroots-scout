@@ -77,6 +77,7 @@ export interface SearchFilters {
   league?: string;
   ageGroup?: string;
   position?: string;
+  region?: string;
   location?: string;
   radius?: number; // in kilometers
   center?: { lat: number; lng: number };

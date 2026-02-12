@@ -239,6 +239,7 @@ export interface SearchFilters {
   league?: string;
   ageGroup?: string;
   position?: string;
+  region?: string;
   location?: string;
   radius?: number;
   center?: { lat: number; lng: number };
@@ -546,6 +547,7 @@ export const vacanciesAPI = {
     league?: string;
     ageGroup?: string;
     position?: string;
+    region?: string;
     location?: string;
     search?: string;
     teamGender?: string;
@@ -700,6 +702,7 @@ export const playerAvailabilityAPI = {
     league?: string;
     ageGroup?: string;
     position?: string;
+    region?: string;
     location?: string;
     search?: string;
     preferredTeamGender?: string;

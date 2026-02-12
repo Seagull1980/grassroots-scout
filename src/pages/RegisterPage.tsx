@@ -208,17 +208,39 @@ const RegisterPage: React.FC = () => {
       // Try to extract error message from various possible locations
       if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
         errorMessage = error.response.data.errors
-          .map((err: any) => err.msg || err.message || JSON.stringify(err))
+          .map((err: any) => {
+            // Handle objects with code and message properties
+            if (typeof err === 'object' && err !== null) {
+              return err.msg || err.message || (err.code && err.message ? `${err.code}: ${err.message}` : JSON.stringify(err));
+            }
+            return String(err);
+          })
           .join('. ');
       } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
+        // Handle error being an object with code/message
+        const errorData = error.response.data.error;
+        if (typeof errorData === 'object' && errorData !== null && 'message' in errorData) {
+          errorMessage = errorData.code ? `${errorData.code}: ${errorData.message}` : errorData.message;
+        } else {
+          errorMessage = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+        }
       } else if (error?.response?.data) {
-        errorMessage = JSON.stringify(error.response.data);
+        // Handle data being an object with code/message
+        const responseData = error.response.data;
+        if (typeof responseData === 'object' && responseData !== null && 'message' in responseData) {
+          errorMessage = responseData.code ? `${responseData.code}: ${responseData.message}` : responseData.message;
+        } else {
+          errorMessage = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
+        }
       } else if (error?.message) {
         errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Fallback for any other object error
+        errorMessage = JSON.stringify(error);
       }
       
-      setError(errorMessage);
+      // Final safety check: ensure errorMessage is always a string
+      setError(typeof errorMessage === 'string' ? errorMessage : String(errorMessage));
     }
   };
 
@@ -242,7 +264,7 @@ const RegisterPage: React.FC = () => {
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              {typeof error === 'string' ? error : JSON.stringify(error)}
             </Alert>
           )}
 

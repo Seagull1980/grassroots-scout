@@ -180,7 +180,7 @@ const MyFeedbackPage: React.FC = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
+          {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
       )}
 

@@ -17,6 +17,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { UK_COUNTRIES, UK_REGIONS } from '../constants/locations';
 
 interface LeagueRequestDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface LeagueRequestDialogProps {
 
 interface LeagueRequestData {
   name: string;
+  country: string;
   region: string;
   url: string;
   description: string;
@@ -33,21 +35,6 @@ interface LeagueRequestData {
   contactEmail: string;
   contactPhone: string;
 }
-
-const regions = [
-  'Midlands',
-  'Yorkshire', 
-  'North West',
-  'North East',
-  'South East',
-  'South West',
-  'Eastern',
-  'London',
-  'Wales',
-  'Scotland',
-  'Northern Ireland',
-  'National'
-];
 
 const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({ 
   open, 
@@ -57,6 +44,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   const { user } = useAuth();
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
+    country: 'England',
     region: '',
     url: '',
     description: '',
@@ -122,6 +110,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
         // Reset form
         const resetForm = {
           name: '',
+          country: 'England',
           region: '',
           url: '',
           description: '',
@@ -178,7 +167,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
       <DialogContent>
         <Box sx={{ mt: 2 }}>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>}
           {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
           <Grid container spacing={3}>
@@ -202,6 +191,24 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
+                <InputLabel>Country</InputLabel>
+                <Select
+                  value={formData.country}
+                  onChange={handleInputChange('country')}
+                  disabled={loading}
+                  label="Country"
+                >
+                  {UK_COUNTRIES.map((country) => (
+                    <MenuItem key={country} value={country}>
+                      {country}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
                 <InputLabel>Region</InputLabel>
                 <Select
                   value={formData.region}
@@ -212,7 +219,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                   <MenuItem value="">
                     <em>Select Region</em>
                   </MenuItem>
-                  {regions.map((region) => (
+                  {UK_REGIONS.map((region) => (
                     <MenuItem key={region} value={region}>
                       {region}
                     </MenuItem>

@@ -89,7 +89,7 @@ const MatchCompletionSummary: React.FC<MatchCompletionSummaryProps> = ({
 
   if (error) {
     return (
-      <Alert severity="error">{error}</Alert>
+      <Alert severity="error">{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>
     );
   }
 

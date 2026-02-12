@@ -62,6 +62,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { handleApiError } from '../utils/errorHandling';
 import SiteActivityDashboard from '../components/SiteActivityDashboard';
+import { UK_COUNTRIES, UK_REGIONS } from '../constants/locations';
 
 // Age group options for league creation
 const AGE_GROUP_OPTIONS = [
@@ -968,16 +969,22 @@ const AdminPage: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Region"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={formData.region}
-            onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+            <InputLabel>Region</InputLabel>
+            <Select
+              value={formData.region}
+              label="Region"
+              displayEmpty
+              onChange={(e) => setFormData({ ...formData, region: e.target.value as string })}
+              renderValue={(selected) => (selected ? selected : 'Select region')}
+            >
+              {UK_REGIONS.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
             <InputLabel>Age Groups</InputLabel>
             <Select
@@ -994,17 +1001,22 @@ const AdminPage: React.FC = () => {
               ))}
             </Select>
           </FormControl>
-          <TextField
-            margin="dense"
-            label="Country"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={formData.country}
-            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-            placeholder="England"
-            sx={{ mb: 2 }}
-          />
+          <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+            <InputLabel>Country</InputLabel>
+            <Select
+              value={formData.country}
+              label="Country"
+              displayEmpty
+              onChange={(e) => setFormData({ ...formData, country: e.target.value as string })}
+              renderValue={(selected) => (selected ? selected : 'Select country')}
+            >
+              {UK_COUNTRIES.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField
             margin="dense"
             label="League URL"

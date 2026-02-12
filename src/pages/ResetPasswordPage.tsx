@@ -239,7 +239,7 @@ const ResetPasswordPage: React.FC = () => {
 
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-              {error}
+              {typeof error === 'string' ? error : JSON.stringify(error)}
             </Alert>
           )}
 

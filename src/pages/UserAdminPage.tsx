@@ -301,7 +301,7 @@ const UserAdminPage: React.FC = () => {
 
       {error && (
         <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>
-          {error}
+          {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
       )}
 

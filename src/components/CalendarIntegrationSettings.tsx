@@ -204,7 +204,7 @@ const CalendarIntegrationSettings: React.FC<CalendarIntegrationSettingsProps> = 
         Calendar & Scheduling Integration
       </Typography>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
       {/* Calendar Integrations */}

@@ -289,7 +289,7 @@ const ForumPostDetail: React.FC = () => {
   if (error && (!postId || postId === 'null' || postId === 'undefined')) {
     return (
       <Container maxWidth="md" sx={{ py: 4 }}>
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error">{typeof error === 'string' ? error : JSON.stringify(error)}</Alert>
         <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
           Redirecting to forum...
         </Typography>
@@ -501,7 +501,7 @@ const ForumPostDetail: React.FC = () => {
           )}
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              {typeof error === 'string' ? error : JSON.stringify(error)}
             </Alert>
           )}
           <TextField
