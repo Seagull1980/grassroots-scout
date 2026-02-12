@@ -54,7 +54,7 @@ import {
   ExpandMore,
   FilterList,
   OpenInNew,
-  Map,
+  Map as MapIcon,
   Bookmark as BookmarkIcon,
   NotificationsActive,
   Send,
@@ -1065,7 +1065,7 @@ const SearchPage: React.FC = () => {
             </Button>
             <Button
               variant="outlined"
-              startIcon={<Map />}
+              startIcon={<MapIcon />}
               onClick={() => navigate('/maps')}
               sx={{ mt: 1 }}
             >
@@ -1704,7 +1704,7 @@ const SearchPage: React.FC = () => {
       <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: 'primary.50', border: '1px solid', borderColor: 'primary.200' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Map color="primary" />
+            <MapIcon color="primary" />
             <Box>
               <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 600 }}>
                 Try Map Search for Location-Based Results
@@ -1716,7 +1716,7 @@ const SearchPage: React.FC = () => {
           </Box>
           <Button
             variant="contained"
-            startIcon={<Map />}
+            startIcon={<MapIcon />}
             onClick={() => navigate('/maps')}
             sx={{ minWidth: 120 }}
           >
