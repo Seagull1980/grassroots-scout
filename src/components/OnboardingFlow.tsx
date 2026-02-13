@@ -115,8 +115,13 @@ export const OnboardingFlow: React.FC = () => {
   // Check if user needs onboarding - show for new registrations and all users on first login after beta access
   useEffect(() => {
     if (user) {
+      // Never show onboarding for admins
+      if (user.role === 'Admin') {
+        setOpen(false);
+        return;
+      }
+
       const hasBetaAccess =
-        user.role === 'Admin' ||
         user.betaAccess === true ||
         user.betaAccess === 1 ||
         user.betaAccess === '1';
@@ -148,10 +153,7 @@ export const OnboardingFlow: React.FC = () => {
     if (user) {
       storage.setItem(`onboarding_completed_${user.id}`, 'true');
       storage.removeItem(`new_user_${user.id}`);
-      // Mark onboarding as seen for all users granting beta access
-      if (user.role !== 'Admin') {
-        storage.setItem(`seen_onboarding_${user.id}`, 'true');
-      }
+      storage.setItem(`seen_onboarding_${user.id}`, 'true');
     }
     setOpen(false);
   };
