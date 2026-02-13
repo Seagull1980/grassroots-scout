@@ -4040,15 +4040,16 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
     query += ' ORDER BY ce.date ASC, ce.startTime ASC';
     
     const events = await db.query(query, queryParams);
+    const eventRows = events.rows || events || [];
     
     // If location provided, calculate distances and filter by radius
-    if (latitude && longitude && events.rows) {
+    if (latitude && longitude) {
       const userLat = parseFloat(latitude);
       const userLon = parseFloat(longitude);
       const maxRadius = radius ? parseFloat(radius) : 50; // Default 50km radius
       
       // Calculate distance for each event using Haversine formula
-      const eventsWithDistance = events.rows.map(event => {
+      const eventsWithDistance = eventRows.map(event => {
         const eventLat = event.latitude;
         const eventLon = event.longitude;
         
@@ -4080,7 +4081,7 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
     } else {
       // Return all events without distance calculation
       res.json({ 
-        trainingLocations: events.rows.map(event => ({
+        trainingLocations: eventRows.map(event => ({
           ...event,
           locationData: event.locationData ? JSON.parse(event.locationData) : null
         }))
@@ -4088,7 +4089,8 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
     }
   } catch (error) {
     console.error('Get training locations error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
