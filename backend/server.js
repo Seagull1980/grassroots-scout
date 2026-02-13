@@ -4094,6 +4094,130 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
   }
 });
 
+// Email Alerts endpoints
+// Create a new email alert
+app.post('/api/email-alerts', authenticateToken, async (req, res) => {
+  try {
+    const { alertType, filters, searchRegion } = req.body;
+    
+    const result = await db.query(
+      `INSERT INTO email_alerts (userId, email, alertType, filters, searchRegion) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        req.user.userId,
+        req.user.email,
+        alertType || 'saved_search',
+        JSON.stringify(filters || {}),
+        JSON.stringify(searchRegion || null)
+      ]
+    );
+
+    res.status(201).json({
+      message: 'Email alert created successfully',
+      alertId: result.lastID || result.insertId
+    });
+  } catch (error) {
+    console.error('Create email alert error:', error);
+    res.status(500).json({ error: 'Failed to create email alert' });
+  }
+});
+
+// Get all email alerts for the current user
+app.get('/api/email-alerts', authenticateToken, async (req, res) => {
+  try {
+    const alerts = await db.query(
+      'SELECT * FROM email_alerts WHERE userId = ? ORDER BY createdAt DESC',
+      [req.user.userId]
+    );
+
+    const alertRows = alerts.rows || alerts || [];
+    const parsedAlerts = alertRows.map(alert => ({
+      ...alert,
+      filters: alert.filters ? JSON.parse(alert.filters) : {},
+      searchRegion: alert.searchRegion ? JSON.parse(alert.searchRegion) : null
+    }));
+
+    res.json({ alerts: parsedAlerts });
+  } catch (error) {
+    console.error('Get email alerts error:', error);
+    res.status(500).json({ error: 'Failed to fetch email alerts' });
+  }
+});
+
+// Update an email alert
+app.put('/api/email-alerts/:alertId', authenticateToken, async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { isActive, filters, searchRegion } = req.body;
+
+    // Verify the alert belongs to the user
+    const alert = await db.query(
+      'SELECT * FROM email_alerts WHERE id = ? AND userId = ?',
+      [alertId, req.user.userId]
+    );
+
+    if (!alert.rows || alert.rows.length === 0) {
+      return res.status(404).json({ error: 'Email alert not found' });
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+
+    if (typeof isActive !== 'undefined') {
+      updates.push('isActive = ?');
+      params.push(isActive ? 1 : 0);
+    }
+
+    if (filters) {
+      updates.push('filters = ?');
+      params.push(JSON.stringify(filters));
+    }
+
+    if (searchRegion) {
+      updates.push('searchRegion = ?');
+      params.push(JSON.stringify(searchRegion));
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    params.push(alertId, req.user.userId);
+
+    await db.query(
+      `UPDATE email_alerts SET ${updates.join(', ')} WHERE id = ? AND userId = ?`,
+      params
+    );
+
+    res.json({ message: 'Email alert updated successfully' });
+  } catch (error) {
+    console.error('Update email alert error:', error);
+    res.status(500).json({ error: 'Failed to update email alert' });
+  }
+});
+
+// Delete an email alert
+app.delete('/api/email-alerts/:alertId', authenticateToken, async (req, res) => {
+  try {
+    const { alertId } = req.params;
+
+    const result = await db.query(
+      'DELETE FROM email_alerts WHERE id = ? AND userId = ?',
+      [alertId, req.user.userId]
+    );
+
+    if (result.affectedRows === 0 && result.changes === 0) {
+      return res.status(404).json({ error: 'Email alert not found' });
+    }
+
+    res.json({ message: 'Email alert deleted successfully' });
+  } catch (error) {
+    console.error('Delete email alert error:', error);
+    res.status(500).json({ error: 'Failed to delete email alert' });
+  }
+});
+
 // Invite player to trial
 app.post('/api/calendar/events/:eventId/invite', [
   authenticateToken,

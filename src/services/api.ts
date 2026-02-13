@@ -792,19 +792,19 @@ export const emailAlertAPI = {
       coordinates: { lat: number; lng: number }[];
     };
   }): Promise<{ message: string }> => {
-    const response = await api.put(`/email-alerts/${alertId}`, updates);
+    const response = await api.put(`/api/email-alerts/${alertId}`, updates);
     return response.data;
   },
 
   // Delete an email alert
   delete: async (alertId: string): Promise<{ message: string }> => {
-    const response = await api.delete(`/email-alerts/${alertId}`);
+    const response = await api.delete(`/api/email-alerts/${alertId}`);
     return response.data;
   },
 
   // Test an email alert (send test email)
   test: async (alertId: string): Promise<{ message: string }> => {
-    const response = await api.post(`/email-alerts/${alertId}/test`);
+    const response = await api.post(`/api/email-alerts/${alertId}/test`);
     return response.data;
   }
 };
