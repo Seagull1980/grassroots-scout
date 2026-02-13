@@ -50,8 +50,6 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
       .split(',')
       .map((region) => region.trim())
       .filter(Boolean);
-  const isEnglandSelected = !formData.country || formData.country === 'England';
-  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
   const { user } = useAuth();
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
@@ -63,6 +61,8 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
     contactEmail: user?.email || '',
     contactPhone: ''
   });
+  const isEnglandSelected = !formData.country || formData.country === 'England';
+  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

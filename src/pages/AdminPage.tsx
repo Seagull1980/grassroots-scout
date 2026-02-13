@@ -91,8 +91,6 @@ const AdminPage: React.FC = () => {
     }
     return [] as string[];
   };
-  const isEnglandSelected = !formData.country || formData.country === 'England';
-  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
 
   // Get user information first - this hook must always be called
   console.log('🔗 Hook 1: useAuth');
@@ -128,6 +126,8 @@ const AdminPage: React.FC = () => {
     url: '',
     description: ''
   });
+  const isEnglandSelected = !formData.country || formData.country === 'England';
+  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
   const [adminFormData, setAdminFormData] = useState({
     email: '',
     firstName: '',
