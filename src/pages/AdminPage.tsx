@@ -90,6 +90,8 @@ const AdminPage: React.FC = () => {
     }
     return [] as string[];
   };
+  const isEnglandSelected = !formData.country || formData.country === 'England';
+  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
 
   // Get user information first - this hook must always be called
   console.log('🔗 Hook 1: useAuth');
@@ -994,6 +996,30 @@ const AdminPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
+            <InputLabel shrink>Country</InputLabel>
+            <Select
+              value={formData.country}
+              label="Country"
+              displayEmpty
+              notched
+              onChange={(e) => {
+                const nextCountry = e.target.value as string;
+                setFormData({
+                  ...formData,
+                  country: nextCountry,
+                  region: nextCountry && nextCountry !== 'England' ? '' : formData.region
+                });
+              }}
+              renderValue={(selected) => (selected ? selected : 'Select country')}
+            >
+              {UK_COUNTRIES.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="dense" sx={{ mb: 2 }} disabled={!isEnglandSelected}>
             <InputLabel shrink>Region</InputLabel>
             <Select
               multiple
@@ -1010,6 +1036,9 @@ const AdminPage: React.FC = () => {
                 setFormData({ ...formData, region: nextRegions.join(', ') });
               }}
               renderValue={(selected) => {
+                if (!isEnglandSelected) {
+                  return 'Not applicable';
+                }
                 const regions = selected as string[];
                 if (!regions.length) {
                   return 'Select region';
@@ -1024,27 +1053,10 @@ const AdminPage: React.FC = () => {
                 <Checkbox checked={getRegionSelection(formData.region).includes(ALL_REGIONS_OPTION)} />
                 <ListItemText primary={ALL_REGIONS_OPTION} />
               </MenuItem>
-              {UK_REGIONS.map((option) => (
+              {availableRegions.map((option) => (
                 <MenuItem key={option} value={option}>
                   <Checkbox checked={getRegionSelection(formData.region).includes(option)} />
                   <ListItemText primary={option} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel shrink>Country</InputLabel>
-            <Select
-              value={formData.country}
-              label="Country"
-              displayEmpty
-              notched
-              onChange={(e) => setFormData({ ...formData, country: e.target.value as string })}
-              renderValue={(selected) => (selected ? selected : 'Select country')}
-            >
-              {UK_COUNTRIES.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
                 </MenuItem>
               ))}
             </Select>

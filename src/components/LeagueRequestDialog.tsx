@@ -49,6 +49,8 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
       .split(',')
       .map((region) => region.trim())
       .filter(Boolean);
+  const isEnglandSelected = !formData.country || formData.country === 'England';
+  const availableRegions = isEnglandSelected ? UK_REGIONS : [];
   const { user } = useAuth();
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
@@ -201,7 +203,14 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                 <InputLabel shrink>Country</InputLabel>
                 <Select
                   value={formData.country}
-                  onChange={handleInputChange('country')}
+                  onChange={(event) => {
+                    const nextCountry = event.target.value as string;
+                    setFormData((prev) => ({
+                      ...prev,
+                      country: nextCountry,
+                      region: nextCountry && nextCountry !== 'England' ? '' : prev.region
+                    }));
+                  }}
                   disabled={loading}
                   label="Country"
                   displayEmpty
@@ -220,7 +229,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
+              <FormControl fullWidth disabled={!isEnglandSelected}>
                 <InputLabel shrink>Region</InputLabel>
                 <Select
                   multiple
@@ -241,6 +250,9 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                   displayEmpty
                   notched
                   renderValue={(selected) => {
+                    if (!isEnglandSelected) {
+                      return 'Not applicable';
+                    }
                     const regions = selected as string[];
                     if (!regions.length) {
                       return 'Select Region';
@@ -255,7 +267,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                     <Checkbox checked={getRegionSelection(formData.region).includes(ALL_REGIONS_OPTION)} />
                     <ListItemText primary={ALL_REGIONS_OPTION} />
                   </MenuItem>
-                  {UK_REGIONS.map((region) => (
+                  {availableRegions.map((region) => (
                     <MenuItem key={region} value={region}>
                       <Checkbox checked={getRegionSelection(formData.region).includes(region)} />
                       <ListItemText primary={region} />

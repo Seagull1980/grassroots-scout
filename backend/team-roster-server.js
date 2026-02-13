@@ -1457,7 +1457,7 @@ app.get('/api/leagues', async (req, res) => {
       id: league.id,
       name: league.name,
       region: league.region,
-      ageGroup: league.ageGroup,
+      country: league.country,
       url: league.url,
       hits: league.hits || 0
     }));
@@ -1493,15 +1493,15 @@ app.post('/api/admin/leagues', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { name, region, ageGroup, url, description } = req.body;
+    const { name, region, country, url, description } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
     }
 
     const leagueId = await db.insert(
-      'INSERT INTO leagues (name, region, ageGroup, url, description, createdBy) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, region || null, ageGroup || null, url || null, description || null, req.user.userId]
+      'INSERT INTO leagues (name, region, country, url, description, isActive, createdBy) VALUES (?, ?, ?, ?, ?, 1, ?)',
+      [name, region || null, country || null, url || null, description || null, req.user.userId]
     );
 
     const league = await db.getOne('SELECT * FROM leagues WHERE id = ?', [leagueId]);
@@ -1523,15 +1523,15 @@ app.put('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, region, ageGroup, url, description, isActive } = req.body;
+    const { name, region, country, url, description, isActive } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
     }
 
     const rowCount = await db.update(
-      'UPDATE leagues SET name = ?, region = ?, ageGroup = ?, url = ?, description = ?, isActive = ? WHERE id = ?',
-      [name, region || null, ageGroup || null, url || null, description || null, isActive !== undefined ? isActive : true, id]
+      'UPDATE leagues SET name = ?, region = ?, country = ?, url = ?, description = ?, isActive = ? WHERE id = ?',
+      [name, region || null, country || null, url || null, description || null, isActive !== undefined ? isActive : true, id]
     );
 
     if (rowCount === 0) {
@@ -1769,8 +1769,8 @@ app.post('/api/admin/leagues/populate-fa-leagues', authenticateToken, async (req
     for (const league of faLeagues) {
       try {
         await db.insert(
-          'INSERT INTO leagues (name, region, ageGroup, url, hits, createdBy) VALUES (?, ?, ?, ?, ?, ?)',
-          [league.name, league.region, league.ageGroup, league.url, league.hits, req.user.userId]
+          'INSERT INTO leagues (name, region, url, hits, createdBy, isActive) VALUES (?, ?, ?, ?, ?, 1)',
+          [league.name, league.region, league.url, league.hits, req.user.userId]
         );
         insertedCount++;
       } catch (error) {
