@@ -970,11 +970,12 @@ const AdminPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel shrink={!!formData.region || undefined}>Region</InputLabel>
+            <InputLabel shrink>Region</InputLabel>
             <Select
               value={formData.region}
               label="Region"
               displayEmpty
+              notched
               onChange={(e) => setFormData({ ...formData, region: e.target.value as string })}
               renderValue={(selected) => (selected ? selected : 'Select region')}
             >
@@ -1002,11 +1003,12 @@ const AdminPage: React.FC = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel shrink={!!formData.country || undefined}>Country</InputLabel>
+            <InputLabel shrink>Country</InputLabel>
             <Select
               value={formData.country}
               label="Country"
               displayEmpty
+              notched
               onChange={(e) => setFormData({ ...formData, country: e.target.value as string })}
               renderValue={(selected) => (selected ? selected : 'Select country')}
             >

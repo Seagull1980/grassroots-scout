@@ -191,13 +191,14 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel shrink={!!formData.country || undefined}>Country</InputLabel>
+                <InputLabel shrink>Country</InputLabel>
                 <Select
                   value={formData.country}
                   onChange={handleInputChange('country')}
                   disabled={loading}
                   label="Country"
                   displayEmpty
+                  notched
                 >
                   <MenuItem value="">
                     <em>Select Country</em>
@@ -213,13 +214,14 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
 
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel shrink={!!formData.region || undefined}>Region</InputLabel>
+                <InputLabel shrink>Region</InputLabel>
                 <Select
                   value={formData.region}
                   onChange={handleInputChange('region')}
                   disabled={loading}
                   label="Region"
                   displayEmpty
+                  notched
                 >
                   <MenuItem value="">
                     <em>Select Region</em>
