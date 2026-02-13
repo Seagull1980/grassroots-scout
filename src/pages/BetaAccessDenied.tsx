@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Box,
   Container,
@@ -14,6 +14,15 @@ import { useAuth } from '../contexts/AuthContext';
 const BetaAccessDenied: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      logout();
+      navigate('/login', { replace: true });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [logout, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -43,7 +52,7 @@ const BetaAccessDenied: React.FC = () => {
               your beta access has been granted.
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
-              Please log out and wait for the admin's confirmation before logging back in.
+              You will be logged out automatically in a moment.
             </Typography>
           </Alert>
 
