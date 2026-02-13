@@ -73,6 +73,7 @@ const AdminPage: React.FC = () => {
   console.log('🔍 AdminPage render start');
 
   const ALL_REGIONS_OPTION = 'All Regions';
+  const REGION_DONE_OPTION = '__done__';
   const getRegionSelection = (value: string) =>
     value
       .split(',')
@@ -118,6 +119,7 @@ const AdminPage: React.FC = () => {
   const [editingLeague, setEditingLeague] = useState<League | null>(null);
   const [currentTab, setCurrentTab] = useState(0);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [regionMenuOpen, setRegionMenuOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<League | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -1072,8 +1074,15 @@ const AdminPage: React.FC = () => {
               label="Region"
               displayEmpty
               notched
+              open={regionMenuOpen}
+              onOpen={() => setRegionMenuOpen(true)}
+              onClose={() => setRegionMenuOpen(false)}
               onChange={(e) => {
                 const selected = (e.target.value as string[]).filter(Boolean);
+                if (selected.includes(REGION_DONE_OPTION)) {
+                  setRegionMenuOpen(false);
+                  return;
+                }
                 const hasAllRegions = selected.includes(ALL_REGIONS_OPTION);
                 const nextRegions = hasAllRegions
                   ? [ALL_REGIONS_OPTION]
@@ -1104,9 +1113,17 @@ const AdminPage: React.FC = () => {
                   <ListItemText primary={option} />
                 </MenuItem>
               ))}
+              <MenuItem
+                value={REGION_DONE_OPTION}
+                sx={{ justifyContent: 'center', fontWeight: 600, mt: 1 }}
+              >
+                Done
+              </MenuItem>
             </Select>
             <FormHelperText>
-              {isEnglandSelected ? 'Select all that apply' : 'Regions available for England only'}
+              {isEnglandSelected
+                ? 'Select all that apply, then click Done to confirm.'
+                : 'Regions available for England only'}
             </FormHelperText>
           </FormControl>
           <TextField

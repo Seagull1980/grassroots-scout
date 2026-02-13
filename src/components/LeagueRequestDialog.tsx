@@ -45,6 +45,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   onSuccess 
 }) => {
   const ALL_REGIONS_OPTION = 'All Regions';
+  const REGION_DONE_OPTION = '__done__';
   const getRegionSelection = (value: string) =>
     value
       .split(',')
@@ -66,6 +67,7 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [regionMenuOpen, setRegionMenuOpen] = useState(false);
 
   // Update contact info when user data becomes available
   React.useEffect(() => {
@@ -237,6 +239,10 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                   value={getRegionSelection(formData.region)}
                   onChange={(event) => {
                     const selected = (event.target.value as string[]).filter(Boolean);
+                    if (selected.includes(REGION_DONE_OPTION)) {
+                      setRegionMenuOpen(false);
+                      return;
+                    }
                     const hasAllRegions = selected.includes(ALL_REGIONS_OPTION);
                     const nextRegions = hasAllRegions
                       ? [ALL_REGIONS_OPTION]
@@ -250,6 +256,9 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                   label="Region"
                   displayEmpty
                   notched
+                  open={regionMenuOpen}
+                  onOpen={() => setRegionMenuOpen(true)}
+                  onClose={() => setRegionMenuOpen(false)}
                   renderValue={(selected) => {
                     if (!isEnglandSelected) {
                       return 'Not applicable';
@@ -274,9 +283,17 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                       <ListItemText primary={region} />
                     </MenuItem>
                   ))}
+                  <MenuItem
+                    value={REGION_DONE_OPTION}
+                    sx={{ justifyContent: 'center', fontWeight: 600, mt: 1 }}
+                  >
+                    Done
+                  </MenuItem>
                 </Select>
                 <FormHelperText>
-                  {isEnglandSelected ? 'Select all that apply' : 'Regions available for England only'}
+                  {isEnglandSelected
+                    ? 'Select all that apply, then click Done to confirm.'
+                    : 'Regions available for England only'}
                 </FormHelperText>
               </FormControl>
             </Grid>
