@@ -118,6 +118,9 @@ const AdminPage: React.FC = () => {
   const [editingLeague, setEditingLeague] = useState<League | null>(null);
   const [currentTab, setCurrentTab] = useState(0);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<League | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -269,17 +272,34 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleDeleteLeague = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this league? This action cannot be undone.')) return;
-    
+  const openDeleteDialog = (league: League) => {
+    setDeleteTarget(league);
+    setDeleteDialogOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    if (deleteLoading) return;
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  };
+
+  const handleDeleteLeague = async () => {
+    if (!deleteTarget) return;
+
     try {
-      await leaguesAPI.delete(id);
+      setDeleteLoading(true);
+      const leagueId = typeof deleteTarget.id === 'string' ? parseInt(deleteTarget.id) : deleteTarget.id;
+      await leaguesAPI.delete(leagueId);
       setSuccess('League deleted successfully');
-      // Refetch leagues after delete
+      setLeagues((prev) => prev.filter((league) => league.id !== deleteTarget.id));
       const response = await leaguesAPI.getAll();
       setLeagues(response.leagues || []);
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete league');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -759,7 +779,7 @@ const AdminPage: React.FC = () => {
                               </IconButton>
                               <IconButton
                                 color="error"
-                                onClick={() => handleDeleteLeague(typeof league.id === 'string' ? parseInt(league.id) : league.id)}
+                                onClick={() => openDeleteDialog(league)}
                                 size="small"
                                 title="Delete league"
                               >
@@ -979,6 +999,30 @@ const AdminPage: React.FC = () => {
       </Container>
 
       {/* Dialogs */}
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete League</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {`Are you sure you want to delete "${deleteTarget?.name || 'this league'}"? This action cannot be undone.`}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteDialog} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDeleteLeague}
+            disabled={deleteLoading}
+            startIcon={deleteLoading ? <CircularProgress size={16} /> : undefined}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* League Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
