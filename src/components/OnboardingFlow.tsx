@@ -127,32 +127,11 @@ export const OnboardingFlow: React.FC = () => {
       }
 
       const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
-      const isNewUser = storage.getItem(`new_user_${user.id}`);
       const hasSeenOnboarding = storage.getItem(`seen_onboarding_${user.id}`);
-      
-      // Check if account was created within the last 24 hours
-      const accountCreatedAt = new Date(user.createdAt);
-      const now = new Date();
-      const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
-      const isRecentlyCreated = hoursSinceCreation < 24;
-      
-      // Check if beta access was granted in the last 24 hours
-      let isBetaAccessRecent = false;
-      if (user.betaAccessGrantedAt) {
-        const betaGrantedAt = new Date(user.betaAccessGrantedAt);
-        const hoursSinceBetaGrant = (now.getTime() - betaGrantedAt.getTime()) / (1000 * 60 * 60);
-        isBetaAccessRecent = hoursSinceBetaGrant < 24;
-      }
-      
-      // Show onboarding if:
-      // 1. New user hasn't completed onboarding AND account is recent, OR
-      // 2. Any non-admin user hasn't seen onboarding yet AND (account is recent OR beta access is recent)
-      const shouldShowOnboarding = 
-        (isNewUser && !hasCompletedOnboarding && isRecentlyCreated) ||
-        (user.role !== 'Admin' && !hasSeenOnboarding && (isRecentlyCreated || isBetaAccessRecent));
-      
-      // Clean up stale flags for accounts older than 24 hours (unless beta access is recent)
-      if (!isRecentlyCreated && !isBetaAccessRecent) {
+
+      const shouldShowOnboarding = !hasCompletedOnboarding && !hasSeenOnboarding;
+
+      if (!shouldShowOnboarding) {
         storage.removeItem(`new_user_${user.id}`);
         localStorage.removeItem('pending_new_user');
         return;
