@@ -12,7 +12,6 @@ async function createLeagueRequestsTable() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name VARCHAR NOT NULL,
         region VARCHAR,
-        ageGroups JSON,
         url VARCHAR,
         description TEXT,
         contactName VARCHAR,

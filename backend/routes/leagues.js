@@ -8,20 +8,15 @@ const db = new Database();
 // Get all leagues with optional filtering (includes pending requests for current user)
 router.get('/', async (req, res) => {
   try {
-    const { region, ageGroup, search, limit = 50, offset = 0, includePending = false } = req.query;
+    const { region, search, limit = 50, offset = 0, includePending = false } = req.query;
     
     // Get approved leagues
-    let query = 'SELECT id, name, region, ageGroup, url, hits, description, "approved" as status FROM leagues WHERE isActive IS TRUE';
+    let query = 'SELECT id, name, region, url, hits, description, "approved" as status FROM leagues WHERE isActive IS TRUE';
     let params = [];
     
     if (region) {
       query += ' AND region = ?';
       params.push(region);
-    }
-    
-    if (ageGroup) {
-      query += ' AND ageGroup = ?';
-      params.push(ageGroup);
     }
     
     if (search) {
@@ -37,7 +32,6 @@ router.get('/', async (req, res) => {
           CAST(('pending_' || id) as TEXT) as id, 
           name, 
           region, 
-          ageGroup, 
           url, 
           0 as hits, 
           description, 
@@ -56,7 +50,6 @@ router.get('/', async (req, res) => {
       id: league.id,
       name: league.name,
       region: league.region,
-      ageGroup: league.ageGroup,
       url: league.url,
       hits: league.hits || 0,
       description: league.description,
@@ -86,7 +79,6 @@ router.get('/:id', async (req, res) => {
       id: league.id,
       name: league.name,
       region: league.region,
-      ageGroup: league.ageGroup,
       url: league.url,
       hits: league.hits || 0,
       description: league.description,
@@ -108,15 +100,15 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { name, region, ageGroup, url, description, hits = 0 } = req.body;
+    const { name, region, url, description, hits = 0 } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
     }
 
     const result = await db.query(
-      'INSERT INTO leagues (name, region, ageGroup, url, description, hits, isActive, createdBy) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
-      [name, region, ageGroup, url, description, hits, req.user.userId]
+      'INSERT INTO leagues (name, region, url, description, hits, isActive, createdBy) VALUES (?, ?, ?, ?, ?, 1, ?)',
+      [name, region, url, description, hits, req.user.userId]
     );
 
     res.status(201).json({ 
@@ -125,7 +117,6 @@ router.post('/', async (req, res) => {
         id: result.lastID,
         name,
         region,
-        ageGroup,
         url,
         description,
         hits
@@ -148,15 +139,15 @@ router.put('/:id', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, region, ageGroup, url, description, hits } = req.body;
+    const { name, region, url, description, hits } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'League name is required' });
     }
 
     const updateResult = await db.query(
-      'UPDATE leagues SET name = ?, region = ?, ageGroup = ?, url = ?, description = ?, hits = ? WHERE id = ? AND isActive = 1',
-      [name, region, ageGroup, url, description, hits, id]
+      'UPDATE leagues SET name = ?, region = ?, url = ?, description = ?, hits = ? WHERE id = ? AND isActive = 1',
+      [name, region, url, description, hits, id]
     );
 
     if (updateResult.changes === 0) {
@@ -165,7 +156,7 @@ router.put('/:id', async (req, res) => {
 
     res.json({ 
       message: 'League updated successfully',
-      league: { id, name, region, ageGroup, url, description, hits }
+      league: { id, name, region, url, description, hits }
     });
   } catch (error) {
     if (error.message.includes('UNIQUE constraint failed')) {
@@ -215,20 +206,6 @@ router.get('/meta/regions', async (req, res) => {
   }
 });
 
-// Get all age groups
-router.get('/meta/agegroups', async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT DISTINCT ageGroup FROM leagues WHERE isActive = 1 AND ageGroup IS NOT NULL ORDER BY ageGroup'
-    );
-    const ageGroups = result.rows.map(row => row.ageGroup);
-    res.json({ ageGroups });
-  } catch (error) {
-    console.error('Error fetching age groups:', error);
-    res.status(500).json({ error: 'Failed to fetch age groups' });
-  }
-});
-
 // Bulk import leagues (Admin only)
 router.post('/bulk-import', async (req, res) => {
   try {
@@ -254,8 +231,8 @@ router.post('/bulk-import', async (req, res) => {
         }
 
         await db.query(
-          'INSERT INTO leagues (name, region, ageGroup, url, description, hits, isActive, createdBy) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
-          [league.name, league.region, league.ageGroup, league.url, league.description, league.hits || 0, req.user.userId]
+          'INSERT INTO leagues (name, region, url, description, hits, isActive, createdBy) VALUES (?, ?, ?, ?, ?, 1, ?)',
+          [league.name, league.region, league.url, league.description, league.hits || 0, req.user.userId]
         );
         insertedCount++;
       } catch (error) {

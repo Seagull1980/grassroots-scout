@@ -266,7 +266,6 @@ class Database {
         id SERIAL PRIMARY KEY,
         name VARCHAR UNIQUE NOT NULL,
         region VARCHAR,
-        ageGroups JSON,
         country VARCHAR DEFAULT 'England',
         url VARCHAR,
         hits INTEGER DEFAULT 0,
@@ -280,7 +279,6 @@ class Database {
         id SERIAL PRIMARY KEY,
         name VARCHAR NOT NULL,
         region VARCHAR,
-        ageGroups JSON,
         url VARCHAR,
         description TEXT,
         contactName VARCHAR,
@@ -1018,6 +1016,91 @@ class Database {
         const preferredLeaguesColumn = preferredLeaguesResult.rows.find(row => row.name === 'preferredLeagues');
         if (preferredLeaguesColumn && preferredLeaguesColumn.type === 'VARCHAR') {
           console.log('➕ preferredLeagues column is VARCHAR, should be TEXT for JSON - no migration needed for SQLite');
+        }
+      }
+
+      // Migration 6: Remove ageGroups columns from leagues and league_requests
+      if (this.dbType === 'postgresql') {
+        const leaguesAgeGroups = await this.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = 'leagues' AND column_name = 'agegroups'`
+        );
+        if (leaguesAgeGroups.rows.length > 0) {
+          await this.query('ALTER TABLE leagues DROP COLUMN IF EXISTS agegroups');
+          console.log('✅ Dropped ageGroups column from leagues table');
+        }
+
+        const requestsAgeGroups = await this.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = 'league_requests' AND column_name = 'agegroups'`
+        );
+        if (requestsAgeGroups.rows.length > 0) {
+          await this.query('ALTER TABLE league_requests DROP COLUMN IF EXISTS agegroups');
+          console.log('✅ Dropped ageGroups column from league_requests table');
+        }
+      } else {
+        const leagueColumns = await this.query('PRAGMA table_info(leagues)');
+        const hasLeagueAgeGroups = leagueColumns.rows.some(row => row.name === 'ageGroups');
+        if (hasLeagueAgeGroups) {
+          await this.query(`
+            CREATE TABLE leagues_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name VARCHAR UNIQUE NOT NULL,
+              region VARCHAR,
+              country VARCHAR DEFAULT 'England',
+              url VARCHAR,
+              hits INTEGER DEFAULT 0,
+              description VARCHAR,
+              isActive BOOLEAN DEFAULT TRUE,
+              createdBy INTEGER NULL,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+          await this.query(`
+            INSERT INTO leagues_new (id, name, region, country, url, hits, description, isActive, createdBy, createdAt)
+            SELECT id, name, region, country, url, hits, description, isActive, createdBy, createdAt
+            FROM leagues
+          `);
+          await this.query('DROP TABLE leagues');
+          await this.query('ALTER TABLE leagues_new RENAME TO leagues');
+          console.log('✅ Rebuilt leagues table without ageGroups column');
+        }
+
+        const requestColumns = await this.query('PRAGMA table_info(league_requests)');
+        const hasRequestAgeGroups = requestColumns.rows.some(row => row.name === 'ageGroups');
+        if (hasRequestAgeGroups) {
+          await this.query(`
+            CREATE TABLE league_requests_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name VARCHAR NOT NULL,
+              region VARCHAR,
+              url VARCHAR,
+              description TEXT,
+              contactName VARCHAR,
+              contactEmail VARCHAR,
+              contactPhone VARCHAR,
+              status VARCHAR DEFAULT 'pending',
+              submittedBy INTEGER NOT NULL,
+              reviewedBy INTEGER,
+              reviewedAt TIMESTAMP,
+              reviewNotes TEXT,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (submittedBy) REFERENCES users (id),
+              FOREIGN KEY (reviewedBy) REFERENCES users (id),
+              CHECK (status IN ('pending', 'approved', 'rejected'))
+            )
+          `);
+          await this.query(`
+            INSERT INTO league_requests_new (
+              id, name, region, url, description, contactName, contactEmail, contactPhone,
+              status, submittedBy, reviewedBy, reviewedAt, reviewNotes, createdAt, updatedAt
+            )
+            SELECT id, name, region, url, description, contactName, contactEmail, contactPhone,
+              status, submittedBy, reviewedBy, reviewedAt, reviewNotes, createdAt, updatedAt
+            FROM league_requests
+          `);
+          await this.query('DROP TABLE league_requests');
+          await this.query('ALTER TABLE league_requests_new RENAME TO league_requests');
+          console.log('✅ Rebuilt league_requests table without ageGroups column');
         }
       }
     } catch (error) {

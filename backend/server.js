@@ -1852,15 +1852,10 @@ app.get('/api/public/site-stats', async (req, res) => {
 app.get('/api/leagues', async (req, res) => {
   try {
     const leaguesResult = await db.query(
-      'SELECT id, name, region, ageGroups, country, url, description, hits FROM leagues WHERE isActive = true ORDER BY name'
+      'SELECT id, name, region, country, url, description, hits FROM leagues WHERE isActive = true ORDER BY name'
     );
 
-    const leagues = (leaguesResult.rows || []).map(league => ({
-      ...league,
-      ageGroups: league.ageGroups ? JSON.parse(league.ageGroups) : []
-    }));
-
-    res.json({ leagues });
+    res.json({ leagues: leaguesResult.rows || [] });
   } catch (error) {
     console.error('Get leagues error:', error);
     res.status(500).json({ error: 'Internal server error' });

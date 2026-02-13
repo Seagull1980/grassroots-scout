@@ -294,7 +294,6 @@ export interface League {
   id: number | string;
   name: string;
   region: string;
-  ageGroups: string[];
   country?: string;
   url?: string;
   hits?: number;
@@ -581,7 +580,6 @@ export const leaguesAPI = {
   create: async (leagueData: { 
     name: string; 
     region?: string; 
-    ageGroups?: string[]; 
     country?: string;
     url?: string; 
     description?: string 
@@ -593,7 +591,6 @@ export const leaguesAPI = {
   update: async (id: number, leagueData: { 
     name: string; 
     region?: string; 
-    ageGroups?: string[]; 
     country?: string;
     url?: string; 
     description?: string; 

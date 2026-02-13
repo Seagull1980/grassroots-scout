@@ -64,11 +64,6 @@ import { handleApiError } from '../utils/errorHandling';
 import SiteActivityDashboard from '../components/SiteActivityDashboard';
 import { UK_COUNTRIES, UK_REGIONS } from '../constants/locations';
 
-// Age group options for league creation
-const AGE_GROUP_OPTIONS = [
-  'U6', 'U7', 'U8', 'U9', 'U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19', 'U20', 'U21',
-  'Open Age', 'Over 35'
-];
 
 const AdminPage: React.FC = () => {
   console.log('🔍 AdminPage render start');
@@ -103,7 +98,6 @@ const AdminPage: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     region: '',
-    ageGroups: [] as string[],
     country: '',
     url: '',
     description: ''
@@ -223,7 +217,7 @@ const AdminPage: React.FC = () => {
       await leaguesAPI.create(formData);
       setSuccess('League created successfully');
       setOpenDialog(false);
-      setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
+      setFormData({ name: '', region: '', country: '', url: '', description: '' });
       // Call the refetch function from useEffect
       const response = await leaguesAPI.getAll();
       setLeagues(response.leagues || []);
@@ -240,7 +234,7 @@ const AdminPage: React.FC = () => {
       setSuccess('League updated successfully');
       setOpenDialog(false);
       setEditingLeague(null);
-      setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
+      setFormData({ name: '', region: '', country: '', url: '', description: '' });
       // Refetch leagues after update
       const response = await leaguesAPI.getAll();
       setLeagues(response.leagues || []);
@@ -285,7 +279,6 @@ const AdminPage: React.FC = () => {
     setFormData({
       name: league.name,
       region: league.region || '',
-      ageGroups: league.ageGroups || [],
       country: league.country || '',
       url: league.url || '',
       description: league.description || ''
@@ -295,7 +288,7 @@ const AdminPage: React.FC = () => {
 
   const openCreateDialog = () => {
     setEditingLeague(null);
-    setFormData({ name: '', region: '', ageGroups: [], country: '', url: '', description: '' });
+    setFormData({ name: '', region: '', country: '', url: '', description: '' });
     setOpenDialog(true);
   };
 
@@ -646,7 +639,6 @@ const AdminPage: React.FC = () => {
                           <TableCell>Name</TableCell>
                           <TableCell>Country</TableCell>
                           <TableCell>Region</TableCell>
-                          <TableCell>Age Group</TableCell>
                           <TableCell>URL</TableCell>
                           <TableCell>Description</TableCell>
                           <TableCell align="center">Status</TableCell>
@@ -669,11 +661,6 @@ const AdminPage: React.FC = () => {
                             <TableCell>
                               <Typography variant="body2" color="text.secondary">
                                 {league.region || 'N/A'}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {league.ageGroups && league.ageGroups.length > 0 ? league.ageGroups.join(', ') : 'N/A'}
                               </Typography>
                             </TableCell>
                             <TableCell>
@@ -743,7 +730,7 @@ const AdminPage: React.FC = () => {
                         ))}
                         {leagues.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                            <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                               <Typography variant="body2" color="text.secondary">
                                 No leagues found. Create your first league to get started.
                               </Typography>
@@ -980,22 +967,6 @@ const AdminPage: React.FC = () => {
               renderValue={(selected) => (selected ? selected : 'Select region')}
             >
               {UK_REGIONS.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel>Age Groups</InputLabel>
-            <Select
-              multiple
-              value={formData.ageGroups}
-              label="Age Groups"
-              onChange={(e) => setFormData({ ...formData, ageGroups: e.target.value as string[] })}
-              renderValue={(selected) => (selected as string[]).join(', ')}
-            >
-              {AGE_GROUP_OPTIONS.map((option) => (
                 <MenuItem key={option} value={option}>
                   {option}
                 </MenuItem>

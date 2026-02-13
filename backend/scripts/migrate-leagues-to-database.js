@@ -228,21 +228,20 @@ async function migrateLeaguesToDatabase() {
           await db.query(
             `UPDATE leagues SET 
              region = ?, 
-             ageGroup = ?, 
              url = ?, 
              hits = ?, 
              description = COALESCE(description, ?)
              WHERE name = ?`,
-            [league.region, league.ageGroup, league.url, league.hits, league.description, league.name]
+            [league.region, league.url, league.hits, league.description, league.name]
           );
           updatedCount++;
           console.log(`✅ Updated: ${league.name}`);
         } else {
           // Insert new league
           await db.query(
-            `INSERT INTO leagues (name, region, ageGroup, url, hits, description, isActive, createdBy) 
-             VALUES (?, ?, ?, ?, ?, ?, 1, 1)`,
-            [league.name, league.region, league.ageGroup, league.url, league.hits, league.description]
+            `INSERT INTO leagues (name, region, url, hits, description, isActive, createdBy) 
+             VALUES (?, ?, ?, ?, ?, 1, 1)`,
+            [league.name, league.region, league.url, league.hits, league.description]
           );
           insertedCount++;
           console.log(`✅ Inserted: ${league.name}`);
@@ -271,12 +270,12 @@ async function migrateLeaguesToDatabase() {
     
     // Display sample of migrated leagues
     const sampleLeagues = await db.query(
-      'SELECT name, region, ageGroup, hits FROM leagues WHERE isActive = 1 ORDER BY hits DESC LIMIT 5'
+      'SELECT name, region, hits FROM leagues WHERE isActive = 1 ORDER BY hits DESC LIMIT 5'
     );
     
     console.log('\n🏆 Top 5 leagues by popularity:');
     sampleLeagues.rows.forEach((league, index) => {
-      console.log(`${index + 1}. ${league.name} (${league.region}, ${league.ageGroup}) - ${league.hits} hits`);
+      console.log(`${index + 1}. ${league.name} (${league.region}) - ${league.hits} hits`);
     });
 
   } catch (error) {

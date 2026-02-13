@@ -98,11 +98,11 @@ export const OnboardingFlow: React.FC = () => {
         console.error('Failed to load leagues:', error);
         // Fallback to default leagues if API fails (matching your database)
         setAvailableLeagues([
-          { id: 1, name: 'County Youth League', region: 'Local', ageGroups: ['Youth'] },
-          { id: 2, name: 'Sunday League', region: 'Local', ageGroups: ['Adult'] },
-          { id: 3, name: 'Community League', region: 'Local', ageGroups: ['All Ages'] },
-          { id: 4, name: 'Local Girls League', region: 'Local', ageGroups: ['Girls'] },
-          { id: 5, name: 'Development League', region: 'Local', ageGroups: ['Youth'] }
+          { id: 1, name: 'County Youth League', region: 'Local' },
+          { id: 2, name: 'Sunday League', region: 'Local' },
+          { id: 3, name: 'Community League', region: 'Local' },
+          { id: 4, name: 'Local Girls League', region: 'Local' },
+          { id: 5, name: 'Development League', region: 'Local' }
         ] as League[]);
       } finally {
         setLoadingLeagues(false);
@@ -375,7 +375,7 @@ export const OnboardingFlow: React.FC = () => {
             
             <Autocomplete
               multiple
-              options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], url: '', hits: 0 }]}
+              options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
               getOptionLabel={(option) => {
                 if (typeof option === 'string') return option;
                 if (option.id === -1) return option.name || '';
@@ -383,7 +383,7 @@ export const OnboardingFlow: React.FC = () => {
               }}
               value={userData.preferredLeagues.map(leagueName => {
                 const league = availableLeagues.find(l => l.name === leagueName);
-                return league || { id: 0, name: leagueName, region: '', ageGroups: [], url: '', hits: 0 };
+                return league || { id: 0, name: leagueName, region: '', url: '', hits: 0 };
               })}
               onChange={(_, newValue) => {
                 const selectedLeagues = newValue.map(item => {
@@ -430,7 +430,7 @@ export const OnboardingFlow: React.FC = () => {
                         )}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {option.region} • {option.ageGroups?.join(', ') || 'N/A'}
+                        {option.region || 'Region: N/A'}
                       </Typography>
                     </Box>
                   </li>

@@ -23,7 +23,6 @@ export interface League {
   status?: 'approved' | 'pending';
   isPending?: boolean;
   region?: string;
-  ageGroups?: string[];
   url?: string;
   hits?: number;
 }

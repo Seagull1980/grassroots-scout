@@ -528,9 +528,9 @@ const SearchPage: React.FC = () => {
       console.error('Error fetching leagues:', err);
       // Fallback to default leagues if API fails
       setLeagues([
-        { id: 1, name: 'Premier League', region: 'National', ageGroups: ['Senior'] },
-        { id: 2, name: 'Championship', region: 'National', ageGroups: ['Senior'] },
-        { id: 3, name: 'Local League', region: 'Local', ageGroups: ['Youth'] },
+        { id: 1, name: 'Premier League', region: 'National' },
+        { id: 2, name: 'Championship', region: 'National' },
+        { id: 3, name: 'Local League', region: 'Local' },
       ]);
     } finally {
       setLoadingLeagues(false);
@@ -1117,7 +1117,7 @@ const SearchPage: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Autocomplete
               fullWidth
-              options={Array.isArray(leagues) ? [...leagues, { id: -1, name: '+ Request New League', region: '', ageGroups: [], url: '', hits: 0 }] : []}
+              options={Array.isArray(leagues) ? [...leagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }] : []}
               getOptionLabel={(option) => {
                 if (typeof option === 'string') return option;
                 if (option.id === -1) return option.name || '';
@@ -1230,8 +1230,7 @@ const SearchPage: React.FC = () => {
                   if (option.id === -1) return true; // Always show the "Request New League" option
                   if (!inputValue) return true;
                   return option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                    (option.region && option.region.toLowerCase().includes(inputValue.toLowerCase())) ||
-                    (option.ageGroups && option.ageGroups.some(age => age.toLowerCase().includes(inputValue.toLowerCase())));
+                    (option.region && option.region.toLowerCase().includes(inputValue.toLowerCase()));
                 });
                 return filtered;
               }}
