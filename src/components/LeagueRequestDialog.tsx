@@ -13,6 +13,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
+  ListItemText,
   Box,
   CircularProgress
 } from '@mui/material';
@@ -249,10 +251,14 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                     return regions.join(', ');
                   }}
                 >
-                  <MenuItem value={ALL_REGIONS_OPTION}>{ALL_REGIONS_OPTION}</MenuItem>
+                  <MenuItem value={ALL_REGIONS_OPTION}>
+                    <Checkbox checked={getRegionSelection(formData.region).includes(ALL_REGIONS_OPTION)} />
+                    <ListItemText primary={ALL_REGIONS_OPTION} />
+                  </MenuItem>
                   {UK_REGIONS.map((region) => (
                     <MenuItem key={region} value={region}>
-                      {region}
+                      <Checkbox checked={getRegionSelection(formData.region).includes(region)} />
+                      <ListItemText primary={region} />
                     </MenuItem>
                   ))}
                 </Select>

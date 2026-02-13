@@ -560,6 +560,34 @@ const PostAdvertPage: React.FC = () => {
                               <Typography variant="body2" noWrap sx={{ flex: 1 }}>
                                 {option.name}
                               </Typography>
+                              {(() => {
+                                const regions = (option.region || '')
+                                  .split(',')
+                                  .map((region) => region.trim())
+                                  .filter(Boolean);
+                                if (regions.includes('All Regions')) {
+                                  return (
+                                    <Chip
+                                      label="All Regions"
+                                      size="small"
+                                      color="primary"
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.7rem', height: '20px' }}
+                                    />
+                                  );
+                                }
+                                if (regions.length > 1) {
+                                  return (
+                                    <Chip
+                                      label="Multi-region"
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.7rem', height: '20px' }}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
                               {option.isPending && (
                                 <Chip 
                                   label="Under Review" 

@@ -35,6 +35,9 @@ import {
   useTheme,
   useMediaQuery,
   Fab,
+  Checkbox,
+  ListItemText,
+  Chip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -74,6 +77,19 @@ const AdminPage: React.FC = () => {
       .split(',')
       .map((region) => region.trim())
       .filter(Boolean);
+  const getRegionBadges = (value?: string) => {
+    const regions = getRegionSelection(value || '');
+    if (!regions.length) {
+      return [] as string[];
+    }
+    if (regions.includes(ALL_REGIONS_OPTION)) {
+      return [ALL_REGIONS_OPTION];
+    }
+    if (regions.length > 1) {
+      return ['Multi-region'];
+    }
+    return [] as string[];
+  };
 
   // Get user information first - this hook must always be called
   console.log('🔗 Hook 1: useAuth');
@@ -666,9 +682,23 @@ const AdminPage: React.FC = () => {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {league.region || 'N/A'}
-                              </Typography>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {league.region || 'N/A'}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {getRegionBadges(league.region).map((badge) => (
+                                    <Chip
+                                      key={badge}
+                                      label={badge}
+                                      size="small"
+                                      color={badge === ALL_REGIONS_OPTION ? 'primary' : 'default'}
+                                      variant="outlined"
+                                      sx={{ fontSize: '0.7rem', height: 20 }}
+                                    />
+                                  ))}
+                                </Box>
+                              </Box>
                             </TableCell>
                             <TableCell>
                               {league.url ? (
@@ -990,10 +1020,14 @@ const AdminPage: React.FC = () => {
                 return regions.join(', ');
               }}
             >
-              <MenuItem value={ALL_REGIONS_OPTION}>{ALL_REGIONS_OPTION}</MenuItem>
+              <MenuItem value={ALL_REGIONS_OPTION}>
+                <Checkbox checked={getRegionSelection(formData.region).includes(ALL_REGIONS_OPTION)} />
+                <ListItemText primary={ALL_REGIONS_OPTION} />
+              </MenuItem>
               {UK_REGIONS.map((option) => (
                 <MenuItem key={option} value={option}>
-                  {option}
+                  <Checkbox checked={getRegionSelection(formData.region).includes(option)} />
+                  <ListItemText primary={option} />
                 </MenuItem>
               ))}
             </Select>
