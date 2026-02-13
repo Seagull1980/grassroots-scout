@@ -40,6 +40,7 @@ import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
+import MapsPage from './pages/MapsPage.tsx';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
@@ -47,7 +48,6 @@ import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/
 
 // Heavy features - lazy loaded
 const {
-  MapsPage,
   PerformanceAnalyticsPage,
   EnhancedSearchPage,
   AdminPage,
