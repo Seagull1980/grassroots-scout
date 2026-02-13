@@ -41,7 +41,6 @@ import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
 import MapsPage from './pages/MapsPage.tsx';
-import { useLocation } from 'react-router-dom';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
@@ -76,8 +75,6 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
 const AppRoutes = () => {
-  const location = useLocation();
-  
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
