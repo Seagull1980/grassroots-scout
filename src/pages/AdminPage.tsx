@@ -970,7 +970,7 @@ const AdminPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel>Region</InputLabel>
+            <InputLabel shrink={!!formData.region || undefined}>Region</InputLabel>
             <Select
               value={formData.region}
               label="Region"
@@ -1002,7 +1002,7 @@ const AdminPage: React.FC = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-            <InputLabel>Country</InputLabel>
+            <InputLabel shrink={!!formData.country || undefined}>Country</InputLabel>
             <Select
               value={formData.country}
               label="Country"
