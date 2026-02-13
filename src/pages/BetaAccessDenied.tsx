@@ -19,7 +19,7 @@ const BetaAccessDenied: React.FC = () => {
     const timer = setTimeout(() => {
       logout();
       navigate('/login', { replace: true });
-    }, 2000);
+    }, 30000);
 
     return () => clearTimeout(timer);
   }, [logout, navigate]);
@@ -48,11 +48,10 @@ const BetaAccessDenied: React.FC = () => {
               <strong>What happens next?</strong>
             </Typography>
             <Typography variant="body2" paragraph>
-              Our admin team reviews all new registrations and will contact you to advise when 
-              your beta access has been granted.
+              You will be contacted by an Admin as soon as access is approved.
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
-              You will be logged out automatically in a moment.
+              You will be logged out shortly, please log back in once access is confirmed.
             </Typography>
           </Alert>
 
