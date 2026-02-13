@@ -2472,7 +2472,7 @@ app.post('/api/admin/leagues', authenticateToken, async (req, res) => {
     }
 
     const leagueResult = await db.query(
-      'INSERT INTO leagues (name, description, createdby) VALUES (?, ?, ?) RETURNING *',
+      'INSERT INTO leagues (name, description, createdby, isactive) VALUES (?, ?, ?, true) RETURNING *',
       [name, description || '', req.user.userId]
     );
 
@@ -2905,7 +2905,7 @@ app.post('/api/leagues', authenticateToken, async (req, res) => {
 
     // Create league
     const leagueResult = await db.query(
-      'INSERT INTO leagues (name, description, createdBy) VALUES (?, ?, ?) RETURNING *',
+      'INSERT INTO leagues (name, description, createdBy, isActive) VALUES (?, ?, ?, true) RETURNING *',
       [name, description || '', req.user.id]
     );
 
