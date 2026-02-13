@@ -558,6 +558,21 @@ export const vacanciesAPI = {
 
 // Leagues API
 export const leaguesAPI = {
+  // Normalize backend field names for admin league management
+  normalizeLeague: (league: any): League => {
+    const rawIsActive = league?.isActive ?? league?.isactive ?? league?.is_active;
+    let isActive: boolean | undefined = undefined;
+
+    if (rawIsActive !== undefined && rawIsActive !== null) {
+      isActive = rawIsActive === true || rawIsActive === 1 || rawIsActive === '1' || rawIsActive === 'true';
+    }
+
+    return {
+      ...league,
+      isActive,
+    } as League;
+  },
+
   // Get leagues for search (includes user's pending requests if authenticated)
   getForSearch: async (includePending: boolean = true): Promise<League[]> => {
     const token = localStorage.getItem('token');
@@ -573,6 +588,9 @@ export const leaguesAPI = {
     const data = response.data || {};
     if (data.leagues && data.leagues.rows) {
       data.leagues = data.leagues.rows;
+    }
+    if (Array.isArray(data.leagues)) {
+      data.leagues = data.leagues.map(leaguesAPI.normalizeLeague);
     }
     return data;
   },
