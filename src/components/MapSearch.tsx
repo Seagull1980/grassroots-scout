@@ -1760,7 +1760,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               transition: 'bottom 0.3s ease-in-out',
               zIndex: 1000,
               maxHeight: '60vh',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              pointerEvents: showMobileResultsList ? 'auto' : 'none'
             }}
           >
             <Box 

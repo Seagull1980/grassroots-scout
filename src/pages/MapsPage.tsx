@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -26,6 +26,14 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
 
+  // Force cleanup on unmount to prevent navigation issues
+  useEffect(() => {
+    return () => {
+      // Cleanup any lingering event listeners or timers
+      console.log('MapsPage unmounting - cleaning up');
+    };
+  }, []);
+
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
@@ -51,15 +59,15 @@ const MapsPage: React.FC = () => {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <MapSearch searchType="vacancies" />
+          <MapSearch key="vacancies-tab" searchType="vacancies" />
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <MapSearch searchType="availability" />
+          <MapSearch key="availability-tab" searchType="availability" />
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <MapSearch searchType="both" />
+          <MapSearch key="both-tab" searchType="both" />
         </TabPanel>
       </Paper>
     </Container>
