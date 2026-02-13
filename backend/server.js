@@ -2534,7 +2534,7 @@ app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'League not found' });
     }
 
-    await db.query('UPDATE leagues SET isactive = false WHERE id = ?', [id]);
+    await db.query('DELETE FROM leagues WHERE id = ?', [id]);
 
     res.json({ message: 'League deleted successfully' });
   } catch (error) {
