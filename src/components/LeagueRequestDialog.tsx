@@ -15,6 +15,7 @@ import {
   MenuItem,
   Checkbox,
   ListItemText,
+  FormHelperText,
   Box,
   CircularProgress
 } from '@mui/material';
@@ -274,6 +275,9 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
                     </MenuItem>
                   ))}
                 </Select>
+                <FormHelperText>
+                  {isEnglandSelected ? 'Select all that apply' : 'Regions available for England only'}
+                </FormHelperText>
               </FormControl>
             </Grid>
 

@@ -38,6 +38,7 @@ import {
   Checkbox,
   ListItemText,
   Chip,
+  FormHelperText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -686,7 +687,7 @@ const AdminPage: React.FC = () => {
                             <TableCell>
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">
-                                  {league.region || 'N/A'}
+                                  {league.region || (league.country && league.country !== 'England' ? 'Not applicable' : 'N/A')}
                                 </Typography>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {getRegionBadges(league.region).map((badge) => (
@@ -1060,6 +1061,9 @@ const AdminPage: React.FC = () => {
                 </MenuItem>
               ))}
             </Select>
+            <FormHelperText>
+              {isEnglandSelected ? 'Select all that apply' : 'Regions available for England only'}
+            </FormHelperText>
           </FormControl>
           <TextField
             margin="dense"
