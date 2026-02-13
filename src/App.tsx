@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LoadingSpinner as AppLoadingSpinner } from './components/LoadingComponents';
@@ -75,11 +75,9 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
 const AppRoutes = () => {
-  const location = useLocation();
-
   return (
     <Suspense fallback={<LoadingSpinner />}>
-      <Routes location={location} key={location.pathname}>
+      <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/login" element={
