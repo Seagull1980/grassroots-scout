@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Container,
   Typography,
@@ -85,6 +85,7 @@ const ProfilePage: React.FC = () => {
   const [showCompletionAlert, setShowCompletionAlert] = useState(() => {
     return localStorage.getItem('profileCompletionAlertDismissed') !== 'true';
   });
+  const lastLoadedUserIdRef = useRef<string | null>(null);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -189,7 +190,12 @@ const ProfilePage: React.FC = () => {
       navigate('/login');
       return;
     }
-    
+
+    if (lastLoadedUserIdRef.current === user.id) {
+      return;
+    }
+
+    lastLoadedUserIdRef.current = user.id;
     loadProfile();
   }, [user, navigate]);
 
