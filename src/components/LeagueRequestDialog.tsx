@@ -41,6 +41,12 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
   onClose, 
   onSuccess 
 }) => {
+  const ALL_REGIONS_OPTION = 'All Regions';
+  const getRegionSelection = (value: string) =>
+    value
+      .split(',')
+      .map((region) => region.trim())
+      .filter(Boolean);
   const { user } = useAuth();
   const [formData, setFormData] = useState<LeagueRequestData>({
     name: '',
@@ -215,16 +221,35 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
               <FormControl fullWidth>
                 <InputLabel shrink>Region</InputLabel>
                 <Select
-                  value={formData.region}
-                  onChange={handleInputChange('region')}
+                  multiple
+                  value={getRegionSelection(formData.region)}
+                  onChange={(event) => {
+                    const selected = (event.target.value as string[]).filter(Boolean);
+                    const hasAllRegions = selected.includes(ALL_REGIONS_OPTION);
+                    const nextRegions = hasAllRegions
+                      ? [ALL_REGIONS_OPTION]
+                      : selected.filter((region) => region !== ALL_REGIONS_OPTION);
+                    setFormData((prev) => ({
+                      ...prev,
+                      region: nextRegions.join(', ')
+                    }));
+                  }}
                   disabled={loading}
                   label="Region"
                   displayEmpty
                   notched
+                  renderValue={(selected) => {
+                    const regions = selected as string[];
+                    if (!regions.length) {
+                      return 'Select Region';
+                    }
+                    if (regions.includes(ALL_REGIONS_OPTION)) {
+                      return ALL_REGIONS_OPTION;
+                    }
+                    return regions.join(', ');
+                  }}
                 >
-                  <MenuItem value="">
-                    <em>Select Region</em>
-                  </MenuItem>
+                  <MenuItem value={ALL_REGIONS_OPTION}>{ALL_REGIONS_OPTION}</MenuItem>
                   {UK_REGIONS.map((region) => (
                     <MenuItem key={region} value={region}>
                       {region}

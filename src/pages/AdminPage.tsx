@@ -68,6 +68,13 @@ import { UK_COUNTRIES, UK_REGIONS } from '../constants/locations';
 const AdminPage: React.FC = () => {
   console.log('🔍 AdminPage render start');
 
+  const ALL_REGIONS_OPTION = 'All Regions';
+  const getRegionSelection = (value: string) =>
+    value
+      .split(',')
+      .map((region) => region.trim())
+      .filter(Boolean);
+
   // Get user information first - this hook must always be called
   console.log('🔗 Hook 1: useAuth');
   const { impersonateUser, stopImpersonation, isImpersonating, user } = useAuth();
@@ -959,13 +966,31 @@ const AdminPage: React.FC = () => {
           <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
             <InputLabel shrink>Region</InputLabel>
             <Select
-              value={formData.region}
+              multiple
+              value={getRegionSelection(formData.region)}
               label="Region"
               displayEmpty
               notched
-              onChange={(e) => setFormData({ ...formData, region: e.target.value as string })}
-              renderValue={(selected) => (selected ? selected : 'Select region')}
+              onChange={(e) => {
+                const selected = (e.target.value as string[]).filter(Boolean);
+                const hasAllRegions = selected.includes(ALL_REGIONS_OPTION);
+                const nextRegions = hasAllRegions
+                  ? [ALL_REGIONS_OPTION]
+                  : selected.filter((region) => region !== ALL_REGIONS_OPTION);
+                setFormData({ ...formData, region: nextRegions.join(', ') });
+              }}
+              renderValue={(selected) => {
+                const regions = selected as string[];
+                if (!regions.length) {
+                  return 'Select region';
+                }
+                if (regions.includes(ALL_REGIONS_OPTION)) {
+                  return ALL_REGIONS_OPTION;
+                }
+                return regions.join(', ');
+              }}
             >
+              <MenuItem value={ALL_REGIONS_OPTION}>{ALL_REGIONS_OPTION}</MenuItem>
               {UK_REGIONS.map((option) => (
                 <MenuItem key={option} value={option}>
                   {option}

@@ -703,6 +703,26 @@ const SearchPage: React.FC = () => {
     return map;
   }, [leagues]);
 
+  const normalizeRegions = (value: string) =>
+    value
+      .split(',')
+      .map((region) => region.trim().toLowerCase())
+      .filter(Boolean);
+
+  const matchesLeagueRegion = (leagueRegion: string, normalizedRegion: string) => {
+    if (!normalizedRegion) {
+      return true;
+    }
+    if (!leagueRegion) {
+      return false;
+    }
+    const regions = normalizeRegions(leagueRegion);
+    if (regions.includes('all regions')) {
+      return true;
+    }
+    return regions.includes(normalizedRegion);
+  };
+
   // Filter and search logic
   const filteredVacancies = (Array.isArray(vacancies) ? vacancies : []).filter((vacancy) => {
     const normalizedRegion = filters.region ? filters.region.toLowerCase() : '';
@@ -718,7 +738,7 @@ const SearchPage: React.FC = () => {
     const matchesTeamGender = !filters.teamGender || vacancy.teamGender === filters.teamGender;
     const matchesRegion = !filters.region ||
       vacancy.location.toLowerCase().includes(normalizedRegion) ||
-      (leagueRegion && leagueRegion.toLowerCase() === normalizedRegion);
+      matchesLeagueRegion(leagueRegion, normalizedRegion);
     const matchesLocation = !filters.location || 
       vacancy.location.toLowerCase().includes(filters.location.toLowerCase());
 
