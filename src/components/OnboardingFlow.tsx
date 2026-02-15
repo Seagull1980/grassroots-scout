@@ -15,7 +15,8 @@ import {
   TextField,
   Checkbox,
   FormControlLabel,
-  Autocomplete
+  Autocomplete,
+  Alert
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -372,6 +373,12 @@ export const OnboardingFlow: React.FC = () => {
               placeholder="Tell us about your football journey, goals, or what you're looking for..."
               helperText="Share what makes you unique (optional)"
             />
+
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                <strong>Don't worry!</strong> You can update or complete this information anytime from your Profile page.
+              </Typography>
+            </Alert>
           </Stack>
         </Box>
       )
@@ -564,6 +571,12 @@ export const OnboardingFlow: React.FC = () => {
               loading={loadingLeagues}
               disabled={loadingLeagues}
             />
+
+            <Alert severity="info\" sx={{ mt: 1 }}>
+              <Typography variant="body2">
+                You can adjust your location preferences and add more leagues anytime from your account settings.
+              </Typography>
+            </Alert>
           </Stack>
         </Box>
       )
