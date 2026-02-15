@@ -84,11 +84,11 @@ const MyFeedbackPage: React.FC = () => {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${ROSTER_API_URL}/feedback/my-submissions`, {
+      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/my-submissions`, {
         headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
       });
 
-      setFeedback(response.data.feedback);
+      setFeedback(response.data?.feedback || []);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch feedback');
     } finally {
@@ -99,11 +99,11 @@ const MyFeedbackPage: React.FC = () => {
   const fetchFeedbackDetails = async (feedbackId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${ROSTER_API_URL}/feedback/${feedbackId}`, {
+      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/${feedbackId}`, {
         headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
       });
 
-      setComments(response.data.comments);
+      setComments(response.data?.comments || []);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch feedback details');
     }
@@ -126,7 +126,7 @@ const MyFeedbackPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `${ROSTER_API_URL}/feedback/${selectedFeedback.id}/comments`,
+        `${ROSTER_API_URL}/api/feedback/${selectedFeedback.id}/comments`,
         { comment: newComment.trim() },
         { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
       );

@@ -3665,6 +3665,139 @@ app.delete('/api/admin/feedback/:feedbackId', authenticateToken, async (req, res
 });
 
 // ===========================
+// USER FEEDBACK ENDPOINTS
+// ===========================
+
+// Get user's own feedback submissions
+app.get('/api/feedback/my-submissions', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        uf.id,
+        uf.category,
+        uf.subject,
+        uf.description,
+        uf.status,
+        uf.priority,
+        uf.createdat as createdAt,
+        uf.updatedat as updatedAt,
+        COUNT(fc.id) as commentCount
+      FROM user_feedback uf
+      LEFT JOIN feedback_comments fc ON uf.id = fc.feedbackid
+      WHERE uf.userid = ?
+      GROUP BY uf.id
+      ORDER BY uf.createdat DESC
+    `, [req.user.userId]);
+
+    res.json({ feedback: result.rows || [] });
+  } catch (error) {
+    console.error('Error fetching user feedback:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
+  }
+});
+
+// Get specific feedback with comments
+app.get('/api/feedback/:feedbackId', authenticateToken, async (req, res) => {
+  try {
+    const { feedbackId } = req.params;
+
+    // Get feedback
+    const feedbackResult = await db.query(`
+      SELECT 
+        uf.id,
+        uf.userid,
+        uf.category,
+        uf.subject,
+        uf.description,
+        uf.status,
+        uf.priority,
+        uf.createdat as createdAt,
+        uf.updatedat as updatedAt,
+        u.email,
+        u.firstname,
+        u.lastname
+      FROM user_feedback uf
+      JOIN users u ON uf.userid = u.id
+      WHERE uf.id = ?
+    `, [feedbackId]);
+
+    if (!feedbackResult.rows || feedbackResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback not found' });
+    }
+
+    const feedback = feedbackResult.rows[0];
+
+    // Check access: only owner or admin can view
+    if (feedback.userid !== req.user.userId && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get comments
+    const commentsResult = await db.query(`
+      SELECT 
+        fc.id,
+        fc.comment,
+        fc.isadmincomment as isAdminComment,
+        fc.createdat as createdAt,
+        u.email,
+        u.firstname,
+        u.lastname
+      FROM feedback_comments fc
+      JOIN users u ON fc.userid = u.id
+      WHERE fc.feedbackid = ?
+      ORDER BY fc.createdat ASC
+    `, [feedbackId]);
+
+    feedback.comments = commentsResult.rows || [];
+
+    res.json(feedback);
+  } catch (error) {
+    console.error('Error fetching feedback details:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback details' });
+  }
+});
+
+// Add comment to feedback
+app.post('/api/feedback/:feedbackId/comments', authenticateToken, async (req, res) => {
+  try {
+    const { feedbackId } = req.params;
+    const { comment } = req.body;
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ error: 'Comment is required' });
+    }
+
+    // Check if feedback exists
+    const feedbackResult = await db.query('SELECT * FROM user_feedback WHERE id = ?', [feedbackId]);
+    if (!feedbackResult.rows || feedbackResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback not found' });
+    }
+
+    const feedback = feedbackResult.rows[0];
+
+    // Only allow feedback owner or admins to comment
+    if (feedback.userid !== req.user.userId && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const isAdminComment = req.user.role === 'Admin';
+
+    await db.query(`
+      INSERT INTO feedback_comments (feedbackid, userid, comment, isadmincomment)
+      VALUES (?, ?, ?, ?)
+    `, [feedbackId, req.user.userId, comment.trim(), isAdminComment]);
+
+    // Update the feedback's updatedAt timestamp
+    await db.query('UPDATE user_feedback SET updatedat = CURRENT_TIMESTAMP WHERE id = ?', [feedbackId]);
+
+    res.status(201).json({ message: 'Comment added successfully' });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// ===========================
 // ANALYTICS ENDPOINTS
 // ===========================
 
