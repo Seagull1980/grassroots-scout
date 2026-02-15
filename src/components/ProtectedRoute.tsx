@@ -16,6 +16,7 @@ const ProtectedRoute = ({
   const location = useLocation();
 
   // Refresh user data on mount and periodically to catch beta access changes
+  // Use user?.id instead of user to only re-run when user logs in/out, not on every data refresh
   useEffect(() => {
     if (user && requireAuth) {
       console.log('[ProtectedRoute] Refreshing user data on mount');
@@ -30,7 +31,7 @@ const ProtectedRoute = ({
 
       return () => clearInterval(refreshInterval);
     }
-  }, [user, requireAuth, refreshUserData]);
+  }, [user?.id, requireAuth, refreshUserData]); // Use user?.id to prevent re-running on every user data update
 
   console.log('[ProtectedRoute]', {
     path: location.pathname,
