@@ -1712,6 +1712,239 @@ app.delete('/api/children/:childId', authenticateToken, async (req, res) => {
   }
 });
 
+// Player Availability Endpoints (for adult players)
+
+// Get authenticated player's own availability
+app.get('/api/player-availability', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Player') {
+      return res.status(403).json({ error: 'Only players can access player availability' });
+    }
+
+    const availabilityResult = await db.query(
+      `SELECT * FROM player_availability 
+       WHERE postedBy = ? AND status != 'inactive'
+       ORDER BY createdAt DESC`,
+      [req.user.userId]
+    );
+
+    const availability = (availabilityResult.rows || []).map(row => ({
+      ...row,
+      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
+      positions: row.positions ? JSON.parse(row.positions) : [],
+      locationData: row.locationAddress ? {
+        address: row.locationAddress,
+        latitude: row.locationLatitude,
+        longitude: row.locationLongitude,
+        placeId: row.locationPlaceId
+      } : null
+    }));
+
+    res.json({ availability });
+  } catch (error) {
+    console.error('Get player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create new player availability
+app.post('/api/player-availability', [
+  authenticateToken,
+  body('title').notEmpty().withMessage('Title is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Player') {
+      return res.status(403).json({ error: 'Only players can create player availability' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      title,
+      description,
+      preferredLeagues,
+      ageGroup,
+      positions,
+      preferredTeamGender,
+      location,
+      locationData
+    } = req.body;
+
+    // Extract location details from locationData if available
+    const locationAddress = locationData?.address || location || '';
+    const locationLatitude = locationData?.latitude || null;
+    const locationLongitude = locationData?.longitude || null;
+    const locationPlaceId = locationData?.placeId || null;
+
+    const result = await db.query(
+      `INSERT INTO player_availability 
+       (title, description, preferredLeagues, ageGroup, positions, 
+        preferredTeamGender, location, locationAddress, locationLatitude, 
+        locationLongitude, locationPlaceId, postedBy, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+      [
+        title,
+        description,
+        JSON.stringify(preferredLeagues ||[]),
+        ageGroup,
+        JSON.stringify(positions),
+        preferredTeamGender || 'Mixed',
+        location,
+        locationAddress,
+        locationLatitude,
+        locationLongitude,
+        locationPlaceId,
+        req.user.userId
+      ]
+    );
+
+    const availabilityId = result.lastID;
+
+    res.status(201).json({
+      message: 'Player availability created successfully',
+      availabilityId,
+      availability: {
+        id: availabilityId,
+        title,
+        description,
+        preferredLeagues: preferredLeagues || [],
+        ageGroup,
+        positions,
+        preferredTeamGender: preferredTeamGender || 'Mixed',
+        location,
+        locationData: locationData || null,
+        postedBy: req.user.userId,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Create player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update player availability
+app.put('/api/player-availability/:availabilityId', [
+  authenticateToken,
+  body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+  body('ageGroup').optional().notEmpty().withMessage('Age group cannot be empty'),
+  body('positions').optional().isArray({ min: 1 }).withMessage('At least one position is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Player') {
+      return res.status(403).json({ error: 'Only players can update player availability' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { availabilityId } = req.params;
+    
+    // Verify availability belongs to this player
+    const availabilityResult = await db.query(
+      'SELECT * FROM player_availability WHERE id = ? AND postedBy = ?',
+      [availabilityId, req.user.userId]
+    );
+
+    if (!availabilityResult.rows || availabilityResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Player availability not found or access denied' });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+    
+    // Handle locationData separately to extract into individual columns
+    if (req.body.locationData) {
+      const locationData = req.body.locationData;
+      if (locationData.address) {
+        updateFields.push('locationAddress = ?');
+        updateValues.push(locationData.address);
+      }
+      if (locationData.latitude !== undefined) {
+        updateFields.push('locationLatitude = ?');
+        updateValues.push(locationData.latitude);
+      }
+      if (locationData.longitude !== undefined) {
+        updateFields.push('locationLongitude = ?');
+        updateValues.push(locationData.longitude);
+      }
+      if (locationData.placeId) {
+        updateFields.push('locationPlaceId = ?');
+        updateValues.push(locationData.placeId);
+      }
+    }
+    
+    // Handle other fields
+    Object.keys(req.body).forEach(key => {
+      if (req.body[key] !== undefined && key !== 'locationData') {
+        if (['preferredLeagues', 'positions'].includes(key)) {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(JSON.stringify(req.body[key]));
+        } else {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(req.body[key]);
+        }
+      }
+    });
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateValues.push(availabilityId);
+
+    await db.query(
+      `UPDATE player_availability SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({ message: 'Player availability updated successfully' });
+  } catch (error) {
+    console.error('Update player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete player availability
+app.delete('/api/player-availability/:availabilityId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Player') {
+      return res.status(403).json({ error: 'Only players can delete player availability' });
+    }
+
+    const { availabilityId } = req.params;
+    
+    // Verify availability belongs to this player
+    const availabilityResult = await db.query(
+      'SELECT * FROM player_availability WHERE id = ? AND postedBy = ?',
+      [availabilityId, req.user.userId]
+    );
+
+    if (!availabilityResult.rows || availabilityResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Player availability not found or access denied' });
+    }
+
+    // Soft delete - set status to inactive
+    await db.query(
+      'UPDATE player_availability SET status = ? WHERE id = ?',
+      ['inactive', availabilityId]
+    );
+
+    res.json({ message: 'Player availability deleted successfully' });
+  } catch (error) {
+    console.error('Delete player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Child Player Availability Endpoints
 
 // Get all player availability for parent's children
