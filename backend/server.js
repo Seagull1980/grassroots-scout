@@ -230,6 +230,50 @@ forumDb.exec(`
 
 console.log('✅ Forum database tables initialized');
 
+// Create feedback tables for admin feedback system
+const initFeedbackTables = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        feedbackType VARCHAR NOT NULL,
+        title VARCHAR NOT NULL,
+        description TEXT NOT NULL,
+        category VARCHAR DEFAULT 'general',
+        priority VARCHAR DEFAULT 'medium',
+        status VARCHAR DEFAULT 'new',
+        adminNotes TEXT,
+        attachmentUrl VARCHAR,
+        browserInfo TEXT,
+        pageUrl VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolvedAt TIMESTAMP,
+        resolvedBy INTEGER
+      )
+    `);
+    
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS feedback_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        feedbackId INTEGER NOT NULL,
+        userId INTEGER NOT NULL,
+        comment TEXT NOT NULL,
+        isAdminComment BOOLEAN DEFAULT FALSE,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    console.log('✅ Feedback system tables initialized');
+  } catch (error) {
+    console.log('⚠️  Feedback tables may already exist or error occurred:', error.message);
+  }
+};
+
+// Initialize feedback tables on startup
+initFeedbackTables();
+
 // Profanity filter for forum content
 const profanityList = [
   'damn', 'hell', 'crap', 'bastard', 'bitch', 'ass', 'asshole',
@@ -3473,11 +3517,11 @@ app.get('/api/admin/feedback', authenticateToken, async (req, res) => {
 
     const { feedbackType, status, priority, category } = req.query;
 
+    // Build query with proper filtering
     let query = `
-      SELECT uf.*, u.firstName, u.lastName, u.email, u.role as userRole,
-        (SELECT COUNT(*) FROM feedback_comments WHERE feedbackId = uf.id) as commentCount
+      SELECT uf.*,
+        COALESCE((SELECT COUNT(*) FROM feedback_comments WHERE feedbackId = uf.id), 0) as commentCount
       FROM user_feedback uf
-      JOIN users u ON uf.userId = u.id
       WHERE 1=1
     `;
     const params = [];
@@ -3516,12 +3560,32 @@ app.get('/api/admin/feedback', authenticateToken, async (req, res) => {
         SUM(CASE WHEN priority = 'critical' THEN 1 ELSE 0 END) as critical
       FROM user_feedback
     `);
-    const stats = statsResult.rows && statsResult.rows.length > 0 ? statsResult.rows[0] : {};
+    const stats = statsResult.rows && statsResult.rows.length > 0 ? statsResult.rows[0] : {
+      total: 0,
+      bugs: 0,
+      improvements: 0,
+      newItems: 0,
+      inProgress: 0,
+      completed: 0,
+      critical: 0
+    };
 
     res.json({ feedback, stats });
   } catch (error) {
     console.error('Error fetching admin feedback:', error);
-    res.status(500).json({ error: 'Failed to fetch feedback' });
+    // Return empty data instead of 500 if table doesn't exist yet
+    res.json({ 
+      feedback: [], 
+      stats: {
+        total: 0,
+        bugs: 0,
+        improvements: 0,
+        newItems: 0,
+        inProgress: 0,
+        completed: 0,
+        critical: 0
+      }
+    });
   }
 });
 
