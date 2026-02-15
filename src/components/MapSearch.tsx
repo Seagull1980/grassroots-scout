@@ -1799,15 +1799,17 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
           </Paper>
         )}
 
-        <Paper elevation={2}>
-          <Map
-            center={mapCenter}
-            zoom={mapZoom}
-            onMapLoad={handleMapLoad}
-            style={{ height: '500px', width: '100%' }}
-          >
-            {renderMarkers()}
-          </Map>
+        <Paper elevation={2} sx={{ position: 'relative', zIndex: 1, overflow: 'hidden' }}>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Map
+              center={mapCenter}
+              zoom={mapZoom}
+              onMapLoad={handleMapLoad}
+              style={{ height: '500px', width: '100%', position: 'relative', zIndex: 1 }}
+            >
+              {renderMarkers()}
+            </Map>
+          </Box>
         </Paper>
 
         {/* Mobile-friendly results list that can be swiped */}
@@ -1820,7 +1822,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               left: 0, 
               right: 0, 
               transition: 'bottom 0.3s ease-in-out',
-              zIndex: 1000,
+              zIndex: 100,  // Lower than navbar (9999)
               maxHeight: '60vh',
               overflow: 'hidden',
               pointerEvents: showMobileResultsList ? 'auto' : 'none'

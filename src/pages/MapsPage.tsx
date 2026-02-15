@@ -68,8 +68,37 @@ const MapsPage: React.FC = () => {
     console.log('MapsPage: Global cleanup complete');
   };
 
+  // Intercept clicks on navigation elements BEFORE they try to navigate
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if clicking on a navigation link
+      const isNavClick = target.closest('a[href]') || 
+                        target.closest('[role="tab"]') ||
+                        target.closest('button[aria-label*="navigation"]') ||
+                        target.closest('.MuiBottomNavigation-root') ||
+                        target.closest('.MuiListItem-root');
+      
+      if (isNavClick) {
+        console.log('Navigation click detected, forcing immediate cleanup');
+        // Force cleanup synchronously before navigation happens
+        forceGlobalCleanup();
+      }
+    };
+
+    // Add listener with capture phase to intercept clicks early
+    document.addEventListener('click', handleDocumentClick, { capture: true });
+    
+    return () => {
+      document.removeEventListener('click', handleDocumentClick, { capture: true });
+    };
+  }, []);
+
   // Execute cleanup on unmount
   useEffect(() => {
+    cleanupExecutedRef.current = false;
+    
     return () => {
       // Small delay to ensure cleanup happens after any pending state updates
       setTimeout(() => {
@@ -83,7 +112,7 @@ const MapsPage: React.FC = () => {
   };
 
   return (
-    <Container ref={containerRef} maxWidth="xl" sx={{ py: 4 }}>
+    <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Map Search
       </Typography>
@@ -91,7 +120,7 @@ const MapsPage: React.FC = () => {
         Find teams and players using our interactive map with location-based search. Click anywhere on the map, draw custom search areas, and see results with precise locations and distances.
       </Typography>
 
-      <Paper elevation={2}>
+      <Paper elevation={2} sx={{ position: 'relative', zIndex: 1 }}>
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
