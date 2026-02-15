@@ -76,7 +76,7 @@ const FlaggedContent: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const statusParam = selectedTab === 'pending' ? '?status=pending' : '';
+      const statusParam = selectedTab === 'pending' ? '&status=pending' : '';
       const response = await fetch(
         `${API_URL}/forum/flags?user_role=${user?.role}${statusParam}`
       );
