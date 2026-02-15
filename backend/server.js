@@ -1927,11 +1927,49 @@ app.get('/api/public/site-stats', async (req, res) => {
 // Get all active leagues (public endpoint)
 app.get('/api/leagues', async (req, res) => {
   try {
+    const { includePending } = req.query;
+    
+    // Get active leagues
     const leaguesResult = await db.query(
       'SELECT id, name, region, country, url, description, hits FROM leagues WHERE isActive = true ORDER BY name'
     );
 
-    res.json({ leagues: leaguesResult.rows || [] });
+    let leagues = leaguesResult.rows || [];
+
+    // If includePending is true and user is authenticated, include their pending league requests
+    if (includePending === 'true') {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (token) {
+        try {
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.verify(token, JWT_SECRET);
+          
+          // Get user's pending league requests
+          const pendingRequests = await db.query(
+            `SELECT id, name, region, '' as country, url, description, 0 as hits, 
+             'pending' as status, submittedBy as userId
+             FROM league_requests 
+             WHERE submittedBy = ? AND status = 'pending'
+             ORDER BY name`,
+            [decoded.userId]
+          );
+
+          // Add pending requests to leagues with a flag
+          const pendingLeagues = (pendingRequests.rows || []).map(req => ({
+            ...req,
+            isPending: true,
+            isActive: false
+          }));
+
+          leagues = [...leagues, ...pendingLeagues];
+        } catch (jwtError) {
+          // If token is invalid, just return active leagues
+          console.log('Invalid token for includePending, returning only active leagues');
+        }
+      }
+    }
+
+    res.json({ leagues });
   } catch (error) {
     console.error('Get leagues error:', error);
     res.status(500).json({ error: 'Internal server error' });
