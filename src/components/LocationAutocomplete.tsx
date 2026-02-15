@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { TextField, TextFieldProps } from '@mui/material';
+import { TextField, TextFieldProps, Box } from '@mui/material';
 
 interface LocationAutocompleteProps extends Omit<TextFieldProps, 'onChange'> {
   value: string;
@@ -9,7 +9,8 @@ interface LocationAutocompleteProps extends Omit<TextFieldProps, 'onChange'> {
 }
 
 /**
- * LocationAutocomplete component using Google Places Autocomplete API
+ * LocationAutocomplete component using Google Places PlaceAutocompleteElement API
+ * (Migrated from legacy Autocomplete as recommended by Google)
  * Falls back to regular text input if Google Maps is not loaded
  */
 export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
@@ -19,60 +20,132 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   placeholder = 'Enter location...',
   ...textFieldProps
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const autocompleteElementRef = useRef<any>(null);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
+  const [useLegacyAPI, setUseLegacyAPI] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Check if Google Maps is loaded
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsGoogleMapsLoaded(true);
+      // Check if new API is available, otherwise use legacy
+      if (!window.google.maps.places.PlaceAutocompleteElement) {
+        setUseLegacyAPI(true);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (!isGoogleMapsLoaded || !inputRef.current) return;
+    if (!isGoogleMapsLoaded || !containerRef.current) return;
 
-    // Initialize Google Places Autocomplete
-    try {
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: 'gb' }, // Restrict to UK
-        fields: ['address_components', 'formatted_address', 'geometry', 'name'],
-        types: ['geocode', 'establishment']
-      });
+    // Use new PlaceAutocompleteElement API if available
+    if (!useLegacyAPI && window.google?.maps?.places?.PlaceAutocompleteElement) {
+      try {
+        const { PlaceAutocompleteElement } = window.google.maps.places;
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        
-        if (!place.geometry || !place.geometry.location) {
-          // User entered something that is not a valid place
-          console.warn('No geometry found for place');
-          return;
-        }
+        const autocompleteElement = new PlaceAutocompleteElement({
+          componentRestrictions: { country: 'gb' } // Restrict to UK
+        });
 
-        const address = place.formatted_address || place.name || '';
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
+        autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
+          const place = event.place;
+          
+          if (!place) {
+            console.warn('No place data received');
+            return;
+          }
 
-        onChange(address, place);
-        
-        if (onLocationSelect) {
-          onLocationSelect({ lat, lng, address });
-        }
-      });
+          // Fetch place details with specific fields
+          try {
+            await place.fetchFields({
+              fields: ['formatted_address', 'geometry', 'name', 'place_id']
+            });
 
-      autocompleteRef.current = autocomplete;
-    } catch (error) {
-      console.error('Error initializing Google Places Autocomplete:', error);
+            if (!place.geometry || !place.geometry.location) {
+              console.warn('No geometry found for place');
+              return;
+            }
+
+            const address = place.formatted_address || place.displayName || '';
+            const lat = typeof place.geometry.location.lat === 'function' 
+              ? place.geometry.location.lat() 
+              : place.geometry.location.lat;
+            const lng = typeof place.geometry.location.lng === 'function'
+              ? place.geometry.location.lng()
+              : place.geometry.location.lng;
+
+            onChange(address, place);
+            
+            if (onLocationSelect) {
+              onLocationSelect({ lat, lng, address });
+            }
+          } catch (error) {
+            console.error('Error fetching place details:', error);
+          }
+        });
+
+        containerRef.current.appendChild(autocompleteElement);
+        autocompleteElementRef.current = autocompleteElement;
+      } catch (error) {
+        console.error('Error initializing PlaceAutocompleteElement:', error);
+        setUseLegacyAPI(true);
+      }
+    }
+    // Fall back to legacy Autocomplete if new API not available
+    else if (useLegacyAPI && inputRef.current) {
+      try {
+        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+          componentRestrictions: { country: 'gb' },
+          fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+          types: ['geocode', 'establishment']
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          
+          if (!place.geometry || !place.geometry.location) {
+            console.warn('No geometry found for place');
+            return;
+          }
+
+          const address = place.formatted_address || place.name || '';
+          const lat = place.geometry.location.lat();
+          const lng = place.geometry.location.lng();
+
+          onChange(address, place);
+          
+          if (onLocationSelect) {
+            onLocationSelect({ lat, lng, address });
+          }
+        });
+      } catch (error) {
+        console.error('Error initializing Google Places Autocomplete:', error);
+      }
     }
 
     return () => {
       // Cleanup
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      if (autocompleteElementRef.current) {
+        autocompleteElementRef.current.remove();
       }
     };
-  }, [isGoogleMapsLoaded, onChange, onLocationSelect]);
+  }, [isGoogleMapsLoaded, useLegacyAPI, onChange, onLocationSelect]);
+
+  // Render new PlaceAutocompleteElement or legacy TextField
+  if (!useLegacyAPI && isGoogleMapsLoaded) {
+    return (
+      <Box sx={{ width: '100%' }}>
+        <div ref={containerRef} style={{ width: '100%' }} />
+        {textFieldProps.helperText && (
+          <Box sx={{ mt: 0.5, fontSize: '0.75rem', color: 'text.secondary' }}>
+            {textFieldProps.helperText}
+          </Box>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <TextField

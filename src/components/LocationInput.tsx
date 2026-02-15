@@ -21,9 +21,12 @@ const LocationInput: React.FC<LocationInputProps> = ({
   debugId
 }) => {
   const fallbackInputRef = useRef<HTMLInputElement>(null);
-  const legacyAutocompleteRef = useRef<google.maps.places.Autocomplete>();
+  const autocompleteElementRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState(value);
   const isAutocompleteSelection = useRef(false);
+  const [useLegacyAPI, setUseLegacyAPI] = useState(false);
+  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
 
   // Debug logging to identify multiple instances
   useEffect(() => {
@@ -32,6 +35,17 @@ const LocationInput: React.FC<LocationInputProps> = ({
       return () => console.log(`LocationInput unmounted: ${debugId}`);
     }
   }, [debugId]);
+
+  // Check Google Maps availability
+  useEffect(() => {
+    if (window.google?.maps?.places) {
+      setIsGoogleMapsLoaded(true);
+      // Check if new API is available, otherwise use legacy
+      if (!window.google.maps.places.PlaceAutocompleteElement) {
+        setUseLegacyAPI(true);
+      }
+    }
+  }, []);
 
   // Sync internal state with external value prop
   useEffect(() => {
@@ -42,11 +56,59 @@ const LocationInput: React.FC<LocationInputProps> = ({
   }, [value]);
 
   useEffect(() => {
+    if (!isGoogleMapsLoaded) return;
+
     // Wait a bit for Google Maps to fully load
     const timer = setTimeout(() => {
-      // Use legacy Autocomplete API for better compatibility and to avoid new API issues
-      if (fallbackInputRef.current && window.google?.maps?.places?.Autocomplete) {
-        legacyAutocompleteRef.current = new google.maps.places.Autocomplete(
+      // Try new PlaceAutocompleteElement API first
+      if (!useLegacyAPI && containerRef.current && window.google?.maps?.places?.PlaceAutocompleteElement) {
+        try {
+          const { PlaceAutocompleteElement } = window.google.maps.places;
+
+          const autocompleteElement = new PlaceAutocompleteElement({
+            componentRestrictions: { country: 'gb' } // Restrict to UK
+          });
+
+          autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
+            const place = event.place;
+            
+            if (!place) return;
+
+            try {
+              await place.fetchFields({
+                fields: ['formatted_address', 'geometry', 'place_id']
+              });
+
+              if (place?.geometry?.location) {
+                const location: Location = {
+                  address: place.formatted_address || '',
+                  latitude: typeof place.geometry.location.lat === 'function' 
+                    ? place.geometry.location.lat() 
+                    : place.geometry.location.lat,
+                  longitude: typeof place.geometry.location.lng === 'function'
+                    ? place.geometry.location.lng()
+                    : place.geometry.location.lng,
+                  placeId: place.place_id
+                };
+                isAutocompleteSelection.current = true;
+                setInputValue(location.address);
+                onChange(location);
+              }
+            } catch (error) {
+              console.error('Error fetching place details:', error);
+            }
+          });
+
+          containerRef.current.appendChild(autocompleteElement);
+          autocompleteElementRef.current = autocompleteElement;
+        } catch (error) {
+          console.error('Error initializing PlaceAutocompleteElement:', error);
+          setUseLegacyAPI(true);
+        }
+      }
+      // Fall back to legacy Autocomplete API if new API not available
+      else if (useLegacyAPI && fallbackInputRef.current && window.google?.maps?.places?.Autocomplete) {
+        const legacyAutocomplete = new google.maps.places.Autocomplete(
           fallbackInputRef.current,
           {
             types: ['establishment', 'geocode'],
@@ -56,7 +118,7 @@ const LocationInput: React.FC<LocationInputProps> = ({
         );
 
         const handlePlaceSelect = async () => {
-          const place = legacyAutocompleteRef.current?.getPlace();
+          const place = legacyAutocomplete.getPlace();
           if (place?.geometry?.location) {
             const location: Location = {
               address: place.formatted_address || '',
@@ -70,18 +132,21 @@ const LocationInput: React.FC<LocationInputProps> = ({
           }
         };
 
-        legacyAutocompleteRef.current.addListener('place_changed', handlePlaceSelect);
+        legacyAutocomplete.addListener('place_changed', handlePlaceSelect);
 
         return () => {
-          if (legacyAutocompleteRef.current) {
-            google.maps.event.clearInstanceListeners(legacyAutocompleteRef.current);
-          }
+          google.maps.event.clearInstanceListeners(legacyAutocomplete);
         };
       }
     }, 100); // Small delay to ensure Google Maps is fully loaded
 
-    return () => clearTimeout(timer);
-  }, [onChange]);
+    return () => {
+      clearTimeout(timer);
+      if (autocompleteElementRef.current) {
+        autocompleteElementRef.current.remove();
+      }
+    };
+  }, [onChange, isGoogleMapsLoaded, useLegacyAPI]);
 
   const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
@@ -96,7 +161,7 @@ const LocationInput: React.FC<LocationInputProps> = ({
   const handleBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
     // If user types an address manually (without using autocomplete)
     const inputValue = event.target.value;
-    if (inputValue && !legacyAutocompleteRef.current?.getPlace()) {
+    if (inputValue) {
       const location = await geocodeAddress(inputValue);
       if (location) {
         onChange(location);
@@ -104,7 +169,16 @@ const LocationInput: React.FC<LocationInputProps> = ({
     }
   };
 
-  // Use TextField with internal state to allow typing
+  // Render new PlaceAutocompleteElement or legacy TextField
+  if (!useLegacyAPI && isGoogleMapsLoaded) {
+    return (
+      <div style={{ width: fullWidth ? '100%' : 'auto' }}>
+        <div ref={containerRef} style={{ width: '100%' }} />
+      </div>
+    );
+  }
+
+  // Use TextField with internal state to allow typing (legacy fallback)
   return (
     <TextField
       inputRef={fallbackInputRef}
