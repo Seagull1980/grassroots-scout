@@ -20,7 +20,6 @@ import {
   BottomNavigationAction,
   Paper,
   Fab,
-  useTheme,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -62,7 +61,6 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const { user, logout, isImpersonating, stopImpersonation } = useAuth();
   const { isMobile } = useResponsive();
-  const theme = useTheme();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -234,7 +232,7 @@ const Navbar: React.FC = () => {
     <>
       {/* Desktop/Tablet Navbar */}
       {!isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 9999, pointerEvents: 'auto' }}>
           <Toolbar>
             <Typography
               variant="h6"
@@ -408,7 +406,8 @@ const Navbar: React.FC = () => {
             bottom: 0,
             left: 0,
             right: 0,
-            zIndex: theme.zIndex.appBar,
+            zIndex: 9999,
+            pointerEvents: 'auto',
             borderTop: 1,
             borderColor: 'divider'
           }}
@@ -439,7 +438,7 @@ const Navbar: React.FC = () => {
 
       {/* Mobile Top App Bar */}
       {isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 9999, pointerEvents: 'auto' }}>
           <Toolbar>
             <IconButton
               color="inherit"

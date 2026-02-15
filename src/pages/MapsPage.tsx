@@ -25,37 +25,62 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
-  const [shouldRenderMaps, setShouldRenderMaps] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cleanupExecutedRef = useRef(false);
 
-  // Aggressive cleanup on unmount to prevent navigation issues
+  // Force cleanup function that removes ALL Google Maps elements from entire document
+  const forceGlobalCleanup = () => {
+    if (cleanupExecutedRef.current) return;
+    cleanupExecutedRef.current = true;
+    
+    console.log('MapsPage: Executing global Google Maps cleanup');
+    
+    // Remove ALL Google Maps related elements from the entire document
+    const selectors = [
+      '[class*="gm-"]',
+      '[class*="gmnoprint"]', 
+      '[class*="gm-style"]',
+      '.pac-container',  // Autocomplete dropdown
+      '[src*="maps.googleapis.com"]',
+      '[src*="maps.gstatic.com"]'
+    ];
+    
+    selectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => {
+        try {
+          el.remove();
+        } catch (e) {
+          // Ignore removal errors
+        }
+      });
+    });
+    
+    // Remove any remaining Google Maps API scripts
+    const scripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
+    scripts.forEach(script => {
+      try {
+        script.remove();
+      } catch (e) {
+        // Ignore removal errors  
+      }
+    });
+    
+    console.log('MapsPage: Global cleanup complete');
+  };
+
+  // Execute cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('MapsPage unmounting - forcing cleanup');
-      
-      // Unmount all MapSearch components immediately
-      setShouldRenderMaps(false);
-      
-      // Clear any map-related elements from the DOM
-      if (containerRef.current) {
-        const mapElements = containerRef.current.querySelectorAll('[data-map-container]');
-        mapElements.forEach(el => {
-          if (el.parentNode) {
-            el.parentNode.removeChild(el);
-          }
-        });
-      }
+      // Small delay to ensure cleanup happens after any pending state updates
+      setTimeout(() => {
+        forceGlobalCleanup();
+      }, 0);
     };
   }, []);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-
-  // Only render map components if they should be shown
-  if (!shouldRenderMaps) {
-    return null;
-  }
 
   return (
     <Container ref={containerRef} maxWidth="xl" sx={{ py: 4 }}>
@@ -78,15 +103,15 @@ const MapsPage: React.FC = () => {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          {shouldRenderMaps && <MapSearch key="vacancies-tab" searchType="vacancies" />}
+          <MapSearch key="vacancies-tab" searchType="vacancies" />
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {shouldRenderMaps && <MapSearch key="availability-tab" searchType="availability" />}
+          <MapSearch key="availability-tab" searchType="availability" />
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          {shouldRenderMaps && <MapSearch key="both-tab" searchType="both" />}
+          <MapSearch key="both-tab" searchType="both" />
         </TabPanel>
       </Paper>
     </Container>
