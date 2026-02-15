@@ -171,6 +171,17 @@ const PostAdvertPage: React.FC = () => {
     }
   }, [user]);
 
+  // Auto-complete title for players based on position selection
+  useEffect(() => {
+    if (user?.role !== 'Coach' && formData.positions.length > 0 && !formData.title) {
+      const firstPosition = formData.positions[0];
+      setFormData(prev => ({
+        ...prev,
+        title: `${firstPosition} Looking for new Challenge`
+      }));
+    }
+  }, [formData.positions, user?.role]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await submitAdvert();
@@ -415,62 +426,10 @@ const PostAdvertPage: React.FC = () => {
                   </Grid>
                 )}
 
-                {/* Section 1: Basic Information */}
+                {/* Section 1: Preferences/Team & League Details */}
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1 }}>
-                    <Chip label="1. Basic Information" color="primary" variant="outlined" />
-                  </Divider>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Title"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    placeholder={titlePlaceholder}
-                    error={showValidation && !formData.title}
-                    helperText={showValidation && !formData.title ? 'Title is required' : undefined}
-                  />
-                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {titleSuggestions.map((suggestion) => (
-                      <Chip
-                        key={suggestion}
-                        label={suggestion}
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setFormData((prev) => ({ ...prev, title: suggestion }))}
-                      />
-                    ))}
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    required
-                    multiline
-                    rows={4}
-                    label="Description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    placeholder={descriptionPlaceholder}
-                    error={showValidation && !formData.description}
-                    helperText={showValidation && !formData.description
-                      ? 'Description is required'
-                      : (isCoach
-                          ? 'Include training days, expectations, and facilities.'
-                          : 'Include availability, experience, and travel radius.')}
-                  />
-                </Grid>
-
-                {/* Section 2: Team & League Details */}
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 1 }}>
-                    <Chip label={isCoach ? "2. Team & League" : "2. Preferences"} color="primary" variant="outlined" />
+                    <Chip label={isCoach ? "1. Team & League" : "1. Preferences"} color="primary" variant="outlined" />
                   </Divider>
                 </Grid>
 
@@ -729,6 +688,58 @@ const PostAdvertPage: React.FC = () => {
                       <FormHelperText>Position is required</FormHelperText>
                     )}
                   </FormControl>
+                </Grid>
+
+                {/* Section 2: Basic Information */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="2. Basic Information" color="primary" variant="outlined" />
+                  </Divider>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Title"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    placeholder={titlePlaceholder}
+                    error={showValidation && !formData.title}
+                    helperText={showValidation && !formData.title ? 'Title is required' : (!isCoach ? 'Auto-completed from your primary position' : undefined)}
+                  />
+                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {titleSuggestions.map((suggestion) => (
+                      <Chip
+                        key={suggestion}
+                        label={suggestion}
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setFormData((prev) => ({ ...prev, title: suggestion }))}
+                      />
+                    ))}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    required
+                    multiline
+                    rows={4}
+                    label="Description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    placeholder={descriptionPlaceholder}
+                    error={showValidation && !formData.description}
+                    helperText={showValidation && !formData.description
+                      ? 'Description is required'
+                      : (isCoach
+                          ? 'Include training days, expectations, and facilities.'
+                          : 'Include availability, experience, and travel radius.')}
+                  />
                 </Grid>
 
                 {/* Section 3: Location & Contact */}
