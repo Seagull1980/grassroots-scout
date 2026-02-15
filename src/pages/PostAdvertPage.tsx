@@ -173,7 +173,7 @@ const PostAdvertPage: React.FC = () => {
 
   // Auto-complete title for players based on position selection
   useEffect(() => {
-    if (user?.role !== 'Coach' && formData.positions.length > 0 && !formData.title) {
+    if (user?.role !== 'Coach' && Array.isArray(formData.positions) && formData.positions.length > 0 && !formData.title) {
       const firstPosition = formData.positions[0];
       setFormData(prev => ({
         ...prev,
@@ -316,7 +316,21 @@ const PostAdvertPage: React.FC = () => {
   const handleLoadDraft = () => {
     const draft = drafts.find((item) => item.id === selectedDraftId);
     if (!draft) return;
-    setFormData(draft.data.formData);
+    
+    // Merge with default values to ensure all fields exist
+    setFormData({
+      title: draft.data.formData.title || '',
+      description: draft.data.formData.description || '',
+      league: draft.data.formData.league || '',
+      ageGroup: draft.data.formData.ageGroup || '',
+      position: draft.data.formData.position || '',
+      positions: Array.isArray(draft.data.formData.positions) ? draft.data.formData.positions : [],
+      location: draft.data.formData.location || '',
+      hasMatchRecording: draft.data.formData.hasMatchRecording || false,
+      hasPathwayToSenior: draft.data.formData.hasPathwayToSenior || false,
+      playingTimePolicy: draft.data.formData.playingTimePolicy || '',
+      teamId: draft.data.formData.teamId || '',
+    });
     setLocationData(draft.data.locationData || null);
     setLoadedDraftName(draft.name);
     setSnackbar({ open: true, message: `Draft "${draft.name}" loaded successfully!`, severity: 'info' });
