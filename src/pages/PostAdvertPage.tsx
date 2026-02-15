@@ -30,7 +30,9 @@ import {
   Divider,
   Snackbar,
   Fade,
+  IconButton,
 } from '@mui/material';
+import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { vacanciesAPI, playerAvailabilityAPI, leaguesAPI, League } from '../services/api';
@@ -330,6 +332,25 @@ const PostAdvertPage: React.FC = () => {
     setSelectedDraftId('');
   };
 
+  const handleDeleteDraft = () => {
+    if (!selectedDraftId) return;
+    const draft = drafts.find((item) => item.id === selectedDraftId);
+    if (!draft) return;
+    
+    if (window.confirm(`Are you sure you want to delete the draft "${draft.name}"? This cannot be undone.`)) {
+      const updated = drafts.filter((item) => item.id !== selectedDraftId);
+      setDrafts(updated);
+      localStorage.setItem('post_advert_drafts', JSON.stringify(updated));
+      setSnackbar({ open: true, message: `Draft "${draft.name}" deleted successfully!`, severity: 'success' });
+      setSelectedDraftId('');
+      
+      // Clear loaded draft indicator if we're deleting the currently loaded draft
+      if (loadedDraftName === draft.name) {
+        setLoadedDraftName(null);
+      }
+    }
+  };
+
   const ageGroups = [
     'Under 6',
     'Under 7',
@@ -406,49 +427,13 @@ const PostAdvertPage: React.FC = () => {
           <Grid container spacing={4}>
             <Grid item xs={12} md={7}>
               <Grid container spacing={3}>
-                {/* Draft Management Section - Moved to top */}
-                <Grid item xs={12}>
-                  <Paper elevation={2} sx={{ p: 2, bgcolor: 'background.default', border: '1px dashed', borderColor: 'divider' }}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                      📋 Draft Management
-                    </Typography>
-                    {loadedDraftName && (
-                      <Alert severity="info" sx={{ mb: 2 }} onClose={() => setLoadedDraftName(null)}>
-                        Currently editing: <strong>{loadedDraftName}</strong>
-                      </Alert>
-                    )}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-                      <TextField
-                        size="small"
-                        label="Draft name"
-                        value={draftName}
-                        onChange={(e) => setDraftName(e.target.value)}
-                        placeholder="e.g. U16 Striker Draft"
-                        sx={{ minWidth: 200 }}
-                      />
-                      <Button variant="contained" onClick={handleSaveDraft} disabled={!draftName.trim()}>
-                        💾 Save Draft
-                      </Button>
-                      <FormControl size="small" sx={{ minWidth: 200 }}>
-                        <InputLabel>Load Draft</InputLabel>
-                        <Select
-                          value={selectedDraftId}
-                          label="Load Draft"
-                          onChange={(e) => setSelectedDraftId(e.target.value)}
-                        >
-                          {drafts.filter((draft) => draft.role === user.role).map((draft) => (
-                            <MenuItem key={draft.id} value={draft.id}>
-                              {draft.name} - {new Date(draft.createdAt).toLocaleDateString()}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      <Button variant="outlined" onClick={handleLoadDraft} disabled={!selectedDraftId}>
-                        📂 Load
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Grid>
+                {loadedDraftName && (
+                  <Grid item xs={12}>
+                    <Alert severity="info" onClose={() => setLoadedDraftName(null)}>
+                      Currently editing: <strong>{loadedDraftName}</strong>
+                    </Alert>
+                  </Grid>
+                )}
 
                 {/* Section 1: Basic Information */}
                 <Grid item xs={12}>
@@ -862,6 +847,58 @@ const PostAdvertPage: React.FC = () => {
                     </Grid>
                   </>
                 )}
+
+                {/* Draft Management Section - Moved to bottom */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Paper elevation={2} sx={{ p: 2, bgcolor: 'background.default', border: '1px dashed', borderColor: 'divider' }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+                      📋 Draft Management
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
+                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+                        <TextField
+                          size="small"
+                          label="Draft name"
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          placeholder="e.g. U16 Striker Draft"
+                          sx={{ minWidth: 200 }}
+                        />
+                        <Button variant="contained" onClick={handleSaveDraft} disabled={!draftName.trim()}>
+                          💾 Save Draft
+                        </Button>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ minWidth: 250 }}>
+                          <InputLabel>Load or Delete Draft</InputLabel>
+                          <Select
+                            value={selectedDraftId}
+                            label="Load or Delete Draft"
+                            onChange={(e) => setSelectedDraftId(e.target.value)}
+                          >
+                            {drafts.filter((draft) => draft.role === user.role).map((draft) => (
+                              <MenuItem key={draft.id} value={draft.id}>
+                                {draft.name} - {new Date(draft.createdAt).toLocaleDateString()}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <Button variant="outlined" onClick={handleLoadDraft} disabled={!selectedDraftId}>
+                          📂 Load
+                        </Button>
+                        <IconButton 
+                          color="error" 
+                          onClick={handleDeleteDraft} 
+                          disabled={!selectedDraftId}
+                          title="Delete selected draft"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Grid>
 
                 <Grid item xs={12}>
                   <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
