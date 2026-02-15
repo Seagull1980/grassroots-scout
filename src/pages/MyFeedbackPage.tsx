@@ -77,7 +77,7 @@ const MyFeedbackPage: React.FC = () => {
     if (user) {
       fetchMyFeedback();
     }
-  }, [user]);
+  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
   const fetchMyFeedback = async () => {
     setLoading(true);

@@ -21,11 +21,12 @@ const ProtectedRoute = ({
       console.log('[ProtectedRoute] Refreshing user data on mount');
       refreshUserData();
 
-      // Refresh every 30 seconds to catch admin beta access toggles
+      // Refresh every 5 minutes (300 seconds) instead of 30 seconds to reduce server load
+      // This is only needed to catch admin beta access toggles, which are infrequent
       const refreshInterval = setInterval(() => {
         console.log('[ProtectedRoute] Periodic user data refresh');
         refreshUserData();
-      }, 30000);
+      }, 300000); // Changed from 30000 (30s) to 300000 (5 minutes)
 
       return () => clearInterval(refreshInterval);
     }

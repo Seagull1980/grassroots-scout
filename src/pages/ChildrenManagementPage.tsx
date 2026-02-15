@@ -97,7 +97,7 @@ const ChildrenManagementPage: React.FC = () => {
     if (user?.role === 'Parent/Guardian') {
       loadChildren();
     }
-  }, [user]);
+  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
   const loadChildren = async () => {
     try {

@@ -145,7 +145,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     if (user?.role === 'Parent/Guardian') {
       loadData();
     }
-  }, [user]);
+  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
   const loadData = async () => {
     try {

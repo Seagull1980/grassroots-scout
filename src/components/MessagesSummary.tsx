@@ -207,7 +207,7 @@ export const MatchProgressSummary: React.FC<MatchProgressSummaryProps> = ({ maxI
     if (user) {
       loadMatchProgress();
     }
-  }, [user]);
+  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
   const loadMatchProgress = async () => {
     try {

@@ -105,7 +105,7 @@ const TeamProfilePage: React.FC = () => {
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
   const fetchProfile = async () => {
     try {
