@@ -118,6 +118,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const drawingStateActiveRef = useRef(drawingState.isActive);
   const mapOverlayRef = useRef<google.maps.OverlayView | null>(null);
   const lastMapClickRef = useRef<number>(0);
+  
+  // Store cleanup functions to ensure they're always called
+  const eventCleanupFunctionsRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
     isDrawingModeRef.current = isDrawingMode;
@@ -213,7 +216,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
 
     checkIfMobile();
     window.addEventListener('resize', checkIfMobile);
-    return () => window.removeEventListener('resize', checkIfMobile);
+    const cleanup = () => window.removeEventListener('resize', checkIfMobile);
+    eventCleanupFunctionsRef.current.push(cleanup);
+    return cleanup;
   }, []);
 
   // Touch gesture handling for mobile
@@ -248,20 +253,34 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       setIsSwipeGestureActive(false);
     };
 
-    document.addEventListener('touchstart', handleTouchStart);
-    document.addEventListener('touchmove', handleTouchMove);
-    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
 
-    return () => {
+    const cleanup = () => {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
+    eventCleanupFunctionsRef.current.push(cleanup);
+    return cleanup;
   }, [touchStartY, isSwipeGestureActive, isMobile]);
 
   // Cleanup on unmount - ensure all modals/dialogs are closed when navigating away
   useEffect(() => {
     return () => {
+      console.log('MapSearch unmounting - forcing cleanup of all event listeners and dialogs');
+      
+      // Run all stored cleanup functions
+      eventCleanupFunctionsRef.current.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.error('Error during event cleanup:', error);
+        }
+      });
+      eventCleanupFunctionsRef.current = [];
+      
       // Close all open dialogs and modals when component unmounts
       setShowSaveDialog(false);
       setShowBulkContactDialog(false);
@@ -272,7 +291,30 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       setIsMultiSelectMode(false);
       setShowFilters(false);
       setShowRegionsMenu(false);
-      console.log('MapSearch unmounting - closing all dialogs');
+      
+      // Clean up drawing state
+      if (drawnPolygon) {
+        drawnPolygon.setMap(null);
+      }
+      if (drawingPolyline) {
+        drawingPolyline.setMap(null);
+      }
+      if (radiusCircle) {
+        radiusCircle.setMap(null);
+      }
+      
+      // Clear all drawing listeners
+      drawingListeners.forEach(listener => {
+        try {
+          if ('setMap' in listener && typeof listener.setMap === 'function') {
+            listener.setMap(null);
+          } else {
+            google.maps.event.removeListener(listener);
+          }
+        } catch (error) {
+          console.error('Error removing drawing listener:', error);
+        }
+      });
     };
   }, []);
 
@@ -315,7 +357,6 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     } as any);
     
     setDrawnPolygon(polygon);
-    setDrawingState(prev => ({ ...prev, isActive: false, mode: 'edit', currentPolygon: polygon }));
     setUseDrawnArea(true);
     setIsDrawingMode(false);
     setDrawingPath([]);
@@ -349,9 +390,11 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => {
+    const cleanup = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
+    eventCleanupFunctionsRef.current.push(cleanup);
+    return cleanup;
   }, [isDrawingMode, drawingPath, completePolygon]);
 
   const loadEmailAlerts = async () => {
@@ -1000,10 +1043,12 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     mapDiv.addEventListener('click', handleDomClick);
     mapDiv.addEventListener('dblclick', handleDomDoubleClick);
 
-    return () => {
+    const cleanup = () => {
       mapDiv.removeEventListener('click', handleDomClick);
       mapDiv.removeEventListener('dblclick', handleDomDoubleClick);
     };
+    eventCleanupFunctionsRef.current.push(cleanup);
+    return cleanup;
   }, [map, completePolygon, searchInArea, searchRadius]);
 
   // Initial search when component mounts

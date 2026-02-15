@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -25,14 +25,26 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
+  const [shouldRenderMaps, setShouldRenderMaps] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Force cleanup on unmount to prevent navigation issues
+  // Aggressive cleanup on unmount to prevent navigation issues
   useEffect(() => {
     return () => {
-      // Cleanup any lingering event listeners or timers
-      // Reset tab value to prevent state persistence
-      setTabValue(0);
-      console.log('MapsPage unmounting - cleaning up');
+      console.log('MapsPage unmounting - forcing cleanup');
+      
+      // Unmount all MapSearch components immediately
+      setShouldRenderMaps(false);
+      
+      // Clear any map-related elements from the DOM
+      if (containerRef.current) {
+        const mapElements = containerRef.current.querySelectorAll('[data-map-container]');
+        mapElements.forEach(el => {
+          if (el.parentNode) {
+            el.parentNode.removeChild(el);
+          }
+        });
+      }
     };
   }, []);
 
@@ -40,8 +52,13 @@ const MapsPage: React.FC = () => {
     setTabValue(newValue);
   };
 
+  // Only render map components if they should be shown
+  if (!shouldRenderMaps) {
+    return null;
+  }
+
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container ref={containerRef} maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Map Search
       </Typography>
@@ -61,15 +78,15 @@ const MapsPage: React.FC = () => {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <MapSearch key="vacancies-tab" searchType="vacancies" />
+          {shouldRenderMaps && <MapSearch key="vacancies-tab" searchType="vacancies" />}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <MapSearch key="availability-tab" searchType="availability" />
+          {shouldRenderMaps && <MapSearch key="availability-tab" searchType="availability" />}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <MapSearch key="both-tab" searchType="both" />
+          {shouldRenderMaps && <MapSearch key="both-tab" searchType="both" />}
         </TabPanel>
       </Paper>
     </Container>
