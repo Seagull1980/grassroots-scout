@@ -154,6 +154,21 @@ export const Map: React.FC<MapProps> = ({
     }
   }, [map, center, zoom]);
 
+  // Cleanup Google Maps instance when component unmounts
+  React.useEffect(() => {
+    return () => {
+      if (map) {
+        // Disable all map interactions and destroy the map
+        map.setOptions({ draggable: false, scrollwheel: false, disableDoubleClickZoom: true });
+        // Remove the map from the DOM
+        if (ref.current) {
+          ref.current.innerHTML = '';
+        }
+        console.log('Map instance cleaned up on unmount');
+      }
+    };
+  }, [map]);
+
   return (
     <>
       <div ref={ref} style={style} />

@@ -259,6 +259,23 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     };
   }, [touchStartY, isSwipeGestureActive, isMobile]);
 
+  // Cleanup on unmount - ensure all modals/dialogs are closed when navigating away
+  useEffect(() => {
+    return () => {
+      // Close all open dialogs and modals when component unmounts
+      setShowSaveDialog(false);
+      setShowBulkContactDialog(false);
+      setShowAlertDialog(false);
+      setShowMobileResultsList(false);
+      setSelectedResult(null);
+      setSelectedResults(new Set());
+      setIsMultiSelectMode(false);
+      setShowFilters(false);
+      setShowRegionsMenu(false);
+      console.log('MapSearch unmounting - closing all dialogs');
+    };
+  }, []);
+
   // Complete polygon drawing
   const completePolygon = useCallback((pathOverride?: google.maps.LatLng[]) => {
     const pathToUse = pathOverride ?? drawingPath;

@@ -30,6 +30,8 @@ const MapsPage: React.FC = () => {
   useEffect(() => {
     return () => {
       // Cleanup any lingering event listeners or timers
+      // Reset tab value to prevent state persistence
+      setTabValue(0);
       console.log('MapsPage unmounting - cleaning up');
     };
   }, []);

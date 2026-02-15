@@ -158,7 +158,7 @@ const AppRoutes = () => {
         } />
         <Route path="/maps" element={
           <ProtectedRoute>
-            <MapsPage key="maps-page-instance" />
+            <MapsPage />
           </ProtectedRoute>
         } />
         <Route path="/team-roster" element={
