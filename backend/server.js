@@ -595,6 +595,7 @@ app.get('/api/vacancies', async (req, res) => {
       FROM team_vacancies tv
       LEFT JOIN users u ON tv.postedBy = u.id
       WHERE tv.status = 'active'
+        AND (tv.isFrozen = 0 OR tv.isFrozen IS NULL)
       ORDER BY tv.createdAt DESC
     `);
 
@@ -1094,6 +1095,17 @@ app.post('/api/auth/login', [
     }
     
     const user = userResult.rows[0];
+
+    const isBlocked = user.isblocked ?? user.isBlocked;
+    const isDeleted = user.isdeleted ?? user.isDeleted;
+
+    if (isDeleted) {
+      return res.status(403).json({ error: 'Account has been deleted. Please contact support if this is a mistake.' });
+    }
+
+    if (isBlocked) {
+      return res.status(403).json({ error: 'Account is blocked. Please contact support.' });
+    }
 
     // Check password
     const validPassword = await bcrypt.compare(password, user.password);
@@ -2772,8 +2784,10 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
         role, 
         createdat as createdAt,
         isemailverified as isEmailVerified,
-        isblocked as isBlocked
+        isblocked as isBlocked,
+        isdeleted as isDeleted
       FROM users 
+      WHERE (isdeleted IS NULL OR isdeleted = 0)
       ORDER BY createdat DESC
     `);
     
@@ -2899,12 +2913,162 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    // Delete user
-    await db.query('DELETE FROM users WHERE id = ?', [id]);
-    res.json({ message: 'User deleted successfully' });
+    const targetUserId = parseInt(id, 10);
+
+    // Freeze any adverts posted by the user
+    await db.query(
+      `UPDATE team_vacancies 
+       SET isFrozen = 1, status = 'expired'
+       WHERE postedBy = ? AND (isFrozen = 0 OR isFrozen IS NULL)`,
+      [targetUserId]
+    );
+
+    await db.query(
+      `UPDATE player_availability 
+       SET isFrozen = 1, status = 'inactive'
+       WHERE postedBy = ? AND (isFrozen = 0 OR isFrozen IS NULL)`,
+      [targetUserId]
+    );
+
+    // Soft delete user to avoid foreign key constraint issues
+    await db.query('UPDATE users SET isblocked = 1, isdeleted = 1 WHERE id = ?', [targetUserId]);
+
+    res.json({ message: 'User deleted successfully (adverts frozen)' });
   } catch (error) {
     console.error('[Admin Users] Delete error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Frozen adverts search (admin only)
+app.get('/api/admin/frozen-adverts', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { type, search } = req.query;
+    const term = typeof search === 'string' ? search.trim().toLowerCase() : '';
+
+    const results = {
+      vacancies: [],
+      playerAvailability: []
+    };
+
+    if (!type || type === 'vacancy') {
+      let vacancyQuery = `
+        SELECT 
+          tv.id,
+          tv.title,
+          tv.description,
+          tv.league,
+          tv.ageGroup,
+          tv.position,
+          tv.teamGender,
+          tv.location,
+          tv.contactInfo,
+          tv.postedBy,
+          tv.createdAt,
+          tv.status,
+          tv.isFrozen,
+          u.email,
+          u.firstname as firstName,
+          u.lastname as lastName
+        FROM team_vacancies tv
+        LEFT JOIN users u ON tv.postedBy = u.id
+        WHERE tv.isFrozen = 1
+      `;
+
+      const vacancyParams = [];
+      if (term) {
+        vacancyQuery += ` AND (
+          LOWER(tv.title) LIKE ? OR
+          LOWER(tv.description) LIKE ? OR
+          LOWER(tv.location) LIKE ? OR
+          LOWER(tv.league) LIKE ? OR
+          LOWER(u.email) LIKE ?
+        )`;
+        const likeTerm = `%${term}%`;
+        vacancyParams.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+      }
+
+      vacancyQuery += ' ORDER BY tv.createdAt DESC';
+
+      const vacancyResult = await db.query(vacancyQuery, vacancyParams);
+      results.vacancies = vacancyResult.rows || [];
+    }
+
+    if (!type || type === 'player') {
+      let availabilityQuery = `
+        SELECT 
+          pa.id,
+          pa.title,
+          pa.description,
+          pa.ageGroup,
+          pa.positions,
+          pa.preferredTeamGender,
+          pa.location,
+          pa.contactInfo,
+          pa.postedBy,
+          pa.createdAt,
+          pa.status,
+          pa.isFrozen,
+          u.email,
+          u.firstname as firstName,
+          u.lastname as lastName
+        FROM player_availability pa
+        LEFT JOIN users u ON pa.postedBy = u.id
+        WHERE pa.isFrozen = 1
+      `;
+
+      const availabilityParams = [];
+      if (term) {
+        availabilityQuery += ` AND (
+          LOWER(pa.title) LIKE ? OR
+          LOWER(pa.description) LIKE ? OR
+          LOWER(pa.location) LIKE ? OR
+          LOWER(u.email) LIKE ?
+        )`;
+        const likeTerm = `%${term}%`;
+        availabilityParams.push(likeTerm, likeTerm, likeTerm, likeTerm);
+      }
+
+      availabilityQuery += ' ORDER BY pa.createdAt DESC';
+
+      const availabilityResult = await db.query(availabilityQuery, availabilityParams);
+      results.playerAvailability = availabilityResult.rows || [];
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('[Admin Frozen Adverts] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch frozen adverts' });
+  }
+});
+
+// Delete adverts (admin only)
+app.delete('/api/admin/adverts/:type/:id', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { type, id } = req.params;
+
+    if (type === 'vacancy') {
+      await db.query('DELETE FROM team_vacancies WHERE id = ?', [id]);
+    } else if (type === 'player') {
+      await db.query('DELETE FROM player_availability WHERE id = ?', [id]);
+    } else {
+      return res.status(400).json({ error: 'Invalid advert type' });
+    }
+
+    res.json({ message: 'Advert deleted successfully' });
+  } catch (error) {
+    console.error('[Admin Adverts] Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete advert' });
   }
 });
 

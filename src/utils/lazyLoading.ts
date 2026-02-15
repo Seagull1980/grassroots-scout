@@ -74,6 +74,11 @@ export const LazyComponents = {
     () => import('../pages/AdminFeedbackDashboard'),
     'AdminFeedbackDashboard'
   ),
+
+  AdminFrozenAdvertsPage: createLazyComponent(
+    () => import('../pages/AdminFrozenAdvertsPage'),
+    'AdminFrozenAdvertsPage'
+  ),
   
   AdminSupportPage: createLazyComponent(
     () => import('../pages/AdminSupportPage'),

@@ -224,6 +224,7 @@ class Database {
         role VARCHAR NOT NULL CHECK(role IN ('Coach', 'Player', 'Parent/Guardian', 'Admin')),
         betaAccess BOOLEAN DEFAULT FALSE,
         isBlocked BOOLEAN DEFAULT FALSE,
+        isDeleted BOOLEAN DEFAULT FALSE,
         isEmailVerified BOOLEAN DEFAULT FALSE,
         emailVerificationToken VARCHAR,
         emailVerificationExpires TIMESTAMP,
@@ -328,6 +329,7 @@ class Database {
         hasMatchRecording BOOLEAN DEFAULT FALSE,
         hasPathwayToSenior BOOLEAN DEFAULT FALSE,
         status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'filled', 'expired')),
+        isFrozen BOOLEAN DEFAULT FALSE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (postedBy) REFERENCES users (id),
         FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE SET NULL
@@ -349,6 +351,7 @@ class Database {
         contactInfo VARCHAR,
         postedBy INTEGER NOT NULL,
         status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+        isFrozen BOOLEAN DEFAULT FALSE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (postedBy) REFERENCES users (id)
       )`,
@@ -1101,6 +1104,76 @@ class Database {
           await this.query('DROP TABLE league_requests');
           await this.query('ALTER TABLE league_requests_new RENAME TO league_requests');
           console.log('✅ Rebuilt league_requests table without ageGroups column');
+        }
+      }
+
+      // Migration 7: Add isDeleted to users and isFrozen to adverts
+      const checkUsersColumns = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`
+        : `PRAGMA table_info(users)`;
+      const usersColumns = await this.query(checkUsersColumns);
+
+      if (this.dbType === 'postgresql') {
+        const userColumnNames = usersColumns.rows.map(row => row.column_name);
+        if (!userColumnNames.includes('isdeleted')) {
+          await this.query('ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added isDeleted column to users table');
+        }
+      } else {
+        const hasIsDeleted = usersColumns.rows.some(row => row.name === 'isDeleted');
+        if (!hasIsDeleted) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN isDeleted BOOLEAN DEFAULT 0');
+            console.log('✅ Added isDeleted column to users table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      const checkVacancyFrozen = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'team_vacancies'`
+        : `PRAGMA table_info(team_vacancies)`;
+      const vacancyColumns = await this.query(checkVacancyFrozen);
+
+      if (this.dbType === 'postgresql') {
+        const vacancyNames = vacancyColumns.rows.map(row => row.column_name);
+        if (!vacancyNames.includes('isfrozen')) {
+          await this.query('ALTER TABLE team_vacancies ADD COLUMN isFrozen BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added isFrozen column to team_vacancies table');
+        }
+      } else {
+        const hasIsFrozen = vacancyColumns.rows.some(row => row.name === 'isFrozen');
+        if (!hasIsFrozen) {
+          try {
+            await this.query('ALTER TABLE team_vacancies ADD COLUMN isFrozen BOOLEAN DEFAULT 0');
+            console.log('✅ Added isFrozen column to team_vacancies table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      const checkAvailabilityFrozen = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'player_availability'`
+        : `PRAGMA table_info(player_availability)`;
+      const availabilityColumns = await this.query(checkAvailabilityFrozen);
+
+      if (this.dbType === 'postgresql') {
+        const availabilityNames = availabilityColumns.rows.map(row => row.column_name);
+        if (!availabilityNames.includes('isfrozen')) {
+          await this.query('ALTER TABLE player_availability ADD COLUMN isFrozen BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added isFrozen column to player_availability table');
+        }
+      } else {
+        const hasIsFrozen = availabilityColumns.rows.some(row => row.name === 'isFrozen');
+        if (!hasIsFrozen) {
+          try {
+            await this.query('ALTER TABLE player_availability ADD COLUMN isFrozen BOOLEAN DEFAULT 0');
+            console.log('✅ Added isFrozen column to player_availability table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
         }
       }
     } catch (error) {

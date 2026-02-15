@@ -51,6 +51,7 @@ import {
   Add,
   Home,
   Support,
+  AcUnit,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -152,6 +153,7 @@ const Navbar: React.FC = () => {
       { path: '/analytics/real-time', label: 'Real-time Analytics', icon: <Analytics /> },
       { path: '/analytics/insights', label: 'Analytics Insights', icon: <Assessment /> },
       { path: '/admin/feedback', label: 'Feedback Dashboard', icon: <FeedbackIcon /> },
+      { path: '/admin/frozen-adverts', label: 'Frozen Adverts', icon: <AcUnit /> },
       { path: '/admin/support', label: 'Support Messages', icon: <Support /> },
       { path: '/admin/beta-access', label: 'Beta Access', icon: <LockOpen /> }
     ] : []),

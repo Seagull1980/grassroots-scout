@@ -572,7 +572,7 @@ export const OnboardingFlow: React.FC = () => {
               disabled={loadingLeagues}
             />
 
-            <Alert severity="info\" sx={{ mt: 1 }}>
+            <Alert severity="info" sx={{ mt: 1 }}>
               <Typography variant="body2">
                 You can adjust your location preferences and add more leagues anytime from your account settings.
               </Typography>
