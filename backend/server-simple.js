@@ -2848,6 +2848,7 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
     const { latitude, longitude, radius, hasVacancies } = req.query;
     
     // Get all training events with coordinates
+    // Use database-agnostic date comparison (both SQLite and PostgreSQL support CAST)
     let query = `
       SELECT ce.*, u.firstName, u.lastName, u.email as contactEmail,
              (SELECT COUNT(*) FROM event_participants WHERE eventId = ce.id) as participantCount
@@ -2856,14 +2857,14 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
       WHERE ce.eventType = 'training' 
         AND ce.latitude IS NOT NULL 
         AND ce.longitude IS NOT NULL
-        AND ce.date >= date('now')
+        AND CAST(ce.date AS DATE) >= CAST(NOW() AS DATE)
     `;
     
     const queryParams = [];
     
     // Filter by vacancy status if requested
     if (hasVacancies === 'true') {
-      query += ' AND ce.hasVacancies = 1';
+      query += ' AND ce.hasVacancies = TRUE';
     }
     
     query += ' ORDER BY ce.date ASC, ce.startTime ASC';
