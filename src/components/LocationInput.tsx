@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TextField } from '@mui/material';
 import { Location } from '../types';
 import { geocodeAddress } from '../utils/maps';
@@ -22,6 +22,8 @@ const LocationInput: React.FC<LocationInputProps> = ({
 }) => {
   const fallbackInputRef = useRef<HTMLInputElement>(null);
   const legacyAutocompleteRef = useRef<google.maps.places.Autocomplete>();
+  const [inputValue, setInputValue] = useState(value);
+  const isAutocompleteSelection = useRef(false);
 
   // Debug logging to identify multiple instances
   useEffect(() => {
@@ -30,6 +32,14 @@ const LocationInput: React.FC<LocationInputProps> = ({
       return () => console.log(`LocationInput unmounted: ${debugId}`);
     }
   }, [debugId]);
+
+  // Sync internal state with external value prop
+  useEffect(() => {
+    if (!isAutocompleteSelection.current) {
+      setInputValue(value);
+    }
+    isAutocompleteSelection.current = false;
+  }, [value]);
 
   useEffect(() => {
     // Wait a bit for Google Maps to fully load
@@ -54,6 +64,8 @@ const LocationInput: React.FC<LocationInputProps> = ({
               longitude: place.geometry.location.lng(),
               placeId: place.place_id
             };
+            isAutocompleteSelection.current = true;
+            setInputValue(location.address);
             onChange(location);
           }
         };
@@ -69,10 +81,11 @@ const LocationInput: React.FC<LocationInputProps> = ({
     }, 100); // Small delay to ensure Google Maps is fully loaded
 
     return () => clearTimeout(timer);
-  }, [onChange, placeholder, fullWidth, value]);
+  }, [onChange]);
 
   const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
+    setInputValue(newValue);
     
     // If the user clears the input, reset the location
     if (newValue === '') {
@@ -91,11 +104,11 @@ const LocationInput: React.FC<LocationInputProps> = ({
     }
   };
 
-  // Use legacy TextField with Autocomplete
+  // Use TextField with internal state to allow typing
   return (
     <TextField
       inputRef={fallbackInputRef}
-      value={value}
+      value={inputValue}
       onChange={handleInputChange}
       onBlur={handleBlur}
       placeholder={placeholder}
