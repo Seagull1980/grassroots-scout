@@ -33,8 +33,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { storage } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
-import { leaguesAPI, League } from '../services/api';
+import { leaguesAPI, League, API_URL } from '../services/api';
 import LeagueRequestDialog from './LeagueRequestDialog';
+import axios from 'axios';
 
 interface OnboardingStep {
   id: string;
@@ -74,6 +75,11 @@ export const OnboardingFlow: React.FC = () => {
     preferredLeagues: [] as string[],
     searchRadius: 10,
     playingTimePolicy: '' as string,
+    dateOfBirth: '',
+    phone: '',
+    bio: '',
+    position: '',
+    experienceLevel: '',
     notifications: {
       newVacancies: true,
       matchUpdates: true,
@@ -158,25 +164,54 @@ export const OnboardingFlow: React.FC = () => {
     setOpen(false);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (user) {
-      storage.setItem(`onboarding_completed_${user.id}`, 'true');
-      storage.removeItem(`new_user_${user.id}`);
-      // Mark onboarding as seen for all users granting beta access
-      if (user.role !== 'Admin') {
-        storage.setItem(`seen_onboarding_${user.id}`, 'true');
-      }
-      
-      // Apply user preferences
-      if (userData.location && userData.searchRadius) {
-        // In a real app, you'd geocode the location
-        subscribeToArea(51.5074, -0.1278, userData.searchRadius); // London coordinates as example
-      }
-      
-      if (userData.preferredLeagues.length > 0) {
-        userData.preferredLeagues.forEach(league => {
-          subscribeToLeague(league, '');
-        });
+      try {
+        // Save profile data to backend
+        const token = localStorage.getItem('token');
+        const profileData: any = {};
+
+        // Add profile fields if they exist
+        if (userData.location) profileData.location = userData.location;
+        if (userData.dateOfBirth) profileData.dateofbirth = userData.dateOfBirth;
+        if (userData.phone) profileData.phone = userData.phone;
+        if (userData.bio) profileData.bio = userData.bio;
+        if (userData.position) profileData.position = userData.position;
+        if (userData.experienceLevel) profileData.experiencelevel = userData.experienceLevel;
+
+        // Only save if we have profile data
+        if (Object.keys(profileData).length > 0) {
+          await axios.put(
+            `${API_URL}/api/profile`,
+            profileData,
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+          console.log('✅ Profile data saved from onboarding');
+        }
+
+        storage.setItem(`onboarding_completed_${user.id}`, 'true');
+        storage.removeItem(`new_user_${user.id}`);
+        // Mark onboarding as seen for all users granting beta access
+        if (user.role !== 'Admin') {
+          storage.setItem(`seen_onboarding_${user.id}`, 'true');
+        }
+        
+        // Apply user preferences
+        if (userData.location && userData.searchRadius) {
+          // In a real app, you'd geocode the location
+          subscribeToArea(51.5074, -0.1278, userData.searchRadius); // London coordinates as example
+        }
+        
+        if (userData.preferredLeagues.length > 0) {
+          userData.preferredLeagues.forEach(league => {
+            subscribeToLeague(league, '');
+          });
+        }
+      } catch (error) {
+        console.error('Failed to save onboarding data:', error);
+        // Continue anyway - don't block completion
       }
     }
     
@@ -253,6 +288,91 @@ export const OnboardingFlow: React.FC = () => {
               </Grid>
             ))}
           </Grid>
+        </Box>
+      )
+    },
+    {
+      id: 'profile-details',
+      title: 'Complete Your Profile',
+      description: 'Help others learn more about you',
+      component: (
+        <Box py={2}>
+          <Typography variant="h6" gutterBottom>
+            Tell us a bit about yourself
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            This information helps teams and players find the right matches
+          </Typography>
+          
+          <Stack spacing={3}>
+            <TextField
+              fullWidth
+              label="Date of Birth"
+              type="date"
+              value={userData.dateOfBirth}
+              onChange={(e) => setUserData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+              helperText="Required for age verification and appropriate team matching"
+              required
+            />
+
+            <TextField
+              fullWidth
+              label="Phone Number"
+              type="tel"
+              value={userData.phone}
+              onChange={(e) => setUserData(prev => ({ ...prev, phone: e.target.value }))}
+              placeholder="e.g., 07123 456789"
+              helperText="For contact purposes (optional)"
+            />
+
+            {user?.role === 'Player' && (
+              <TextField
+                fullWidth
+                select
+                label="Playing Position"
+                value={userData.position}
+                onChange={(e) => setUserData(prev => ({ ...prev, position: e.target.value }))}
+                SelectProps={{ native: true }}
+                helperText="Your primary position"
+              >
+                <option value=""></option>
+                <option value="Goalkeeper">Goalkeeper</option>
+                <option value="Defender">Defender</option>
+                <option value="Midfielder">Midfielder</option>
+                <option value="Forward">Forward</option>
+                <option value="Winger">Winger</option>
+                <option value="Striker">Striker</option>
+              </TextField>
+            )}
+
+            <TextField
+              fullWidth
+              select
+              label="Experience Level"
+              value={userData.experienceLevel}
+              onChange={(e) => setUserData(prev => ({ ...prev, experienceLevel: e.target.value }))}
+              SelectProps={{ native: true }}
+              helperText="Your current football experience level"
+            >
+              <option value=""></option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+              <option value="Professional">Professional</option>
+            </TextField>
+
+            <TextField
+              fullWidth
+              label="Bio"
+              multiline
+              rows={3}
+              value={userData.bio}
+              onChange={(e) => setUserData(prev => ({ ...prev, bio: e.target.value }))}
+              placeholder="Tell us about your football journey, goals, or what you're looking for..."
+              helperText="Share what makes you unique (optional)"
+            />
+          </Stack>
         </Box>
       )
     },
