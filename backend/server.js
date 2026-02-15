@@ -1729,17 +1729,36 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       [req.user.userId]
     );
 
-    const availability = (availabilityResult.rows || []).map(row => ({
+    const availability = (availabilityResult.rows || []).map(row => {
+      let preferredLeagues = [];
+      let positions = [];
+      
+      try {
+        preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+        if (!Array.isArray(preferredLeagues)) preferredLeagues = [];
+      } catch (e) {
+        preferredLeagues = [];
+      }
+      
+      try {
+        positions = row.positions ? JSON.parse(row.positions) : [];
+        if (!Array.isArray(positions)) positions = [];
+      } catch (e) {
+        positions = [];
+      }
+      
+      return {
       ...row,
-      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
-      positions: row.positions ? JSON.parse(row.positions) : [],
+      preferredLeagues,
+      positions,
       locationData: row.locationAddress ? {
         address: row.locationAddress,
         latitude: row.locationLatitude,
         longitude: row.locationLongitude,
         placeId: row.locationPlaceId
       } : null
-    }));
+    };
+    });
 
     res.json({ availability });
   } catch (error) {
@@ -1816,9 +1835,9 @@ app.post('/api/player-availability', [
         id: availabilityId,
         title,
         description,
-        preferredLeagues: preferredLeagues || [],
+        preferredLeagues: Array.isArray(preferredLeagues) ? preferredLeagues : [],
         ageGroup,
-        positions,
+        positions: Array.isArray(positions) ? positions : [],
         preferredTeamGender: preferredTeamGender || 'Mixed',
         location,
         locationData: locationData || null,
@@ -1969,13 +1988,46 @@ app.get('/api/child-player-availability', authenticateToken, async (req, res) =>
       [req.user.userId]
     );
 
-    const availability = (availabilityResult.rows || []).map(row => ({
-      ...row,
-      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
-      positions: row.positions ? JSON.parse(row.positions) : [],
-      locationData: row.locationData ? JSON.parse(row.locationData) : null,
-      availability: row.availability ? JSON.parse(row.availability) : null
-    }));
+    const availability = (availabilityResult.rows || []).map(row => {
+      let preferredLeagues = [];
+      let positions = [];
+      let locationData = null;
+      let availability = null;
+      
+      try {
+        preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+        if (!Array.isArray(preferredLeagues)) preferredLeagues = [];
+      } catch (e) {
+        preferredLeagues = [];
+      }
+      
+      try {
+        positions = row.positions ? JSON.parse(row.positions) : [];
+        if (!Array.isArray(positions)) positions = [];
+      } catch (e) {
+        positions = [];
+      }
+      
+      try {
+        locationData = row.locationData ? JSON.parse(row.locationData) : null;
+      } catch (e) {
+        locationData = null;
+      }
+      
+      try {
+        availability = row.availability ? JSON.parse(row.availability) : null;
+      } catch (e) {
+        availability = null;
+      }
+      
+      return {
+        ...row,
+        preferredLeagues,
+        positions,
+        locationData,
+        availability
+      };
+    });
 
     res.json({ availability });
   } catch (error) {
@@ -2213,13 +2265,46 @@ app.get('/api/public/child-player-availability', async (req, res) => {
 
     const availabilityResult = await db.query(query, params);
 
-    const availability = (availabilityResult.rows || []).map(row => ({
-      ...row,
-      preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
-      positions: row.positions ? JSON.parse(row.positions) : [],
-      locationData: row.locationData ? JSON.parse(row.locationData) : null,
-      availability: row.availability ? JSON.parse(row.availability) : null
-    }));
+    const availability = (availabilityResult.rows || []).map(row => {
+      let preferredLeagues = [];
+      let positions = [];
+      let locationData = null;
+      let availability = null;
+      
+      try {
+        preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+        if (!Array.isArray(preferredLeagues)) preferredLeagues = [];
+      } catch (e) {
+        preferredLeagues = [];
+      }
+      
+      try {
+        positions = row.positions ? JSON.parse(row.positions) : [];
+        if (!Array.isArray(positions)) positions = [];
+      } catch (e) {
+        positions = [];
+      }
+      
+      try {
+        locationData = row.locationData ? JSON.parse(row.locationData) : null;
+      } catch (e) {
+        locationData = null;
+      }
+      
+      try {
+        availability = row.availability ? JSON.parse(row.availability) : null;
+      } catch (e) {
+        availability = null;
+      }
+      
+      return {
+        ...row,
+        preferredLeagues,
+        positions,
+        locationData,
+        availability
+      };
+    });
 
     res.json({ availability });
   } catch (error) {
