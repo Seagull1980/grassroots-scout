@@ -2238,7 +2238,11 @@ app.get('/api/match-completions', authenticateToken, async (req, res) => {
     let query = '';
     let params = [];
 
-    if (req.user.role === 'Coach') {
+    if (req.user.role === 'Admin') {
+      // Admins can see all match completions
+      query = 'SELECT * FROM match_completions ORDER BY createdAt DESC';
+      params = [];
+    } else if (req.user.role === 'Coach') {
       query = 'SELECT * FROM match_completions WHERE coachId = ? ORDER BY createdAt DESC';
       params = [req.user.userId];
     } else if (req.user.role === 'Player') {
