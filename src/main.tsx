@@ -1,5 +1,4 @@
-// @ts-ignore
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css'
 import { registerServiceWorker } from './utils/pwa';
@@ -23,9 +22,14 @@ window.addEventListener('unhandledrejection', (event) => {
   });
 });
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <App />
-);
+const root = document.getElementById('root');
+if (root) {
+  createRoot(root).render(
+    <App />
+  );
+} else {
+  console.error('Root element not found');
+}
 
 // Register service worker for PWA functionality
 registerServiceWorker();
