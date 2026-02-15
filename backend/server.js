@@ -1717,7 +1717,8 @@ app.delete('/api/children/:childId', authenticateToken, async (req, res) => {
 // Get authenticated player's own availability
 app.get('/api/player-availability', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Player') {
+    // Allow Player role and Admin role (for testing)
+    if (req.user.role !== 'Player' && req.user.role !== 'Admin') {
       return res.status(403).json({ error: 'Only players can access player availability' });
     }
 
@@ -1755,8 +1756,11 @@ app.post('/api/player-availability', [
   body('positions').isArray({ min: 1 }).withMessage('At least one position is required')
 ], async (req, res) => {
   try {
-    if (req.user.role !== 'Player') {
-      return res.status(403).json({ error: 'Only players can create player availability' });
+    // Allow Player role and Admin role (for testing)
+    if (req.user.role !== 'Player' && req.user.role !== 'Admin') {
+      return res.status(403).json({ 
+        error: 'Only players can create player availability. Parents/Guardians should use the child player availability feature.' 
+      });
     }
 
     const errors = validationResult(req);
@@ -1837,7 +1841,8 @@ app.put('/api/player-availability/:availabilityId', [
   body('positions').optional().isArray({ min: 1 }).withMessage('At least one position is required')
 ], async (req, res) => {
   try {
-    if (req.user.role !== 'Player') {
+    // Allow Player role and Admin role (for testing)
+    if (req.user.role !== 'Player' && req.user.role !== 'Admin') {
       return res.status(403).json({ error: 'Only players can update player availability' });
     }
 
@@ -1916,7 +1921,8 @@ app.put('/api/player-availability/:availabilityId', [
 // Delete player availability
 app.delete('/api/player-availability/:availabilityId', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Player') {
+    // Allow Player role and Admin role (for testing)
+    if (req.user.role !== 'Player' && req.user.role !== 'Admin') {
       return res.status(403).json({ error: 'Only players can delete player availability' });
     }
 
