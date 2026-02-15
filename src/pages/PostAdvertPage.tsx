@@ -28,6 +28,8 @@ import {
   DialogContent,
   DialogActions,
   Divider,
+  Snackbar,
+  Fade,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,6 +72,8 @@ const PostAdvertPage: React.FC = () => {
   });
   const [draftName, setDraftName] = useState('');
   const [selectedDraftId, setSelectedDraftId] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'info' | 'error' });
+  const [loadedDraftName, setLoadedDraftName] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -312,6 +316,7 @@ const PostAdvertPage: React.FC = () => {
     const updated = [newDraft, ...drafts];
     setDrafts(updated);
     localStorage.setItem('post_advert_drafts', JSON.stringify(updated));
+    setSnackbar({ open: true, message: `Draft "${draftName.trim()}" saved successfully!`, severity: 'success' });
     setDraftName('');
   };
 
@@ -320,6 +325,9 @@ const PostAdvertPage: React.FC = () => {
     if (!draft) return;
     setFormData(draft.data.formData);
     setLocationData(draft.data.locationData || null);
+    setLoadedDraftName(draft.name);
+    setSnackbar({ open: true, message: `Draft "${draft.name}" loaded successfully!`, severity: 'info' });
+    setSelectedDraftId('');
   };
 
   const ageGroups = [
@@ -398,6 +406,57 @@ const PostAdvertPage: React.FC = () => {
           <Grid container spacing={4}>
             <Grid item xs={12} md={7}>
               <Grid container spacing={3}>
+                {/* Draft Management Section - Moved to top */}
+                <Grid item xs={12}>
+                  <Paper elevation={2} sx={{ p: 2, bgcolor: 'background.default', border: '1px dashed', borderColor: 'divider' }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+                      📋 Draft Management
+                    </Typography>
+                    {loadedDraftName && (
+                      <Alert severity="info" sx={{ mb: 2 }} onClose={() => setLoadedDraftName(null)}>
+                        Currently editing: <strong>{loadedDraftName}</strong>
+                      </Alert>
+                    )}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                      <TextField
+                        size="small"
+                        label="Draft name"
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                        placeholder="e.g. U16 Striker Draft"
+                        sx={{ minWidth: 200 }}
+                      />
+                      <Button variant="contained" onClick={handleSaveDraft} disabled={!draftName.trim()}>
+                        💾 Save Draft
+                      </Button>
+                      <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel>Load Draft</InputLabel>
+                        <Select
+                          value={selectedDraftId}
+                          label="Load Draft"
+                          onChange={(e) => setSelectedDraftId(e.target.value)}
+                        >
+                          {drafts.filter((draft) => draft.role === user.role).map((draft) => (
+                            <MenuItem key={draft.id} value={draft.id}>
+                              {draft.name} - {new Date(draft.createdAt).toLocaleDateString()}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <Button variant="outlined" onClick={handleLoadDraft} disabled={!selectedDraftId}>
+                        📂 Load
+                      </Button>
+                    </Box>
+                  </Paper>
+                </Grid>
+
+                {/* Section 1: Basic Information */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="1. Basic Information" color="primary" variant="outlined" />
+                  </Divider>
+                </Grid>
+
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -448,36 +507,11 @@ const PostAdvertPage: React.FC = () => {
                   </Box>
                 </Grid>
 
+                {/* Section 2: Team & League Details */}
                 <Grid item xs={12}>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-                    <TextField
-                      size="small"
-                      label="Draft name"
-                      value={draftName}
-                      onChange={(e) => setDraftName(e.target.value)}
-                      placeholder="e.g. U16 Striker Draft"
-                    />
-                    <Button variant="outlined" onClick={handleSaveDraft} disabled={!draftName.trim()}>
-                      Save Draft
-                    </Button>
-                    <FormControl size="small" sx={{ minWidth: 180 }}>
-                      <InputLabel>Load Draft</InputLabel>
-                      <Select
-                        value={selectedDraftId}
-                        label="Load Draft"
-                        onChange={(e) => setSelectedDraftId(e.target.value)}
-                      >
-                        {drafts.filter((draft) => draft.role === user.role).map((draft) => (
-                          <MenuItem key={draft.id} value={draft.id}>
-                            {draft.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <Button variant="outlined" onClick={handleLoadDraft} disabled={!selectedDraftId}>
-                      Load
-                    </Button>
-                  </Box>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label={isCoach ? "2. Team & League" : "2. Preferences"} color="primary" variant="outlined" />
+                  </Divider>
                 </Grid>
 
                 <Grid item xs={12} sm={6}>
@@ -737,6 +771,13 @@ const PostAdvertPage: React.FC = () => {
                   </FormControl>
                 </Grid>
 
+                {/* Section 3: Location & Contact */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="3. Location & Contact" color="primary" variant="outlined" />
+                  </Divider>
+                </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <GoogleMapsWrapper>
                     <LocationInput
@@ -756,7 +797,7 @@ const PostAdvertPage: React.FC = () => {
                   </GoogleMapsWrapper>
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Contact Information"
@@ -768,13 +809,13 @@ const PostAdvertPage: React.FC = () => {
                   />
                 </Grid>
 
-            {/* Additional coach-only fields */}
+            {/* Section 4: Additional Details (Coach only) */}
                 {isCoach && (
                   <>
                     <Grid item xs={12}>
-                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, fontWeight: 500 }}>
-                        Team Facilities & Opportunities
-                      </Typography>
+                      <Divider sx={{ my: 1 }}>
+                        <Chip label="4. Team Facilities & Opportunities" color="primary" variant="outlined" />
+                      </Divider>
                     </Grid>
                     
                     <Grid item xs={12}>
@@ -966,6 +1007,24 @@ const PostAdvertPage: React.FC = () => {
           fetchLeagues();
         }}
       />
+
+      {/* Draft Save/Load Feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        TransitionComponent={Fade}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
