@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button, Alert, Paper, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import { ExpandMore, Refresh, Home, BugReport } from '@mui/icons-material';
+import ContactFormModal from './ContactFormModal';
 
 interface Props {
   children: ReactNode;
@@ -13,6 +14,7 @@ interface State {
   error?: Error;
   errorInfo?: ErrorInfo;
   errorId?: string;
+  showContactModal: boolean;
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -20,13 +22,14 @@ class ErrorBoundary extends Component<Props, State> {
   private maxRetries = 3;
 
   public state: State = {
-    hasError: false
+    hasError: false,
+    showContactModal: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
     console.error('🚨 ErrorBoundary caught an error:', error);
     const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    return { hasError: true, error, errorId };
+    return { hasError: true, error, errorId, showContactModal: false };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -103,18 +106,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleReportIssue = () => {
-    const subject = encodeURIComponent(`Bug Report: ${this.state.error?.message || 'Unknown Error'}`);
-    const body = encodeURIComponent(`
-Error ID: ${this.state.errorId}
-Error: ${this.state.error?.message}
-URL: ${window.location.href}
-User Agent: ${navigator.userAgent}
-Timestamp: ${new Date().toISOString()}
-
-Please describe what you were doing when this error occurred:
-[Your description here]
-    `);
-    window.open(`mailto:support@grassrootshub.com?subject=${subject}&body=${body}`);
+    this.setState({ showContactModal: true });
   };
 
   public render() {
@@ -224,6 +216,21 @@ Please describe what you were doing when this error occurred:
               </Accordion>
             )}
           </Paper>
+
+          <ContactFormModal
+            open={this.state.showContactModal}
+            onClose={() => this.setState({ showContactModal: false })}
+            defaultSubject={`Bug Report: ${this.state.error?.message || 'Unknown Error'}`}
+            defaultMessage={`Error ID: ${this.state.errorId}
+Error: ${this.state.error?.message}
+URL: ${window.location.href}
+User Agent: ${navigator.userAgent}
+Timestamp: ${new Date().toISOString()}
+
+Please describe what you were doing when this error occurred:
+`}
+            pageUrl={window.location.href}
+          />
         </Box>
       );
     }

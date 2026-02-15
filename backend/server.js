@@ -274,6 +274,38 @@ const initFeedbackTables = async () => {
 // Initialize feedback tables on startup
 initFeedbackTables();
 
+// Create support messages table for contact form
+const initSupportMessagesTable = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        subject VARCHAR(500) NOT NULL,
+        message TEXT NOT NULL,
+        userId INTEGER,
+        userAgent TEXT,
+        pageUrl VARCHAR(500),
+        status VARCHAR(20) DEFAULT 'new',
+        priority VARCHAR(20) DEFAULT 'normal',
+        assignedTo INTEGER,
+        adminNotes TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        respondedAt TIMESTAMP,
+        resolvedAt TIMESTAMP
+      )
+    `);
+    
+    console.log('✅ Support messages table initialized');
+  } catch (error) {
+    console.log('⚠️  Support messages table may already exist or error occurred:', error.message);
+  }
+};
+
+// Initialize support messages table on startup
+initSupportMessagesTable();
+
 // Profanity filter for forum content
 const profanityList = [
   'damn', 'hell', 'crap', 'bastard', 'bitch', 'ass', 'asshole',
@@ -3794,6 +3826,169 @@ app.post('/api/feedback/:feedbackId/comments', authenticateToken, async (req, re
   } catch (error) {
     console.error('Error adding comment:', error);
     res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// ===========================
+// SUPPORT MESSAGES ENDPOINTS
+// ===========================
+
+// Submit support message (public endpoint - no auth required for contact form)
+app.post('/api/support/submit', async (req, res) => {
+  try {
+    const { name, email, subject, message, userId, userAgent, pageUrl } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ error: 'Name, email, subject, and message are required' });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
+
+    // Insert support message
+    await db.query(`
+      INSERT INTO support_messages 
+      (name, email, subject, message, userId, userAgent, pageUrl, status, priority)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'new', 'normal')
+    `, [
+      name.trim(),
+      email.trim().toLowerCase(),
+      subject.trim(),
+      message.trim(),
+      userId || null,
+      userAgent || null,
+      pageUrl || null
+    ]);
+
+    res.status(201).json({ 
+      message: 'Your message has been sent successfully. We will respond as soon as possible.',
+      success: true 
+    });
+  } catch (error) {
+    console.error('Error submitting support message:', error);
+    res.status(500).json({ error: 'Failed to submit message. Please try again.' });
+  }
+});
+
+// Get all support messages (Admin only)
+app.get('/api/admin/support', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { status, priority } = req.query;
+
+    let query = `
+      SELECT 
+        sm.id,
+        sm.name,
+        sm.email,
+        sm.subject,
+        sm.message,
+        sm.userId,
+        sm.userAgent,
+        sm.pageUrl,
+        sm.status,
+        sm.priority,
+        sm.assignedTo,
+        sm.adminNotes,
+        sm.createdAt,
+        sm.respondedAt,
+        sm.resolvedAt,
+        u.firstname,
+        u.lastname
+      FROM support_messages sm
+      LEFT JOIN users u ON sm.userId = u.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (status) {
+      query += ' AND sm.status = ?';
+      params.push(status);
+    }
+
+    if (priority) {
+      query += ' AND sm.priority = ?';
+      params.push(priority);
+    }
+
+    query += ' ORDER BY sm.createdAt DESC';
+
+    const result = await db.query(query, params);
+
+    res.json({ messages: result.rows || [] });
+  } catch (error) {
+    console.error('Error fetching support messages:', error);
+    res.status(500).json({ error: 'Failed to fetch support messages' });
+  }
+});
+
+// Update support message status (Admin only)
+app.patch('/api/admin/support/:messageId', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { messageId } = req.params;
+    const { status, priority, adminNotes, assignedTo } = req.body;
+
+    const updates = [];
+    const params = [];
+
+    if (status) {
+      updates.push('status = ?');
+      params.push(status);
+
+      // Set timestamps based on status
+      if (status === 'in_progress' || status === 'responded') {
+        updates.push('respondedAt = CURRENT_TIMESTAMP');
+      } else if (status === 'resolved' || status === 'closed') {
+        updates.push('resolvedAt = CURRENT_TIMESTAMP');
+      }
+    }
+
+    if (priority) {
+      updates.push('priority = ?');
+      params.push(priority);
+    }
+
+    if (adminNotes !== undefined) {
+      updates.push('adminNotes = ?');
+      params.push(adminNotes);
+    }
+
+    if (assignedTo !== undefined) {
+      updates.push('assignedTo = ?');
+      params.push(assignedTo);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    params.push(messageId);
+
+    await db.query(
+      `UPDATE support_messages SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    res.json({ message: 'Support message updated successfully' });
+  } catch (error) {
+    console.error('Error updating support message:', error);
+    res.status(500).json({ error: 'Failed to update support message' });
   }
 });
 

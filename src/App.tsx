@@ -58,6 +58,7 @@ const {
   MatchCompletionsPage,
   MyFeedbackPage,
   AdminFeedbackDashboard,
+  AdminSupportPage,
   MessagesPage,
   SuccessStoriesPage,
   AlertPreferencesPage,
@@ -209,6 +210,11 @@ const AppRoutes = () => {
         <Route path="/admin/feedback" element={
           <ProtectedRoute>
             <AdminFeedbackDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/support" element={
+          <ProtectedRoute>
+            <AdminSupportPage />
           </ProtectedRoute>
         } />
         <Route path="/success-stories" element={

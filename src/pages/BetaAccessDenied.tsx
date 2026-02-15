@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -10,10 +10,12 @@ import {
 import { Lock, Email } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ContactFormModal from '../components/ContactFormModal';
 
 const BetaAccessDenied: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [showContactModal, setShowContactModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,7 +67,7 @@ const BetaAccessDenied: React.FC = () => {
             <Button
               variant="outlined"
               startIcon={<Email />}
-              href="mailto:support@grassrootshub.com?subject=Beta Access Request"
+              onClick={() => setShowContactModal(true)}
             >
               Contact Support
             </Button>
@@ -80,11 +82,18 @@ const BetaAccessDenied: React.FC = () => {
 
           <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
             <Typography variant="body2" color="text.secondary">
-              Want to help us improve? Share your feedback at{' '}
-              <a href="mailto:feedback@grassrootshub.com">feedback@grassrootshub.com</a>
+              Want to help us improve? Use the Contact Support button above to share your feedback.
             </Typography>
           </Box>
         </Paper>
+
+        <ContactFormModal
+          open={showContactModal}
+          onClose={() => setShowContactModal(false)}
+          defaultSubject="Beta Access Request"
+          defaultMessage="I would like to request access to The Grassroots Scout beta. Please let me know when my account is approved."
+          pageUrl="/beta-access-denied"
+        />
       </Box>
     </Container>
   );
