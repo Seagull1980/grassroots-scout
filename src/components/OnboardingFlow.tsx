@@ -16,7 +16,9 @@ import {
   Checkbox,
   FormControlLabel,
   Autocomplete,
-  Alert
+  Alert,
+  Slider,
+  Snackbar
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -36,6 +38,8 @@ import { storage } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { leaguesAPI, League, API_URL } from '../services/api';
 import LeagueRequestDialog from './LeagueRequestDialog';
+import { LocationAutocomplete } from './LocationAutocomplete';
+import GoogleMapsWrapper from './GoogleMapsWrapper';
 import axios from 'axios';
 
 interface OnboardingStep {
@@ -45,6 +49,61 @@ interface OnboardingStep {
   component: React.ReactNode;
   optional?: boolean;
 }
+
+// Helper function to validate date of birth
+const validateDateOfBirth = (dob: string): { valid: boolean; error?: string; age?: number } => {
+  if (!dob) return { valid: false, error: 'Date of birth is required' };
+  
+  const birthDate = new Date(dob);
+  const today = new Date();
+  
+  // Check if date is valid
+  if (isNaN(birthDate.getTime())) {
+    return { valid: false, error: 'Invalid date' };
+  }
+  
+  // Check if date is in the future
+  if (birthDate > today) {
+    return { valid: false, error: 'Date cannot be in the future' };
+  }
+  
+  // Calculate age
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  // Check minimum age (13 for GDPR compliance)
+  if (age < 13) {
+    return { valid: false, error: 'You must be at least 13 years old', age };
+  }
+  
+  // Check maximum age (reasonable upper limit)
+  if (age > 100) {
+    return { valid: false, error: 'Please enter a valid date of birth', age };
+  }
+  
+  return { valid: true, age };
+};
+
+// Helper function to calculate age from date of birth
+const calculateAge = (dob: string): number | null => {
+  if (!dob) return null;
+  
+  const birthDate = new Date(dob);
+  const today = new Date();
+  
+  if (isNaN(birthDate.getTime())) return null;
+  
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
 
 export const OnboardingFlow: React.FC = () => {
   const { user } = useAuth();
@@ -70,6 +129,9 @@ export const OnboardingFlow: React.FC = () => {
   const [availableLeagues, setAvailableLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
+  const [dobError, setDobError] = useState<string>('');
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userData, setUserData] = useState({
     interests: [] as string[],
     location: '',
@@ -118,6 +180,38 @@ export const OnboardingFlow: React.FC = () => {
 
     loadLeagues();
   }, []);
+
+  // Load saved progress from localStorage
+  useEffect(() => {
+    if (user) {
+      const savedProgress = storage.getItem(`onboarding_progress_${user.id}`);
+      if (savedProgress) {
+        try {
+          const parsed = JSON.parse(savedProgress);
+          setUserData(parsed.userData || userData);
+          setCurrentStep(parsed.currentStep || 0);
+          if (parsed.locationCoords) {
+            setLocationCoords(parsed.locationCoords);
+          }
+        } catch (error) {
+          console.error('Failed to load onboarding progress:', error);
+        }
+      }
+    }
+  }, [user]);
+
+  // Save progress to localStorage whenever userData or currentStep changes
+  useEffect(() => {
+    if (user && open) {
+      const progress = {
+        userData,
+        currentStep,
+        locationCoords,
+        lastSaved: new Date().toISOString()
+      };
+      storage.setItem(`onboarding_progress_${user.id}`, JSON.stringify(progress));
+    }
+  }, [userData, currentStep, locationCoords, user, open]);
 
   // Check if user needs onboarding - show for new registrations and all users on first login after beta access
   useEffect(() => {
@@ -168,6 +262,19 @@ export const OnboardingFlow: React.FC = () => {
   const handleComplete = async () => {
     if (user) {
       try {
+        // Validate date of birth before saving
+        if (userData.dateOfBirth) {
+          const dobValidation = validateDateOfBirth(userData.dateOfBirth);
+          if (!dobValidation.valid) {
+            setSnackbar({ 
+              open: true, 
+              message: dobValidation.error || 'Invalid date of birth', 
+              severity: 'error' 
+            });
+            return;
+          }
+        }
+
         // Save profile data to backend
         const token = localStorage.getItem('token');
         const profileData: any = {};
@@ -190,19 +297,24 @@ export const OnboardingFlow: React.FC = () => {
             }
           );
           console.log('✅ Profile data saved from onboarding');
+          setSnackbar({ 
+            open: true, 
+            message: 'Profile saved successfully!', 
+            severity: 'success' 
+          });
         }
 
         storage.setItem(`onboarding_completed_${user.id}`, 'true');
         storage.removeItem(`new_user_${user.id}`);
+        storage.removeItem(`onboarding_progress_${user.id}`);
         // Mark onboarding as seen for all users granting beta access
         if (user.role !== 'Admin') {
           storage.setItem(`seen_onboarding_${user.id}`, 'true');
         }
         
-        // Apply user preferences
-        if (userData.location && userData.searchRadius) {
-          // In a real app, you'd geocode the location
-          subscribeToArea(51.5074, -0.1278, userData.searchRadius); // London coordinates as example
+        // Apply user preferences with actual geocoded location
+        if (locationCoords && userData.searchRadius) {
+          subscribeToArea(locationCoords.lat, locationCoords.lng, userData.searchRadius);
         }
         
         if (userData.preferredLeagues.length > 0) {
@@ -212,7 +324,13 @@ export const OnboardingFlow: React.FC = () => {
         }
       } catch (error) {
         console.error('Failed to save onboarding data:', error);
-        // Continue anyway - don't block completion
+        setSnackbar({ 
+          open: true, 
+          message: 'Failed to save profile. Please try again or update from your profile page later.', 
+          severity: 'error' 
+        });
+        // Don't close dialog on error - let user retry
+        return;
       }
     }
     
@@ -270,8 +388,12 @@ export const OnboardingFlow: React.FC = () => {
                     cursor: 'pointer',
                     border: userData.interests.includes(interest.id) ? 2 : 1,
                     borderColor: userData.interests.includes(interest.id) ? 'primary.main' : 'divider',
-                    '&:hover': { borderColor: 'primary.main' }
+                    '&:hover': { borderColor: 'primary.main' },
+                    '&:focus': { borderColor: 'primary.main', outline: '2px solid', outlineColor: 'primary.main' }
                   }}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={userData.interests.includes(interest.id)}
                   onClick={() => {
                     setUserData(prev => ({
                       ...prev,
@@ -279,6 +401,17 @@ export const OnboardingFlow: React.FC = () => {
                         ? prev.interests.filter(i => i !== interest.id)
                         : [...prev.interests, interest.id]
                     }));
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setUserData(prev => ({
+                        ...prev,
+                        interests: prev.interests.includes(interest.id)
+                          ? prev.interests.filter(i => i !== interest.id)
+                          : [...prev.interests, interest.id]
+                      }));
+                    }
                   }}
                 >
                   <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
@@ -306,16 +439,38 @@ export const OnboardingFlow: React.FC = () => {
           </Typography>
           
           <Stack spacing={3}>
-            <TextField
-              fullWidth
-              label="Date of Birth"
-              type="date"
-              value={userData.dateOfBirth}
-              onChange={(e) => setUserData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              helperText="Required for age verification and appropriate team matching"
-              required
-            />
+            <Box>
+              <TextField
+                fullWidth
+                label="Date of Birth *"
+                type="date"
+                value={userData.dateOfBirth}
+                onChange={(e) => {
+                  const newDob = e.target.value;
+                  setUserData(prev => ({ ...prev, dateOfBirth: newDob }));
+                  
+                  // Validate on change
+                  const validation = validateDateOfBirth(newDob);
+                  if (!validation.valid && newDob) {
+                    setDobError(validation.error || '');
+                  } else {
+                    setDobError('');
+                  }
+                }}
+                InputLabelProps={{ shrink: true }}
+                helperText={dobError || 'Required for age verification and appropriate team matching'}
+                error={!!dobError}
+                required
+              />
+              {userData.dateOfBirth && !dobError && (() => {
+                const age = calculateAge(userData.dateOfBirth);
+                return age !== null ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Age: {age} years old
+                  </Typography>
+                ) : null;
+              })()}
+            </Box>
 
             <TextField
               fullWidth
@@ -421,13 +576,26 @@ export const OnboardingFlow: React.FC = () => {
                   cursor: 'pointer',
                   border: userData.playingTimePolicy === policy.value ? 2 : 1,
                   borderColor: userData.playingTimePolicy === policy.value ? 'primary.main' : 'divider',
-                  '&:hover': { borderColor: 'primary.main' }
+                  '&:hover': { borderColor: 'primary.main' },
+                  '&:focus': { borderColor: 'primary.main', outline: '2px solid', outlineColor: 'primary.main' }
                 }}
+                tabIndex={0}
+                role="button"
+                aria-pressed={userData.playingTimePolicy === policy.value}
                 onClick={() => {
                   setUserData(prev => ({
                     ...prev,
                     playingTimePolicy: policy.value
                   }));
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setUserData(prev => ({
+                      ...prev,
+                      playingTimePolicy: policy.value
+                    }));
+                  }
                 }}
               >
                 <CardContent>
@@ -449,136 +617,145 @@ export const OnboardingFlow: React.FC = () => {
       title: 'Set your location',
       description: 'Help us show you relevant opportunities nearby',
       component: (
-        <Box py={2}>
-          <Typography variant="h6" gutterBottom>
-            Where are you based?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            This helps us show you teams and players in your area
-          </Typography>
-          
-          <Stack spacing={3}>
-            <TextField
-              fullWidth
-              label="Location (City, Town, or Postcode)"
-              value={userData.location}
-              onChange={(e) => setUserData(prev => ({ ...prev, location: e.target.value }))}
-              placeholder="e.g., Manchester, London, B1 1AA"
-              InputProps={{
-                startAdornment: <LocationIcon sx={{ color: 'text.secondary', mr: 1 }} />
-              }}
-            />
+        <GoogleMapsWrapper>
+          <Box py={2}>
+            <Typography variant="h6" gutterBottom>
+              Where are you based?
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              This helps us show you teams and players in your area
+            </Typography>
             
-            <Box>
-              <Typography variant="body2" gutterBottom>
-                Search radius: {userData.searchRadius} km
-              </Typography>
-              <Box sx={{ px: 2 }}>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
+            <Stack spacing={3}>
+              <LocationAutocomplete
+                fullWidth
+                label="Location (City, Town, or Postcode) *"
+                required
+                value={userData.location}
+                onChange={(value) => {
+                  setUserData(prev => ({ ...prev, location: value }));
+                }}
+                onLocationSelect={(location) => {
+                  setLocationCoords({ lat: location.lat, lng: location.lng });
+                  setUserData(prev => ({ ...prev, location: location.address }));
+                }}
+                placeholder="e.g., Manchester, London, B1 1AA"
+                InputProps={{
+                  startAdornment: <LocationIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                }}
+              />
+              
+              <Box>
+                <Typography variant="body2" gutterBottom>
+                  Search radius: {userData.searchRadius} km
+                </Typography>
+                <Slider
                   value={userData.searchRadius}
-                  onChange={(e) => setUserData(prev => ({ 
+                  onChange={(_, newValue) => setUserData(prev => ({ 
                     ...prev, 
-                    searchRadius: parseInt(e.target.value) 
+                    searchRadius: newValue as number 
                   }))}
-                  style={{ width: '100%' }}
+                  min={5}
+                  max={50}
+                  step={1}
+                  marks={[
+                    { value: 5, label: '5 km' },
+                    { value: 25, label: '25 km' },
+                    { value: 50, label: '50 km' }
+                  ]}
+                  valueLabelDisplay="auto"
+                  aria-label="Search radius"
                 />
               </Box>
-              <Box display="flex" justifyContent="space-between">
-                <Typography variant="caption" color="text.secondary">5 km</Typography>
-                <Typography variant="caption" color="text.secondary">50 km</Typography>
-              </Box>
-            </Box>
-            
-            <Autocomplete
-              multiple
-              options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
-              getOptionLabel={(option) => {
-                if (typeof option === 'string') return option;
-                if (option.id === -1) return option.name || '';
-                return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
-              }}
-              value={userData.preferredLeagues.map(leagueName => {
-                const league = availableLeagues.find(l => l.name === leagueName);
-                return league || { id: 0, name: leagueName, region: '', url: '', hits: 0 };
-              })}
-              onChange={(_, newValue) => {
-                const selectedLeagues = newValue.map(item => {
-                  if (typeof item === 'string') return item;
-                  if (item.id === -1) {
-                    // Open league request dialog
-                    setLeagueRequestOpen(true);
-                    return null; // Don't add this to the selection
-                  }
-                  return item.name;
-                }).filter(Boolean) as string[];
+              
+              <Autocomplete
+                multiple
+                options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') return option;
+                  if (option.id === -1) return option.name || '';
+                  return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
+                }}
+                value={userData.preferredLeagues.map(leagueName => {
+                  const league = availableLeagues.find(l => l.name === leagueName);
+                  return league || { id: 0, name: leagueName, region: '', url: '', hits: 0 };
+                })}
+                onChange={(_, newValue) => {
+                  const selectedLeagues = newValue.map(item => {
+                    if (typeof item === 'string') return item;
+                    if (item.id === -1) {
+                      // Open league request dialog
+                      setLeagueRequestOpen(true);
+                      return null; // Don't add this to the selection
+                    }
+                    return item.name;
+                  }).filter(Boolean) as string[];
 
-                setUserData(prev => ({
-                  ...prev,
-                  preferredLeagues: selectedLeagues
-                }));
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Preferred Leagues"
-                  placeholder="Select preferred leagues..."
-                  disabled={loadingLeagues}
-                />
-              )}
-              renderOption={(props, option) => {
-                if (option.id === -1) {
+                  setUserData(prev => ({
+                    ...prev,
+                    preferredLeagues: selectedLeagues
+                  }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Preferred Leagues"
+                    placeholder="Select preferred leagues..."
+                    disabled={loadingLeagues}
+                  />
+                )}
+                renderOption={(props, option) => {
+                  if (option.id === -1) {
+                    return (
+                      <li {...props} style={{ fontWeight: 'bold', color: '#1976d2' }}>
+                        {option.name}
+                      </li>
+                    );
+                  }
+                  const isPending = option.isPending;
                   return (
-                    <li {...props} style={{ fontWeight: 'bold', color: '#1976d2' }}>
-                      {option.name}
+                    <li {...props} style={isPending ? { backgroundColor: '#fff3e0' } : {}}>
+                      <Box>
+                        <Typography variant="body2">
+                          {option.name}
+                          {isPending && (
+                            <Typography component="span" variant="caption" sx={{ ml: 1, color: 'orange', fontWeight: 'bold' }}>
+                              (Under Review)
+                            </Typography>
+                          )}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.region || 'Region: N/A'}
+                        </Typography>
+                      </Box>
                     </li>
                   );
+                }}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      label={option.isPending ? `${option.name} (Under Review)` : option.name}
+                      {...getTagProps({ index })}
+                      size="small"
+                      sx={option.isPending ? {
+                        backgroundColor: '#fff3e0',
+                        '& .MuiChip-label': { color: '#f57c00' }
+                      } : {}}
+                    />
+                  ))
                 }
-                const isPending = option.isPending;
-                return (
-                  <li {...props} style={isPending ? { backgroundColor: '#fff3e0' } : {}}>
-                    <Box>
-                      <Typography variant="body2">
-                        {option.name}
-                        {isPending && (
-                          <Typography component="span" variant="caption" sx={{ ml: 1, color: 'orange', fontWeight: 'bold' }}>
-                            (Under Review)
-                          </Typography>
-                        )}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {option.region || 'Region: N/A'}
-                      </Typography>
-                    </Box>
-                  </li>
-                );
-              }}
-              renderTags={(tagValue, getTagProps) =>
-                tagValue.map((option, index) => (
-                  <Chip
-                    label={option.isPending ? `${option.name} (Under Review)` : option.name}
-                    {...getTagProps({ index })}
-                    size="small"
-                    sx={option.isPending ? {
-                      backgroundColor: '#fff3e0',
-                      '& .MuiChip-label': { color: '#f57c00' }
-                    } : {}}
-                  />
-                ))
-              }
-              loading={loadingLeagues}
-              disabled={loadingLeagues}
-            />
+                loading={loadingLeagues}
+                disabled={loadingLeagues}
+              />
 
-            <Alert severity="info" sx={{ mt: 1 }}>
-              <Typography variant="body2">
-                You can adjust your location preferences and add more leagues anytime from your account settings.
-              </Typography>
-            </Alert>
-          </Stack>
-        </Box>
+              <Alert severity="info" sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  You can adjust your location preferences and add more leagues anytime from your account settings.
+                </Typography>
+              </Alert>
+            </Stack>
+          </Box>
+        </GoogleMapsWrapper>
       )
     },
     {
@@ -824,6 +1001,21 @@ export const OnboardingFlow: React.FC = () => {
           }
         }}
       />
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 };
