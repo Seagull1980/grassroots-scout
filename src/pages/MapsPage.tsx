@@ -81,6 +81,11 @@ const MapsPage: React.FC = () => {
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
+      // Ignore clicks within the MapsPage container (internal tab switching)
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
+      }
+      
       // Check if clicking on a navigation link
       const isNavClick = target.closest('a[href]') || 
                         target.closest('[role="tab"]') ||
