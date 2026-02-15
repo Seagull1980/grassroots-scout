@@ -85,7 +85,6 @@ const PostAdvertPage: React.FC = () => {
     position: '', // For coaches (single position)
     positions: [] as string[], // For players (multiple positions in order of preference)
     location: '',
-    contactInfo: '',
     hasMatchRecording: false,
     hasPathwayToSenior: false,
     playingTimePolicy: '',
@@ -208,7 +207,6 @@ const PostAdvertPage: React.FC = () => {
           ageGroup: formData.ageGroup,
           positions: formData.positions,
           location: formData.location,
-          contactInfo: formData.contactInfo,
           locationData: locationData || undefined
         };
         await playerAvailabilityAPI.create(submitData);
@@ -225,7 +223,6 @@ const PostAdvertPage: React.FC = () => {
         position: '',
         positions: [],
         location: '',
-        contactInfo: '',
         hasMatchRecording: false,
         hasPathwayToSenior: false,
         playingTimePolicy: '',
@@ -288,23 +285,6 @@ const PostAdvertPage: React.FC = () => {
         `${formData.positions[0] || 'Player'} Looking for Team`,
         `${formData.ageGroup || 'U18'} ${formData.positions[0] || 'midfielder'} available`,
       ];
-
-  const applyTemplate = () => {
-    if (isCoach) {
-      const teamLabel = selectedTeam?.teamName || 'Our team';
-      setFormData((prev) => ({
-        ...prev,
-        title: prev.title || `${prev.position || 'Striker'} Wanted - ${prev.ageGroup || 'U14'} ${teamLabel}`,
-        description: prev.description || `${teamLabel} is looking for a committed ${prev.position || 'player'} to join our ${prev.ageGroup || 'youth'} squad. Training sessions run weekly, and we focus on development, teamwork, and match readiness.`
-      }));
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      title: prev.title || `${prev.positions[0] || 'Player'} Looking for Team`,
-      description: prev.description || `I am a dedicated ${prev.positions[0] || 'player'} seeking a competitive team. I am available for training, open to feedback, and eager to contribute on match days.`
-    }));
-  };
 
   const handleSaveDraft = () => {
     if (!draftName.trim()) return;
@@ -485,11 +465,6 @@ const PostAdvertPage: React.FC = () => {
                           ? 'Include training days, expectations, and facilities.'
                           : 'Include availability, experience, and travel radius.')}
                   />
-                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Button size="small" variant="outlined" onClick={applyTemplate}>
-                      Use Suggested Template
-                    </Button>
-                  </Box>
                 </Grid>
 
                 {/* Section 2: Team & League Details */}
@@ -763,7 +738,7 @@ const PostAdvertPage: React.FC = () => {
                   </Divider>
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
                   <GoogleMapsWrapper>
                     <LocationInput
                       fullWidth
@@ -780,18 +755,6 @@ const PostAdvertPage: React.FC = () => {
                       debugId="post-advert-location"
                     />
                   </GoogleMapsWrapper>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Contact Information"
-                    name="contactInfo"
-                    value={formData.contactInfo}
-                    onChange={handleChange}
-                    placeholder="Email or phone number for interested parties"
-                    helperText="Visible to logged-in users. Use a contact email you check regularly."
-                  />
                 </Grid>
 
             {/* Section 4: Additional Details (Coach only) */}
@@ -965,9 +928,6 @@ const PostAdvertPage: React.FC = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Location: {formData.location || 'Add a location'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Contact: {formData.contactInfo || 'Add contact info'}
-                </Typography>
                 {isCoach && formData.playingTimePolicy && (
                   <Typography variant="body2" color="text.secondary">
                     Playing time policy: {formData.playingTimePolicy}
@@ -1004,9 +964,6 @@ const PostAdvertPage: React.FC = () => {
           </Typography>
           <Typography variant="body2" gutterBottom>
             <strong>Location:</strong> {formData.location || 'Not specified'}
-          </Typography>
-          <Typography variant="body2" gutterBottom>
-            <strong>Contact:</strong> {formData.contactInfo || 'Not specified'}
           </Typography>
           {isCoach && (
             <Typography variant="body2" gutterBottom>

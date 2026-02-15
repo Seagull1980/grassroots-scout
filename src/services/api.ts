@@ -436,7 +436,7 @@ export interface PlayerAvailability {
   ageGroup: string;
   positions: string[]; // Changed from position: string to positions: string[]
   location: string;
-  contactInfo: string;
+  contactInfo?: string; // Made optional - all contact should happen within platform
   postedBy: string;
   createdAt: string;
   status: 'active' | 'inactive';

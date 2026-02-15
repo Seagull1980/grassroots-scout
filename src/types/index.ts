@@ -44,7 +44,7 @@ export interface TeamVacancy {
   teamGender?: string; // Boys, Girls, or Mixed
   location: string;
   locationData?: Location;
-  contactInfo: string;
+  contactInfo?: string; // Made optional - all contact should happen within platform
   postedBy: string;
   firstName?: string;
   lastName?: string;
@@ -64,7 +64,7 @@ export interface PlayerAvailability {
   preferredTeamGender?: string; // Boys, Girls, or Mixed
   location: string;
   locationData?: Location;
-  contactInfo: string;
+  contactInfo?: string; // Made optional - all contact should happen within platform
   postedBy: string;
   firstName?: string;
   lastName?: string;
@@ -96,7 +96,7 @@ export interface Team {
   ageGroup: string;
   homePitch?: Location;
   trainingLocation?: Location;
-  contactInfo: string;
+  contactInfo?: string; // Made optional - all contact should happen within platform
   coachId: string;
   createdAt: string;
 }
