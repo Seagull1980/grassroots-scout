@@ -16,7 +16,7 @@ export const GOOGLE_MAPS_CONFIG = {
     streetViewControl: false,
     mapTypeControl: false,
     fullscreenControl: true,
-    gestureHandling: 'greedy', // Allows single-finger scroll on mobile and scroll wheel on desktop
+    gestureHandling: 'cooperative' as 'cooperative', // Changed from 'greedy' to prevent capturing all touch/scroll events
   }
 };
 

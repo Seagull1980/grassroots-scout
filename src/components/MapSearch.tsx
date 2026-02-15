@@ -1800,7 +1800,15 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         )}
 
         <Paper elevation={2} sx={{ position: 'relative', zIndex: 1, overflow: 'hidden' }}>
-          <Box sx={{ position: 'relative', zIndex: 1 }}>
+          <Box 
+            sx={{ 
+              position: 'relative', 
+              zIndex: 1,
+              '& > div': {
+                pointerEvents: 'auto',
+              }
+            }}
+          >
             <Map
               center={mapCenter}
               zoom={mapZoom}

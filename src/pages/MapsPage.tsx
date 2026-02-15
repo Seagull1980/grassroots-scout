@@ -35,6 +35,18 @@ const MapsPage: React.FC = () => {
     
     console.log('MapsPage: Executing global Google Maps cleanup');
     
+    // IMMEDIATELY disable pointer events on ALL map-related elements
+    const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+    mapElements.forEach(el => {
+      (el as HTMLElement).style.pointerEvents = 'none';
+      (el as HTMLElement).style.display = 'none';
+    });
+    
+    // Disable pointer events on the container too
+    if (containerRef.current) {
+      containerRef.current.style.pointerEvents = 'none';
+    }
+    
     // Remove ALL Google Maps related elements from the entire document
     const selectors = [
       '[class*="gm-"]',
@@ -73,25 +85,35 @@ const MapsPage: React.FC = () => {
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Check if clicking on a navigation link
+     // Check if clicking on a navigation link
       const isNavClick = target.closest('a[href]') || 
                         target.closest('[role="tab"]') ||
                         target.closest('button[aria-label*="navigation"]') ||
                         target.closest('.MuiBottomNavigation-root') ||
-                        target.closest('.MuiListItem-root');
+                        target.closest('.MuiBottomNavigationAction-root') ||
+                        target.closest('.MuiListItem-root') ||
+                        target.closest('.MuiButton-root') ||
+                        target.closest('nav');
       
       if (isNavClick) {
-        console.log('Navigation click detected, forcing immediate cleanup');
-        // Force cleanup synchronously before navigation happens
-        forceGlobalCleanup();
+        console.log('Navigation click detected, disabling maps immediately');
+        // IMMEDIATELY disable pointer events on container
+        if (containerRef.current) {
+          containerRef.current.style.pointerEvents = 'none';
+          containerRef.current.style.opacity = '0.5';
+        }
+        // Force cleanup synchronously
+        setTimeout(() => forceGlobalCleanup(), 0);
       }
     };
 
     // Add listener with capture phase to intercept clicks early
     document.addEventListener('click', handleDocumentClick, { capture: true });
+    document.addEventListener('mousedown', handleDocumentClick, { capture: true });
     
     return () => {
       document.removeEventListener('click', handleDocumentClick, { capture: true });
+      document.removeEventListener('mousedown', handleDocumentClick, { capture: true });
     };
   }, []);
 
