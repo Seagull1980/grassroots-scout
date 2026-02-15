@@ -3707,7 +3707,7 @@ app.get('/api/feedback/my-submissions', authenticateToken, async (req, res) => {
       SELECT 
         uf.id,
         uf.category,
-        uf.subject,
+        uf.title as subject,
         uf.description,
         uf.status,
         uf.priority,
@@ -3739,7 +3739,7 @@ app.get('/api/feedback/:feedbackId', authenticateToken, async (req, res) => {
         uf.id,
         uf.userid,
         uf.category,
-        uf.subject,
+        uf.title as subject,
         uf.description,
         uf.status,
         uf.priority,
