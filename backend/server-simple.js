@@ -2845,7 +2845,7 @@ app.delete('/api/calendar/events/:eventId', authenticateToken, async (req, res) 
 // Get nearby training locations with vacancies (for map view)
 app.get('/api/calendar/training-locations', authenticateToken, async (req, res) => {
   try {
-    const { latitude, longitude, radius, hasVacancies } = req.query;
+    const { latitude, longitude, radius, hasVacancies, locationType = 'training' } = req.query;
     
     // Get all training events with coordinates
     // Use database-agnostic date comparison (both SQLite and PostgreSQL support CAST)
@@ -2854,13 +2854,13 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
              (SELECT COUNT(*) FROM event_participants WHERE eventId = ce.id) as participantCount
       FROM calendar_events ce
       JOIN users u ON ce.createdBy = u.id
-      WHERE ce.eventType = 'training' 
+      WHERE ce.eventType = ?
         AND ce.latitude IS NOT NULL 
         AND ce.longitude IS NOT NULL
         AND CAST(ce.date AS DATE) >= CAST(NOW() AS DATE)
     `;
     
-    const queryParams = [];
+    const queryParams = [locationType];
     
     // Filter by vacancy status if requested
     if (hasVacancies === 'true') {
@@ -2872,15 +2872,19 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
     const events = await db.query(query, queryParams);
     
     // If location provided, calculate distances and filter by radius
-    if (latitude && longitude && events.rows) {
+    if (latitude && longitude) {
       const userLat = parseFloat(latitude);
       const userLon = parseFloat(longitude);
       const maxRadius = radius ? parseFloat(radius) : 50; // Default 50km radius
       
       // Calculate distance for each event using Haversine formula
       const eventsWithDistance = events.rows.map(event => {
-        const eventLat = event.latitude;
-        const eventLon = event.longitude;
+        if (!event.latitude || !event.longitude) {
+          return null;
+        }
+        
+        const eventLat = parseFloat(event.latitude);
+        const eventLon = parseFloat(event.longitude);
         
         // Haversine formula to calculate distance in km
         const R = 6371; // Earth's radius in km
@@ -2893,13 +2897,23 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
         
+        let locationData = null;
+        if (event.locationData) {
+          try {
+            locationData = JSON.parse(event.locationData);
+          } catch (parseErr) {
+            console.error('Error parsing locationData for event', event.id, parseErr.message);
+            locationData = null;
+          }
+        }
+        
         return {
           ...event,
           distance: Math.round(distance * 10) / 10, // Round to 1 decimal
-          locationData: event.locationData ? JSON.parse(event.locationData) : null
+          locationData: locationData
         };
       })
-      .filter(event => event.distance <= maxRadius)
+      .filter(event => event !== null && event.distance <= maxRadius)
       .sort((a, b) => a.distance - b.distance);
       
       res.json({ 
@@ -2909,11 +2923,23 @@ app.get('/api/calendar/training-locations', authenticateToken, async (req, res) 
       });
     } else {
       // Return all events without distance calculation
-      res.json({ 
-        trainingLocations: events.rows.map(event => ({
+      const eventsWithLocationData = events.rows.map(event => {
+        let locationData = null;
+        if (event.locationData) {
+          try {
+            locationData = JSON.parse(event.locationData);
+          } catch (parseErr) {
+            console.error('Error parsing locationData for event', event.id, parseErr.message);
+            locationData = null;
+          }
+        }
+        return {
           ...event,
-          locationData: event.locationData ? JSON.parse(event.locationData) : null
-        }))
+          locationData: locationData
+        };
+      });
+      res.json({ 
+        trainingLocations: eventsWithLocationData
       });
     }
   } catch (error) {
