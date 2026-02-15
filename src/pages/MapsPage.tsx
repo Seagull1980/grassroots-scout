@@ -25,6 +25,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
+  const [isUnmounting, setIsUnmounting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupExecutedRef = useRef(false);
 
@@ -35,17 +36,12 @@ const MapsPage: React.FC = () => {
     
     console.log('MapsPage: Executing global Google Maps cleanup');
     
-    // IMMEDIATELY disable pointer events on ALL map-related elements
+    // IMMEDIATELY disable pointer events on ALL map-related elements (but NOT the container)
     const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
     mapElements.forEach(el => {
       (el as HTMLElement).style.pointerEvents = 'none';
       (el as HTMLElement).style.display = 'none';
     });
-    
-    // Disable pointer events on the container too
-    if (containerRef.current) {
-      containerRef.current.style.pointerEvents = 'none';
-    }
     
     // Remove ALL Google Maps related elements from the entire document
     const selectors = [
@@ -85,7 +81,7 @@ const MapsPage: React.FC = () => {
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-     // Check if clicking on a navigation link
+      // Check if clicking on a navigation link
       const isNavClick = target.closest('a[href]') || 
                         target.closest('[role="tab"]') ||
                         target.closest('button[aria-label*="navigation"]') ||
@@ -96,14 +92,19 @@ const MapsPage: React.FC = () => {
                         target.closest('nav');
       
       if (isNavClick) {
-        console.log('Navigation click detected, disabling maps immediately');
-        // IMMEDIATELY disable pointer events on container
-        if (containerRef.current) {
-          containerRef.current.style.pointerEvents = 'none';
-          containerRef.current.style.opacity = '0.5';
-        }
-        // Force cleanup synchronously
-        setTimeout(() => forceGlobalCleanup(), 0);
+        console.log('Navigation click detected, unmounting Maps and disabling elements');
+        
+        // Immediately unmount Maps components to force React cleanup
+        setIsUnmounting(true);
+        
+        // Disable Google Maps elements (but NOT the container - let the click through)
+        const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+        mapElements.forEach(el => {
+          (el as HTMLElement).style.pointerEvents = 'none';
+        });
+        
+        // Schedule full cleanup after navigation starts
+        setTimeout(() => forceGlobalCleanup(), 100);
       }
     };
 
@@ -120,6 +121,7 @@ const MapsPage: React.FC = () => {
   // Execute cleanup on unmount
   useEffect(() => {
     cleanupExecutedRef.current = false;
+    setIsUnmounting(false);
     
     return () => {
       // Small delay to ensure cleanup happens after any pending state updates
@@ -132,6 +134,17 @@ const MapsPage: React.FC = () => {
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
+
+  // Don't render Maps if unmounting
+  if (isUnmounting) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Navigating...
+        </Typography>
+      </Container>
+    );
+  }
 
   return (
     <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
