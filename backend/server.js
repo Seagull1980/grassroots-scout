@@ -3460,6 +3460,146 @@ app.get('/api/analytics/monthly-matches', authenticateToken, async (req, res) =>
   }
 });
 
+// ===========================
+// ADMIN FEEDBACK ENDPOINTS
+// ===========================
+
+// Get all feedback for admin dashboard
+app.get('/api/admin/feedback', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { feedbackType, status, priority, category } = req.query;
+
+    let query = `
+      SELECT uf.*, u.firstName, u.lastName, u.email, u.role as userRole,
+        (SELECT COUNT(*) FROM feedback_comments WHERE feedbackId = uf.id) as commentCount
+      FROM user_feedback uf
+      JOIN users u ON uf.userId = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (feedbackType) {
+      query += ' AND uf.feedbackType = ?';
+      params.push(feedbackType);
+    }
+    if (status) {
+      query += ' AND uf.status = ?';
+      params.push(status);
+    }
+    if (priority) {
+      query += ' AND uf.priority = ?';
+      params.push(priority);
+    }
+    if (category) {
+      query += ' AND uf.category = ?';
+      params.push(category);
+    }
+
+    query += ' ORDER BY uf.createdAt DESC';
+
+    const feedbackResult = await db.query(query, params);
+    const feedback = feedbackResult.rows || [];
+
+    // Get summary stats
+    const statsResult = await db.query(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN feedbackType = 'bug' THEN 1 ELSE 0 END) as bugs,
+        SUM(CASE WHEN feedbackType = 'improvement' THEN 1 ELSE 0 END) as improvements,
+        SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as newItems,
+        SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as inProgress,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN priority = 'critical' THEN 1 ELSE 0 END) as critical
+      FROM user_feedback
+    `);
+    const stats = statsResult.rows && statsResult.rows.length > 0 ? statsResult.rows[0] : {};
+
+    res.json({ feedback, stats });
+  } catch (error) {
+    console.error('Error fetching admin feedback:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
+  }
+});
+
+// Update feedback status, priority, or admin notes (Admin only)
+app.put('/api/admin/feedback/:feedbackId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { feedbackId } = req.params;
+    const { status, priority, adminNotes } = req.body;
+
+    const updates = [];
+    const params = [];
+
+    if (status) {
+      updates.push('status = ?');
+      params.push(status);
+      
+      // If marking as completed, set resolvedAt and resolvedBy
+      if (status === 'completed') {
+        updates.push('resolvedAt = CURRENT_TIMESTAMP');
+        updates.push('resolvedBy = ?');
+        params.push(req.user.userId);
+      }
+    }
+    if (priority) {
+      updates.push('priority = ?');
+      params.push(priority);
+    }
+    if (adminNotes !== undefined) {
+      updates.push('adminNotes = ?');
+      params.push(adminNotes);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    params.push(feedbackId);
+
+    await db.query(`
+      UPDATE user_feedback 
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `, params);
+
+    res.json({ message: 'Feedback updated successfully' });
+  } catch (error) {
+    console.error('Error updating feedback:', error);
+    res.status(500).json({ error: 'Failed to update feedback' });
+  }
+});
+
+// Delete feedback (Admin only)
+app.delete('/api/admin/feedback/:feedbackId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { feedbackId } = req.params;
+
+    await db.query('DELETE FROM user_feedback WHERE id = ?', [feedbackId]);
+
+    res.json({ message: 'Feedback deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting feedback:', error);
+    res.status(500).json({ error: 'Failed to delete feedback' });
+  }
+});
+
+// ===========================
+// ANALYTICS ENDPOINTS
+// ===========================
+
 // Get AI-powered analytics insights
 app.post('/api/analytics/insights', authenticateToken, async (req, res) => {
   try {

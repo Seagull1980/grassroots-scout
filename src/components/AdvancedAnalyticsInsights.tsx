@@ -133,7 +133,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
 
   const loadInsights = async () => {
     try {
-      const response = await fetch(`${API_URL}/analytics/insights`, {
+      const response = await fetch(`${API_URL}/api/analytics/insights`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
 
   const loadFunnelAnalysis = async () => {
     try {
-      const response = await fetch(`${API_URL}/analytics/funnel`, {
+      const response = await fetch(`${API_URL}/api/analytics/funnel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
 
   const loadCohortAnalysis = async () => {
     try {
-      const response = await fetch(`${API_URL}/analytics/cohort`, {
+      const response = await fetch(`${API_URL}/api/analytics/cohort`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +224,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
 
   const loadUserSegmentation = async () => {
     try {
-      const response = await fetch(`${API_URL}/analytics/segments`, {
+      const response = await fetch(`${API_URL}/api/analytics/segments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
