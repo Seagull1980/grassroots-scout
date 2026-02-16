@@ -42,7 +42,6 @@ import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
-import MapsPage from './pages/MapsPage.tsx';
 
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
@@ -68,7 +67,8 @@ const {
   RecommendationsPage,
   ChildPlayerAvailabilityPage,
   ChildrenManagementPage,
-  TrainingInvitations
+  TrainingInvitations,
+  MapsPage
 } = LazyComponents;
 
 // Analytics components - lazy loaded for better performance
@@ -78,10 +78,59 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 // Enhanced loading component
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
+// Route component that cleans up Google Maps on route changes
+const MapsCleaner = () => {
+  useEffect(() => {
+    // Listen for route changes and clean up Google Maps
+    const cleanupMaps = () => {
+      console.log('Route change detected - cleaning up Google Maps');
+      const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+      mapElements.forEach(el => {
+        try {
+          el.remove();
+        } catch (e) {
+          // Ignore
+        }
+      });
+    };
+    
+    // Use MutationObserver to detect when Maps components are added to DOM
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.addedNodes.length > 0) {
+          // Check if Google Maps elements were added
+          const hasMapElements = Array.from(mutation.addedNodes).some(node => {
+            const el = node as HTMLElement;
+            return el.classList && el.classList.toString().includes('gm-');
+          });
+          
+          // If Maps elements exist and we're not on /maps route, clean them up
+          if (hasMapElements && !window.location.pathname.includes('/maps')) {
+            cleanupMaps();
+          }
+        }
+      });
+    });
+    
+    // Observe DOM changes
+    observer.observe(document.body,{
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    
+    return () => observer.disconnect();
+  }, []);
+  
+  return null;
+};
+
 const AppRoutes = () => {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <Routes>
+    <>
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/login" element={
@@ -294,6 +343,8 @@ const AppRoutes = () => {
         } /> */}
       </Routes>
     </Suspense>
+    <MapsCleaner />
+    </>
   );
 };
 
