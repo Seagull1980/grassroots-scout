@@ -42,14 +42,13 @@ import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
-import { Container, Button, Typography } from '@mui/material';
-
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
 import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
 
 // Heavy features - lazy loaded
 const {
+  MapsPage,
   PerformanceAnalyticsPage,
   EnhancedSearchPage,
   AdminPage,
@@ -221,20 +220,7 @@ const AppRoutes = () => {
         } />
         <Route path="/maps" element={
           <ProtectedRoute>
-            <Container maxWidth="lg" sx={{ py: 4 }}>
-              <Typography variant="h4" gutterBottom>Maps Temporarily Disabled</Typography>
-              <Typography variant="body1" color="textSecondary">
-                The Maps page is temporarily disabled while we resolve a technical issue. 
-                Please use the Search page to find teams and players.
-              </Typography>
-              <Button 
-                variant="contained" 
-                onClick={() => window.location.href = '/search'}
-                sx={{ mt: 2 }}
-              >
-                Go to Search
-              </Button>
-            </Container>
+            <MapsPage />
           </ProtectedRoute>
         } />
         <Route path="/team-roster" element={
