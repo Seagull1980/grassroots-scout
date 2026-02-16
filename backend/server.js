@@ -1126,8 +1126,8 @@ app.post('/api/auth/login', [
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: user.firstName || user.firstname || '',
+        lastName: user.lastName || user.lastname || '',
         role: user.role,
         isEmailVerified: user.isEmailVerified,
         betaAccess: Boolean(user.betaaccess)
