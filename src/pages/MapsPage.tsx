@@ -27,41 +27,45 @@ const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Continuous cleanup to prevent Google Maps from blocking navigation
+  // Add global CSS to ensure navigation is always accessible
   useEffect(() => {
-    // Ensure navigation elements stay above Google Maps
-    const ensureNavigationAccessible = () => {
-      // Disable pointer events on ALL Google Maps overlays
-      const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-      mapElements.forEach(el => {
-        const element = el as HTMLElement;
-        // Only disable pointer events on overlay elements, not the main map container
-        if (!element.closest('[id^="map-container"]')) {
-          element.style.pointerEvents = 'none';
-        }
-      });
+    const style = document.createElement('style');
+    style.id = 'maps-nav-fix';
+    style.textContent = `
+      /* Ensure navigation elements are always clickable and on top */
+      nav,
+      .MuiAppBar-root,
+      .MuiBottomNavigation-root,
+      header,
+      [role="navigation"] {
+        position: relative !important;
+        z-index: 10000 !important;
+        pointer-events: auto !important;
+      }
       
-      // Ensure navigation has high z-index
-      const navElements = document.querySelectorAll('nav, .MuiBottomNavigation-root, .MuiAppBar-root, header');
-      navElements.forEach(el => {
-        const element = el as HTMLElement;
-        if (element.style.zIndex === '' || parseInt(element.style.zIndex) < 9999) {
-          element.style.zIndex = '9999';
-        }
-      });
-    };
-
-    // Run immediately
-    ensureNavigationAccessible();
-    
-    // Run periodically to catch dynamically added elements
-    const intervalId = setInterval(ensureNavigationAccessible, 100);
+      /* Ensure map container doesn't cover navigation */
+      #map-container {
+        position: relative !important;
+        z-index: 1 !important;
+      }
+      
+      /* Google Maps controls should not block navigation */
+      .gm-style,
+      .gm-style > div,
+      .gm-style-cc {
+        pointer-events: auto !important;
+      }
+    `;
+    document.head.appendChild(style);
     
     // Cleanup on unmount
     return () => {
-      clearInterval(intervalId);
+      const existingStyle = document.getElementById('maps-nav-fix');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
       
-      // Full cleanup
+      // Remove Google Maps elements
       console.log('MapsPage: Cleaning up Google Maps elements');
       const selectors = [
         '[class*="gm-"]',
