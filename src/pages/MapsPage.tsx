@@ -26,63 +26,55 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cleanupExecutedRef = useRef(false);
 
-  // Add global CSS to ensure navigation is always accessible
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.id = 'maps-nav-fix';
-    style.textContent = `
-      /* Ensure navigation elements are always clickable and on top */
-      nav,
-      .MuiAppBar-root,
-      .MuiBottomNavigation-root,
-      header,
-      [role="navigation"] {
-        position: relative !important;
-        z-index: 10000 !important;
-        pointer-events: auto !important;
-      }
-      
-      /* Ensure map container doesn't cover navigation */
-      #map-container {
-        position: relative !important;
-        z-index: 1 !important;
-      }
-      
-      /* Google Maps controls should not block navigation */
-      .gm-style,
-      .gm-style > div,
-      .gm-style-cc {
-        pointer-events: auto !important;
-      }
-    `;
-    document.head.appendChild(style);
+  // Force cleanup function that removes ALL Google Maps elements from entire document
+  const forceGlobalCleanup = () => {
+    if (cleanupExecutedRef.current) return;
+    cleanupExecutedRef.current = true;
     
-    // Cleanup on unmount
-    return () => {
-      const existingStyle = document.getElementById('maps-nav-fix');
-      if (existingStyle) {
-        existingStyle.remove();
-      }
-      
-      // Remove Google Maps elements
-      console.log('MapsPage: Cleaning up Google Maps elements');
-      const selectors = [
-        '[class*="gm-"]',
-        '[class*="gmnoprint"]', 
-        '[class*="gm-style"]',
-        '.pac-container'
-      ];
-      
-      selectors.forEach(selector => {
-        document.querySelectorAll(selector).forEach(el => {
-          try {
-            el.remove();
-          } catch (e) {
-            // Ignore
-          }
-        });
+    console.log('MapsPage: Executing global Google Maps cleanup');
+    
+    // Remove ALL Google Maps related elements from the entire document
+    const selectors = [
+      '[class*="gm-"]',
+      '[class*="gmnoprint"]', 
+      '[class*="gm-style"]',
+      '.pac-container',  // Autocomplete dropdown
+      '[src*="maps.googleapis.com"]',
+      '[src*="maps.gstatic.com"]'
+    ];
+    
+    selectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => {
+        try {
+          el.remove();
+        } catch (e) {
+          // Ignore removal errors
+        }
       });
+    });
+    
+    // Remove any remaining Google Maps API scripts
+    const scripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
+    scripts.forEach(script => {
+      try {
+        script.remove();
+      } catch (e) {
+        // Ignore removal errors  
+      }
+    });
+    
+    console.log('MapsPage: Global cleanup complete');
+  };
+
+  // Execute cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Small delay to ensure cleanup happens after any pending state updates
+      setTimeout(() => {
+        forceGlobalCleanup();
+      }, 0);
     };
   }, []);
 
