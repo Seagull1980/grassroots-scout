@@ -27,77 +27,112 @@ const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupExecutedRef = useRef(false);
+  const isUnmountingRef = useRef(false);
 
-  // Force cleanup function that removes ALL Google Maps elements from entire document
+  // Force cleanup function that removes ALL Google Maps elements
   const forceGlobalCleanup = () => {
     if (cleanupExecutedRef.current) return;
     cleanupExecutedRef.current = true;
     
-    console.log('MapsPage: Executing global Google Maps cleanup');
+    console.log('MapsPage: Executing aggressive Google Maps cleanup');
     
-    // IMMEDIATELY hide and disable all Google Maps elements
+    // PHASE 1: Immediately disable all Maps interactions
     const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
     allMapElements.forEach(el => {
       const element = el as HTMLElement;
-      element.style.display = 'none';
-      element.style.pointerEvents = 'none';
-      element.style.visibility = 'hidden';
+      element.style.display = 'none !important';
+      element.style.pointerEvents = 'none !important';
+      element.style.visibility = 'hidden !important';
+      element.style.zIndex = '-999999 !important';
     });
     
-    // Remove ALL Google Maps related elements from the entire document
+    // PHASE 2: Clear Maps construction context
+    (window as any).google = undefined;
+    (window as any).google_maps_loaded = false;
+    
+    // PHASE 3: Remove Maps elements from DOM
     const selectors = [
       '[class*="gm-"]',
       '[class*="gmnoprint"]', 
       '[class*="gm-style"]',
-      '.pac-container',  // Autocomplete dropdown
-      '[src*="maps.googleapis.com"]',
-      '[src*="maps.gstatic.com"]'
+      '.pac-container',
+      '[data-map-container]',
+      '[class*="leaflet"]'
     ];
     
     selectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        try {
-          el.remove();
-        } catch (e) {
-          // Ignore removal errors
-        }
-      });
-    });
-    
-    // Remove any remaining Google Maps API scripts
-    const scripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
-    scripts.forEach(script => {
       try {
-        script.remove();
+        document.querySelectorAll(selector).forEach(el => {
+          el.remove();
+        });
       } catch (e) {
-        // Ignore removal errors  
+        console.log('Cleanup error for selector:', selector);
       }
     });
     
-    console.log('MapsPage: Global cleanup complete');
+    // PHASE 4: Remove Maps scripts
+    document.querySelectorAll('script[src*="maps.googleapis"], script[src*="maps.gstatic"]').forEach(script => {
+      script.remove();
+    });
+    
+    // PHASE 5: Clear container styling
+    if (containerRef.current) {
+      containerRef.current.style.pointerEvents = 'auto';
+      containerRef.current.style.zIndex = '1';
+    }
+    
+    console.log('MapsPage: Cleanup complete');
   };
 
-  // Execute cleanup on unmount only - no click interception
+  // Intercept navigation away from Maps
   useEffect(() => {
-    cleanupExecutedRef.current = false; // Reset on mount
-    
+    cleanupExecutedRef.current = false; // Reset cleanup flag when mounted
+    isUnmountingRef.current = false;
+
+    const handleBeforeUnload = () => {
+      isUnmountingRef.current = true;
+      forceGlobalCleanup();
+    };
+
+    const handlePopState = () => {
+      console.log('Navigation detected - cleaning up Maps');
+      isUnmountingRef.current = true;
+      forceGlobalCleanup();
+    };
+
+    // Override history to catch navigation
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function (...args) {
+      handleBeforeUnload();
+      return originalPushState.apply(window.history, args);
+    };
+
+    window.history.replaceState = function (...args) {
+      handleBeforeUnload();
+      return originalReplaceState.apply(window.history, args);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Cleanup on unmount
     return () => {
-      // Cleanup on unmount
-      setTimeout(() => {
-        forceGlobalCleanup();
-      }, 0);
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      window.removeEventListener('popstate', handlePopState);
+      isUnmountingRef.current = true;
+      forceGlobalCleanup();
     };
   }, []);
 
-  // Execute cleanup on unmount
+  // Additional cleanup on component unmount as safety net
   useEffect(() => {
-    cleanupExecutedRef.current = false; // Reset on mount
-    
     return () => {
-      // Small delay to ensure cleanup happens after any pending state updates
-      setTimeout(() => {
-        forceGlobalCleanup();
-      }, 0);
+      if (!isUnmountingRef.current) {
+        isUnmountingRef.current = true;
+        setTimeout(() => forceGlobalCleanup(), 0);
+      }
     };
   }, []);
 
