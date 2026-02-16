@@ -25,7 +25,6 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
-  const [isUnmounting, setIsUnmounting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupExecutedRef = useRef(false);
 
@@ -76,58 +75,11 @@ const MapsPage: React.FC = () => {
     console.log('MapsPage: Global cleanup complete');
   };
 
-  // Intercept clicks on navigation elements BEFORE they try to navigate
-  useEffect(() => {
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Ignore clicks within the MapsPage container (internal tab switching)
-      if (containerRef.current && containerRef.current.contains(target)) {
-        return;
-      }
-      
-      // Check if clicking on a navigation link
-      const isNavClick = target.closest('a[href]') || 
-                        target.closest('[role="tab"]') ||
-                        target.closest('button[aria-label*="navigation"]') ||
-                        target.closest('.MuiBottomNavigation-root') ||
-                        target.closest('.MuiBottomNavigationAction-root') ||
-                        target.closest('.MuiListItem-root') ||
-                        target.closest('.MuiButton-root') ||
-                        target.closest('nav');
-      
-      if (isNavClick) {
-        console.log('Navigation click detected, unmounting Maps and disabling elements');
-        
-        // Immediately unmount Maps components to force React cleanup
-        setIsUnmounting(true);
-        
-        // Disable Google Maps elements (but NOT the container - let the click through)
-        const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-        mapElements.forEach(el => {
-          (el as HTMLElement).style.pointerEvents = 'none';
-        });
-        
-        // Schedule full cleanup after navigation starts
-        setTimeout(() => forceGlobalCleanup(), 100);
-      }
-    };
-
-    // Add listener with capture phase to intercept clicks early
-    document.addEventListener('click', handleDocumentClick, { capture: true });
-    document.addEventListener('mousedown', handleDocumentClick, { capture: true });
-    
-    return () => {
-      document.removeEventListener('click', handleDocumentClick, { capture: true });
-      document.removeEventListener('mousedown', handleDocumentClick, { capture: true });
-    };
-  }, []);
+  // Note: Removed navigation intercept logic that was causing "Navigating..." stuck state
+  // Google Maps cleanup now happens only on unmount via the effect below
 
   // Execute cleanup on unmount
   useEffect(() => {
-    cleanupExecutedRef.current = false;
-    setIsUnmounting(false);
-    
     return () => {
       // Small delay to ensure cleanup happens after any pending state updates
       setTimeout(() => {
@@ -140,17 +92,7 @@ const MapsPage: React.FC = () => {
     setTabValue(newValue);
   };
 
-  // Don't render Maps if unmounting
-  if (isUnmounting) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Navigating...
-        </Typography>
-      </Container>
-    );
-  }
-
+  // Render the Maps page normally
   return (
     <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
       <Typography variant="h4" component="h1" gutterBottom>
