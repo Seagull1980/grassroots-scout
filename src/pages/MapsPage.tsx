@@ -27,49 +27,45 @@ const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Force cleanup function that removes ALL Google Maps elements
-  const forceGlobalCleanup = () => {
-    console.log('MapsPage: Executing Google Maps cleanup on unmount');
-    
-    // Hide Maps elements immediately (non-blocking)
-    setTimeout(() => {
-      const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-      allMapElements.forEach(el => {
-        const element = el as HTMLElement;
-        element.style.display = 'none';
-        element.style.pointerEvents = 'none';
-        element.style.visibility = 'hidden';
-      });
-    }, 0);
-    
-    // Remove Maps elements from DOM (delayed to not block navigation)
-    setTimeout(() => {
-      const selectors = [
-        '[class*="gm-"]',
-        '[class*="gmnoprint"]', 
-        '[class*="gm-style"]',
-        '.pac-container',
-        '[data-map-container]'
-      ];
-      
-      selectors.forEach(selector => {
-        try {
-          document.querySelectorAll(selector).forEach(el => {
-            el.remove();
-          });
-        } catch (e) {
-          // Ignore errors
-        }
-      });
-      
-      console.log('MapsPage: Cleanup complete');
-    }, 100);
-  };
-
-  // Simple cleanup on unmount only
+  // Inject global CSS to keep Maps below navbar and allow navigation clicks
   useEffect(() => {
+    const styleId = 'maps-z-index-override';
+    
+    // Remove existing style if any
+    const existingStyle = document.getElementById(styleId);
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+
+    // Inject CSS that forces Maps elements below navbar
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      /* Force all Google Maps elements below navigation */
+      .gm-style,
+      .gm-style-iw,
+      .gm-style-cc,
+      .gmnoprint,
+      [class*="gm-"] {
+        z-index: 1000 !important;
+        max-z-index: 1000 !important;
+      }
+      
+      /* Ensure navbar stays on top */
+      header[class*="MuiAppBar"],
+      nav[class*="MuiAppBar"] {
+        z-index: 999999 !important;
+        position: relative !important;
+      }
+    `;
+    document.head.appendChild(style);
+
     return () => {
-      forceGlobalCleanup();
+      // Remove style on unmount
+      const styleToRemove = document.getElementById(styleId);
+      if (styleToRemove) {
+        styleToRemove.remove();
+      }
     };
   }, []);
 
