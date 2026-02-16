@@ -239,7 +239,7 @@ const Navbar: React.FC = () => {
     <>
       {/* Desktop/Tablet Navbar */}
       {!isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 9999, pointerEvents: 'auto' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 99999, pointerEvents: 'auto', position: 'sticky !important' }}>
           <Toolbar>
             <Typography
               variant="h6"
@@ -413,7 +413,7 @@ const Navbar: React.FC = () => {
             bottom: 0,
             left: 0,
             right: 0,
-            zIndex: 9999,
+            zIndex: 99999,
             pointerEvents: 'auto',
             borderTop: 1,
             borderColor: 'divider'
@@ -445,7 +445,7 @@ const Navbar: React.FC = () => {
 
       {/* Mobile Top App Bar */}
       {isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 9999, pointerEvents: 'auto' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 99999, pointerEvents: 'auto', position: 'sticky !important' }}>
           <Toolbar>
             <IconButton
               color="inherit"

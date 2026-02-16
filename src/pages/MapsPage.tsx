@@ -77,46 +77,15 @@ const MapsPage: React.FC = () => {
     console.log('MapsPage: Global cleanup complete');
   };
 
-  // Monitor location changes - if we're navigating away, cleanup immediately
+  // Execute cleanup on unmount only - no click interception
   useEffect(() => {
-    // Listen for clicks on navigation elements
-    const handleNavigationClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Check if clicking on navigation
-      const isNavigation = target.closest('nav') || 
-                          target.closest('.MuiBottomNavigation-root') ||
-                          target.closest('.MuiAppBar-root') ||
-                          target.closest('a[href]') ||
-                          target.closest('button[aria-label]');
-      
-      if (isNavigation && containerRef.current) {
-        console.log('Navigation click detected - removing Maps page container');
-        
-        // Remove ALL Google Maps elements immediately
-        const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-        allMapElements.forEach(el => {
-          try {
-            el.remove();
-          } catch (e) {
-            // Ignore
-          }
-        });
-        
-        // Hide the maps container itself to allow new page to render
-        containerRef.current.style.display = 'none';
-      }
-    };
-
-    // Add listener with capture phase
-    document.addEventListener('click', handleNavigationClick, true);
+    cleanupExecutedRef.current = false; // Reset on mount
     
     return () => {
-      document.removeEventListener('click', handleNavigationClick, true);
-      
-      // Final cleanup on unmount
-      cleanupExecutedRef.current = false;
-      forceGlobalCleanup();
+      // Cleanup on unmount
+      setTimeout(() => {
+        forceGlobalCleanup();
+      }, 0);
     };
   }, []);
 
