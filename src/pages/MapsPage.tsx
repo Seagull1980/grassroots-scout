@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -27,6 +28,7 @@ const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupExecutedRef = useRef(false);
+  const location = useLocation();
 
   // Force cleanup function that removes ALL Google Maps elements from entire document
   const forceGlobalCleanup = () => {
@@ -34,6 +36,15 @@ const MapsPage: React.FC = () => {
     cleanupExecutedRef.current = true;
     
     console.log('MapsPage: Executing global Google Maps cleanup');
+    
+    // IMMEDIATELY hide and disable all Google Maps elements
+    const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+    allMapElements.forEach(el => {
+      const element = el as HTMLElement;
+      element.style.display = 'none';
+      element.style.pointerEvents = 'none';
+      element.style.visibility = 'hidden';
+    });
     
     // Remove ALL Google Maps related elements from the entire document
     const selectors = [
@@ -68,8 +79,68 @@ const MapsPage: React.FC = () => {
     console.log('MapsPage: Global cleanup complete');
   };
 
+  // Monitor location changes - if we're navigating away, cleanup immediately
+  useEffect(() => {
+    // Listen for any navigation event and immediately cleanup Google Maps
+    const handleBeforeNavigate = () => {
+      console.log('Navigation detected - immediate Google Maps cleanup');
+      
+      // Immediately hide all Google Maps elements
+      const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+      allMapElements.forEach(el => {
+        const element = el as HTMLElement;
+        element.style.display = 'none !important';
+        element.style.visibility = 'hidden !important';
+        element.style.opacity = '0 !important';
+        element.style.pointerEvents = 'none !important';
+        element.style.zIndex = '-9999 !important';
+      });
+      
+      // Remove them
+      setTimeout(() => {
+        allMapElements.forEach(el => {
+          try {
+            el.remove();
+          } catch (e) {
+            // Ignore
+          }
+        });
+      }, 0);
+    };
+
+    // Listen for route changes
+    window.addEventListener('popstate', handleBeforeNavigate);
+    
+    // Store original pushState and replaceState
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+    
+    // Override to detect navigation
+    window.history.pushState = function(...args) {
+      handleBeforeNavigate();
+      return originalPushState.apply(window.history, args);
+    };
+    
+    window.history.replaceState = function(...args) {
+      handleBeforeNavigate();
+      return originalReplaceState.apply(window.history, args);
+    };
+    
+    return () => {
+      window.removeEventListener('popstate', handleBeforeNavigate);
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      
+      // Cleanup on unmount
+      cleanupExecutedRef.current = false;
+      forceGlobalCleanup();
+    };
+  }, []);
+
   // Execute cleanup on unmount
   useEffect(() => {
+    cleanupExecutedRef.current = false; // Reset on mount
+    
     return () => {
       // Small delay to ensure cleanup happens after any pending state updates
       setTimeout(() => {
