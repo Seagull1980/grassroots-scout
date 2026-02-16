@@ -34,7 +34,7 @@ const MapsPage: React.FC = () => {
     if (cleanupExecutedRef.current) return;
     cleanupExecutedRef.current = true;
     
-    console.log('MapsPage: Executing aggressive Google Maps cleanup');
+    console.log('MapsPage: Executing Google Maps cleanup');
     
     // PHASE 1: Immediately disable all Maps interactions
     const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
@@ -46,11 +46,7 @@ const MapsPage: React.FC = () => {
       element.style.zIndex = '-999999 !important';
     });
     
-    // PHASE 2: Clear Maps construction context
-    (window as any).google = undefined;
-    (window as any).google_maps_loaded = false;
-    
-    // PHASE 3: Remove Maps elements from DOM
+    // PHASE 2: Remove Maps elements from DOM
     const selectors = [
       '[class*="gm-"]',
       '[class*="gmnoprint"]', 
@@ -70,12 +66,12 @@ const MapsPage: React.FC = () => {
       }
     });
     
-    // PHASE 4: Remove Maps scripts
+    // PHASE 3: Remove Maps scripts
     document.querySelectorAll('script[src*="maps.googleapis"], script[src*="maps.gstatic"]').forEach(script => {
       script.remove();
     });
     
-    // PHASE 5: Clear container styling
+    // PHASE 4: Reset container styling
     if (containerRef.current) {
       containerRef.current.style.pointerEvents = 'auto';
       containerRef.current.style.zIndex = '1';
