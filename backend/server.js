@@ -6679,7 +6679,10 @@ app.delete('/api/adverts/:id', authenticateToken, async (req, res) => {
       child: 'child_player_availability'
     };
 
-    const table = tables[type as keyof typeof tables];
+    const table = tables[type];
+    if (!table) {
+      return res.status(400).json({ error: 'Invalid advert type' });
+    }
 
     // Verify ownership
     const result = await db.query(`SELECT postedBy FROM ${table} WHERE id = ?`, [id]);
