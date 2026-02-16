@@ -148,7 +148,8 @@ const DashboardPage: React.FC = () => {
     if (hour >= 12 && hour < 17) timeGreeting = 'Good afternoon';
     else if (hour >= 17) timeGreeting = 'Good evening';
     
-    const name = user?.firstName?.trim() || user?.email?.split('@')[0] || 'there';
+    const firstName = user?.firstName?.trim();
+    const name = (firstName && firstName.length > 0) ? firstName : (user?.email?.split('@')[0] || 'there');
     return `${timeGreeting}, ${name}!`;
   };
 
