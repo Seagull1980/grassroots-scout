@@ -27,7 +27,8 @@ import {
   Search as SearchIcon,
   CalendarToday as CalendarIcon,
   AdminPanelSettings as AdminIcon,
-  Flag as FlagIcon
+  Flag as FlagIcon,
+  Assessment as AssessmentIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -399,6 +400,19 @@ const DashboardPage: React.FC = () => {
                     {user.role === 'Coach' ? 'Find Players' : 'Post Availability'}
                   </Button>
                 </Grid>
+                {user.role !== 'Admin' && (
+                  <Grid item xs={6}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<AssessmentIcon />}
+                      onClick={() => navigate('/my-adverts')}
+                      sx={{ py: 2 }}
+                    >
+                      My Adverts
+                    </Button>
+                  </Grid>
+                )}
                 <Grid item xs={6}>
                   <Button
                     fullWidth

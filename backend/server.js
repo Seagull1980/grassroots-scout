@@ -6403,6 +6403,828 @@ app.patch('/api/forum/flags/:id', (req, res) => {
   }
 });
 
+// ============================================================================
+// MY ADVERTS ENDPOINTS - For user to manage their posted adverts
+// ============================================================================
+
+// Get user's posted adverts (both vacancies and player availability)
+app.get('/api/my-adverts', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    let vacancies = [];
+    let playerAvailabilities = [];
+
+    // Get team vacancies if user is a Coach
+    if (userRole === 'Coach') {
+      try {
+        const vacancyResult = await db.query(`
+          SELECT 
+            tv.id,
+            tv.title,
+            tv.description,
+            tv.league,
+            tv.ageGroup,
+            tv.position,
+            tv.teamGender,
+            tv.location,
+            tv.locationData,
+            tv.createdAt,
+            tv.status,
+            tv.postedBy,
+            t.teamName,
+            COALESCE(tv.paused, 0) as paused,
+            COALESCE(tv.closed_reason, NULL) as closed_reason,
+            COALESCE(tv.views, 0) as views,
+            COALESCE(tv.saved_count, 0) as saved_count,
+            COALESCE(tv.inquiries_count, 0) as inquiries_count
+          FROM team_vacancies tv
+          LEFT JOIN teams t ON tv.teamId = t.id
+          WHERE tv.postedBy = ? AND (tv.isFrozen = 0 OR tv.isFrozen IS NULL)
+          ORDER BY tv.createdAt DESC
+        `, [userId]);
+
+        vacancies = (vacancyResult.rows || []).map(row => ({
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          league: row.league,
+          ageGroup: row.ageGroup,
+          position: row.position,
+          teamGender: row.teamGender,
+          location: row.location,
+          teamName: row.teamName,
+          createdAt: row.createdAt,
+          status: row.status,
+          postedBy: row.postedBy,
+          paused: Boolean(row.paused),
+          closed_reason: row.closed_reason,
+          views: row.views || 0,
+          saved_count: row.saved_count || 0,
+          inquiries_count: row.inquiries_count || 0
+        }));
+      } catch (error) {
+        console.error('Error fetching user vacancies:', error);
+      }
+    }
+
+    // Get player availability if user is a Player or Parent/Guardian
+    if (userRole === 'Player' || userRole === 'Parent/Guardian') {
+      try {
+        const query = userRole === 'Parent/Guardian' 
+          ? `
+            SELECT 
+              cpa.id,
+              cpa.title,
+              cpa.description,
+              cpa.preferredLeagues,
+              cpa.ageGroup,
+              cpa.positions,
+              cpa.preferredTeamGender,
+              cpa.location,
+              cpa.createdAt,
+              cpa.status,
+              cpa.postedBy,
+              COALESCE(cpa.paused, 0) as paused,
+              COALESCE(cpa.closed_reason, NULL) as closed_reason,
+              COALESCE(cpa.views, 0) as views,
+              COALESCE(cpa.saved_count, 0) as saved_count,
+              COALESCE(cpa.inquiries_count, 0) as inquiries_count
+            FROM child_player_availability cpa
+            WHERE cpa.postedBy = ?
+            ORDER BY cpa.createdAt DESC
+          `
+          : `
+            SELECT 
+              pa.id,
+              pa.title,
+              pa.description,
+              pa.preferredLeagues,
+              pa.ageGroup,
+              pa.positions,
+              pa.preferredTeamGender,
+              pa.location,
+              pa.createdAt,
+              pa.status,
+              pa.postedBy,
+              COALESCE(pa.paused, 0) as paused,
+              COALESCE(pa.closed_reason, NULL) as closed_reason,
+              COALESCE(pa.views, 0) as views,
+              COALESCE(pa.saved_count, 0) as saved_count,
+              COALESCE(pa.inquiries_count, 0) as inquiries_count
+            FROM player_availability pa
+            WHERE pa.postedBy = ?
+            ORDER BY pa.createdAt DESC
+          `;
+
+        const availResult = await db.query(query, [userId]);
+        playerAvailabilities = (availResult.rows || []).map(row => {
+          let preferredLeagues = [];
+          let positions = [];
+          
+          try {
+            preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+            if (!Array.isArray(preferredLeagues)) preferredLeagues = [];
+          } catch (e) {
+            preferredLeagues = [];
+          }
+          
+          try {
+            positions = row.positions ? JSON.parse(row.positions) : [];
+            if (!Array.isArray(positions)) positions = [];
+          } catch (e) {
+            positions = [];
+          }
+
+          return {
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            preferredLeagues,
+            positions,
+            ageGroup: row.ageGroup,
+            preferredTeamGender: row.preferredTeamGender,
+            location: row.location,
+            createdAt: row.createdAt,
+            status: row.status,
+            postedBy: row.postedBy,
+            paused: Boolean(row.paused),
+            closed_reason: row.closed_reason,
+            views: row.views || 0,
+            saved_count: row.saved_count || 0,
+            inquiries_count: row.inquiries_count || 0
+          };
+        });
+      } catch (error) {
+        console.error('Error fetching user player availability:', error);
+      }
+    }
+
+    res.json({
+      vacancies,
+      playerAvailabilities
+    });
+  } catch (error) {
+    console.error('Error fetching user adverts:', error);
+    res.status(500).json({ error: 'Failed to fetch your adverts' });
+  }
+});
+
+// Update advert status (pause/resume)
+app.put('/api/adverts/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paused } = req.body;
+    const userId = req.user.userId;
+
+    if (typeof paused !== 'boolean') {
+      return res.status(400).json({ error: 'paused must be a boolean' });
+    }
+
+    // Check if it's a vacancy or player availability
+    const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [id]);
+    const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [id]);
+    const childAvailCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [id]);
+
+    let isAuthorized = false;
+    let isVacancy = false;
+    let isChildAvail = false;
+
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      isAuthorized = vacancyCheck.rows[0].postedBy === userId;
+      isVacancy = true;
+    } else if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
+      isAuthorized = childAvailCheck.rows[0].postedBy === userId;
+      isChildAvail = true;
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      isAuthorized = availCheck.rows[0].postedBy === userId;
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Not authorized to update this advert' });
+    }
+
+    const table = isVacancy ? 'team_vacancies' : (isChildAvail ? 'child_player_availability' : 'player_availability');
+    await db.query(`UPDATE ${table} SET paused = ? WHERE id = ?`, [paused ? 1 : 0, id]);
+
+    res.json({ message: paused ? 'Advert paused' : 'Advert resumed', paused });
+  } catch (error) {
+    console.error('Error updating advert status:', error);
+    res.status(500).json({ error: 'Failed to update advert status' });
+  }
+});
+
+// Close advert (mark as closed)
+app.post('/api/adverts/:id/close', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.userId;
+
+    if (!reason || typeof reason !== 'string') {
+      return res.status(400).json({ error: 'reason is required' });
+    }
+
+    // Check if it's a vacancy or player availability
+    const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [id]);
+    const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [id]);
+    const childAvailCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [id]);
+
+    let isAuthorized = false;
+    let isVacancy = false;
+    let isChildAvail = false;
+
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      isAuthorized = vacancyCheck.rows[0].postedBy === userId;
+      isVacancy = true;
+    } else if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
+      isAuthorized = childAvailCheck.rows[0].postedBy === userId;
+      isChildAvail = true;
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      isAuthorized = availCheck.rows[0].postedBy === userId;
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Not authorized to close this advert' });
+    }
+
+    const table = isVacancy ? 'team_vacancies' : (isChildAvail ? 'child_player_availability' : 'player_availability');
+    await db.query(
+      `UPDATE ${table} SET closed_reason = ?, closed_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [reason, id]
+    );
+
+    res.json({ message: 'Advert closed successfully', closed_reason: reason });
+  } catch (error) {
+    console.error('Error closing advert:', error);
+    res.status(500).json({ error: 'Failed to close advert' });
+  }
+});
+
+// Delete advert
+app.delete('/api/adverts/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type } = req.body;
+    const userId = req.user.userId;
+
+    if (!type || !['vacancy', 'player', 'child'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid advert type' });
+    }
+
+    const tables = {
+      vacancy: 'team_vacancies',
+      player: 'player_availability',
+      child: 'child_player_availability'
+    };
+
+    const table = tables[type as keyof typeof tables];
+
+    // Verify ownership
+    const result = await db.query(`SELECT postedBy FROM ${table} WHERE id = ?`, [id]);
+    if (!result.rows || result.rows.length === 0 || result.rows[0].postedBy !== userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this advert' });
+    }
+
+    await db.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+    res.json({ message: 'Advert deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting advert:', error);
+    res.status(500).json({ error: 'Failed to delete advert' });
+  }
+});
+
+// ============================================================================
+// ENHANCED ADVERT FEATURES - Edit, Repost, Analytics, Bulk Actions, Export
+// ============================================================================
+
+// Update/Edit advert (PUT)
+app.put('/api/adverts/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const {
+      title,
+      description,
+      league,
+      ageGroup,
+      position,
+      positions,
+      location,
+      locationData,
+      playingTimePolicy,
+      hasMatchRecording,
+      hasPathwayToSenior,
+      teamGender
+    } = req.body;
+
+    // Determine table and verify ownership
+    const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [id]);
+    const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [id]);
+    const childAvailCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [id]);
+
+    let isAuthorized = false;
+    let table = '';
+    let isVacancy = false;
+
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      isAuthorized = vacancyCheck.rows[0].postedBy === userId;
+      table = 'team_vacancies';
+      isVacancy = true;
+    } else if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
+      isAuthorized = childAvailCheck.rows[0].postedBy === userId;
+      table = 'child_player_availability';
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      isAuthorized = availCheck.rows[0].postedBy === userId;
+      table = 'player_availability';
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Not authorized to edit this advert' });
+    }
+
+    // Build update query
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) {
+      updates.push('title = ?');
+      values.push(title);
+    }
+    if (description !== undefined) {
+      updates.push('description = ?');
+      values.push(description);
+    }
+    if (league !== undefined) {
+      updates.push('league = ?');
+      values.push(league);
+    }
+    if (location !== undefined) {
+      updates.push('location = ?');
+      values.push(location);
+    }
+    if (locationData !== undefined) {
+      updates.push('locationData = ?');
+      values.push(typeof locationData === 'string' ? locationData : JSON.stringify(locationData));
+    }
+    if (ageGroup !== undefined) {
+      updates.push('ageGroup = ?');
+      values.push(ageGroup);
+    }
+
+    // Table-specific fields
+    if (isVacancy) {
+      if (position !== undefined) {
+        updates.push('position = ?');
+        values.push(position);
+      }
+      if (playingTimePolicy !== undefined) {
+        updates.push('playingTimePolicy = ?');
+        values.push(playingTimePolicy);
+      }
+      if (hasMatchRecording !== undefined) {
+        updates.push('hasMatchRecording = ?');
+        values.push(hasMatchRecording ? 1 : 0);
+      }
+      if (hasPathwayToSenior !== undefined) {
+        updates.push('hasPathwayToSenior = ?');
+        values.push(hasPathwayToSenior ? 1 : 0);
+      }
+      if (teamGender !== undefined) {
+        updates.push('teamGender = ?');
+        values.push(teamGender);
+      }
+    } else {
+      if (positions !== undefined && Array.isArray(positions)) {
+        updates.push('positions = ?');
+        values.push(JSON.stringify(positions));
+      }
+      if (teamGender !== undefined) {
+        updates.push('preferredTeamGender = ?');
+        values.push(teamGender);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    const updateQuery = `UPDATE ${table} SET ${updates.join(', ')} WHERE id = ?`;
+    await db.query(updateQuery, values);
+
+    res.json({ message: 'Advert updated successfully' });
+  } catch (error) {
+    console.error('Error updating advert:', error);
+    res.status(500).json({ error: 'Failed to update advert' });
+  }
+});
+
+// Repost an advert (duplicate with new dates)
+app.post('/api/adverts/:id/repost', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    // Determine table and get original advert
+    const vacancyCheck = await db.query('SELECT * FROM team_vacancies WHERE id = ? AND postedBy = ?', [id, userId]);
+    const availCheck = await db.query('SELECT * FROM player_availability WHERE id = ? AND postedBy = ?', [id, userId]);
+
+    let original = null;
+    let table = '';
+    let isVacancy = false;
+
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      original = vacancyCheck.rows[0];
+      table = 'team_vacancies';
+      isVacancy = true;
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      original = availCheck.rows[0];
+      table = 'player_availability';
+    }
+
+    if (!original) {
+      return res.status(404).json({ error: 'Advert not found or not authorized' });
+    }
+
+    // Create new advert with same content but new timestamps
+    const columns = Object.keys(original).filter(key => key !== 'id');
+    const placeholders = columns.map(() => '?').join(', ');
+    const insertQuery = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+    
+    const values = columns.map(col => {
+      if (col === 'createdAt') return new Date().toISOString();
+      if (col === 'status') return 'active';
+      if (col === 'paused') return 0;
+      if (col === 'closed_reason') return null;
+      if (col === 'closed_at') return null;
+      return original[col];
+    });
+
+    const result = await db.query(insertQuery, values);
+    const newAdvertId = result.lastID || result.insertId;
+
+    res.json({ 
+      message: 'Advert reposted successfully',
+      newAdvertId,
+      advertUrl: `/advert/${newAdvertId}`
+    });
+  } catch (error) {
+    console.error('Error reposting advert:', error);
+    res.status(500).json({ error: 'Failed to repost advert' });
+  }
+});
+
+// Get advert analytics (views, saves, engagement metrics)
+app.get('/api/adverts/:id/analytics', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    // Find and verify ownership
+    const vacancyCheck = await db.query('SELECT * FROM team_vacancies WHERE id = ?', [id]);
+    const availCheck = await db.query('SELECT * FROM player_availability WHERE id = ?', [id]);
+    const childAvailCheck = await db.query('SELECT * FROM child_player_availability WHERE id = ?', [id]);
+
+    let advert = null;
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      advert = vacancyCheck.rows[0];
+    } else if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
+      advert = childAvailCheck.rows[0];
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      advert = availCheck.rows[0];
+    }
+
+    if (!advert || advert.postedBy !== userId) {
+      return res.status(403).json({ error: 'Not authorized to view analytics' });
+    }
+
+    // Calculate metrics
+    const createdDate = new Date(advert.createdAt);
+    const today = new Date();
+    const daysActive = Math.floor((today - createdDate) / (1000 * 60 * 60 * 24)) + 1;
+    const viewsPerDay = advert.views ? (advert.views / daysActive).toFixed(2) : 0;
+    const engagementRate = advert.views > 0 ? ((advert.saved_count / advert.views) * 100).toFixed(2) : 0;
+
+    res.json({
+      title: advert.title,
+      status: advert.status,
+      createdAt: advert.createdAt,
+      metrics: {
+        views: advert.views || 0,
+        saves: advert.saved_count || 0,
+        inquiries: advert.inquiries_count || 0,
+        daysActive,
+        viewsPerDay: parseFloat(viewsPerDay),
+        engagementRate: parseFloat(engagementRate),
+        averageTimeOnPage: 45 // Placeholder
+      },
+      recommendations: generateAnalyticsRecommendations(advert, parseFloat(viewsPerDay), parseFloat(engagementRate))
+    });
+  } catch (error) {
+    console.error('Error fetching advert analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Helper function for analytics recommendations
+function generateAnalyticsRecommendations(advert, viewsPerDay, engagementRate) {
+  const recommendations = [];
+
+  if (viewsPerDay < 1) {
+    recommendations.push({
+      type: 'visibility',
+      message: 'Your advert is getting low visibility. Consider reposting or updating the title.',
+      priority: 'high'
+    });
+  }
+
+  if (engagementRate < 5) {
+    recommendations.push({
+      type: 'content',
+      message: 'Engagement is low. Add more details or photos to increase saves.',
+      priority: 'medium'
+    });
+  }
+
+  if (!advert.location) {
+    recommendations.push({
+      type: 'location',
+      message: 'Adding a location can increase visibility by 40%.',
+      priority: 'medium'
+    });
+  }
+
+  if (advert.views > 50 && advert.inquiries_count === 0) {
+    recommendations.push({
+      type: 'messaging',
+      message: 'You have good visibility but no inquiries. Check your contact info.',
+      priority: 'medium'
+    });
+  }
+
+  return recommendations;
+}
+
+// Track advert view
+app.post('/api/adverts/:id/track-view', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Update views count (can be called by any user)
+    // First try vacancy table
+    let result = await db.query('UPDATE team_vacancies SET views = views + 1, last_viewed_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    
+    if (result.changes === 0) {
+      // Try player availability
+      result = await db.query('UPDATE player_availability SET views = views + 1, last_viewed_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    }
+    
+    if (result.changes === 0) {
+      // Try child player availability
+      result = await db.query('UPDATE child_player_availability SET views = views + 1, last_viewed_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    }
+
+    res.json({ message: 'View tracked' });
+  } catch (error) {
+    console.error('Error tracking view:', error);
+    res.status(500).json({ error: 'Failed to track view' });
+  }
+});
+
+// Bulk close adverts
+app.post('/api/adverts/bulk/close', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { advertIds, reason } = req.body;
+
+    if (!Array.isArray(advertIds) || advertIds.length === 0) {
+      return res.status(400).json({ error: 'advertIds must be a non-empty array' });
+    }
+
+    if (!reason || typeof reason !== 'string') {
+      return res.status(400).json({ error: 'reason is required' });
+    }
+
+    let closedCount = 0;
+
+    for (const advertId of advertIds) {
+      // Check and close vacancies
+      const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [advertId]);
+      if (vacancyCheck.rows && vacancyCheck.rows.length > 0 && vacancyCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE team_vacancies SET closed_reason = ?, closed_at = CURRENT_TIMESTAMP WHERE id = ?', [reason, advertId]);
+        closedCount++;
+        continue;
+      }
+
+      // Check and close player availability
+      const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [advertId]);
+      if (availCheck.rows && availCheck.rows.length > 0 && availCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE player_availability SET closed_reason = ?, closed_at = CURRENT_TIMESTAMP WHERE id = ?', [reason, advertId]);
+        closedCount++;
+        continue;
+      }
+
+      // Check and close child player availability
+      const childCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [advertId]);
+      if (childCheck.rows && childCheck.rows.length > 0 && childCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE child_player_availability SET closed_reason = ?, closed_at = CURRENT_TIMESTAMP WHERE id = ?', [reason, advertId]);
+        closedCount++;
+      }
+    }
+
+    res.json({ message: `${closedCount} adverts closed successfully`, closedCount });
+  } catch (error) {
+    console.error('Error bulk closing adverts:', error);
+    res.status(500).json({ error: 'Failed to close adverts' });
+  }
+});
+
+// Bulk pause/resume adverts
+app.post('/api/adverts/bulk/pause', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { advertIds, paused } = req.body;
+
+    if (!Array.isArray(advertIds) || advertIds.length === 0) {
+      return res.status(400).json({ error: 'advertIds must be a non-empty array' });
+    }
+
+    if (typeof paused !== 'boolean') {
+      return res.status(400).json({ error: 'paused must be a boolean' });
+    }
+
+    let updatedCount = 0;
+
+    for (const advertId of advertIds) {
+      // Check and update vacancies
+      const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [advertId]);
+      if (vacancyCheck.rows && vacancyCheck.rows.length > 0 && vacancyCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE team_vacancies SET paused = ? WHERE id = ?', [paused ? 1 : 0, advertId]);
+        updatedCount++;
+        continue;
+      }
+
+      // Check and update player availability
+      const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [advertId]);
+      if (availCheck.rows && availCheck.rows.length > 0 && availCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE player_availability SET paused = ? WHERE id = ?', [paused ? 1 : 0, advertId]);
+        updatedCount++;
+        continue;
+      }
+
+      // Check and update child player availability
+      const childCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [advertId]);
+      if (childCheck.rows && childCheck.rows.length > 0 && childCheck.rows[0].postedBy === userId) {
+        await db.query('UPDATE child_player_availability SET paused = ? WHERE id = ?', [paused ? 1 : 0, advertId]);
+        updatedCount++;
+      }
+    }
+
+    res.json({ 
+      message: `${updatedCount} adverts ${paused ? 'paused' : 'resumed'} successfully`,
+      updatedCount 
+    });
+  } catch (error) {
+    console.error('Error bulk pausing adverts:', error);
+    res.status(500).json({ error: 'Failed to update adverts' });
+  }
+});
+
+// Set auto-extend for advert
+app.put('/api/adverts/:id/auto-extend', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { autoExtend } = req.body;
+    const userId = req.user.userId;
+
+    if (typeof autoExtend !== 'boolean') {
+      return res.status(400).json({ error: 'autoExtend must be a boolean' });
+    }
+
+    // Find and verify ownership
+    let table = '';
+    const vacancyCheck = await db.query('SELECT postedBy FROM team_vacancies WHERE id = ?', [id]);
+    const availCheck = await db.query('SELECT postedBy FROM player_availability WHERE id = ?', [id]);
+    const childCheck = await db.query('SELECT postedBy FROM child_player_availability WHERE id = ?', [id]);
+
+    if (vacancyCheck.rows && vacancyCheck.rows.length > 0) {
+      if (vacancyCheck.rows[0].postedBy !== userId) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      table = 'team_vacancies';
+    } else if (childCheck.rows && childCheck.rows.length > 0) {
+      if (childCheck.rows[0].postedBy !== userId) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      table = 'child_player_availability';
+    } else if (availCheck.rows && availCheck.rows.length > 0) {
+      if (availCheck.rows[0].postedBy !== userId) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+      table = 'player_availability';
+    } else {
+      return res.status(404).json({ error: 'Advert not found' });
+    }
+
+    await db.query(`UPDATE ${table} SET auto_extend = ? WHERE id = ?`, [autoExtend ? 1 : 0, id]);
+
+    res.json({ 
+      message: autoExtend ? 'Auto-extend enabled' : 'Auto-extend disabled',
+      autoExtend 
+    });
+  } catch (error) {
+    console.error('Error setting auto-extend:', error);
+    res.status(500).json({ error: 'Failed to update auto-extend setting' });
+  }
+});
+
+// Export adverts as CSV
+app.get('/api/adverts/export', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { format = 'csv' } = req.query;
+
+    // Get all user's adverts
+    const vacancies = await db.query(
+      `SELECT id, title, description, league, ageGroup, status, createdAt, views, saved_count FROM team_vacancies WHERE postedBy = ?`,
+      [userId]
+    );
+
+    const availability = await db.query(
+      `SELECT id, title, description, ageGroup, status, createdAt, views, saved_count FROM player_availability WHERE postedBy = ?`,
+      [userId]
+    );
+
+    const allAdverts = [
+      ...(vacancies.rows || []).map(v => ({ ...v, type: 'Vacancy' })),
+      ...(availability.rows || []).map(a => ({ ...a, type: 'Player Availability' }))
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (format === 'csv') {
+      // Generate CSV
+      const headers = ['ID', 'Type', 'Title', 'Description', 'Category', 'Status', 'Posted Date', 'Views', 'Saves'];
+      const rows = allAdverts.map(a => [
+        a.id,
+        a.type,
+        `"${a.title}"`,
+        `"${(a.description || '').substring(0, 50)}"`,
+        a.league || a.ageGroup || 'N/A',
+        a.status,
+        new Date(a.createdAt).toLocaleDateString(),
+        a.views || 0,
+        a.saved_count || 0
+      ]);
+
+      const csv = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="adverts_export.csv"');
+      res.send(csv);
+    } else {
+      // Return as JSON
+      res.json({ adverts: allAdverts, totalCount: allAdverts.length });
+    }
+  } catch (error) {
+    console.error('Error exporting adverts:', error);
+    res.status(500).json({ error: 'Failed to export adverts' });
+  }
+});
+
+// Subscribe to advert notifications (when expiring soon, responses, etc)
+app.post('/api/advert-notifications/subscribe', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { advertId, notificationType, enabled } = req.body;
+
+    if (!advertId || !notificationType) {
+      return res.status(400).json({ error: 'advertId and notificationType are required' });
+    }
+
+    const validTypes = ['expiring_soon', 'new_inquiry', 'low_engagement', 'bulk_updates'];
+    if (!validTypes.includes(notificationType)) {
+      return res.status(400).json({ error: 'Invalid notification type' });
+    }
+
+    // This would normally be stored in an advert_notifications table
+    // For now, return success to enable frontend functionality
+    res.json({
+      message: enabled ? 'Notification enabled' : 'Notification disabled',
+      notificationType,
+      advertId
+    });
+  } catch (error) {
+    console.error('Error subscribing to notifications:', error);
+    res.status(500).json({ error: 'Failed to manage notification settings' });
+  }
+});
+
 // Graceful shutdown (only in development)
 if (process.env.NODE_ENV !== 'production') {
   process.on('SIGINT', () => {

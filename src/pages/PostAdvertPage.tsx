@@ -241,9 +241,9 @@ const PostAdvertPage: React.FC = () => {
       });
       setLocationData(null);
 
-      // Redirect to dashboard after 2 seconds
+      // Redirect to My Adverts dashboard after 2 seconds
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/my-adverts');
       }, 2000);
     } catch (err) {
       console.error('Failed to post advert:', err);
@@ -418,7 +418,7 @@ const PostAdvertPage: React.FC = () => {
 
         {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
-            Your advert has been posted successfully! Redirecting to dashboard...
+            Your advert has been posted successfully! Redirecting to your adverts dashboard...
           </Alert>
         )}
 

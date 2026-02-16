@@ -136,7 +136,10 @@ const Navbar: React.FC = () => {
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
-    ...(user?.role !== 'Admin' ? [{ path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> }] : []),
+    ...(user?.role !== 'Admin' ? [
+      { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
+      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
+    ] : []),
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },

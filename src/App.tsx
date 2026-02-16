@@ -31,6 +31,8 @@ import './services/analyticsTracking';
 // Optimized imports - Core pages loaded immediately
 import DashboardPage from './pages/DashboardPage.tsx';
 import PostAdvertPage from './pages/PostAdvertPage.tsx';
+import EditAdvertPage from './pages/EditAdvertPage.tsx';
+import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
 import SearchPage from './pages/SearchPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import AboutManagementPage from './pages/AboutManagementPage.tsx';
@@ -120,6 +122,16 @@ const AppRoutes = () => {
         <Route path="/post-advert" element={
           <ProtectedRoute>
             <PostAdvertPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/edit-advert/:id" element={
+          <ProtectedRoute>
+            <EditAdvertPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/my-adverts" element={
+          <ProtectedRoute>
+            <MyAdvertsPage />
           </ProtectedRoute>
         } />
         <Route path="/search" element={
