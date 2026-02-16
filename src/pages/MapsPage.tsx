@@ -26,106 +26,59 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const cleanupExecutedRef = useRef(false);
 
-  // Force cleanup function that removes ALL Google Maps elements from entire document
-  const forceGlobalCleanup = () => {
-    if (cleanupExecutedRef.current) return;
-    cleanupExecutedRef.current = true;
-    
-    console.log('MapsPage: Executing global Google Maps cleanup');
-    
-    // IMMEDIATELY disable pointer events on ALL map-related elements (but NOT the container)
-    const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-    mapElements.forEach(el => {
-      (el as HTMLElement).style.pointerEvents = 'none';
-      (el as HTMLElement).style.display = 'none';
-    });
-    
-    // Remove ALL Google Maps related elements from the entire document
-    const selectors = [
-      '[class*="gm-"]',
-      '[class*="gmnoprint"]', 
-      '[class*="gm-style"]',
-      '.pac-container',  // Autocomplete dropdown
-      '[src*="maps.googleapis.com"]',
-      '[src*="maps.gstatic.com"]'
-    ];
-    
-    selectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        try {
-          el.remove();
-        } catch (e) {
-          // Ignore removal errors
+  // Continuous cleanup to prevent Google Maps from blocking navigation
+  useEffect(() => {
+    // Ensure navigation elements stay above Google Maps
+    const ensureNavigationAccessible = () => {
+      // Disable pointer events on ALL Google Maps overlays
+      const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+      mapElements.forEach(el => {
+        const element = el as HTMLElement;
+        // Only disable pointer events on overlay elements, not the main map container
+        if (!element.closest('[id^="map-container"]')) {
+          element.style.pointerEvents = 'none';
         }
       });
-    });
-    
-    // Remove any remaining Google Maps API scripts
-    const scripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
-    scripts.forEach(script => {
-      try {
-        script.remove();
-      } catch (e) {
-        // Ignore removal errors  
-      }
-    });
-    
-    console.log('MapsPage: Global cleanup complete');
-  };
+      
+      // Ensure navigation has high z-index
+      const navElements = document.querySelectorAll('nav, .MuiBottomNavigation-root, .MuiAppBar-root, header');
+      navElements.forEach(el => {
+        const element = el as HTMLElement;
+        if (element.style.zIndex === '' || parseInt(element.style.zIndex) < 9999) {
+          element.style.zIndex = '9999';
+        }
+      });
+    };
 
-  // Intercept navigation AWAY from Maps page to cleanup Google Maps elements
-  // This prevents Google Maps from blocking clicks on navigation elements
-  useEffect(() => {
-    const handleNavigationClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
+    // Run immediately
+    ensureNavigationAccessible();
+    
+    // Run periodically to catch dynamically added elements
+    const intervalId = setInterval(ensureNavigationAccessible, 100);
+    
+    // Cleanup on unmount
+    return () => {
+      clearInterval(intervalId);
       
-      // Ignore clicks within the MapsPage container (internal tab switching)
-      if (containerRef.current && containerRef.current.contains(target)) {
-        return;
-      }
+      // Full cleanup
+      console.log('MapsPage: Cleaning up Google Maps elements');
+      const selectors = [
+        '[class*="gm-"]',
+        '[class*="gmnoprint"]', 
+        '[class*="gm-style"]',
+        '.pac-container'
+      ];
       
-      // Check if clicking on a navigation element (trying to leave the page)
-      const isNavClick = target.closest('a[href]') || 
-                        target.closest('.MuiBottomNavigation-root') ||
-                        target.closest('.MuiBottomNavigationAction-root') ||
-                        target.closest('.MuiListItem-root') ||
-                        target.closest('nav');
-      
-      if (isNavClick) {
-        console.log('Navigation away detected, disabling Google Maps elements');
-        
-        // Immediately disable Google Maps elements to allow navigation
-        const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-        mapElements.forEach(el => {
-          (el as HTMLElement).style.pointerEvents = 'none';
-          (el as HTMLElement).style.zIndex = '0';
+      selectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => {
+          try {
+            el.remove();
+          } catch (e) {
+            // Ignore
+          }
         });
-        
-        // Schedule full cleanup
-        setTimeout(() => forceGlobalCleanup(), 50);
-      }
-    };
-
-    // Add listener with capture phase to intercept clicks early
-    // Use a small delay to ensure Maps page has rendered before adding listener
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('click', handleNavigationClick, { capture: true });
-    }, 500);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('click', handleNavigationClick, { capture: true });
-    };
-  }, []);
-
-  // Execute cleanup on unmount
-  useEffect(() => {
-    return () => {
-      setTimeout(() => {
-        forceGlobalCleanup();
-      }, 0);
+      });
     };
   }, []);
 
