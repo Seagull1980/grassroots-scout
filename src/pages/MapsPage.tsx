@@ -79,23 +79,22 @@ const MapsPage: React.FC = () => {
 
   // Monitor location changes - if we're navigating away, cleanup immediately
   useEffect(() => {
-    // Listen for any navigation event and immediately cleanup Google Maps
-    const handleBeforeNavigate = () => {
-      console.log('Navigation detected - immediate Google Maps cleanup');
+    // Listen for clicks on navigation elements
+    const handleNavigationClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
       
-      // Immediately hide all Google Maps elements
-      const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
-      allMapElements.forEach(el => {
-        const element = el as HTMLElement;
-        element.style.display = 'none !important';
-        element.style.visibility = 'hidden !important';
-        element.style.opacity = '0 !important';
-        element.style.pointerEvents = 'none !important';
-        element.style.zIndex = '-9999 !important';
-      });
+      // Check if clicking on navigation
+      const isNavigation = target.closest('nav') || 
+                          target.closest('.MuiBottomNavigation-root') ||
+                          target.closest('.MuiAppBar-root') ||
+                          target.closest('a[href]') ||
+                          target.closest('button[aria-label]');
       
-      // Remove them
-      setTimeout(() => {
+      if (isNavigation && containerRef.current) {
+        console.log('Navigation click detected - removing Maps page container');
+        
+        // Remove ALL Google Maps elements immediately
+        const allMapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
         allMapElements.forEach(el => {
           try {
             el.remove();
@@ -103,33 +102,19 @@ const MapsPage: React.FC = () => {
             // Ignore
           }
         });
-      }, 0);
+        
+        // Hide the maps container itself to allow new page to render
+        containerRef.current.style.display = 'none';
+      }
     };
 
-    // Listen for route changes
-    window.addEventListener('popstate', handleBeforeNavigate);
-    
-    // Store original pushState and replaceState
-    const originalPushState = window.history.pushState;
-    const originalReplaceState = window.history.replaceState;
-    
-    // Override to detect navigation
-    window.history.pushState = function(...args) {
-      handleBeforeNavigate();
-      return originalPushState.apply(window.history, args);
-    };
-    
-    window.history.replaceState = function(...args) {
-      handleBeforeNavigate();
-      return originalReplaceState.apply(window.history, args);
-    };
+    // Add listener with capture phase
+    document.addEventListener('click', handleNavigationClick, true);
     
     return () => {
-      window.removeEventListener('popstate', handleBeforeNavigate);
-      window.history.pushState = originalPushState;
-      window.history.replaceState = originalReplaceState;
+      document.removeEventListener('click', handleNavigationClick, true);
       
-      // Cleanup on unmount
+      // Final cleanup on unmount
       cleanupExecutedRef.current = false;
       forceGlobalCleanup();
     };
