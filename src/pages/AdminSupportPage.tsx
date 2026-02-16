@@ -24,9 +24,10 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import { Visibility, Check } from '@mui/icons-material';
+import { Visibility, Check, Message } from '@mui/icons-material';
 import axios from 'axios';
 import { API_URL } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 interface SupportMessage {
   id: number;
@@ -48,6 +49,7 @@ interface SupportMessage {
 }
 
 const AdminSupportPage: React.FC = () => {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -261,9 +263,22 @@ const AdminSupportPage: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
                     Registered User:
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {selectedMessage.firstname} {selectedMessage.lastname} (ID: {selectedMessage.userId})
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Typography variant="body1">
+                      {selectedMessage.firstname} {selectedMessage.lastname} (ID: {selectedMessage.userId})
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<Message />}
+                      onClick={() => {
+                        setDetailsOpen(false);
+                        navigate(`/messages?userId=${selectedMessage.userId}`);
+                      }}
+                    >
+                      Contact User
+                    </Button>
+                  </Box>
                 </>
               )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import { API_URL } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ContactFormModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   defaultMessage = '',
   pageUrl,
 }) => {
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState(defaultSubject);
@@ -36,6 +38,14 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Auto-populate user info when dialog opens
+  useEffect(() => {
+    if (open && user) {
+      setName(`${user.firstName} ${user.lastName}`);
+      setEmail(user.email);
+    }
+  }, [open, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,30 +106,37 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
             )}
 
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Please fill out the form below and our support team will get back to you as soon as possible.
+              {user 
+                ? 'Report an issue or ask for help. Our support team will respond in the app.'
+                : 'Please fill out the form below and our support team will get back to you as soon as possible.'
+              }
             </Typography>
 
-            <TextField
-              fullWidth
-              label="Your Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              margin="normal"
-              disabled={loading}
-            />
+            {!user && (
+              <>
+                <TextField
+                  fullWidth
+                  label="Your Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  margin="normal"
+                  disabled={loading}
+                />
 
-            <TextField
-              fullWidth
-              label="Email Address"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              margin="normal"
-              disabled={loading}
-              helperText="We'll use this to respond to your message"
-            />
+                <TextField
+                  fullWidth
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  margin="normal"
+                  disabled={loading}
+                  helperText="We'll use this to respond to your message"
+                />
+              </>
+            )}
 
             <TextField
               fullWidth
@@ -154,7 +171,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
           <Button
             onClick={handleSubmit}
             variant="contained"
-            disabled={loading || !name.trim() || !email.trim() || !subject.trim() || !message.trim()}
+            disabled={loading || !subject.trim() || !message.trim() || (!user && (!name.trim() || !email.trim()))}
             startIcon={loading ? <CircularProgress size={20} /> : null}
           >
             {loading ? 'Sending...' : 'Send Message'}
