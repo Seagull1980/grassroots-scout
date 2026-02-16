@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LoadingSpinner as AppLoadingSpinner } from './components/LoadingComponents';
@@ -77,9 +77,32 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 // Enhanced loading component
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
+// Component to handle navigation away from Maps page
+const MapsNavigationHandler = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const prevPath = sessionStorage.getItem('prevPath') || '/';
+    const currentPath = location.pathname;
+
+    // If we were on /maps and now we're navigating away, force a full reload
+    if (prevPath === '/maps' && currentPath !== '/maps') {
+      console.log('Navigating away from Maps - forcing page reload');
+      sessionStorage.setItem('prevPath', currentPath);
+      window.location.href = currentPath;
+      return;
+    }
+
+    sessionStorage.setItem('prevPath', currentPath);
+  }, [location.pathname]);
+
+  return null;
+};
+
 const AppRoutes = () => {
   return (
     <>
+      <MapsNavigationHandler />
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
         <Route path="/" element={<HomePage />} />
