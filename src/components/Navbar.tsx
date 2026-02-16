@@ -68,6 +68,16 @@ const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
 
+  // Custom navigate function that forces page reload when leaving Maps
+  const safeNavigate = (path: string) => {
+    if (location.pathname === '/maps') {
+      // Force full page reload when navigating away from Maps
+      window.location.href = path;
+    } else {
+      navigate(path);
+    }
+  };
+
   // Ref for the mobile menu button to manage focus
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -104,7 +114,7 @@ const Navbar: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    safeNavigate('/');
     handleClose();
   };
 
@@ -179,7 +189,7 @@ const Navbar: React.FC = () => {
 
   const handleBottomNavChange = (_event: React.SyntheticEvent, newValue: number) => {
     if (newValue >= 0 && newValue < coreNavItems.length) {
-      navigate(coreNavItems[newValue].path);
+      safeNavigate(coreNavItems[newValue].path);
     }
   };
 
@@ -199,7 +209,7 @@ const Navbar: React.FC = () => {
           <ListItem
             key={item.path}
             onClick={() => {
-              navigate(item.path);
+              safeNavigate(item.path);
               setMobileOpen(false);
             }}
             sx={{
@@ -251,7 +261,7 @@ const Navbar: React.FC = () => {
                 fontWeight: 700,
                 color: 'primary.main'
               }}
-              onClick={() => navigate(user ? '/dashboard' : '/')}
+              onClick={() => safeNavigate(user ? '/dashboard' : '/')}
             >
               The Grassroots Scout
             </Typography>
@@ -262,7 +272,7 @@ const Navbar: React.FC = () => {
                 <Button
                   key={item.path}
                   startIcon={item.icon}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => safeNavigate(item.path)}
                   sx={{
                     color: isActive(item.path) ? '#1e3a8a' : '#0f172a',
                     fontWeight: isActive(item.path) ? 600 : 400,
@@ -313,7 +323,7 @@ const Navbar: React.FC = () => {
                       <MenuItem
                         key={item.path}
                         onClick={() => {
-                          navigate(item.path);
+                          safeNavigate(item.path);
                           handleMoreMenuClose();
                         }}
                       >
@@ -332,7 +342,7 @@ const Navbar: React.FC = () => {
                 <Fab
                   color="primary"
                   size="small"
-                  onClick={() => navigate('/post-advert')}
+                  onClick={() => safeNavigate('/post-advert')}
                   sx={{ mr: 1 }}
                 >
                   <Add />
@@ -376,11 +386,11 @@ const Navbar: React.FC = () => {
                       }
                     }}
                   >
-                    <MenuItem onClick={() => navigate('/profile')}>
+                    <MenuItem onClick={() => safeNavigate('/profile')}>
                       <ListItemIcon><Person /></ListItemIcon>
                       Profile
                     </MenuItem>
-                    <MenuItem onClick={() => navigate('/alert-preferences')}>
+                    <MenuItem onClick={() => safeNavigate('/alert-preferences')}>
                       <ListItemIcon><NotificationBell /></ListItemIcon>
                       Alert Preferences
                     </MenuItem>
@@ -392,10 +402,10 @@ const Navbar: React.FC = () => {
                 </>
               ) : (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button color="inherit" onClick={() => navigate('/login')}>
+                  <Button color="inherit" onClick={() => safeNavigate('/login')}>
                     Login
                   </Button>
-                  <Button variant="contained" onClick={() => navigate('/register')}>
+                  <Button variant="contained" onClick={() => safeNavigate('/register')}>
                     Sign Up
                   </Button>
                 </Box>
@@ -467,7 +477,7 @@ const Navbar: React.FC = () => {
                 fontWeight: 700,
                 color: 'primary.main'
               }}
-              onClick={() => navigate(user ? '/dashboard' : '/')}
+              onClick={() => safeNavigate(user ? '/dashboard' : '/')}
             >
               Grassroots Scout
             </Typography>
@@ -479,7 +489,7 @@ const Navbar: React.FC = () => {
                 <Fab
                   color="primary"
                   size="small"
-                  onClick={() => navigate('/post-advert')}
+                  onClick={() => safeNavigate('/post-advert')}
                   sx={{ mr: 1 }}
                 >
                   <Add />
@@ -493,7 +503,7 @@ const Navbar: React.FC = () => {
                   </Avatar>
                 </IconButton>
               ) : (
-                <Button color="inherit" onClick={() => navigate('/login')} size="small">
+                <Button color="inherit" onClick={() => safeNavigate('/login')} size="small">
                   Login
                 </Button>
               )}
@@ -519,11 +529,11 @@ const Navbar: React.FC = () => {
       {/* User Menu */}
       {user && (
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-          <MenuItem onClick={() => navigate('/profile')}>
+          <MenuItem onClick={() => safeNavigate('/profile')}>
             <ListItemIcon><Person /></ListItemIcon>
             Profile
           </MenuItem>
-          <MenuItem onClick={() => navigate('/alert-preferences')}>
+          <MenuItem onClick={() => safeNavigate('/alert-preferences')}>
             <ListItemIcon><NotificationBell /></ListItemIcon>
             Alert Preferences
           </MenuItem>
