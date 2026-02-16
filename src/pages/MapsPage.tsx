@@ -25,7 +25,25 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 
 const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
+  const [shouldRenderMaps, setShouldRenderMaps] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Immediately unmount maps when component is about to unmount
+  useEffect(() => {
+    return () => {
+      console.log('MapsPage unmounting - hiding Maps immediately');
+      setShouldRenderMaps(false);
+      
+      // Hide all Google Maps elements immediately
+      setTimeout(() => {
+        const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+        mapElements.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+          (el as HTMLElement).style.pointerEvents = 'none';
+        });
+      }, 0);
+    };
+  }, []);
 
   // Inject global CSS to keep Maps below navbar and allow navigation clicks
   useEffect(() => {
@@ -118,15 +136,15 @@ const MapsPage: React.FC = () => {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <MapSearch key="vacancies-tab" searchType="vacancies" />
+          {shouldRenderMaps && <MapSearch key="vacancies-tab" searchType="vacancies" />}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <MapSearch key="availability-tab" searchType="availability" />
+          {shouldRenderMaps && <MapSearch key="availability-tab" searchType="availability" />}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <MapSearch key="both-tab" searchType="both" />
+          {shouldRenderMaps && <MapSearch key="both-tab" searchType="both" />}
         </TabPanel>
       </Paper>
     </Container>
