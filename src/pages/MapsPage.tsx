@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -28,7 +27,6 @@ const MapsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupExecutedRef = useRef(false);
-  const location = useLocation();
 
   // Force cleanup function that removes ALL Google Maps elements from entire document
   const forceGlobalCleanup = () => {
