@@ -37,10 +37,28 @@ const MapsPage: React.FC = () => {
       existingStyle.remove();
     }
 
-    // Inject CSS that forces Maps elements below navbar
+    // Inject CSS that forces Maps elements below navbar AND disables pointer events by default
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
+      /* Disable pointer events on ALL map elements by default to allow navbar clicks */
+      .gm-style,
+      .gm-style > div,
+      .gm-style iframe,
+      [class*="gm-"],
+      div[style*="position: absolute"][style*="left: 0px"][style*="top: 0px"] {
+        pointer-events: none !important;
+      }
+      
+      /* Re-enable pointer events ONLY when hovering directly over the maps paper */
+      #maps-paper:hover .gm-style,
+      #maps-paper:hover .gm-style > div,
+      #maps-paper:hover .gm-style iframe,
+      #maps-paper:hover [class*="gm-"],
+      #maps-paper:hover div[style*="position: absolute"] {
+        pointer-events: auto !important;
+      }
+      
       /* Force all Google Maps elements below navigation */
       .gm-style,
       .gm-style-iw,
@@ -51,11 +69,16 @@ const MapsPage: React.FC = () => {
         max-z-index: 1000 !important;
       }
       
-      /* Ensure navbar stays on top */
+      /* Ensure navbar stays on top and always clickable */
       header[class*="MuiAppBar"],
-      nav[class*="MuiAppBar"] {
+      nav[class*="MuiAppBar"],
+      nav a,
+      header a,
+      header button,
+      nav button {
         z-index: 999999 !important;
         position: relative !important;
+        pointer-events: auto !important;
       }
     `;
     document.head.appendChild(style);
@@ -83,7 +106,7 @@ const MapsPage: React.FC = () => {
         Find teams and players using our interactive map with location-based search. Click anywhere on the map, draw custom search areas, and see results with precise locations and distances.
       </Typography>
 
-      <Paper elevation={2} sx={{ position: 'relative', zIndex: 1 }}>
+      <Paper id="maps-paper" elevation={2} sx={{ position: 'relative', zIndex: 1 }}>
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
