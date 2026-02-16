@@ -75,13 +75,54 @@ const MapsPage: React.FC = () => {
     console.log('MapsPage: Global cleanup complete');
   };
 
-  // Note: Removed navigation intercept logic that was causing "Navigating..." stuck state
-  // Google Maps cleanup now happens only on unmount via the effect below
+  // Intercept navigation AWAY from Maps page to cleanup Google Maps elements
+  // This prevents Google Maps from blocking clicks on navigation elements
+  useEffect(() => {
+    const handleNavigationClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Ignore clicks within the MapsPage container (internal tab switching)
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
+      }
+      
+      // Check if clicking on a navigation element (trying to leave the page)
+      const isNavClick = target.closest('a[href]') || 
+                        target.closest('.MuiBottomNavigation-root') ||
+                        target.closest('.MuiBottomNavigationAction-root') ||
+                        target.closest('.MuiListItem-root') ||
+                        target.closest('nav');
+      
+      if (isNavClick) {
+        console.log('Navigation away detected, disabling Google Maps elements');
+        
+        // Immediately disable Google Maps elements to allow navigation
+        const mapElements = document.querySelectorAll('[class*="gm-"], [class*="gmnoprint"], [class*="gm-style"], .pac-container');
+        mapElements.forEach(el => {
+          (el as HTMLElement).style.pointerEvents = 'none';
+          (el as HTMLElement).style.zIndex = '0';
+        });
+        
+        // Schedule full cleanup
+        setTimeout(() => forceGlobalCleanup(), 50);
+      }
+    };
+
+    // Add listener with capture phase to intercept clicks early
+    // Use a small delay to ensure Maps page has rendered before adding listener
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleNavigationClick, { capture: true });
+    }, 500);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleNavigationClick, { capture: true });
+    };
+  }, []);
 
   // Execute cleanup on unmount
   useEffect(() => {
     return () => {
-      // Small delay to ensure cleanup happens after any pending state updates
       setTimeout(() => {
         forceGlobalCleanup();
       }, 0);
