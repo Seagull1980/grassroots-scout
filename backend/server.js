@@ -3220,32 +3220,18 @@ app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
 // Get all users for admin
 app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    console.log('[Admin Users] Fetching all users...');
+    console.log('[Admin Users] Request from user:', req.user?.userId, 'role:', req.user?.role);
     
+    // Simple query to test connection
     const result = await db.query(`
-      SELECT 
-        id, 
-        email, 
-        firstName, 
-        lastName, 
-        role, 
-        createdAt,
-        isEmailVerified,
-        isBlocked,
-        isDeleted
-      FROM users 
-      WHERE (isDeleted IS NULL OR isDeleted = 0)
-      ORDER BY createdAt DESC
+      SELECT id, email, firstName, lastName, role, createdAt FROM users LIMIT 100
     `);
     
-    console.log(`[Admin Users] Found ${result.rows ? result.rows.length : 0} users`);
-    
-    const responseData = { users: result.rows || [] };
-    res.json(responseData);
+    console.log(`[Admin Users] Query successful, found ${result.rows ? result.rows.length : 0} users`);
+    res.json({ users: result.rows || [] });
   } catch (error) {
-    console.error('[Admin Users] ERROR:', error);
-    console.error('[Admin Users] Stack:', error.stack);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('[Admin Users] Query failed:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
