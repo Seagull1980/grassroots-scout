@@ -136,20 +136,20 @@ const Navbar: React.FC = () => {
     { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
     { path: '/search', label: 'Search', icon: <Search /> },
     { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
+    ...(user?.role !== 'Admin' ? [
+      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
+    ] : []),
     { path: '/maps', label: 'Maps', icon: <Map /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
-    { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
   ] : [
-    { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
+    { path: '/', label: 'Home', icon: <Home /> },
   ];
 
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
+    { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
-    ...(user?.role !== 'Admin' ? [
-      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
-    ] : []),
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
@@ -175,6 +175,7 @@ const Navbar: React.FC = () => {
     { path: '/my-feedback', label: 'My Feedback', icon: <FeedbackIcon /> },
     { path: '/about', label: 'About Us', icon: <Info /> },
   ] : [
+    { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
     { path: '/about', label: 'About Us', icon: <Info /> },
   ];
 
