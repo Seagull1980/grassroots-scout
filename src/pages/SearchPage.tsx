@@ -208,6 +208,7 @@ const SearchPage: React.FC = () => {
   }, [searchParams]);
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [vacancies, setVacancies] = useState<TeamVacancy[]>([]);
   const [playerAvailability, setPlayerAvailability] = useState<PlayerAvailability[]>([]);
@@ -1315,24 +1316,6 @@ const SearchPage: React.FC = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth>
-              <InputLabel>Region</InputLabel>
-              <Select
-                name="region"
-                value={filters.region}
-                label="Region"
-                onChange={handleSelectChange}
-              >
-                <MenuItem value="">All Regions</MenuItem>
-                {UK_REGIONS.map((region) => (
-                  <MenuItem key={region} value={region}>
-                    {region}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
               <InputLabel>Age Group</InputLabel>
               <Select
                 name="ageGroup"
@@ -1384,26 +1367,6 @@ const SearchPage: React.FC = () => {
               </Select>
             </FormControl>
           </Grid>
-          {tabValue === 0 && ( // Only show team gender filter for team vacancies
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Team Type</InputLabel>
-                <Select
-                  name="teamGender"
-                  value={filters.teamGender}
-                  label="Team Type"
-                  onChange={handleSelectChange}
-                >
-                  <MenuItem value="">All Teams</MenuItem>
-                  {teamGenders.map((gender) => (
-                    <MenuItem key={gender} value={gender}>
-                      {gender} Team
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-          )}
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -1432,81 +1395,125 @@ const SearchPage: React.FC = () => {
               fullWidth
               variant="outlined"
               startIcon={<FilterList />}
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              onClick={() => setShowMoreFilters(!showMoreFilters)}
               sx={{ height: '56px' }}
             >
-              {showAdvancedFilters ? 'Hide' : 'Show'} Advanced
+              {showMoreFilters ? 'Hide' : 'Show'} More Filters
             </Button>
           </Grid>
         </Grid>
-
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Common Searches
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Chip
-              label="Nearest Teams"
-              icon={<LocationOn />}
-              onClick={() => {
-                setShowAdvancedFilters(true);
-                handleSliderChange('travelDistance', 10);
-              }}
-              variant="outlined"
-            />
-            <Chip
-              label="My Age Group"
-              icon={<Group />}
-              onClick={() => {
-                const fallbackAgeGroup = user?.role === 'Player' ? 'Under 16' : 'Adult (18+)';
-                setFilters({
-                  ...filters,
-                  ageGroup: filters.ageGroup || fallbackAgeGroup,
-                });
-              }}
-              variant="outlined"
-            />
-            <Chip
-              label="Favorite Positions"
-              icon={<Sports />}
-              onClick={() => {
-                setFilters({
-                  ...filters,
-                  position: filters.position || 'Striker',
-                });
-              }}
-              variant="outlined"
-            />
-          </Box>
-        </Box>
-
-        {recentSearches.length > 0 && (
+        <Collapse in={showMoreFilters}>
           <Box sx={{ mt: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="subtitle2">Recent Searches</Typography>
-              <Button size="small" onClick={clearRecentSearches}>
-                Clear
-              </Button>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-              {recentSearches.slice(0, 6).map((search) => (
-                <Chip
-                  key={search.id}
-                  label={search.filters.search || search.filters.position || search.filters.league || 'Recent search'}
-                  onClick={() => {
-                    setFilters({
-                      ...filters,
-                      ...search.filters,
-                      hasMatchRecording: search.filters.hasMatchRecording || false,
-                      hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
-                    });
-                    setTabValue(search.tabIndex);
-                  }}
-                />
-              ))}
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Region</InputLabel>
+                  <Select
+                    name="region"
+                    value={filters.region}
+                    label="Region"
+                    onChange={handleSelectChange}
+                  >
+                    <MenuItem value="">All Regions</MenuItem>
+                    {UK_REGIONS.map((region) => (
+                      <MenuItem key={region} value={region}>
+                        {region}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              {tabValue === 0 && (
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Team Type</InputLabel>
+                    <Select
+                      name="teamGender"
+                      value={filters.teamGender}
+                      label="Team Type"
+                      onChange={handleSelectChange}
+                    >
+                      <MenuItem value="">All Teams</MenuItem>
+                      {teamGenders.map((gender) => (
+                        <MenuItem key={gender} value={gender}>
+                          {gender} Team
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Common Searches
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Chip
+                label="Nearest Teams"
+                icon={<LocationOn />}
+                onClick={() => {
+                  setShowAdvancedFilters(true);
+                  handleSliderChange('travelDistance', 10);
+                }}
+                variant="outlined"
+              />
+              <Chip
+                label="My Age Group"
+                icon={<Group />}
+                onClick={() => {
+                  const fallbackAgeGroup = user?.role === 'Player' ? 'Under 16' : 'Adult (18+)';
+                  setFilters({
+                    ...filters,
+                    ageGroup: filters.ageGroup || fallbackAgeGroup,
+                  });
+                }}
+                variant="outlined"
+              />
+              <Chip
+                label="Favorite Positions"
+                icon={<Sports />}
+                onClick={() => {
+                  setFilters({
+                    ...filters,
+                    position: filters.position || 'Striker',
+                  });
+                }}
+                variant="outlined"
+              />
             </Box>
           </Box>
-        )}
+
+          {recentSearches.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="subtitle2">Recent Searches</Typography>
+                <Button size="small" onClick={clearRecentSearches}>
+                  Clear
+                </Button>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                {recentSearches.slice(0, 6).map((search) => (
+                  <Chip
+                    key={search.id}
+                    label={search.filters.search || search.filters.position || search.filters.league || 'Recent search'}
+                    onClick={() => {
+                      setFilters({
+                        ...filters,
+                        ...search.filters,
+                        hasMatchRecording: search.filters.hasMatchRecording || false,
+                        hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
+                      });
+                      setTabValue(search.tabIndex);
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Collapse>
 
         {/* Advanced Filters */}
         {showAdvancedFilters && (
