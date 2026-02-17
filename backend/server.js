@@ -3338,39 +3338,49 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   try {
     // Check admin role inline
     if (!req.user || req.user.role !== 'Admin') {
+      console.log('[Delete User] Not admin, role:', req.user?.role);
       return res.status(403).json({ error: 'Admin access required' });
     }
 
     const { id } = req.params;
     const targetUserId = parseInt(id, 10);
+    const adminUserId = parseInt(req.user.userId, 10);
+
+    console.log('[Delete User] Admin:', adminUserId, 'Target:', targetUserId);
 
     // Prevent self-deletion
-    if (req.user.userId === targetUserId) {
+    if (adminUserId === targetUserId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    // Freeze any adverts posted by the user
-    await db.query(
-      `UPDATE team_vacancies 
-       SET isFrozen = 1, status = 'expired'
-       WHERE postedBy = ? AND (isFrozen = 0 OR isFrozen IS NULL)`,
+    // Soft delete user - single simple update
+    const result = await db.query(
+      'UPDATE users SET isBlocked = 1, isDeleted = 1 WHERE id = ?', 
       [targetUserId]
     );
 
-    await db.query(
-      `UPDATE player_availability 
-       SET isFrozen = 1, status = 'inactive'
-       WHERE postedBy = ? AND (isFrozen = 0 OR isFrozen IS NULL)`,
-      [targetUserId]
-    );
+    console.log('[Delete User] Delete result:', result);
 
-    // Soft delete user to avoid foreign key constraint issues
-    await db.query('UPDATE users SET isBlocked = 1, isDeleted = 1 WHERE id = ?', [targetUserId]);
+    // Freeze adverts (non-critical, continue even if fails)
+    try {
+      await db.query(
+        'UPDATE team_vacancies SET isFrozen = 1, status = ? WHERE postedBy = ?',
+        ['expired', targetUserId]
+      );
+      await db.query(
+        'UPDATE player_availability SET isFrozen = 1, status = ? WHERE postedBy = ?',
+        ['inactive', targetUserId]
+      );
+    } catch (advertError) {
+      console.warn('[Delete User] Warning: Could not freeze adverts:', advertError.message);
+      // Continue - deletion should succeed even if adverts freeze fails
+    }
 
-    res.json({ message: 'User deleted successfully (adverts frozen)' });
+    res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('[Admin Users] Delete error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('[Delete User] Error:', error.message);
+    console.error('[Delete User] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Failed to delete user' });
   }
 });
 
