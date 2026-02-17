@@ -3218,31 +3218,10 @@ app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
 });
 
 // Get all users for admin
-app.get('/api/admin/users', authenticateToken, async (req, res) => {
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    console.log('[Admin Users] ===== REQUEST RECEIVED =====');
-    console.log('[Admin Users] User ID:', req.user?.userId);
-    console.log('[Admin Users] User role:', req.user?.role);
-    
-    // Check if user is admin
-    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
-    console.log('[Admin Users] Admin check result:', adminCheck);
-    
-    if (!adminCheck.rows || adminCheck.rows.length === 0) {
-      console.log('[Admin Users] User not found in database');
-      return res.status(403).json({ error: 'Admin access required - user not found' });
-    }
-    
-    const userRole = adminCheck.rows[0].role;
-    console.log('[Admin Users] User role from DB:', userRole);
-    
-    if (userRole !== 'Admin') {
-      console.log('[Admin Users] User is not admin, role is:', userRole);
-      return res.status(403).json({ error: 'Admin access required - not admin' });
-    }
-
-    // Fetch all users
     console.log('[Admin Users] Fetching all users...');
+    
     const result = await db.query(`
       SELECT 
         id, 
@@ -3259,12 +3238,9 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       ORDER BY createdAt DESC
     `);
     
-    console.log('[Admin Users] Query result:', result);
     console.log(`[Admin Users] Found ${result.rows ? result.rows.length : 0} users`);
-    console.log('[Admin Users] Users data:', JSON.stringify(result.rows, null, 2));
     
     const responseData = { users: result.rows || [] };
-    console.log('[Admin Users] Sending response:', JSON.stringify(responseData, null, 2));
     res.json(responseData);
   } catch (error) {
     console.error('[Admin Users] ERROR:', error);
