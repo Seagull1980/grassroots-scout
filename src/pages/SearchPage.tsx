@@ -1060,10 +1060,10 @@ const SearchPage: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box>
             <Typography variant="h3" component="h1" gutterBottom>
-              Search & Browse
+              Scout for Adverts
             </Typography>
             <Typography variant="h6" color="text.secondary">
-              Find the perfect match for your football journey
+              Find teams and players that match your goals
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1125,7 +1125,7 @@ const SearchPage: React.FC = () => {
             <TextField
               fullWidth
               name="search"
-              label="Search"
+              label="Scout for adverts"
               value={filters.search}
               onChange={handleFilterChange}
               placeholder={`Search ${tabLabel.toLowerCase()}...`}
