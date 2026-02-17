@@ -135,6 +135,7 @@ const Navbar: React.FC = () => {
   const primaryNavItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
     { path: '/search', label: 'Search', icon: <Search /> },
+    { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
     { path: '/maps', label: 'Maps', icon: <Map /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
@@ -147,7 +148,6 @@ const Navbar: React.FC = () => {
   const secondaryNavItems = user ? [
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
     ...(user?.role !== 'Admin' ? [
-      { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
       { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
     ] : []),
     ...(user?.role === 'Coach' ? [
