@@ -89,6 +89,7 @@ const PostAdvertPage: React.FC = () => {
     hasPathwayToSenior: false,
     playingTimePolicy: '',
     teamId: '', // For team-based posting
+    adminPostType: 'vacancy' as 'vacancy' | 'availability', // For admins to choose type
   });
 
   const [locationData, setLocationData] = useState<Location | null>(null);
@@ -145,7 +146,7 @@ const PostAdvertPage: React.FC = () => {
     };
 
     const fetchTeams = async () => {
-      if (user?.role === 'Coach') {
+      if (user?.role === 'Coach' || user?.role === 'Admin') {
         try {
           setLoadingTeams(true);
           const response = await fetch('/api/teams', {
@@ -166,21 +167,22 @@ const PostAdvertPage: React.FC = () => {
     };
 
     fetchLeagues();
-    if (user?.role === 'Coach') {
+    if (user?.role === 'Coach' || user?.role === 'Admin') {
       fetchTeams();
     }
   }, [user]);
 
   // Auto-complete title for players based on position selection
   useEffect(() => {
-    if (user?.role !== 'Coach' && Array.isArray(formData.positions) && formData.positions.length > 0 && !formData.title) {
+    const isPlayerMode = user?.role === 'Player' || (user?.role === 'Admin' && formData.adminPostType === 'availability');
+    if (isPlayerMode && Array.isArray(formData.positions) && formData.positions.length > 0 && !formData.title) {
       const firstPosition = formData.positions[0];
       setFormData(prev => ({
         ...prev,
         title: `${firstPosition} Looking for new Challenge`
       }));
     }
-  }, [formData.positions, user?.role]);
+  }, [formData.positions, user?.role, formData.adminPostType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,8 +193,8 @@ const PostAdvertPage: React.FC = () => {
     setError('');
     setShowValidation(true);
 
-    // Validation
-    const isCoach = user?.role === 'Coach';
+    // Determine if posting as coach or player
+    const isCoach = user?.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
     const positionValid = isCoach ? formData.position : formData.positions.length > 0;
     const teamValid = isCoach ? !!formData.teamId : true;
     const leagueValid = isCoach ? !!formData.league : true; // League is optional for players
@@ -238,12 +240,17 @@ const PostAdvertPage: React.FC = () => {
         hasPathwayToSenior: false,
         playingTimePolicy: '',
         teamId: '',
+        adminPostType: 'vacancy',
       });
       setLocationData(null);
 
-      // Redirect to My Adverts dashboard after 2 seconds
+      // Redirect to My Adverts dashboard after 2 seconds (unless admin)
       setTimeout(() => {
-        navigate('/my-adverts');
+        if (user?.role === 'Admin') {
+          navigate('/search'); // Admins don't have My Adverts page
+        } else {
+          navigate('/my-adverts');
+        }
       }, 2000);
     } catch (err) {
       console.error('Failed to post advert:', err);
@@ -265,7 +272,8 @@ const PostAdvertPage: React.FC = () => {
     return null;
   }
 
-  const isCoach = user.role === 'Coach';
+  const isCoach = user.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
+  const isAdmin = user.role === 'Admin';
   const pageTitle = isCoach ? 'Post Team Vacancy' : 'Post Player Availability';
   const titlePlaceholder = isCoach ? 'e.g. Striker Wanted - U16 League Team' : 'e.g. Experienced Midfielder Available';
   const descriptionPlaceholder = isCoach 
@@ -330,6 +338,7 @@ const PostAdvertPage: React.FC = () => {
       hasPathwayToSenior: draft.data.formData.hasPathwayToSenior || false,
       playingTimePolicy: draft.data.formData.playingTimePolicy || '',
       teamId: draft.data.formData.teamId || '',
+      adminPostType: draft.data.formData.adminPostType || 'vacancy',
     });
     setLocationData(draft.data.locationData || null);
     setLoadedDraftName(draft.name);
@@ -437,6 +446,35 @@ const PostAdvertPage: React.FC = () => {
                     <Alert severity="info" onClose={() => setLoadedDraftName(null)}>
                       Currently editing: <strong>{loadedDraftName}</strong>
                     </Alert>
+                  </Grid>
+                )}
+
+                {/* Admin Post Type Selector */}
+                {isAdmin && (
+                  <Grid item xs={12}>
+                    <FormControl fullWidth>
+                      <InputLabel>Post Type</InputLabel>
+                      <Select
+                        name="adminPostType"
+                        value={formData.adminPostType}
+                        label="Post Type"
+                        onChange={(e) => {
+                          handleSelectChange(e);
+                          // Reset relevant fields when switching
+                          setFormData(prev => ({
+                            ...prev,
+                            adminPostType: e.target.value as 'vacancy' | 'availability',
+                            position: '',
+                            positions: [],
+                            teamId: '',
+                          }));
+                        }}
+                      >
+                        <MenuItem value="vacancy">Team Vacancy (Coach)</MenuItem>
+                        <MenuItem value="availability">Player Availability (Player)</MenuItem>
+                      </Select>
+                      <FormHelperText>Select whether you're posting as a team looking for players, or as a player looking for a team</FormHelperText>
+                    </FormControl>
                   </Grid>
                 )}
 
