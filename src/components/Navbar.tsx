@@ -123,7 +123,7 @@ const Navbar: React.FC = () => {
   // Core navigation items for mobile bottom nav
   const coreNavItems = user ? [
     { path: '/dashboard', label: 'Home', icon: <Home />, show: true },
-    { path: '/search', label: 'Scout for Adverts', icon: <Search />, show: true },
+    { path: '/search', label: 'Search Adverts', icon: <Search />, show: true },
     { path: '/messages', label: 'Messages', icon: <Message />, show: true },
     { path: '/profile', label: 'Profile', icon: <Person />, show: true },
   ] : [
@@ -134,7 +134,7 @@ const Navbar: React.FC = () => {
   // Primary navigation items for desktop
   const primaryNavItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
-    { path: '/search', label: 'Scout for Adverts', icon: <Search /> },
+    { path: '/search', label: 'Search Adverts', icon: <Search /> },
     { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
     ...(user?.role !== 'Admin' ? [
       { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }

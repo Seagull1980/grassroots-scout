@@ -1059,7 +1059,7 @@ const SearchPage: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       <PageHeader
-        title="Scout for Adverts"
+        title="Search Adverts"
         subtitle="Find teams and players that match your goals"
         icon={<Search sx={{ fontSize: 32 }} />}
         actions={(
@@ -1135,7 +1135,7 @@ const SearchPage: React.FC = () => {
             <TextField
               fullWidth
               name="search"
-              label="Scout for adverts"
+              label="Search adverts"
               value={filters.search}
               onChange={handleFilterChange}
               placeholder={`Search ${tabLabel.toLowerCase()}...`}
