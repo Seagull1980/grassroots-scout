@@ -1302,14 +1302,14 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       SELECT 
         id,
         email,
-        firstname as firstName,
-        lastname as lastName,
+        firstName,
+        lastName,
         role,
-        createdat as createdAt,
-        isemailverified as isEmailVerified,
-        isblocked as isBlocked
+        createdAt,
+        isEmailVerified,
+        isBlocked
       FROM users
-      ORDER BY createdat DESC
+      ORDER BY createdAt DESC
     `);
 
     res.json({ users: users || [] });

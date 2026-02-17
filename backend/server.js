@@ -3247,16 +3247,16 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
       SELECT 
         id, 
         email, 
-        firstname as firstName, 
-        lastname as lastName, 
+        firstName, 
+        lastName, 
         role, 
-        createdat as createdAt,
-        isemailverified as isEmailVerified,
-        isblocked as isBlocked,
-        isdeleted as isDeleted
+        createdAt,
+        isEmailVerified,
+        isBlocked,
+        isDeleted
       FROM users 
-      WHERE (isdeleted IS NULL OR isdeleted = 0)
-      ORDER BY createdat DESC
+      WHERE (isDeleted IS NULL OR isDeleted = 0)
+      ORDER BY createdAt DESC
     `);
     
     console.log('[Admin Users] Query result:', result);
