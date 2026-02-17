@@ -3218,11 +3218,16 @@ app.delete('/api/admin/leagues/:id', authenticateToken, async (req, res) => {
 });
 
 // Get all users for admin
-app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
   try {
-    console.log('[Admin Users] Request from user:', req.user?.userId, 'role:', req.user?.role);
+    // Verify admin role
+    if (!req.user || req.user.role !== 'Admin') {
+      console.log('[Admin Users] Access denied - not admin. User role:', req.user?.role);
+      return res.status(403).json({ error: 'Admin access required' });
+    }
     
-    // Simple query to test connection
+    console.log('[Admin Users] Admin request from user:', req.user.userId);
+    
     const result = await db.query(`
       SELECT id, email, firstName, lastName, role, createdAt FROM users LIMIT 100
     `);
@@ -3231,6 +3236,7 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =>
     res.json({ users: result.rows || [] });
   } catch (error) {
     console.error('[Admin Users] Query failed:', error.message);
+    console.error('[Admin Users] Error details:', error);
     res.status(500).json({ error: error.message });
   }
 });
