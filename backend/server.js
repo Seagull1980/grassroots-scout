@@ -3353,28 +3353,47 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    // Soft delete user - single simple update
+    // Handle foreign key constraints - delete/clear related records first
+    try {
+      // Delete trial invitations created by this user
+      await db.query('DELETE FROM trial_invitations WHERE invitedBy = ?', [targetUserId]);
+      console.log('[Delete User] Deleted trial invitations');
+
+      // Delete calendar events created by this user
+      await db.query('DELETE FROM calendar_events WHERE createdBy = ?', [targetUserId]);
+      console.log('[Delete User] Deleted calendar events');
+
+      // Delete/update success stories
+      await db.query('DELETE FROM success_stories WHERE submittedBy = ? OR reviewedBy = ?', [targetUserId, targetUserId]);
+      console.log('[Delete User] Deleted success stories');
+
+      // Delete team vacancies (or clear postedBy)
+      await db.query('DELETE FROM team_vacancies WHERE postedBy = ?', [targetUserId]);
+      console.log('[Delete User] Deleted team vacancies');
+
+      // Delete player availability
+      await db.query('DELETE FROM player_availability WHERE postedBy = ?', [targetUserId]);
+      console.log('[Delete User] Deleted player availability');
+
+      // Delete other related data
+      await db.query('DELETE FROM team_rosters WHERE userId = ?', [targetUserId]);
+      await db.query('DELETE FROM child_players WHERE parentId = ?', [targetUserId]);
+      await db.query('DELETE FROM messages WHERE senderId = ? OR recipientId = ?', [targetUserId, targetUserId]);
+      await db.query('DELETE FROM notifications WHERE userId = ?', [targetUserId]);
+      console.log('[Delete User] Deleted other related data');
+
+    } catch (cleanupError) {
+      console.warn('[Delete User] Warning during cleanup:', cleanupError.message);
+      // Continue - try to delete user anyway
+    }
+
+    // Now delete the user record
     const result = await db.query(
-      'UPDATE users SET isBlocked = 1, isDeleted = 1 WHERE id = ?', 
+      'DELETE FROM users WHERE id = ?', 
       [targetUserId]
     );
 
-    console.log('[Delete User] Delete result:', result);
-
-    // Freeze adverts (non-critical, continue even if fails)
-    try {
-      await db.query(
-        'UPDATE team_vacancies SET isFrozen = 1, status = ? WHERE postedBy = ?',
-        ['expired', targetUserId]
-      );
-      await db.query(
-        'UPDATE player_availability SET isFrozen = 1, status = ? WHERE postedBy = ?',
-        ['inactive', targetUserId]
-      );
-    } catch (advertError) {
-      console.warn('[Delete User] Warning: Could not freeze adverts:', advertError.message);
-      // Continue - deletion should succeed even if adverts freeze fails
-    }
+    console.log('[Delete User] User deleted, rows affected:', result.rowCount);
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
