@@ -3336,20 +3336,18 @@ app.get('/api/admin/users/beta-access', authenticateToken, async (req, res) => {
 // Delete user (admin only)
 app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    
-    // Check if user is admin
-    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
-    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+    // Check admin role inline
+    if (!req.user || req.user.role !== 'Admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    const { id } = req.params;
+    const targetUserId = parseInt(id, 10);
+
     // Prevent self-deletion
-    if (req.user.userId === id) {
+    if (req.user.userId === targetUserId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
-
-    const targetUserId = parseInt(id, 10);
 
     // Freeze any adverts posted by the user
     await db.query(
@@ -3367,12 +3365,12 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
     );
 
     // Soft delete user to avoid foreign key constraint issues
-    await db.query('UPDATE users SET isblocked = 1, isdeleted = 1 WHERE id = ?', [targetUserId]);
+    await db.query('UPDATE users SET isBlocked = 1, isDeleted = 1 WHERE id = ?', [targetUserId]);
 
     res.json({ message: 'User deleted successfully (adverts frozen)' });
   } catch (error) {
     console.error('[Admin Users] Delete error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
