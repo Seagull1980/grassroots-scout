@@ -179,6 +179,8 @@ const Navbar: React.FC = () => {
     { path: '/about', label: 'About Us', icon: <Info /> },
   ];
 
+  const isSecondaryActive = secondaryNavItems.some((item) => isActive(item.path));
+
   // All navigation items for mobile drawer
   const navigationItems = [...primaryNavItems, ...secondaryNavItems];
 
@@ -277,11 +279,14 @@ const Navbar: React.FC = () => {
                   sx={{
                     color: isActive(item.path) ? '#1e3a8a' : '#0f172a',
                     fontWeight: isActive(item.path) ? 600 : 400,
-                    '&:hover': { 
-                      bgcolor: 'rgba(0, 0, 0, 0.04)',
-                      color: '#0f172a' // Ensure text stays dark on hover
+                    bgcolor: isActive(item.path) ? 'rgba(30, 58, 138, 0.12)' : 'transparent',
+                    borderRadius: 999,
+                    px: 1.75,
+                    minHeight: 40,
+                    '&:hover': {
+                      bgcolor: isActive(item.path) ? 'rgba(30, 58, 138, 0.18)' : 'rgba(15, 23, 42, 0.06)',
+                      color: '#0f172a'
                     },
-                    minHeight: 48,
                   }}
                 >
                   {item.label}
@@ -295,12 +300,16 @@ const Navbar: React.FC = () => {
                     startIcon={<MoreHoriz />}
                     onClick={handleMoreMenu}
                     sx={{ 
-                      color: '#0f172a',
+                      color: isSecondaryActive ? '#1e3a8a' : '#0f172a',
+                      fontWeight: isSecondaryActive ? 600 : 400,
+                      bgcolor: isSecondaryActive ? 'rgba(30, 58, 138, 0.12)' : 'transparent',
+                      borderRadius: 999,
+                      px: 1.75,
+                      minHeight: 40,
                       '&:hover': { 
-                        bgcolor: 'rgba(0, 0, 0, 0.04)',
+                        bgcolor: isSecondaryActive ? 'rgba(30, 58, 138, 0.18)' : 'rgba(15, 23, 42, 0.06)',
                         color: '#0f172a'
                       },
-                      minHeight: 48,
                     }}
                   >
                     More
