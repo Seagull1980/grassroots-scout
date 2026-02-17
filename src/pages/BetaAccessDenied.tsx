@@ -16,14 +16,22 @@ const BetaAccessDenied: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showContactModal, setShowContactModal] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(30);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      logout();
-      navigate('/login', { replace: true });
-    }, 30000);
+    // Start countdown timer
+    const countdownInterval = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          logout();
+          navigate('/login', { replace: true });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-    return () => clearTimeout(timer);
+    return () => clearInterval(countdownInterval);
   }, [logout, navigate]);
 
   const handleLogout = () => {
@@ -50,10 +58,10 @@ const BetaAccessDenied: React.FC = () => {
               <strong>What happens next?</strong>
             </Typography>
             <Typography variant="body2" paragraph>
-              You will be contacted by an Admin as soon as access is approved.
+              You will be contacted by an admin as soon as access has been granted.
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
-              You will be logged out shortly, please log back in once access is confirmed.
+              You will be logged out in <strong>{secondsRemaining} seconds</strong>. Please log back in once access is confirmed.
             </Typography>
           </Alert>
 
