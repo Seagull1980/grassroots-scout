@@ -37,10 +37,12 @@ import {
   Home,
   GetApp as GetAppIcon,
   TrendingUp as TrendingUpIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import PageHeader from '../components/PageHeader';
 
 interface Advert {
   id: number;
@@ -467,22 +469,27 @@ const MyAdvertsPage: React.FC = () => {
   const hasPlayerAdverts = user.role === 'Player' || user.role === 'Parent/Guardian';
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Box sx={{ mb: 4 }}>
-        <Button
-          startIcon={<Home />}
-          onClick={() => navigate('/dashboard')}
-          sx={{ mb: 2 }}
-        >
-          Back to Dashboard
-        </Button>
-        <Typography variant="h4" component="h1" gutterBottom>
-          My Adverts
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Manage your posted vacancies and availability listings
-        </Typography>
-      </Box>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="My Adverts"
+        subtitle="Manage your posted vacancies and availability listings"
+        icon={<AssessmentIcon sx={{ fontSize: 32 }} />}
+        actions={(
+          <Button
+            startIcon={<Home />}
+            onClick={() => navigate('/dashboard')}
+            sx={{
+              borderColor: 'rgba(255,255,255,0.6)',
+              color: 'white',
+              '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
+            }}
+            variant="outlined"
+          >
+            Back to Dashboard
+          </Button>
+        )}
+      />
+      <Container maxWidth="lg" sx={{ py: 3 }}>
 
       {error && (
         <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3 }}>
@@ -976,7 +983,8 @@ const MyAdvertsPage: React.FC = () => {
           )}
         </Box>
       </Modal>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

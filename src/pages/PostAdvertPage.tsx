@@ -32,7 +32,7 @@ import {
   Fade,
   IconButton,
 } from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, PostAdd as PostAddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { vacanciesAPI, playerAvailabilityAPI, leaguesAPI, League } from '../services/api';
@@ -40,7 +40,7 @@ import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
 import LocationInput from '../components/LocationInput';
 import LeagueRequestDialog from '../components/LeagueRequestDialog';
 import { Location } from '../types';
-
+import PageHeader from '../components/PageHeader';
 interface Team {
   id: number;
   teamName: string;
@@ -401,29 +401,28 @@ const PostAdvertPage: React.FC = () => {
   ];
 
   return (
-    <Container maxWidth="md">      
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          {pageTitle}
-        </Typography>
-        <Typography variant="h6" color="text.secondary">
-          {isCoach 
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title={pageTitle}
+        subtitle={
+          isCoach
             ? 'Let players know about opportunities in your team'
-            : 'Let coaches know you\'re available and looking for a team'
-          }
-        </Typography>
-      </Box>
-
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Box sx={{ mb: 3 }}>
-          <Stepper activeStep={activeStep} alternativeLabel>
-            {steps.map((label, index) => (
-              <Step key={label} completed={index === 0 ? isStepOneComplete : index === 1 ? isStepTwoComplete : isFormValid}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
-        </Box>
+            : "Let coaches know you're available and looking for a team"
+        }
+        icon={<PostAddIcon sx={{ fontSize: 32 }} />}
+        maxWidth="md"
+      />
+      <Container maxWidth="md">
+        <Paper elevation={3} sx={{ p: 4 }}>
+          <Box sx={{ mb: 3 }}>
+            <Stepper activeStep={activeStep} alternativeLabel>
+              {steps.map((label, index) => (
+                <Step key={label} completed={index === 0 ? isStepOneComplete : index === 1 ? isStepTwoComplete : isFormValid}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+          </Box>
 
         {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
@@ -1083,6 +1082,7 @@ const PostAdvertPage: React.FC = () => {
         </Alert>
       </Snackbar>
     </Container>
+    </Box>
   );
 };
 

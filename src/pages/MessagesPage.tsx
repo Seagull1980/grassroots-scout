@@ -41,6 +41,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Conversation, MatchProgress, MatchProgressStage } from '../types';
 import { API_URL } from '../services/api';
+import PageHeader from '../components/PageHeader';
 // Simple date formatting utility
 const formatDistanceToNow = (date: Date): string => {
   const now = new Date();
@@ -387,15 +388,14 @@ const MessagesPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          Messages & Match Progress
-        </Typography>
-        <Typography variant="h6" color="text.secondary">
-          Centralised communication hub and match tracking
-        </Typography>
-      </Box>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="Messages & Match Progress"
+        subtitle="Centralised communication hub and match tracking"
+        icon={<MessageIcon sx={{ fontSize: 32 }} />}
+        maxWidth="xl"
+      />
+      <Container maxWidth="xl">
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
@@ -690,7 +690,8 @@ const MessagesPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

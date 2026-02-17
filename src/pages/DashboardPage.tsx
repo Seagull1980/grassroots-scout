@@ -26,6 +26,7 @@ import {
   Bookmark as BookmarkIcon,
   Search as SearchIcon,
   CalendarToday as CalendarIcon,
+  Dashboard as DashboardIcon,
   AdminPanelSettings as AdminIcon,
   Flag as FlagIcon,
   Assessment as AssessmentIcon
@@ -35,6 +36,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
+import PageHeader from '../components/PageHeader';
 
 interface RecentActivity {
   id: number;
@@ -230,9 +232,15 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
-      {/* Welcome Section with Impersonation Alert */}
-      <Box sx={{ mb: 4 }}>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title={getWelcomeMessage()}
+        subtitle="Welcome to your grassroots football dashboard. Here's what's happening in your network."
+        icon={<DashboardIcon sx={{ fontSize: 32 }} />}
+      />
+      <Container maxWidth="lg" sx={{ py: 3 }}>
+        {/* Welcome Section with Impersonation Alert */}
+        <Box sx={{ mb: 4 }}>
         {isImpersonating && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -242,14 +250,7 @@ const DashboardPage: React.FC = () => {
             </Box>
           </Alert>
         )}
-        
-        <Typography variant="h4" component="h1" gutterBottom>
-          {getWelcomeMessage()}
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Welcome to your grassroots football dashboard. Here's what's happening in your network.
-        </Typography>
-      </Box>
+        </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -477,7 +478,8 @@ const DashboardPage: React.FC = () => {
           ))}
         </SpeedDial>
       )}
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

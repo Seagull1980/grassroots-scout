@@ -73,6 +73,7 @@ import { SearchResultsSkeleton } from '../components/SkeletonLoaders';
 import { SavedSearchesDialog, useRecentSearches } from '../components/SavedSearches';
 import { requestNotificationPermission } from '../utils/pwa';
 import { UK_REGIONS } from '../constants/locations';
+import PageHeader from '../components/PageHeader';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -1056,23 +1057,22 @@ const SearchPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box>
-            <Typography variant="h3" component="h1" gutterBottom>
-              Scout for Adverts
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              Find teams and players that match your goals
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="Scout for Adverts"
+        subtitle="Find teams and players that match your goals"
+        icon={<Search sx={{ fontSize: 32 }} />}
+        actions={(
+          <>
             <Button
               variant="outlined"
               startIcon={<BookmarkIcon />}
               onClick={() => setSavedSearchesOpen(true)}
-              sx={{ mt: 1 }}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.6)',
+                color: 'white',
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
+              }}
             >
               Saved Searches
             </Button>
@@ -1080,7 +1080,11 @@ const SearchPage: React.FC = () => {
               variant="outlined"
               startIcon={<BookmarkIcon />}
               onClick={() => setSavedAdsOpen(true)}
-              sx={{ mt: 1 }}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.6)',
+                color: 'white',
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
+              }}
             >
               Saved Ads
             </Button>
@@ -1088,13 +1092,18 @@ const SearchPage: React.FC = () => {
               variant="outlined"
               startIcon={<MapIcon />}
               onClick={() => navigate('/maps')}
-              sx={{ mt: 1 }}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.6)',
+                color: 'white',
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
+              }}
             >
               Map Search
             </Button>
-          </Box>
-        </Box>
-      </Box>
+          </>
+        )}
+      />
+      <Container maxWidth="lg">
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
@@ -2547,7 +2556,8 @@ const SearchPage: React.FC = () => {
       <QuickMatchCompletion 
         hideFab={contactDialogOpen || quickAddTrialOpen || leagueRequestOpen || savedSearchesOpen}
       />
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

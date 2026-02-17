@@ -7,7 +7,9 @@ import {
   Tab,
   Paper
 } from '@mui/material';
+import { Map as MapIcon } from '@mui/icons-material';
 import MapSearch from '../components/MapSearch';
+import PageHeader from '../components/PageHeader';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -116,15 +118,19 @@ const MapsPage: React.FC = () => {
 
   // Render the Maps page normally
   return (
-    <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Map Search
-      </Typography>
-      <Typography variant="body1" color="textSecondary" paragraph>
-        Find teams and players using our interactive map with location-based search. Click anywhere on the map, draw custom search areas, and see results with precise locations and distances.
-      </Typography>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="Map Search"
+        subtitle="Find teams and players using our interactive map"
+        icon={<MapIcon sx={{ fontSize: 32 }} />}
+        maxWidth="xl"
+      />
+      <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
+        <Typography variant="body1" color="textSecondary" paragraph>
+          Find teams and players using our interactive map with location-based search. Click anywhere on the map, draw custom search areas, and see results with precise locations and distances.
+        </Typography>
 
-      <Paper id="maps-paper" elevation={2} sx={{ position: 'relative', zIndex: 1 }}>
+        <Paper id="maps-paper" elevation={2} sx={{ position: 'relative', zIndex: 1 }}>
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
@@ -146,8 +152,9 @@ const MapsPage: React.FC = () => {
         <TabPanel value={tabValue} index={2}>
           {shouldRenderMaps && <MapSearch key="both-tab" searchType="both" />}
         </TabPanel>
-      </Paper>
-    </Container>
+        </Paper>
+      </Container>
+    </Box>
   );
 };
 
