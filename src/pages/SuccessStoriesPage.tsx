@@ -11,21 +11,54 @@ import {
   Paper,
   Pagination,
   Alert,
-  Skeleton
+  Skeleton,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Snackbar
 } from '@mui/material';
 import {
   Sports as SportsIcon,
   EmojiEvents as TrophyIcon
 } from '@mui/icons-material';
 import { SuccessStory } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import PageHeader from '../components/PageHeader';
 
 const SuccessStoriesPage: React.FC = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [stories, setStories] = useState<SuccessStory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const storiesPerPage = 12;
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [submitData, setSubmitData] = useState({
+    story: '',
+    rating: 5,
+    role: 'Player',
+    teamName: '',
+    position: '',
+    ageGroup: '',
+    league: '',
+    isAnonymous: false,
+    displayName: ''
+  });
 
   useEffect(() => {
     fetchSuccessStories();
@@ -69,58 +102,151 @@ const SuccessStoriesPage: React.FC = () => {
     return 'default';
   };
 
+  const handleOpenSubmit = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setSubmitError('');
+    setSubmitSuccess('');
+    const fallbackName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email?.split('@')[0] || '';
+    setSubmitData((prev) => ({
+      ...prev,
+      displayName: prev.displayName || fallbackName
+    }));
+    setSubmitOpen(true);
+  };
+
+  const handleSubmitStory = async () => {
+    setSubmitError('');
+    setSubmitSuccess('');
+
+    if (!submitData.story.trim()) {
+      setSubmitError('Please share your story.');
+      return;
+    }
+
+    if (!submitData.isAnonymous && !submitData.displayName.trim()) {
+      setSubmitError('Please enter a display name or choose anonymous.');
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+      const response = await fetch('/api/success-stories/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          story: submitData.story,
+          rating: submitData.rating,
+          role: submitData.role,
+          teamName: submitData.teamName || undefined,
+          position: submitData.position || undefined,
+          ageGroup: submitData.ageGroup || undefined,
+          league: submitData.league || undefined,
+          isAnonymous: submitData.isAnonymous,
+          displayName: submitData.isAnonymous ? undefined : submitData.displayName
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const errorMessage = data?.error || data?.errors?.[0]?.msg || 'Failed to submit success story.';
+        setSubmitError(errorMessage);
+        return;
+      }
+
+      setSubmitSuccess('Your story has been submitted for admin approval.');
+      setSubmitData({
+        story: '',
+        rating: 5,
+        role: 'Player',
+        teamName: '',
+        position: '',
+        ageGroup: '',
+        league: '',
+        isAnonymous: false,
+        displayName: ''
+      });
+      setSubmitOpen(false);
+    } catch (submitErr) {
+      setSubmitError('Network error occurred while submitting your story.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   if (loading && stories.length === 0) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Success Stories
-          </Typography>
-          <Grid container spacing={3}>
-            {[...Array(6)].map((_, index) => (
-              <Grid item xs={12} md={6} lg={4} key={index}>
-                <Card>
-                  <CardContent>
-                    <Skeleton variant="text" width="60%" height={32} />
-                    <Skeleton variant="text" width="80%" height={24} sx={{ mt: 1 }} />
-                    <Skeleton variant="text" width="100%" height={80} sx={{ mt: 2 }} />
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                      <Skeleton variant="rounded" width={60} height={24} />
-                      <Skeleton variant="rounded" width={80} height={24} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      </Container>
+      <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+        <PageHeader
+          title="Success Stories"
+          subtitle="Real stories from players and coaches who found their perfect match through The Grassroots Scout."
+          icon={<TrophyIcon sx={{ fontSize: 32 }} />}
+          actions={(
+            <Button
+              variant="outlined"
+              onClick={handleOpenSubmit}
+              sx={{
+                borderColor: 'rgba(255,255,255,0.6)',
+                color: 'white',
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' }
+              }}
+            >
+              {user ? 'Share Your Story' : 'Sign in to Share'}
+            </Button>
+          )}
+        />
+        <Container maxWidth="lg">
+          <Box sx={{ py: 4 }}>
+            <Grid container spacing={3}>
+              {[...Array(6)].map((_, index) => (
+                <Grid item xs={12} md={6} lg={4} key={index}>
+                  <Card>
+                    <CardContent>
+                      <Skeleton variant="text" width="60%" height={32} />
+                      <Skeleton variant="text" width="80%" height={24} sx={{ mt: 1 }} />
+                      <Skeleton variant="text" width="100%" height={80} sx={{ mt: 2 }} />
+                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                        <Skeleton variant="rounded" width={60} height={24} />
+                        <Skeleton variant="rounded" width={80} height={24} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
-        {/* Header Section */}
-        <Paper 
-          sx={{ 
-            p: 4, 
-            mb: 4, 
-            background: 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)',
-            color: 'white'
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <TrophyIcon sx={{ fontSize: 40, mr: 2 }} />
-            <Typography variant="h3" component="h1" fontWeight="bold">
-              Success Stories
-            </Typography>
-          </Box>
-          <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: '800px' }}>
-            Real stories from players and coaches who found their perfect match through The Grassroots Scout. 
-            These success stories showcase the positive impact of connecting passionate players with dedicated teams.
-          </Typography>
-        </Paper>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="Success Stories"
+        subtitle="Real stories from players and coaches who found their perfect match through The Grassroots Scout."
+        icon={<TrophyIcon sx={{ fontSize: 32 }} />}
+        actions={(
+          <Button
+            variant="outlined"
+            onClick={handleOpenSubmit}
+            sx={{
+              borderColor: 'rgba(255,255,255,0.6)',
+              color: 'white',
+              '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' }
+            }}
+          >
+            {user ? 'Share Your Story' : 'Sign in to Share'}
+          </Button>
+        )}
+      />
+      <Container maxWidth="lg">
+        <Box sx={{ py: 4 }}>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -190,11 +316,17 @@ const SuccessStoriesPage: React.FC = () => {
                       {/* Header with player and team names */}
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="h6" component="h2" gutterBottom>
-                          {story.playerName}
+                          {story.playerName || 'Community Member'}
                         </Typography>
-                        <Typography variant="subtitle1" color="primary" fontWeight="medium">
-                          joined {story.teamName}
-                        </Typography>
+                        {story.teamName ? (
+                          <Typography variant="subtitle1" color="primary" fontWeight="medium">
+                            joined {story.teamName}
+                          </Typography>
+                        ) : (
+                          <Typography variant="subtitle1" color="text.secondary" fontWeight="medium">
+                            shared their story
+                          </Typography>
+                        )}
                       </Box>
 
                       {/* Rating */}
@@ -223,24 +355,30 @@ const SuccessStoriesPage: React.FC = () => {
 
                       {/* Tags */}
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                        <Chip 
-                          label={story.position} 
-                          size="small" 
-                          color="primary" 
-                          variant="outlined" 
-                        />
-                        <Chip 
-                          label={story.ageGroup} 
-                          size="small" 
-                          color={getAgeGroupColor(story.ageGroup)}
-                          variant="outlined"
-                        />
-                        <Chip 
-                          label={story.league} 
-                          size="small" 
-                          color="secondary" 
-                          variant="outlined"
-                        />
+                        {story.position && (
+                          <Chip 
+                            label={story.position} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined" 
+                          />
+                        )}
+                        {story.ageGroup && (
+                          <Chip 
+                            label={story.ageGroup} 
+                            size="small" 
+                            color={getAgeGroupColor(story.ageGroup)}
+                            variant="outlined"
+                          />
+                        )}
+                        {story.league && (
+                          <Chip 
+                            label={story.league} 
+                            size="small" 
+                            color="secondary" 
+                            variant="outlined"
+                          />
+                        )}
                       </Box>
 
                       {/* Date */}
@@ -280,9 +418,131 @@ const SuccessStoriesPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             Complete a match through your dashboard and share your story to inspire others in the grassroots football community.
           </Typography>
+          <Box sx={{ mt: 3 }}>
+            <Button variant="contained" onClick={handleOpenSubmit}>
+              {user ? 'Share Your Story' : 'Sign in to Share'}
+            </Button>
+          </Box>
         </Paper>
-      </Box>
-    </Container>
+
+        <Dialog open={submitOpen} onClose={() => setSubmitOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Share Your Success Story</DialogTitle>
+          <DialogContent>
+            {submitError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {submitError}
+              </Alert>
+            )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={submitData.isAnonymous}
+                    onChange={(e) =>
+                      setSubmitData((prev) => ({
+                        ...prev,
+                        isAnonymous: e.target.checked,
+                        displayName: e.target.checked ? '' : prev.displayName
+                      }))
+                    }
+                  />
+                }
+                label="Submit anonymously"
+              />
+
+              <TextField
+                label="Display Name"
+                value={submitData.displayName}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, displayName: e.target.value }))}
+                disabled={submitData.isAnonymous}
+                placeholder="Your name or nickname"
+                fullWidth
+              />
+
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  label="Role"
+                  value={submitData.role}
+                  onChange={(e) => setSubmitData((prev) => ({ ...prev, role: e.target.value }))}
+                >
+                  <MenuItem value="Player">Player</MenuItem>
+                  <MenuItem value="Coach">Coach</MenuItem>
+                  <MenuItem value="Parent/Guardian">Parent/Guardian</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                label="Team Name (optional)"
+                value={submitData.teamName}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, teamName: e.target.value }))}
+                fullWidth
+              />
+
+              <TextField
+                label="Position (optional)"
+                value={submitData.position}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, position: e.target.value }))}
+                fullWidth
+              />
+
+              <TextField
+                label="Age Group (optional)"
+                value={submitData.ageGroup}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, ageGroup: e.target.value }))}
+                fullWidth
+              />
+
+              <TextField
+                label="League (optional)"
+                value={submitData.league}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, league: e.target.value }))}
+                fullWidth
+              />
+
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Rating (optional)
+                </Typography>
+                <Rating
+                  value={submitData.rating}
+                  onChange={(_, value) =>
+                    setSubmitData((prev) => ({ ...prev, rating: value || 5 }))
+                  }
+                />
+              </Box>
+
+              <TextField
+                label="Your Story"
+                value={submitData.story}
+                onChange={(e) => setSubmitData((prev) => ({ ...prev, story: e.target.value }))}
+                fullWidth
+                multiline
+                minRows={4}
+                helperText={`${submitData.story.length}/1000 characters`}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSubmitOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleSubmitStory} disabled={submitLoading}>
+              {submitLoading ? 'Submitting...' : 'Submit for Approval'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={!!submitSuccess}
+          autoHideDuration={4000}
+          onClose={() => setSubmitSuccess('')}
+        >
+          <Alert severity="success" onClose={() => setSubmitSuccess('')}>
+            {submitSuccess}
+          </Alert>
+        </Snackbar>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

@@ -1444,6 +1444,131 @@ app.put('/api/match-completions/:completionId/story', [
   }
 });
 
+// Submit success story for admin approval
+app.post(
+  '/api/success-stories/submit',
+  authenticateToken,
+  [
+    body('story').trim().isLength({ min: 20, max: 1000 }).withMessage('Story must be 20-1000 characters'),
+    body('displayName').optional().isLength({ max: 100 }).withMessage('Name must be under 100 characters'),
+    body('teamName').optional().isLength({ max: 120 }).withMessage('Team name must be under 120 characters'),
+    body('position').optional().isLength({ max: 50 }).withMessage('Position must be under 50 characters'),
+    body('ageGroup').optional().isLength({ max: 50 }).withMessage('Age group must be under 50 characters'),
+    body('league').optional().isLength({ max: 120 }).withMessage('League must be under 120 characters'),
+    body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be 1-5'),
+    body('isAnonymous').optional().isBoolean().withMessage('Anonymous must be true/false'),
+    body('role').optional().isLength({ max: 30 }).withMessage('Role must be under 30 characters')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const userId = req.user.userId;
+      const {
+        story,
+        displayName,
+        isAnonymous = false,
+        role,
+        teamName,
+        position,
+        ageGroup,
+        league,
+        rating
+      } = req.body;
+
+      const userResult = await db.query('SELECT firstName, lastName, email, role FROM users WHERE id = ?', [userId]);
+      const user = userResult.rows?.[0];
+      const fallbackName = user?.firstName || user?.lastName
+        ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
+        : (user?.email ? user.email.split('@')[0] : 'Community Member');
+
+      const resolvedName = isAnonymous ? 'Anonymous' : (displayName && displayName.trim() ? displayName.trim() : fallbackName);
+      const resolvedRole = role || user?.role || null;
+
+      await db.query(
+        `INSERT INTO success_story_submissions
+          (userId, displayName, isAnonymous, role, teamName, position, ageGroup, league, rating, story, status, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        [
+          userId,
+          resolvedName,
+          !!isAnonymous,
+          resolvedRole,
+          teamName || null,
+          position || null,
+          ageGroup || null,
+          league || null,
+          rating || null,
+          story.trim(),
+          new Date().toISOString(),
+          new Date().toISOString()
+        ]
+      );
+
+      res.json({ message: 'Success story submitted for review' });
+    } catch (error) {
+      console.error('Submit success story error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Admin: list success story submissions
+app.get('/api/admin/success-story-submissions', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { status = 'pending' } = req.query;
+
+    const submissionsResult = await db.query(
+      `SELECT id, userId, displayName, isAnonymous, role, teamName, position, ageGroup, league,
+              rating, story, status, adminNotes, createdAt, approvedAt
+       FROM success_story_submissions
+       WHERE status = ?
+       ORDER BY createdAt DESC`,
+      [status]
+    );
+
+    res.json({ submissions: submissionsResult.rows || [] });
+  } catch (error) {
+    console.error('Get success story submissions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin: update success story submission status
+app.patch('/api/admin/success-story-submissions/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const submissionId = req.params.id;
+    const { status, adminNotes } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const updateFields = ['status = ?', 'adminNotes = ?', 'updatedAt = ?'];
+    const updateValues = [status, adminNotes || null, new Date().toISOString()];
+
+    if (status === 'approved') {
+      updateFields.push('approvedAt = ?', 'approvedBy = ?');
+      updateValues.push(new Date().toISOString(), req.user.userId);
+    }
+
+    updateValues.push(submissionId);
+
+    await db.query(
+      `UPDATE success_story_submissions SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({ message: 'Submission updated' });
+  } catch (error) {
+    console.error('Update success story submission error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get public success stories
 app.get('/api/success-stories', async (req, res) => {
   try {
@@ -1455,19 +1580,38 @@ app.get('/api/success-stories', async (req, res) => {
         rating, createdAt, completedAt
        FROM match_completions 
        WHERE completionStatus = 'confirmed' AND publicStory = true AND successStory IS NOT NULL
-       ORDER BY completedAt DESC 
+       UNION ALL
+       SELECT
+        displayName as playerName,
+        COALESCE(teamName, '') as teamName,
+        COALESCE(position, '') as position,
+        COALESCE(ageGroup, '') as ageGroup,
+        COALESCE(league, '') as league,
+        story as successStory,
+        rating as rating,
+        createdAt,
+        COALESCE(approvedAt, createdAt) as completedAt
+       FROM success_story_submissions
+       WHERE status = 'approved'
+       ORDER BY completedAt DESC
        LIMIT ? OFFSET ?`,
       [parseInt(limit), parseInt(offset)]
     );
 
-    const countResult = await db.query(
+    const countStoriesResult = await db.query(
       `SELECT COUNT(*) as total FROM match_completions 
        WHERE completionStatus = 'confirmed' AND publicStory = true AND successStory IS NOT NULL`
     );
 
+    const countSubmissionsResult = await db.query(
+      `SELECT COUNT(*) as total FROM success_story_submissions WHERE status = 'approved'`
+    );
+
+    const total = (countStoriesResult.rows[0]?.total || 0) + (countSubmissionsResult.rows[0]?.total || 0);
+
     res.json({
       stories: storiesResult.rows || [],
-      total: countResult.rows[0]?.total || 0
+      total
     });
   } catch (error) {
     console.error('Get success stories error:', error);

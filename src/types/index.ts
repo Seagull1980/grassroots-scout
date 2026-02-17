@@ -214,14 +214,32 @@ export interface MatchCompletion {
 
 export interface SuccessStory {
   playerName: string;
-  teamName: string;
-  position: string;
-  ageGroup: string;
-  league: string;
+  teamName?: string;
+  position?: string;
+  ageGroup?: string;
+  league?: string;
   successStory: string;
   rating?: number;
   createdAt: string;
   completedAt: string;
+}
+
+export interface SuccessStorySubmission {
+  id: number;
+  userId: number;
+  displayName: string;
+  isAnonymous: boolean;
+  role?: string;
+  teamName?: string;
+  position?: string;
+  ageGroup?: string;
+  league?: string;
+  rating?: number;
+  story: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminNotes?: string;
+  createdAt: string;
+  approvedAt?: string;
 }
 
 export interface MatchCompletionFormData {

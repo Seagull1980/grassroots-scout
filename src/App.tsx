@@ -61,6 +61,7 @@ const {
   AdminFeedbackDashboard,
   AdminFrozenAdvertsPage,
   AdminSupportPage,
+  AdminSuccessStoriesPage,
   MessagesPage,
   SuccessStoriesPage,
   AlertPreferencesPage,
@@ -256,6 +257,11 @@ const AppRoutes = () => {
         <Route path="/admin/support" element={
           <ProtectedRoute>
             <AdminSupportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/success-stories" element={
+          <ProtectedRoute>
+            <AdminSuccessStoriesPage />
           </ProtectedRoute>
         } />
         <Route path="/success-stories" element={

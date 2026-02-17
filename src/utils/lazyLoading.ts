@@ -84,6 +84,11 @@ export const LazyComponents = {
     () => import('../pages/AdminSupportPage'),
     'AdminSupportPage'
   ),
+
+  AdminSuccessStoriesPage: createLazyComponent(
+    () => import('../pages/AdminSuccessStoriesPage'),
+    'AdminSuccessStoriesPage'
+  ),
   
   // Messaging (potentially large)
   MessagesPage: createLazyComponent(

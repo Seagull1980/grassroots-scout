@@ -165,6 +165,7 @@ const Navbar: React.FC = () => {
     ...(user?.role === 'Admin' ? [
       { path: '/analytics/real-time', label: 'Real-time Analytics', icon: <Analytics /> },
       { path: '/analytics/insights', label: 'Analytics Insights', icon: <Assessment /> },
+      { path: '/admin/success-stories', label: 'Success Story Approvals', icon: <EmojiEvents /> },
       { path: '/admin/feedback', label: 'Feedback Dashboard', icon: <FeedbackIcon /> },
       { path: '/admin/frozen-adverts', label: 'Frozen Adverts', icon: <AcUnit /> },
       { path: '/admin/support', label: 'Support Messages', icon: <Support /> },

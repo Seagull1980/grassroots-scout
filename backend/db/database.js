@@ -603,6 +603,29 @@ class Database {
         FOREIGN KEY (parentId) REFERENCES users (id) ON DELETE SET NULL
       )`,
 
+      // User submitted success stories (admin approval)
+      `CREATE TABLE IF NOT EXISTS success_story_submissions (
+        id SERIAL PRIMARY KEY,
+        userId INTEGER NOT NULL,
+        displayName VARCHAR,
+        isAnonymous BOOLEAN DEFAULT FALSE,
+        role VARCHAR,
+        teamName VARCHAR,
+        position VARCHAR,
+        ageGroup VARCHAR,
+        league VARCHAR,
+        rating INTEGER CHECK(rating >= 1 AND rating <= 5),
+        story TEXT NOT NULL,
+        status VARCHAR DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+        adminNotes TEXT,
+        approvedBy INTEGER,
+        approvedAt TIMESTAMP,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (approvedBy) REFERENCES users (id) ON DELETE SET NULL
+      )`,
+
       // Analytics tables for admin dashboard
       `CREATE TABLE IF NOT EXISTS page_views (
         id SERIAL PRIMARY KEY,
