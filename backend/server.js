@@ -7738,32 +7738,44 @@ app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
 // Get pending invitations for current user
 app.get('/api/invitations', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      console.error('⚠️  No userId in request');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    console.log(`📨 Fetching invitations for user ${userId}`);
+
     const invitations = await db.query(`
       SELECT ti.*, t.teamName, u.firstName as inviterFirstName, u.lastName as inviterLastName
       FROM team_invitations ti
-      JOIN teams t ON ti.teamId = t.id
-      JOIN users u ON ti.invitedByUserId = u.id
+      LEFT JOIN teams t ON ti.teamId = t.id
+      LEFT JOIN users u ON ti.invitedByUserId = u.id
       WHERE ti.invitedUserId = ? AND ti.status = 'pending'
       ORDER BY ti.createdAt DESC
-    `, [req.user.userId]);
+    `, [userId]);
 
-    const invitationsList = invitations.rows || invitations || [];
+    console.log(`✅ Invitations query returned: ${JSON.stringify(invitations).substring(0, 200)}`);
+
+    const invitationsList = invitations?.rows || invitations || [];
     const result = invitationsList.map(inv => ({
       id: inv.id,
       teamId: inv.teamId,
-      teamName: inv.teamName,
+      teamName: inv.teamName || 'Unknown Team',
       role: inv.role,
-      invitedBy: `${inv.inviterFirstName} ${inv.inviterLastName}`,
+      invitedBy: inv.inviterFirstName && inv.inviterLastName ? `${inv.inviterFirstName} ${inv.inviterLastName}` : 'Unknown User',
       status: inv.status,
       createdAt: inv.createdAt,
       expiresAt: inv.expiresAt,
       invitationToken: inv.invitationToken
     }));
 
+    console.log(`✅ Returning ${result.length} invitations`);
     res.json({ invitations: result });
   } catch (error) {
-    console.error('Error fetching invitations:', error);
-    res.status(500).json({ error: 'Failed to fetch invitations' });
+    console.error('❌ Error fetching invitations:', error.message);
+    console.error('Full error:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch invitations' });
   }
 });
 
