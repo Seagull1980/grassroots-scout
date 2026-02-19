@@ -7473,7 +7473,8 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
       ORDER BY t.createdAt DESC
     `, [req.user.userId]);
 
-    res.json({ teams: teams.rows || teams });
+    const teamsList = teams.rows || teams || [];
+    res.json({ teams: teamsList });
   } catch (error) {
     console.error('Error fetching teams:', error);
     res.status(500).json({ error: 'Failed to fetch teams' });
@@ -7498,7 +7499,12 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
     }
 
     const team = membership.rows[0];
-    team.permissions = JSON.parse(team.permissions);
+    try {
+      team.permissions = team.permissions ? JSON.parse(team.permissions) : {};
+    } catch (e) {
+      console.error('Error parsing permissions:', e);
+      team.permissions = {};
+    }
 
     // Get all team members
     const members = await db.query(`
@@ -7509,7 +7515,7 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
       ORDER BY tm.joinedAt ASC
     `, [teamId]);
 
-    team.members = members.rows || members;
+    team.members = members.rows || members || [];
 
     res.json({ team });
   } catch (error) {
@@ -7596,7 +7602,8 @@ app.get('/api/coaches/search', authenticateToken, async (req, res) => {
       LIMIT 10
     `, [searchTerm, searchTerm, searchTerm]);
 
-    const results = (coaches.rows || coaches).map(coach => ({
+    const coachesList = coaches.rows || coaches || [];
+    const results = coachesList.map(coach => ({
       id: coach.id,
       name: `${coach.firstName} ${coach.lastName}`,
       email: coach.email
@@ -7630,7 +7637,8 @@ app.get('/api/clubs/search', authenticateToken, async (req, res) => {
     query += ` ORDER BY clubName ASC LIMIT 20`;
 
     const clubs = await db.query(query, params);
-    const results = (clubs.rows || clubs).map(row => row.clubName);
+    const clubsList = clubs.rows || clubs || [];
+    const results = clubsList.map(row => row.clubName);
 
     res.json({ clubs: results });
   } catch (error) {
@@ -7695,10 +7703,12 @@ app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
 
     // Create invitation
     const invitationToken = uuidv4();
-    const invId = await db.insert(`
+    const invResult = await db.query(`
       INSERT INTO team_invitations (teamId, invitedUserId, invitedByUserId, invitedEmail, role, invitationToken, status)
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
     `, [teamId, coachId, req.user.userId, coach.email, role, invitationToken]);
+
+    const invId = invResult.lastID || invResult.rows[0]?.id;
 
     // Get inviter name
     const inviterResult = await db.query('SELECT firstName, lastName FROM users WHERE id = ?', [req.user.userId]);
@@ -7737,7 +7747,8 @@ app.get('/api/invitations', authenticateToken, async (req, res) => {
       ORDER BY ti.createdAt DESC
     `, [req.user.userId]);
 
-    const result = (invitations.rows || invitations).map(inv => ({
+    const invitationsList = invitations.rows || invitations || [];
+    const result = invitationsList.map(inv => ({
       id: inv.id,
       teamId: inv.teamId,
       teamName: inv.teamName,
