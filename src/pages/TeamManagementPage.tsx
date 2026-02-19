@@ -21,14 +21,16 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
-  Alert
+  Alert,
+  Autocomplete
 } from '@mui/material';
 import {
   Add as AddIcon,
   Group as GroupIcon,
   PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
-import api from '../services/api';
+import api, { leaguesAPI, League } from '../services/api';
+import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
 
 interface Team {
   id: number;
@@ -65,6 +67,8 @@ const TeamManagement: React.FC = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [loadingLeagues, setLoadingLeagues] = useState(false);
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -82,7 +86,21 @@ const TeamManagement: React.FC = () => {
 
   useEffect(() => {
     loadTeams();
+    loadLeagues();
   }, []);
+
+  const loadLeagues = async () => {
+    try {
+      setLoadingLeagues(true);
+      const leaguesData = await leaguesAPI.getForSearch(true);
+      setLeagues(Array.isArray(leaguesData) ? leaguesData : []);
+    } catch (error: any) {
+      console.error('Error loading leagues:', error);
+      setLeagues([]);
+    } finally {
+      setLoadingLeagues(false);
+    }
+  };
 
   const loadTeams = async () => {
     try {
@@ -282,21 +300,41 @@ const TeamManagement: React.FC = () => {
             onChange={(e) => setCreateForm({ ...createForm, clubName: e.target.value })}
             sx={{ mt: 2 }}
           />
-          <TextField
+          <Autocomplete
             fullWidth
-            label="Age Group"
-            value={createForm.ageGroup}
-            onChange={(e) => setCreateForm({ ...createForm, ageGroup: e.target.value })}
+            options={AGE_GROUP_OPTIONS}
+            value={createForm.ageGroup || null}
+            onChange={(_, newValue) => setCreateForm({ ...createForm, ageGroup: newValue || '' })}
+            renderInput={(params) => (
+              <TextField {...params} label="Age Group" required />
+            )}
             sx={{ mt: 2 }}
-            required
+            disableClearable={false}
           />
-          <TextField
+          <Autocomplete
             fullWidth
-            label="League"
-            value={createForm.league}
-            onChange={(e) => setCreateForm({ ...createForm, league: e.target.value })}
+            options={leagues.map(l => l.name)}
+            value={createForm.league || null}
+            onChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue || '' })}
+            inputValue={createForm.league}
+            onInputChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue })}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label="League" 
+                required
+                helperText={loadingLeagues ? 'Loading leagues...' : ''}
+              />
+            )}
+            loading={loadingLeagues}
             sx={{ mt: 2 }}
-            required
+            disableClearable={false}
+            filterOptions={(options, state) => {
+              const filtered = options.filter(option =>
+                option.toLowerCase().includes(state.inputValue.toLowerCase())
+              );
+              return filtered;
+            }}
           />
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Team Gender</InputLabel>
@@ -304,9 +342,9 @@ const TeamManagement: React.FC = () => {
               value={createForm.teamGender}
               onChange={(e) => setCreateForm({ ...createForm, teamGender: e.target.value })}
             >
-              <MenuItem value="Boys">Boys</MenuItem>
-              <MenuItem value="Girls">Girls</MenuItem>
-              <MenuItem value="Mixed">Mixed</MenuItem>
+              {TEAM_GENDER_OPTIONS.map(option => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
             </Select>
           </FormControl>
         </DialogContent>
