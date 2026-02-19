@@ -913,7 +913,17 @@ export const OnboardingFlow: React.FC = () => {
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { minHeight: 500 }
+        sx: { 
+          minHeight: 500,
+          zIndex: 1400  // Higher than AppBar (1100) and most other components
+        }
+      }}
+      slotProps={{
+        backdrop: {
+          sx: {
+            zIndex: 1399  // Just below the dialog
+          }
+        }
       }}
     >
       <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
