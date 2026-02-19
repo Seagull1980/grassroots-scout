@@ -443,11 +443,12 @@ class Database {
         status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'rejected')),
         invitationToken VARCHAR UNIQUE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expiresAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP + INTERVAL 7 DAY,
+        expiresAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP + INTERVAL '7 days',
         respondedAt TIMESTAMP,
         FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE,
         FOREIGN KEY (invitedUserId) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (invitedByUserId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
       )`,
 
       `CREATE TABLE IF NOT EXISTS team_rosters (
