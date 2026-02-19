@@ -18,7 +18,11 @@ import {
   Autocomplete,
   Alert,
   Slider,
-  Snackbar
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -37,6 +41,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { storage } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { leaguesAPI, League, API_URL } from '../services/api';
+import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
 import LeagueRequestDialog from './LeagueRequestDialog';
 import { LocationAutocomplete } from './LocationAutocomplete';
 import GoogleMapsWrapper from './GoogleMapsWrapper';
@@ -148,6 +153,15 @@ export const OnboardingFlow: React.FC = () => {
       matchUpdates: true,
       messages: true
     }
+  });
+
+  // Team creation state for coaches
+  const [teamData, setTeamData] = useState({
+    teamName: '',
+    clubName: '',
+    ageGroup: '',
+    league: '',
+    teamGender: 'Mixed'
   });
 
   // Load available leagues from database
@@ -321,6 +335,29 @@ export const OnboardingFlow: React.FC = () => {
           userData.preferredLeagues.forEach(league => {
             subscribeToLeague(league, '');
           });
+        }
+
+        // Create team if coach provided team information
+        if (user.role === 'Coach' && teamData.teamName && teamData.ageGroup) {
+          try {
+            await axios.post(
+              `${API_URL}/api/teams`,
+              teamData,
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+            console.log('✅ Team created from onboarding');
+            setSnackbar({ 
+              open: true, 
+              message: 'Team created successfully!', 
+              severity: 'success' 
+            });
+          } catch (error) {
+            console.error('Failed to create team from onboarding:', error);
+            // Don't block onboarding completion if team creation fails
+            // User can create team later from Team Management page
+          }
         }
       } catch (error) {
         console.error('Failed to save onboarding data:', error);
@@ -608,6 +645,90 @@ export const OnboardingFlow: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
+          </Stack>
+        </Box>
+      )
+    }] : []),
+    // Coach-specific step for creating their first team
+    ...(user?.role === 'Coach' ? [{
+      id: 'team-creation',
+      title: 'Create Your First Team',
+      description: 'Set up your team to start recruiting players',
+      optional: true,
+      component: (
+        <Box py={2}>
+          <Typography variant="h6" gutterBottom>
+            Create Your First Team (Optional)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            You can skip this and create a team later from the Team Management page
+          </Typography>
+          
+          <Stack spacing={3}>
+            <TextField
+              fullWidth
+              label="Team Name"
+              value={teamData.teamName}
+              onChange={(e) => setTeamData({ ...teamData, teamName: e.target.value })}
+              placeholder="e.g., Manchester Youth Eagles"
+            />
+            <TextField
+              fullWidth
+              label="Club Name (Optional)"
+              value={teamData.clubName}
+              onChange={(e) => setTeamData({ ...teamData, clubName: e.target.value })}
+              placeholder="e.g., Manchester Athletic Club"
+            />
+            <Autocomplete
+              fullWidth
+              options={AGE_GROUP_OPTIONS}
+              value={teamData.ageGroup || null}
+              onChange={(_, newValue) => setTeamData({ ...teamData, ageGroup: newValue || '' })}
+              renderInput={(params) => (
+                <TextField {...params} label="Age Group" />
+              )}
+              disableClearable={false}
+            />
+            <Autocomplete
+              fullWidth
+              options={availableLeagues.map(l => l.name)}
+              value={teamData.league || null}
+              onChange={(_, newValue) => setTeamData({ ...teamData, league: newValue || '' })}
+              inputValue={teamData.league}
+              onInputChange={(_, newValue) => setTeamData({ ...teamData, league: newValue })}
+              renderInput={(params) => (
+                <TextField 
+                  {...params} 
+                  label="League"
+                  helperText={loadingLeagues ? 'Loading leagues...' : 'Start typing to search'}
+                />
+              )}
+              loading={loadingLeagues}
+              disableClearable={false}
+              filterOptions={(options, state) => {
+                const filtered = options.filter(option =>
+                  option.toLowerCase().includes(state.inputValue.toLowerCase())
+                );
+                return filtered;
+              }}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Team Gender</InputLabel>
+              <Select
+                value={teamData.teamGender}
+                onChange={(e) => setTeamData({ ...teamData, teamGender: e.target.value })}
+              >
+                {TEAM_GENDER_OPTIONS.map(option => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Tip:</strong> Fill in at least the Team Name and Age Group to create your team. You can add more details later.
+              </Typography>
+            </Alert>
           </Stack>
         </Box>
       )
