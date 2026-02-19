@@ -105,7 +105,8 @@ const AppRoutes = () => {
     <>
       <MapsNavigationHandler />
       <Suspense fallback={<LoadingSpinner />}>
-        <Routes>
+        <ErrorBoundary>
+          <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/login" element={
@@ -322,6 +323,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } /> */}
       </Routes>
+        </ErrorBoundary>
     </Suspense>
     </>
   );

@@ -108,7 +108,7 @@ interface PerformanceAlert {
 
 const RealTimeAnalyticsDashboard: React.FC = () => {
   const theme = useTheme();
-  useAuth(); // ensure context initialization; not using user directly
+  // useAuth is not needed for this dashboard - remove to prevent context provider errors
   const [metrics, setMetrics] = useState<RealTimeMetrics>({
     activeUsers: 0,
     pageViews: 0,
