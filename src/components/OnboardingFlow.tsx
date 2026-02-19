@@ -512,9 +512,9 @@ export const OnboardingFlow: React.FC = () => {
               helperText="Your current football experience level"
             >
               <option value=""></option>
-              <option value="Beginner">Beginner</option>
-              <option value="Intermediate">Intermediate</option>
-              <option value="Advanced">Advanced</option>
+              <option value="Grassroots">Grassroots</option>
+              <option value="Amateur">Amateur</option>
+              <option value="Semi-Pro">Semi-Pro</option>
               <option value="Professional">Professional</option>
             </TextField>
 

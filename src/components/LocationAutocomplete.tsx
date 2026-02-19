@@ -131,7 +131,7 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
         autocompleteElementRef.current.remove();
       }
     };
-  }, [isGoogleMapsLoaded, useLegacyAPI, onChange, onLocationSelect]);
+  }, [isGoogleMapsLoaded, useLegacyAPI]);
 
   // Render new PlaceAutocompleteElement or legacy TextField
   if (!useLegacyAPI && isGoogleMapsLoaded) {
