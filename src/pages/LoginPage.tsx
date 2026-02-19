@@ -114,6 +114,10 @@ const LoginPage: React.FC = () => {
               autoFocus
               value={formData.email}
               onChange={handleChange}
+              variant="outlined"
+              InputLabelProps={{
+                shrink: true,
+              }}
             />
             <TextField
               margin="normal"
@@ -126,6 +130,10 @@ const LoginPage: React.FC = () => {
               autoComplete="current-password"
               value={formData.password}
               onChange={handleChange}
+              variant="outlined"
+              InputLabelProps={{
+                shrink: true,
+              }}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">

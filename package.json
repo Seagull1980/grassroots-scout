@@ -11,6 +11,13 @@
     "playing-history-server": "cd backend && node playing-history-server.js",
     "forum-server": "cd backend && node forum-server.js",
     "dev:full": "concurrently \"npm run backend\" \"npm run team-management-server\" \"npm run team-roster-server\" \"npm run playing-history-server\" \"npm run forum-server\" \"npm run dev\"",
+    "pm2:dev": "pm2 start ecosystem.config.js --only grassroots-dev",
+    "pm2:full": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop all",
+    "pm2:restart": "pm2 restart all",
+    "pm2:logs": "pm2 logs",
+    "pm2:status": "pm2 status",
+    "pm2:kill": "pm2 kill",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
@@ -75,6 +82,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
     "jsdom": "^23.2.0",
+    "pm2": "^6.0.14",
     "terser": "^5.46.0",
     "vitest": "^1.0.4"
   }

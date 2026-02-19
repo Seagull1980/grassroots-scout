@@ -58,10 +58,10 @@ const BetaAccessDenied: React.FC = () => {
               <strong>What happens next?</strong>
             </Typography>
             <Typography variant="body2" paragraph>
-              You will be contacted by an admin as soon as access has been granted.
+              An admin will directly contact you once your access has been granted. You will not receive an email notification.
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 500, color: 'primary.main' }}>
-              You will be logged out in <strong>{secondsRemaining} seconds</strong>. Please log back in once access is confirmed.
+              You will be automatically logged out in <strong>{secondsRemaining} seconds</strong>. Please log back in once your access is confirmed.
             </Typography>
           </Alert>
 
