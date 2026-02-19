@@ -88,10 +88,13 @@ const TeamManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/teams');
-      setTeams(response.data.teams);
+      // Ensure teams is always an array, handle various response structures
+      const teamsData = response.data.teams || response.data || [];
+      setTeams(Array.isArray(teamsData) ? teamsData : []);
     } catch (error: any) {
       setError('Failed to load teams');
       console.error('Error loading teams:', error);
+      setTeams([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -130,9 +133,12 @@ const TeamManagement: React.FC = () => {
   const loadTeamMembers = async (teamId: number) => {
     try {
       const response = await api.get(`/teams/${teamId}`);
-      setTeamMembers(response.data.team.members);
+      // Handle various response structures
+      const members = response.data?.team?.members || response.data?.members || [];
+      setTeamMembers(Array.isArray(members) ? members : []);
     } catch (error: any) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]); // Set empty array on error
     }
   };
 
@@ -178,7 +184,8 @@ const TeamManagement: React.FC = () => {
       )}
 
       <Grid container spacing={3}>
-        {teams.map((team) => (
+        {teams && teams.length > 0 ? (
+          teams.map((team) => (
           <Grid item xs={12} md={6} lg={4} key={team.id}>
             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1 }}>
@@ -233,7 +240,8 @@ const TeamManagement: React.FC = () => {
               </Box>
             </Card>
           </Grid>
-        ))}
+        ))
+        ) : null}
       </Grid>
 
       {teams.length === 0 && !loading && (
@@ -351,26 +359,32 @@ const TeamManagement: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <List>
-            {teamMembers.map((member) => (
-              <ListItem key={member.id}>
-                <ListItemAvatar>
-                  <Avatar>
-                    {member.firstName[0]}{member.lastName[0]}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={`${member.firstName} ${member.lastName}`}
-                  secondary={
-                    <Box>
-                      <Chip label={member.role} size="small" sx={{ mr: 1 }} />
-                      <Typography variant="caption" color="text.secondary">
-                        Joined {new Date(member.joinedAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </ListItem>
-            ))}
+            {teamMembers && teamMembers.length > 0 ? (
+              teamMembers.map((member) => (
+                <ListItem key={member.id}>
+                  <ListItemAvatar>
+                    <Avatar>
+                      {member.firstName[0]}{member.lastName[0]}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={`${member.firstName} ${member.lastName}`}
+                    secondary={
+                      <Box>
+                        <Chip label={member.role} size="small" sx={{ mr: 1 }} />
+                        <Typography variant="caption" color="text.secondary">
+                          Joined {new Date(member.joinedAt).toLocaleDateString()}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+                No team members yet
+              </Typography>
+            )}
           </List>
         </DialogContent>
         <DialogActions>
