@@ -19,7 +19,7 @@ import {
   Close as CloseIcon,
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
-import api from '../services/api';
+import api, { API_URL } from '../services/api';
 
 interface Invitation {
   id: number;
@@ -34,6 +34,7 @@ interface Invitation {
 }
 
 const InvitationCenter: React.FC = () => {
+  const apiPrefix = API_URL ? '' : '/api';
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,15 +42,23 @@ const InvitationCenter: React.FC = () => {
   const [selectedInvitation, setSelectedInvitation] = useState<Invitation | null>(null);
   const [responseDialog, setResponseDialog] = useState(false);
   const [response, setResponse] = useState<'accept' | 'reject' | null>(null);
+  const [tokenFromEmail, setTokenFromEmail] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check if we arrived here from an email link with a token
+    const savedToken = localStorage.getItem('invitationToken');
+    if (savedToken) {
+      setTokenFromEmail(savedToken);
+      // Clear it so it only uses it once per page load
+      localStorage.removeItem('invitationToken');
+    }
     loadInvitations();
   }, []);
 
   const loadInvitations = async () => {
     try {
       setLoading(true);
-      const result = await api.get('/invitations');
+      const result = await api.get(`${apiPrefix}/invitations`);
       setInvitations(result.data.invitations || []);
       setError('');
     } catch (err: any) {
@@ -60,6 +69,23 @@ const InvitationCenter: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // If user arrived via email link with a token, auto-accept that invitation
+  useEffect(() => {
+    if (tokenFromEmail && invitations.length > 0) {
+      const matchingInvitation = invitations.find(
+        i => i.invitationToken === tokenFromEmail && i.status === 'pending'
+      );
+      
+      if (matchingInvitation) {
+        setSelectedInvitation(matchingInvitation);
+        setResponse('accept');
+        setResponseDialog(true);
+      } else {
+        setError('Could not find matching invitation. Please select one below.');
+      }
+    }
+  }, [tokenFromEmail, invitations]);
 
   const handleRespondClick = (invitation: Invitation, action: 'accept' | 'reject') => {
     setSelectedInvitation(invitation);
@@ -73,8 +99,8 @@ const InvitationCenter: React.FC = () => {
     try {
       setResponding(true);
       const endpoint = response === 'accept' 
-        ? `/invitations/${selectedInvitation.id}/accept`
-        : `/invitations/${selectedInvitation.id}/reject`;
+        ? `${apiPrefix}/invitations/${selectedInvitation.id}/accept`
+        : `${apiPrefix}/invitations/${selectedInvitation.id}/reject`;
 
       await api.post(endpoint);
       

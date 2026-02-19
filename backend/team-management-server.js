@@ -254,6 +254,36 @@ app.get('/api/coaches/search', authenticateToken, async (req, res) => {
   }
 });
 
+// Search for existing clubs
+app.get('/api/clubs/search', authenticateToken, async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    let query = `
+      SELECT DISTINCT clubName
+      FROM teams
+      WHERE clubName IS NOT NULL 
+      AND clubName != ''
+    `;
+    let params = [];
+
+    if (q && q.length >= 1) {
+      query += ` AND clubName LIKE ?`;
+      params.push(`%${q}%`);
+    }
+
+    query += ` ORDER BY clubName ASC LIMIT 20`;
+
+    const clubs = await db.query(query, params);
+    const results = (clubs.rows || clubs).map(row => row.clubName);
+
+    res.json({ clubs: results });
+  } catch (error) {
+    console.error('Error searching clubs:', error);
+    res.status(500).json({ error: 'Failed to search clubs' });
+  }
+});
+
 // Send team invitation (creates pending invitation)
 app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
   body('coachId').notEmpty().withMessage('Coach ID is required'),
@@ -374,11 +404,12 @@ app.get('/api/invitations', authenticateToken, async (req, res) => {
 app.post('/api/invitations/:invitationToken/accept', authenticateToken, async (req, res) => {
   try {
     const { invitationToken } = req.params;
+    const isNumericId = /^[0-9]+$/.test(invitationToken);
 
-    // Get the invitation
+    // Get the invitation (by id for in-app flow, or by token for email links)
     const invitation = await db.query(`
       SELECT * FROM team_invitations 
-      WHERE invitationToken = ? AND status = 'pending'
+      WHERE ${isNumericId ? 'id' : 'invitationToken'} = ? AND status = 'pending'
     `, [invitationToken]);
 
     if (!invitation.rows || invitation.rows.length === 0) {
@@ -435,11 +466,12 @@ app.post('/api/invitations/:invitationToken/accept', authenticateToken, async (r
 app.post('/api/invitations/:invitationToken/reject', authenticateToken, async (req, res) => {
   try {
     const { invitationToken } = req.params;
+    const isNumericId = /^[0-9]+$/.test(invitationToken);
 
-    // Get the invitation
+    // Get the invitation (by id for in-app flow, or by token for email links)
     const invitation = await db.query(`
       SELECT * FROM team_invitations 
-      WHERE invitationToken = ? AND status = 'pending'
+      WHERE ${isNumericId ? 'id' : 'invitationToken'} = ? AND status = 'pending'
     `, [invitationToken]);
 
     if (!invitation.rows || invitation.rows.length === 0) {

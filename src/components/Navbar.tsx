@@ -59,13 +59,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { NotificationBell } from './NotificationComponents';
 import { useResponsive } from '../hooks/useResponsive';
-import api from '../services/api';
+import api, { API_URL } from '../services/api';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, isImpersonating, stopImpersonation } = useAuth();
   const { isMobile } = useResponsive();
+  const apiPrefix = API_URL ? '' : '/api';
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -84,7 +85,7 @@ const Navbar: React.FC = () => {
 
   const fetchPendingInvitationsCount = async () => {
     try {
-      const response = await api.get('/invitations');
+      const response = await api.get(`${apiPrefix}/invitations`);
       const pendingCount = (response.data.invitations || []).filter((inv: any) => inv.status === 'pending').length;
       setPendingInvitationsCount(pendingCount);
     } catch (error) {

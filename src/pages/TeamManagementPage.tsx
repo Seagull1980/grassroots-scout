@@ -31,7 +31,7 @@ import {
   PersonAdd as PersonAddIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
-import api, { leaguesAPI, League } from '../services/api';
+import api, { API_URL, leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
 
 interface Team {
@@ -68,6 +68,7 @@ interface Coach {
 }
 
 const TeamManagement: React.FC = () => {
+  const apiPrefix = API_URL ? '' : '/api';
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -79,6 +80,8 @@ const TeamManagement: React.FC = () => {
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [searchingCoaches, setSearchingCoaches] = useState(false);
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [clubs, setClubs] = useState<string[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState(false);
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -116,7 +119,7 @@ const TeamManagement: React.FC = () => {
   const loadTeams = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/teams');
+      const response = await api.get(`${apiPrefix}/teams`);
       const teamsData = response.data.teams || response.data || [];
       setTeams(Array.isArray(teamsData) ? teamsData : []);
     } catch (error: any) {
@@ -130,7 +133,7 @@ const TeamManagement: React.FC = () => {
 
   const handleCreateTeam = async () => {
     try {
-      await api.post('/teams', createForm);
+      await api.post(`${apiPrefix}/teams`, createForm);
       setCreateDialogOpen(false);
       setCreateForm({
         teamName: '',
@@ -153,7 +156,7 @@ const TeamManagement: React.FC = () => {
 
     try {
       setSearchingCoaches(true);
-      const response = await api.get('/coaches/search', { params: { q: searchTerm } });
+      const response = await api.get(`${apiPrefix}/coaches/search`, { params: { q: searchTerm } });
       setCoaches(response.data.coaches || []);
     } catch (error: any) {
       console.error('Error searching coaches:', error);
@@ -163,11 +166,24 @@ const TeamManagement: React.FC = () => {
     }
   };
 
+  const searchClubs = async (searchTerm: string) => {
+    try {
+      setLoadingClubs(true);
+      const response = await api.get(`${apiPrefix}/clubs/search`, { params: { q: searchTerm } });
+      setClubs(response.data.clubs || []);
+    } catch (error: any) {
+      console.error('Error searching clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
+
   const handleInviteMember = async () => {
     if (!selectedTeam || !inviteForm.coachId) return;
 
     try {
-      await api.post(`/teams/${selectedTeam.id}/invite-coach`, {
+      await api.post(`${apiPrefix}/teams/${selectedTeam.id}/invite-coach`, {
         coachId: inviteForm.coachId,
         role: inviteForm.role
       });
@@ -187,7 +203,7 @@ const TeamManagement: React.FC = () => {
 
   const loadTeamMembers = async (teamId: number) => {
     try {
-      const response = await api.get(`/teams/${teamId}`);
+      const response = await api.get(`${apiPrefix}/teams/${teamId}`);
       const members = response.data?.team?.members || response.data?.members || [];
       setTeamMembers(Array.isArray(members) ? members : []);
     } catch (error: any) {
@@ -204,7 +220,7 @@ const TeamManagement: React.FC = () => {
     }
 
     try {
-      await api.delete(`/teams/${selectedTeam.id}/members/${memberId}`);
+      await api.delete(`${apiPrefix}/teams/${selectedTeam.id}/members/${memberId}`);
       await loadTeamMembers(selectedTeam.id);
       setError('');
       alert('Coach removed successfully');
@@ -346,12 +362,31 @@ const TeamManagement: React.FC = () => {
             sx={{ mt: 2 }}
             required
           />
-          <TextField
+          <Autocomplete
             fullWidth
-            label="Club Name (Optional)"
-            value={createForm.clubName}
-            onChange={(e) => setCreateForm({ ...createForm, clubName: e.target.value })}
-            sx={{ mt: 2 }}
+            freeSolo
+            options={clubs}
+            value={createForm.clubName || null}
+            onChange={(_, newValue) => setCreateForm({ ...createForm, clubName: newValue || '' })}
+            onInputChange={(_, newValue) => {
+              setCreateForm({ ...createForm, clubName: newValue });
+              if (newValue.length >= 1) {
+                searchClubs(newValue);
+              } else {
+                setClubs([]);
+              }
+            }}
+            loading={loadingClubs}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Club Name (Optional)"
+                helperText="Start typing to search existing clubs or create a new one"
+                sx={{ mt: 2 }}
+              />
+            )}
+            noOptionsText="No clubs found - you can create a new one"
+            disableClearable={false}
           />
           <Autocomplete
             fullWidth

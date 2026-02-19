@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LoadingSpinner as AppLoadingSpinner } from './components/LoadingComponents';
@@ -216,6 +216,9 @@ const AppRoutes = () => {
             <InvitationCenter />
           </ProtectedRoute>
         } />
+        <Route path="/invitations/:token" element={
+          <InvitationTokenHandler />
+        } />
         <Route path="/training-sessions" element={
           <ProtectedRoute>
             <TrainingSessionsPage />
@@ -333,6 +336,23 @@ const AppRoutes = () => {
     </Suspense>
     </>
   );
+};
+
+// Component to handle invitation links from emails
+const InvitationTokenHandler = () => {
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (token) {
+      // Store the token in localStorage for InvitationCenter to use
+      localStorage.setItem('invitationToken', token);
+      // Redirect to invitations page
+      navigate('/invitations');
+    }
+  }, [token, navigate]);
+
+  return null; // This component doesn't render anything
 };
 
 function App() {

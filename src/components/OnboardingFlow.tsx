@@ -136,6 +136,8 @@ export const OnboardingFlow: React.FC = () => {
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
   const [dobError, setDobError] = useState<string>('');
+  const [clubs, setClubs] = useState<string[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userData, setUserData] = useState({
     interests: [] as string[],
@@ -194,6 +196,25 @@ export const OnboardingFlow: React.FC = () => {
 
     loadLeagues();
   }, []);
+
+  // Search for existing clubs
+  const searchClubs = async (searchTerm: string) => {
+    try {
+      setLoadingClubs(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL || ''}/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setClubs(response.data.clubs || []);
+    } catch (error: any) {
+      console.error('Error searching clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
 
   // Load saved progress from localStorage
   useEffect(() => {
@@ -672,12 +693,31 @@ export const OnboardingFlow: React.FC = () => {
               onChange={(e) => setTeamData({ ...teamData, teamName: e.target.value })}
               placeholder="e.g., Manchester Youth Eagles"
             />
-            <TextField
+            <Autocomplete
               fullWidth
-              label="Club Name (Optional)"
-              value={teamData.clubName}
-              onChange={(e) => setTeamData({ ...teamData, clubName: e.target.value })}
-              placeholder="e.g., Manchester Athletic Club"
+              freeSolo
+              options={clubs}
+              value={teamData.clubName || null}
+              onChange={(_, newValue) => setTeamData({ ...teamData, clubName: newValue || '' })}
+              onInputChange={(_, newValue) => {
+                setTeamData({ ...teamData, clubName: newValue });
+                if (newValue.length >= 1) {
+                  searchClubs(newValue);
+                } else {
+                  setClubs([]);
+                }
+              }}
+              loading={loadingClubs}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Club Name (Optional)"
+                  placeholder="e.g., Manchester Athletic Club"
+                  helperText="Start typing to search existing clubs or create a new one"
+                />
+              )}
+              noOptionsText="No clubs found - you can create a new one"
+              disableClearable={false}
             />
             <Autocomplete
               fullWidth

@@ -18,7 +18,8 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Divider
+  Divider,
+  Autocomplete
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -98,6 +99,8 @@ const TeamProfilePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [clubs, setClubs] = useState<string[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'Coach') {
@@ -106,6 +109,25 @@ const TeamProfilePage: React.FC = () => {
       setLoading(false);
     }
   }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
+
+  const searchClubs = async (searchTerm: string) => {
+    try {
+      setLoadingClubs(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setClubs(data.clubs || []);
+    } catch (error: any) {
+      console.error('Error searching clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -489,11 +511,30 @@ const TeamProfilePage: React.FC = () => {
             </Grid>
             
             <Grid item xs={12} sm={6}>
-              <TextField
+              <Autocomplete
                 fullWidth
-                label="Club Name"
-                value={formData.clubName}
-                onChange={handleInputChange('clubName')}
+                freeSolo
+                options={clubs}
+                value={formData.clubName || null}
+                onChange={(_, newValue) => setFormData({ ...formData, clubName: newValue || '' })}
+                onInputChange={(_, newValue) => {
+                  setFormData({ ...formData, clubName: newValue });
+                  if (newValue.length >= 1) {
+                    searchClubs(newValue);
+                  } else {
+                    setClubs([]);
+                  }
+                }}
+                loading={loadingClubs}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Club Name"
+                    helperText="Start typing to search existing clubs or create a new one"
+                  />
+                )}
+                noOptionsText="No clubs found - you can create a new one"
+                disableClearable={false}
               />
             </Grid>
             
