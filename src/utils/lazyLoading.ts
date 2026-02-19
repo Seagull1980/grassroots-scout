@@ -1,5 +1,4 @@
-import { lazy, Suspense } from 'react';
-import { CircularProgress, Box } from '@mui/material';
+import { lazy } from 'react';
 
 // Utility for creating lazy-loaded components with error boundaries
 export const createLazyComponent = (
@@ -11,27 +10,6 @@ export const createLazyComponent = (
   (LazyComponent as any).displayName = displayName || 'LazyComponent';
   return LazyComponent;
 };
-
-// Safe lazy component wrapper that handles loading states
-export const SafeLazyComponent: React.FC<{ 
-  component: React.LazyExoticComponent<React.ComponentType<any>> 
-}> = ({ component: Component }) => (
-  <Suspense fallback={
-    <Box 
-      sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '200px',
-        width: '100%'
-      }}
-    >
-      <CircularProgress />
-    </Box>
-  }>
-    <Component />
-  </Suspense>
-);
 
 // Heavy feature imports - load only when needed
 export const LazyComponents = {

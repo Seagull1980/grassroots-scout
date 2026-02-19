@@ -58,7 +58,6 @@ import {
   Filler
 } from 'chart.js';
 // import { analyticsTracking } from '../services/analyticsTracking';
-import { useAuth } from '../contexts/AuthContext';
 
 // Register Chart.js components
 ChartJS.register(
