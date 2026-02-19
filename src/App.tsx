@@ -55,6 +55,7 @@ const {
   TeamProfilePage,
   TeamRosterPage,
   TeamManagementPage,
+  InvitationCenter,
   ClubDashboardPage,
   MatchCompletionsPage,
   MyFeedbackPage,
@@ -208,6 +209,11 @@ const AppRoutes = () => {
         <Route path="/team-management" element={
           <ProtectedRoute>
             <TeamManagementPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/invitations" element={
+          <ProtectedRoute>
+            <InvitationCenter />
           </ProtectedRoute>
         } />
         <Route path="/training-sessions" element={

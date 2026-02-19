@@ -440,6 +440,102 @@ class EmailService {
     }
   }
 
+  async sendTeamInvitation(invitedEmail, inviterName, teamName, acceptLink) {
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        to: invitedEmail,
+        subject: `You're invited to join ${teamName}!`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #2E7D32;">You're Invited to Join a Team!</h2>
+              <p>Hi there,</p>
+              <p><strong>${inviterName}</strong> has invited you to join <strong>${teamName}</strong> on the Grassroots Scout platform.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${acceptLink}" 
+                   style="background-color: #2E7D32; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                  View Invitation
+                </a>
+              </div>
+              <p style="color: #999; font-size: 12px;">This invitation will expire in 7 days.</p>
+              <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
+                <p>Best regards,<br>The Grassroots Hub Team</p>
+              </div>
+            </div>
+          </div>
+        `
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log(`✅ Team invitation email sent to ${invitedEmail}`);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send team invitation email:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async sendInvitationResponse(inviterEmail, inviterName, teamName, coachName, status) {
+    try {
+      const statusText = status === 'accepted' ? 'accepted' : 'declined';
+      const mailOptions = {
+        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        to: inviterEmail,
+        subject: `${coachName} ${statusText} your team invitation`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #2E7D32;">Invitation ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}!</h2>
+              <p>Hi ${inviterName},</p>
+              <p><strong>${coachName}</strong> has <strong>${statusText}</strong> your invitation to join <strong>${teamName}</strong>.</p>
+              <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
+                <p>Best regards,<br>The Grassroots Hub Team</p>
+              </div>
+            </div>
+          </div>
+        `
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log(`✅ Invitation response notification sent to ${inviterEmail}`);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send response notification:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async sendCoachRemovalNotification(coachEmail, coachName, teamName, removedByName) {
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        to: coachEmail,
+        subject: `Team membership update for ${teamName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #2E7D32;">Team Membership Update</h2>
+              <p>Hi ${coachName},</p>
+              <p><strong>${removedByName}</strong> has removed you from <strong>${teamName}</strong>.</p>
+              <p>If you believe this was a mistake, please contact the team manager directly.</p>
+              <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
+                <p>Best regards,<br>The Grassroots Hub Team</p>
+              </div>
+            </div>
+          </div>
+        `
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log(`✅ Removal notification sent to ${coachEmail}`);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send removal notification:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async testConnection() {
     try {
       await this.transporter.verify();

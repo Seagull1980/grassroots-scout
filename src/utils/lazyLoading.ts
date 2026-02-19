@@ -53,6 +53,11 @@ export const LazyComponents = {
     'TeamManagementPage'
   ),
 
+  InvitationCenter: createLazyComponent(
+    () => import('../pages/InvitationCenter'),
+    'InvitationCenter'
+  ),
+
   ClubDashboardPage: createLazyComponent(
     () => import('../pages/ClubDashboardPage'),
     'ClubDashboardPage'

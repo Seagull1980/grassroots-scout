@@ -433,6 +433,23 @@ class Database {
         UNIQUE(teamId, userId)
       )`,
 
+      `CREATE TABLE IF NOT EXISTS team_invitations (
+        id SERIAL PRIMARY KEY,
+        teamId INTEGER NOT NULL,
+        invitedUserId INTEGER NOT NULL,
+        invitedByUserId INTEGER NOT NULL,
+        invitedEmail VARCHAR NOT NULL,
+        role VARCHAR NOT NULL DEFAULT 'Assistant Coach' CHECK(role IN ('Head Coach', 'Assistant Coach', 'Youth Coach', 'Goalkeeper Coach', 'Fitness Coach')),
+        status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'rejected')),
+        invitationToken VARCHAR UNIQUE,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expiresAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP + INTERVAL 7 DAY,
+        respondedAt TIMESTAMP,
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE,
+        FOREIGN KEY (invitedUserId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (invitedByUserId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
       `CREATE TABLE IF NOT EXISTS team_rosters (
         id SERIAL PRIMARY KEY,
         teamId INTEGER NOT NULL,

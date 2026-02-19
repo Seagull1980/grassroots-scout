@@ -22,12 +22,14 @@ import {
   ListItemAvatar,
   ListItemText,
   Alert,
-  Autocomplete
+  Autocomplete,
+  IconButton
 } from '@mui/material';
 import {
   Add as AddIcon,
   Group as GroupIcon,
-  PersonAdd as PersonAddIcon
+  PersonAdd as PersonAddIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import api, { leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
@@ -59,6 +61,12 @@ interface TeamMember {
   joinedAt: string;
 }
 
+interface Coach {
+  id: number;
+  name: string;
+  email: string;
+}
+
 const TeamManagement: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +77,8 @@ const TeamManagement: React.FC = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loadingLeagues, setLoadingLeagues] = useState(false);
+  const [searchingCoaches, setSearchingCoaches] = useState(false);
+  const [coaches, setCoaches] = useState<Coach[]>([]);
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -80,7 +90,8 @@ const TeamManagement: React.FC = () => {
   });
 
   const [inviteForm, setInviteForm] = useState({
-    email: '',
+    coachId: null as number | null,
+    coachName: '',
     role: 'Assistant Coach'
   });
 
@@ -106,13 +117,12 @@ const TeamManagement: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/teams');
-      // Ensure teams is always an array, handle various response structures
       const teamsData = response.data.teams || response.data || [];
       setTeams(Array.isArray(teamsData) ? teamsData : []);
     } catch (error: any) {
       setError('Failed to load teams');
       console.error('Error loading teams:', error);
-      setTeams([]); // Set empty array on error
+      setTeams([]);
     } finally {
       setLoading(false);
     }
@@ -135,28 +145,71 @@ const TeamManagement: React.FC = () => {
     }
   };
 
-  const handleInviteMember = async () => {
-    if (!selectedTeam) return;
+  const searchCoaches = async (searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setCoaches([]);
+      return;
+    }
 
     try {
-      await api.post(`/teams/${selectedTeam.id}/invite`, inviteForm);
+      setSearchingCoaches(true);
+      const response = await api.get('/coaches/search', { params: { q: searchTerm } });
+      setCoaches(response.data.coaches || []);
+    } catch (error: any) {
+      console.error('Error searching coaches:', error);
+      setCoaches([]);
+    } finally {
+      setSearchingCoaches(false);
+    }
+  };
+
+  const handleInviteMember = async () => {
+    if (!selectedTeam || !inviteForm.coachId) return;
+
+    try {
+      await api.post(`/teams/${selectedTeam.id}/invite-coach`, {
+        coachId: inviteForm.coachId,
+        role: inviteForm.role
+      });
+      
       setInviteDialogOpen(false);
-      setInviteForm({ email: '', role: 'Assistant Coach' });
+      setInviteForm({ coachId: null, coachName: '', role: 'Assistant Coach' });
+      setCoaches([]);
+      
+      // Show success message
+      setError('');
+      alert('Invitation sent successfully! The coach will receive an email notification.');
       loadTeamMembers(selectedTeam.id);
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to invite member');
+      setError(error.response?.data?.error || 'Failed to send invitation');
     }
   };
 
   const loadTeamMembers = async (teamId: number) => {
     try {
       const response = await api.get(`/teams/${teamId}`);
-      // Handle various response structures
       const members = response.data?.team?.members || response.data?.members || [];
       setTeamMembers(Array.isArray(members) ? members : []);
     } catch (error: any) {
       console.error('Error loading team members:', error);
-      setTeamMembers([]); // Set empty array on error
+      setTeamMembers([]);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: number) => {
+    if (!selectedTeam) return;
+
+    if (!window.confirm('Are you sure you want to remove this coach from the team?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/teams/${selectedTeam.id}/members/${memberId}`);
+      await loadTeamMembers(selectedTeam.id);
+      setError('');
+      alert('Coach removed successfully');
+    } catch (error: any) {
+      setError(error.response?.data?.error || 'Failed to remove coach');
     }
   };
 
@@ -196,7 +249,7 @@ const TeamManagement: React.FC = () => {
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
           {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
       )}
@@ -356,18 +409,40 @@ const TeamManagement: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Invite Member Dialog */}
+      {/* Invite Coach Dialog */}
       <Dialog open={inviteDialogOpen} onClose={() => setInviteDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Invite Coach to {selectedTeam?.teamName}</DialogTitle>
         <DialogContent>
-          <TextField
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
+            Search for a coach to invite to your team
+          </Typography>
+          <Autocomplete
             fullWidth
-            label="Email Address"
-            type="email"
-            value={inviteForm.email}
-            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+            options={coaches}
+            getOptionLabel={(option) => `${option.name} (${option.email})`}
+            inputValue={inviteForm.coachName}
+            onInputChange={(_, value) => {
+              setInviteForm({ ...inviteForm, coachName: value });
+              searchCoaches(value);
+            }}
+            onChange={(_, value) => {
+              if (value) {
+                setInviteForm({ ...inviteForm, coachId: value.id, coachName: value.name });
+              }
+            }}
+            loading={searchingCoaches}
+            renderInput={(params) => (
+              <TextField 
+                {...params} 
+                label="Search by Name or Email" 
+                placeholder="Type at least 2 characters..."
+                required
+                helperText={searchingCoaches ? 'Searching...' : 'Search coaches by name or email'}
+              />
+            )}
             sx={{ mt: 2 }}
-            required
+            noOptionsText="No coaches found"
+            loadingText="Searching..."
           />
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Role</InputLabel>
@@ -381,10 +456,21 @@ const TeamManagement: React.FC = () => {
               <MenuItem value="Fitness Coach">Fitness Coach</MenuItem>
             </Select>
           </FormControl>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            An invitation email will be sent to the coach. They'll need to accept it to join the team.
+          </Alert>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleInviteMember} variant="contained">
+          <Button onClick={() => {
+            setInviteDialogOpen(false);
+            setInviteForm({ coachId: null, coachName: '', role: 'Assistant Coach' });
+            setCoaches([]);
+          }}>Cancel</Button>
+          <Button 
+            onClick={handleInviteMember} 
+            variant="contained"
+            disabled={!inviteForm.coachId}
+          >
             Send Invitation
           </Button>
         </DialogActions>
@@ -399,7 +485,22 @@ const TeamManagement: React.FC = () => {
           <List>
             {teamMembers && teamMembers.length > 0 ? (
               teamMembers.map((member) => (
-                <ListItem key={member.id}>
+                <ListItem 
+                  key={member.id}
+                  secondaryAction={
+                    selectedTeam?.userRole === 'Head Coach' && member.role !== 'Head Coach' ? (
+                      <IconButton 
+                        edge="end" 
+                        aria-label="delete"
+                        color="error"
+                        onClick={() => handleRemoveMember(member.userId)}
+                        title="Remove from team"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    ) : null
+                  }
+                >
                   <ListItemAvatar>
                     <Avatar>
                       {member.firstName[0]}{member.lastName[0]}

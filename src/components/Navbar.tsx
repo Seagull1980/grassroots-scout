@@ -20,6 +20,7 @@ import {
   BottomNavigationAction,
   Paper,
   Fab,
+  Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -52,11 +53,13 @@ import {
   Home,
   Support,
   AcUnit,
+  MailOutline,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { NotificationBell } from './NotificationComponents';
 import { useResponsive } from '../hooks/useResponsive';
+import api from '../services/api';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -67,6 +70,27 @@ const Navbar: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+
+  // Fetch pending invitations count for coaches
+  useEffect(() => {
+    if (user?.role === 'Coach') {
+      fetchPendingInvitationsCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(fetchPendingInvitationsCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const fetchPendingInvitationsCount = async () => {
+    try {
+      const response = await api.get('/invitations');
+      const pendingCount = (response.data.invitations || []).filter((inv: any) => inv.status === 'pending').length;
+      setPendingInvitationsCount(pendingCount);
+    } catch (error) {
+      console.error('Error fetching invitations count:', error);
+    }
+  };
 
   // Custom navigate function that forces page reload when leaving Maps
   const safeNavigate = (path: string) => {
@@ -153,6 +177,7 @@ const Navbar: React.FC = () => {
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
+      { path: '/invitations', label: 'Team Invitations', icon: <MailOutline />, badge: pendingInvitationsCount },
       { path: '/training-sessions', label: 'Training Sessions', icon: <FitnessCenter /> },
       { path: '/team-profile', label: 'Team Profile', icon: <Business /> }
     ] : []),
@@ -330,7 +355,7 @@ const Navbar: React.FC = () => {
                       }
                     }}
                   >
-                    {secondaryNavItems.map((item) => (
+                    {secondaryNavItems.map((item: any) => (
                       <MenuItem
                         key={item.path}
                         onClick={() => {
@@ -338,7 +363,15 @@ const Navbar: React.FC = () => {
                           handleMoreMenuClose();
                         }}
                       >
-                        <ListItemIcon>{item.icon}</ListItemIcon>
+                        <ListItemIcon>
+                          {item.badge && item.badge > 0 ? (
+                            <Badge badgeContent={item.badge} color="error">
+                              {item.icon}
+                            </Badge>
+                          ) : (
+                            item.icon
+                          )}
+                        </ListItemIcon>
                         <ListItemText>{item.label}</ListItemText>
                       </MenuItem>
                     ))}
