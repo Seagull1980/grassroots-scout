@@ -7472,19 +7472,19 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     const teams = await db.query(`
       SELECT 
         t.id,
-        t.teamname as teamName,
-        t.clubname as clubName,
-        t.agegroup as ageGroup,
+        t.teamname as "teamName",
+        t.clubname as "clubName",
+        t.agegroup as "ageGroup",
         t.league,
-        t.teamgender as teamGender,
+        t.teamgender as "teamGender",
         t.location,
-        t.locationdata as locationData,
-        t.contactemail as contactEmail,
+        t.locationdata as "locationData",
+        t.contactemail as "contactEmail",
         t.website,
-        t.socialmedia as socialMedia,
-        t.createdat as createdAt,
-        t.updatedat as updatedAt,
-        tm.role as userRole,
+        t.socialmedia as "socialMedia",
+        t.createdat as "createdAt",
+        t.updatedat as "updatedAt",
+        tm.role as "userRole",
         tm.permissions
       FROM teams t
       JOIN team_members tm ON t.id = tm.teamId
@@ -7493,6 +7493,7 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     `, [req.user.userId]);
 
     const teamsList = (teams.rows || teams || []).map(team => {
+      console.log('📋 Team data from DB:', JSON.stringify(team, null, 2));
       try {
         team.permissions = team.permissions ? JSON.parse(team.permissions) : {};
       } catch (e) {
@@ -7501,6 +7502,7 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
       }
       return team;
     });
+    console.log('📤 Sending teams:', teamsList.length, 'teams');
     res.json({ teams: teamsList });
   } catch (error) {
     console.error('Error fetching teams:', error);
