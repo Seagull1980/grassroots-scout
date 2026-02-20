@@ -626,11 +626,11 @@ const TeamManagement: React.FC = () => {
                 >
                   <ListItemAvatar>
                     <Avatar>
-                      {member.firstName[0]}{member.lastName[0]}
+                      {member.firstName?.[0] || '?'}{member.lastName?.[0] || '?'}
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
-                    primary={`${member.firstName} ${member.lastName}`}
+                    primary={`${member.firstName || 'Unknown'} ${member.lastName || 'Unknown'}`}
                     secondary={
                       <Box>
                         <Chip label={member.role} size="small" sx={{ mr: 1 }} />

@@ -7517,7 +7517,22 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
 
     // Check if user is a member of the team
     const membership = await db.query(`
-      SELECT tm.role, tm.permissions, t.*
+      SELECT 
+        tm.role,
+        tm.permissions,
+        t.id,
+        t.teamname as "teamName",
+        t.clubname as "clubName",
+        t.agegroup as "ageGroup",
+        t.league,
+        t.teamgender as "teamGender",
+        t.location,
+        t.locationdata as "locationData",
+        t.contactemail as "contactEmail",
+        t.website,
+        t.socialmedia as "socialMedia",
+        t.createdat as "createdAt",
+        t.updatedat as "updatedAt"
       FROM team_members tm
       JOIN teams t ON tm.teamId = t.id
       WHERE tm.teamId = ? AND tm.userId = ?
@@ -7537,7 +7552,16 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
 
     // Get all team members
     const members = await db.query(`
-      SELECT tm.*, u.firstName, u.lastName, u.email
+      SELECT 
+        tm.id,
+        tm.teamid as "teamId",
+        tm.userid as "userId",
+        tm.role,
+        tm.permissions,
+        tm.joinedat as "joinedAt",
+        u.firstname as "firstName",
+        u.lastname as "lastName",
+        u.email
       FROM team_members tm
       JOIN users u ON tm.userId = u.id
       WHERE tm.teamId = ?
