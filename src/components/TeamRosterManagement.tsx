@@ -161,8 +161,10 @@ const TeamRosterManagement: React.FC = () => {
         setSelectedRoster(fullRoster.roster);
       }
     } catch (err) {
-      console.error('Error loading rosters:', err);
-      setError('Failed to load team rosters');
+      console.warn('⚠️ Team Rosters API not available:', err);
+      // Set empty rosters if the endpoint is not available
+      setRosters([]);
+      setError('Team Rosters feature is not yet configured');
     } finally {
       setLoading(false);
     }
