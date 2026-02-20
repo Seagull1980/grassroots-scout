@@ -144,11 +144,6 @@ rosterApi.interceptors.request.use(async (config) => {
 
 // Handle auth errors for both instances
 const handleAuthError = (error: any) => {
-  // Suppress 404 errors for team-rosters (feature not yet implemented)
-  if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
-    return Promise.reject(error);
-  }
-
   // Log all errors to console for debugging
   console.error('[API Error Interceptor]', {
     url: error.config?.url,
@@ -182,8 +177,28 @@ const handleAuthError = (error: any) => {
   return Promise.reject(error);
 };
 
-api.interceptors.response.use((response) => response, handleAuthError);
-rosterApi.interceptors.response.use((response) => response, handleAuthError);
+// Add response interceptor that suppresses team-rosters 404 errors completely
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Silently reject 404 errors for team-rosters (feature not yet implemented)
+    // This prevents them from appearing in console
+    if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
+      return Promise.reject(error);
+    }
+    return handleAuthError(error);
+  }
+);
+
+rosterApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
+      return Promise.reject(error);
+    }
+    return handleAuthError(error);
+  }
+);
 
 export interface User {
   id: string;
