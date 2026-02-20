@@ -98,6 +98,14 @@ const TeamManagement: React.FC = () => {
     role: 'Assistant Coach'
   });
 
+  const [requestLeagueDialogOpen, setRequestLeagueDialogOpen] = useState(false);
+  const [leagueRequest, setLeagueRequest] = useState({
+    name: '',
+    region: '',
+    url: '',
+    description: ''
+  });
+
   useEffect(() => {
     loadTeams();
     loadLeagues();
@@ -232,6 +240,19 @@ const TeamManagement: React.FC = () => {
   const handleViewTeam = (team: Team) => {
     setSelectedTeam(team);
     loadTeamMembers(team.id);
+  };
+
+  const handleRequestLeague = async () => {
+    try {
+      await api.post(`${apiPrefix}/api/league-requests`, leagueRequest);
+      setRequestLeagueDialogOpen(false);
+      setLeagueRequest({ name: '', region: '', url: '', description: '' });
+      alert('League request submitted successfully! Admins will review your request.');
+      // Add the requested league to the createForm
+      setCreateForm({ ...createForm, league: leagueRequest.name });
+    } catch (error: any) {
+      setError(error.response?.data?.error || 'Failed to submit league request');
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -427,42 +448,52 @@ const TeamManagement: React.FC = () => {
               }
             }}
           />
-          <Autocomplete
-            fullWidth
-            options={leagues.map(l => l.name)}
-            value={createForm.league || null}
-            onChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue || '' })}
-            inputValue={createForm.league}
-            onInputChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue })}
-            renderInput={(params) => (
-              <TextField 
-                {...params} 
-                label="League" 
-                required
-                helperText={loadingLeagues ? 'Loading leagues...' : ''}
-              />
-            )}
-            loading={loadingLeagues}
-            sx={{ mt: 2 }}
-            disableClearable={false}
-            filterOptions={(options, state) => {
-              const filtered = options.filter(option =>
-                option.toLowerCase().includes(state.inputValue.toLowerCase())
-              );
-              return filtered;
-            }}
-            slotProps={{
-              popper: {
-                modifiers: [
-                  {
-                    name: 'flip',
-                    enabled: false,
+          <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 1 }}>
+              <Autocomplete
+                fullWidth
+                options={leagues.map(l => l.name)}
+                value={createForm.league || null}
+                onChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue || '' })}
+                inputValue={createForm.league}
+                onInputChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue })}
+                renderInput={(params) => (
+                  <TextField 
+                    {...params} 
+                    label="League" 
+                    required
+                    helperText={loadingLeagues ? 'Loading leagues...' : "Can't find your league? Request it below"}
+                  />
+                )}
+                loading={loadingLeagues}
+                disableClearable={false}
+                filterOptions={(options, state) => {
+                  const filtered = options.filter(option =>
+                    option.toLowerCase().includes(state.inputValue.toLowerCase())
+                  );
+                  return filtered;
+                }}
+                slotProps={{
+                  popper: {
+                    modifiers: [
+                      {
+                        name: 'flip',
+                        enabled: false,
+                      }
+                    ],
+                    sx: { zIndex: 1301 }
                   }
-                ],
-                sx: { zIndex: 1301 }
-              }
-            }}
-          />
+                }}
+              />
+            </Box>
+            <Button 
+              variant="outlined" 
+              onClick={() => setRequestLeagueDialogOpen(true)}
+              sx={{ mt: 1 }}
+            >
+              Request League
+            </Button>
+          </Box>
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Team Gender</InputLabel>
             <Select
@@ -610,6 +641,67 @@ const TeamManagement: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSelectedTeam(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Request League Dialog */}
+      <Dialog 
+        open={requestLeagueDialogOpen} 
+        onClose={() => setRequestLeagueDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        sx={{ zIndex: 1300 }}
+      >
+        <DialogTitle>Request New League</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="League Name"
+            value={leagueRequest.name}
+            onChange={(e) => setLeagueRequest({ ...leagueRequest, name: e.target.value })}
+            sx={{ mt: 2 }}
+            required
+            placeholder="e.g., Wessex League"
+          />
+          <TextField
+            fullWidth
+            label="Region"
+            value={leagueRequest.region}
+            onChange={(e) => setLeagueRequest({ ...leagueRequest, region: e.target.value })}
+            sx={{ mt: 2 }}
+            placeholder="e.g., South West"
+          />
+          <TextField
+            fullWidth
+            label="League Website (Optional)"
+            value={leagueRequest.url}
+            onChange={(e) => setLeagueRequest({ ...leagueRequest, url: e.target.value })}
+            sx={{ mt: 2 }}
+            placeholder="https://example.com"
+          />
+          <TextField
+            fullWidth
+            label="Description (Optional)"
+            value={leagueRequest.description}
+            onChange={(e) => setLeagueRequest({ ...leagueRequest, description: e.target.value })}
+            sx={{ mt: 2 }}
+            multiline
+            rows={3}
+            placeholder="Tell us about this league..."
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+            Your league request will be reviewed by administrators and added to the system once approved.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRequestLeagueDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleRequestLeague} 
+            variant="contained"
+            disabled={!leagueRequest.name}
+          >
+            Submit Request
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

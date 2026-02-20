@@ -7413,13 +7413,17 @@ app.post('/api/teams', authenticateToken, [
   try {
     const { teamName, clubName, ageGroup, league, teamGender, location, locationData, contactEmail, website, socialMedia } = req.body;
 
-    // Create the team
+    // Create the team with RETURNING clause for PostgreSQL compatibility
     const teamResult = await db.query(`
       INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, location, locationData, contactEmail, website, socialMedia)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id
     `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null]);
 
-    const teamId = teamResult.lastID || teamResult.rows[0].id;
+    const teamId = teamResult.lastID || teamResult.rows?.[0]?.id;
+    if (!teamId) {
+      return res.status(500).json({ error: 'Failed to create team - no ID returned' });
+    }
 
     // Add creator as Head Coach
     await db.query(`
@@ -7453,8 +7457,8 @@ app.post('/api/teams', authenticateToken, [
       }
     });
   } catch (error) {
-    console.error('Error creating team:', error);
-    res.status(500).json({ error: 'Failed to create team' });
+    console.error('❌ Error creating team:', error);
+    res.status(500).json({ error: error.message || 'Failed to create team' });
   }
 });
 
