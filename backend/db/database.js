@@ -449,7 +449,6 @@ class Database {
         FOREIGN KEY (invitedUserId) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (invitedByUserId) REFERENCES users (id) ON DELETE CASCADE
       )`,
-      )`,
 
       `CREATE TABLE IF NOT EXISTS team_rosters (
         id SERIAL PRIMARY KEY,
