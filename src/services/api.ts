@@ -123,6 +123,19 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Request interceptor to prevent team-rosters requests (feature not implemented)
+api.interceptors.request.use(
+  (config) => {
+    if (config.url?.includes('team-rosters')) {
+      const error = new Error('Team Rosters API is not yet implemented');
+      (error as any).response = { status: 404, data: { message: 'Endpoint not found' } };
+      (error as any).config = config;
+      return Promise.reject(error);
+    }
+    return config;
+  }
+);
+
 rosterApi.interceptors.request.use(async (config) => {
   const token = storage.getItem('token');
   if (token) {
