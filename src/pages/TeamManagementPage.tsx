@@ -463,9 +463,10 @@ const TeamManagement: React.FC = () => {
               }
             }}
           />
-          <FormControl fullWidth sx={{ mt: 2 }}>
+          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Team Gender</InputLabel>
             <Select
+              label="Team Gender"
               value={createForm.teamGender}
               onChange={(e) => setCreateForm({ ...createForm, teamGender: e.target.value })}
               MenuProps={{
@@ -521,11 +522,15 @@ const TeamManagement: React.FC = () => {
             noOptionsText="No coaches found"
             loadingText="Searching..."
           />
-          <FormControl fullWidth sx={{ mt: 2 }}>
+          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Role</InputLabel>
             <Select
+              label="Role"
               value={inviteForm.role}
               onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+              MenuProps={{
+                sx: { zIndex: 1301 }
+              }}
             >
               <MenuItem value="Assistant Coach">Assistant Coach</MenuItem>
               <MenuItem value="Youth Coach">Youth Coach</MenuItem>
