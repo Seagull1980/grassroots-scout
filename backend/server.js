@@ -7470,7 +7470,22 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     }
 
     const teams = await db.query(`
-      SELECT t.*, tm.role as userRole, tm.permissions
+      SELECT 
+        t.id,
+        t.teamname as teamName,
+        t.clubname as clubName,
+        t.agegroup as ageGroup,
+        t.league,
+        t.teamgender as teamGender,
+        t.location,
+        t.locationdata as locationData,
+        t.contactemail as contactEmail,
+        t.website,
+        t.socialmedia as socialMedia,
+        t.createdat as createdAt,
+        t.updatedat as updatedAt,
+        tm.role as userRole,
+        tm.permissions
       FROM teams t
       JOIN team_members tm ON t.id = tm.teamId
       WHERE tm.userId = ?

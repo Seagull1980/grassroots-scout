@@ -313,7 +313,7 @@ const TeamManagement: React.FC = () => {
                     sx={{ mr: 1 }}
                   />
                   <Chip
-                    label={`${team.ageGroup || 'N/A'} - ${team.league || 'N/A'}`}
+                    label={`${team.ageGroup} - ${team.league}`}
                     variant="outlined"
                     size="small"
                   />
