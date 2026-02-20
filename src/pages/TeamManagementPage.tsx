@@ -313,14 +313,11 @@ const TeamManagement: React.FC = () => {
                     sx={{ mr: 1 }}
                   />
                   <Chip
-                    label={`${team.ageGroup} - ${team.league}`}
+                    label={`${team.ageGroup || 'N/A'} - ${team.league || 'N/A'}`}
                     variant="outlined"
                     size="small"
                   />
                 </Box>
-                <Typography variant="body2" color="text.secondary">
-                  Gender: {team.teamGender}
-                </Typography>
               </CardContent>
               <Box sx={{ p: 2, pt: 0 }}>
                 <Button

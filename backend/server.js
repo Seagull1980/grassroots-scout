@@ -7477,7 +7477,15 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
       ORDER BY t.createdAt DESC
     `, [req.user.userId]);
 
-    const teamsList = teams.rows || teams || [];
+    const teamsList = (teams.rows || teams || []).map(team => {
+      try {
+        team.permissions = team.permissions ? JSON.parse(team.permissions) : {};
+      } catch (e) {
+        console.error('Error parsing team permissions:', e);
+        team.permissions = {};
+      }
+      return team;
+    });
     res.json({ teams: teamsList });
   } catch (error) {
     console.error('Error fetching teams:', error);
