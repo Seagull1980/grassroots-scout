@@ -7493,7 +7493,6 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     `, [req.user.userId]);
 
     const teamsList = (teams.rows || teams || []).map(team => {
-      console.log('📋 Team data from DB:', JSON.stringify(team, null, 2));
       try {
         team.permissions = team.permissions ? JSON.parse(team.permissions) : {};
       } catch (e) {
@@ -7502,7 +7501,6 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
       }
       return team;
     });
-    console.log('📤 Sending teams:', teamsList.length, 'teams');
     res.json({ teams: teamsList });
   } catch (error) {
     console.error('Error fetching teams:', error);
@@ -7808,8 +7806,6 @@ app.get('/api/invitations', authenticateToken, async (req, res) => {
       ORDER BY ti.createdAt DESC
     `, [userId]);
 
-    console.log(`✅ Invitations query returned: ${JSON.stringify(invitations).substring(0, 200)}`);
-
     const invitationsList = invitations?.rows || invitations || [];
     const result = invitationsList.map(inv => ({
       id: inv.id,
@@ -7823,11 +7819,9 @@ app.get('/api/invitations', authenticateToken, async (req, res) => {
       invitationToken: inv.invitationToken
     }));
 
-    console.log(`✅ Returning ${result.length} invitations`);
     res.json({ invitations: result });
   } catch (error) {
     console.error('❌ Error fetching invitations:', error.message);
-    console.error('Full error:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch invitations' });
   }
 });

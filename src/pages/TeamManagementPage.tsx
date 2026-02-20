@@ -129,10 +129,6 @@ const TeamManagement: React.FC = () => {
       setLoading(true);
       const response = await api.get(`${apiPrefix}/teams`);
       const teamsData = response.data.teams || response.data || [];
-      console.log('📥 Received teams from API:', teamsData);
-      if (teamsData.length > 0) {
-        console.log('📋 First team data:', teamsData[0]);
-      }
       setTeams(Array.isArray(teamsData) ? teamsData : []);
     } catch (error: any) {
       setError('Failed to load teams');
