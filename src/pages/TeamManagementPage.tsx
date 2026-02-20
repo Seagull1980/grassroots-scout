@@ -351,7 +351,13 @@ const TeamManagement: React.FC = () => {
       )}
 
       {/* Create Team Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={createDialogOpen} 
+        onClose={() => setCreateDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        sx={{ zIndex: 1300 }}
+      >
         <DialogTitle>Create New Team</DialogTitle>
         <DialogContent>
           <TextField
@@ -387,6 +393,17 @@ const TeamManagement: React.FC = () => {
             )}
             noOptionsText="No clubs found - you can create a new one"
             disableClearable={false}
+            slotProps={{
+              popper: {
+                modifiers: [
+                  {
+                    name: 'flip',
+                    enabled: false,
+                  }
+                ],
+                sx: { zIndex: 1301 }
+              }
+            }}
           />
           <Autocomplete
             fullWidth
@@ -398,6 +415,17 @@ const TeamManagement: React.FC = () => {
             )}
             sx={{ mt: 2 }}
             disableClearable={false}
+            slotProps={{
+              popper: {
+                modifiers: [
+                  {
+                    name: 'flip',
+                    enabled: false,
+                  }
+                ],
+                sx: { zIndex: 1301 }
+              }
+            }}
           />
           <Autocomplete
             fullWidth
@@ -423,12 +451,26 @@ const TeamManagement: React.FC = () => {
               );
               return filtered;
             }}
+            slotProps={{
+              popper: {
+                modifiers: [
+                  {
+                    name: 'flip',
+                    enabled: false,
+                  }
+                ],
+                sx: { zIndex: 1301 }
+              }
+            }}
           />
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Team Gender</InputLabel>
             <Select
               value={createForm.teamGender}
               onChange={(e) => setCreateForm({ ...createForm, teamGender: e.target.value })}
+              MenuProps={{
+                sx: { zIndex: 1301 }
+              }}
             >
               {TEAM_GENDER_OPTIONS.map(option => (
                 <MenuItem key={option} value={option}>{option}</MenuItem>
