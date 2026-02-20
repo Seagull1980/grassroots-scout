@@ -7998,7 +7998,7 @@ app.get('/api/team-rosters', authenticateToken, async (req, res) => {
              t.agegroup as "ageGroup", t.league
       FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE t.createdby = $1
+      WHERE t.createdby = ?
       ORDER BY tr.createdAt DESC
     `;
     const result = await db.query(query, [req.user.userId]);
@@ -8012,7 +8012,7 @@ app.get('/api/team-rosters', authenticateToken, async (req, res) => {
                  preferredFoot, age, contactInfo, notes, isActive, 
                  addedAt, updatedAt
           FROM team_players
-          WHERE teamId = $1
+          WHERE teamId = ?
           ORDER BY playerName
         `;
         const playersResult = await db.query(playersQuery, [roster.id]);
@@ -8047,8 +8047,7 @@ app.post('/api/team-rosters', authenticateToken, [
     // Create team first
     const teamQuery = `
       INSERT INTO teams (teamName, clubName, ageGroup, league, createdBy)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id
+      VALUES (?, ?, ?, ?, ?)
     `;
     const teamResult = await db.query(teamQuery, [
       teamName,
@@ -8058,13 +8057,12 @@ app.post('/api/team-rosters', authenticateToken, [
       req.user.userId
     ]);
 
-    const teamId = teamResult.rows[0].id;
+    const teamId = teamResult.lastID || teamResult.rows[0].id;
 
     // Create roster linked to team
     const rosterQuery = `
       INSERT INTO team_rosters (teamId, maxSquadSize)
-      VALUES ($1, $2)
-      RETURNING id, createdAt, updatedAt
+      VALUES (?, ?)
     `;
     const rosterResult = await db.query(rosterQuery, [
       teamId,
@@ -8072,7 +8070,7 @@ app.post('/api/team-rosters', authenticateToken, [
     ]);
 
     const roster = {
-      id: rosterResult.rows[0].id,
+      id: rosterResult.lastID || rosterResult.rows[0].id,
       teamId,
       teamName,
       clubName: clubName || '',
@@ -8080,8 +8078,8 @@ app.post('/api/team-rosters', authenticateToken, [
       league,
       maxSquadSize: maxSquadSize || null,
       players: [],
-      createdAt: rosterResult.rows[0].createdAt,
-      updatedAt: rosterResult.rows[0].updatedAt
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     res.status(201).json({ message: 'Team roster created successfully', roster });
@@ -8102,15 +8100,16 @@ app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
              t.agegroup as "ageGroup", t.league
       FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1 AND t.createdby = $2
+      WHERE tr.id = ? AND t.createdby = ?
     `;
     const result = await db.query(query, [rosterId, req.user.userId]);
 
-    if (!result.rows || result.rows.length === 0) {
+    const rows = result.rows || result || [];
+    if (rows.length === 0) {
       return res.status(404).json({ error: 'Roster not found' });
     }
 
-    const roster = result.rows[0];
+    const roster = rows[0];
 
     // Get players
     const playersQuery = `
@@ -8118,7 +8117,7 @@ app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
              preferredFoot, age, contactInfo, notes, isActive, 
              addedAt, updatedAt
       FROM team_players
-      WHERE teamId = $1
+      WHERE teamId = ?
       ORDER BY playerName
     `;
     const playersResult = await db.query(playersQuery, [roster.id]);
@@ -8140,45 +8139,38 @@ app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
 
     // Verify ownership
     const verifyQuery = `
-      SELECT tr.id FROM team_rosters tr
+      SELECT tr.id, tr.teamId FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1 AND t.createdby = $2
+      WHERE tr.id = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(403).json({ error: 'You do not have permission to update this roster' });
     }
 
     // Update roster
     const updateQuery = `
       UPDATE team_rosters
-      SET maxSquadSize = $1, updatedAt = CURRENT_TIMESTAMP
-      WHERE id = $2
-      RETURNING id, teamId, maxSquadSize, createdAt, updatedAt
+      SET maxSquadSize = ?, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
     `;
-    const updateResult = await db.query(updateQuery, [maxSquadSize || null, rosterId]);
-
-    const roster = updateResult.rows[0];
+    await db.query(updateQuery, [maxSquadSize || null, rosterId]);
 
     // Update team info if provided
     if (teamName || clubName || ageGroup || league) {
       const teamUpdateQuery = `
         UPDATE teams
-        SET ${[
-          teamName ? 'teamName = $1' : '',
-          clubName ? `clubName = $${teamName ? 2 : 1}` : '',
-          ageGroup ? `ageGroup = $${teamName || clubName ? (teamName && clubName ? 3 : 2) : 1}` : '',
-          league ? `league = $${teamName || clubName || ageGroup ? (teamName && clubName && ageGroup ? 4 : 3) : 1}` : ''
-        ].filter(Boolean).join(', ')}
-        WHERE id = $5
+        SET ${teamUpdateFields.join(', ')}
+        WHERE id = ?
       `;
       const params = [];
       if (teamName) params.push(teamName);
       if (clubName) params.push(clubName);
       if (ageGroup) params.push(ageGroup);
       if (league) params.push(league);
-      params.push(roster.teamId);
+      params.push(verifyRows[0].teamId);
 
       if (params.length > 1) {
         await db.query(teamUpdateQuery, params);
@@ -8192,10 +8184,11 @@ app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
              t.agegroup as "ageGroup", t.league
       FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1
+      WHERE tr.id = ?
     `;
     const fetchResult = await db.query(fetchQuery, [rosterId]);
-    const updatedRoster = fetchResult.rows[0];
+    const fetchRows = fetchResult.rows || fetchResult || [];
+    const updatedRoster = fetchRows[0];
 
     res.json({ message: 'Roster updated successfully', roster: updatedRoster });
   } catch (error) {
@@ -8211,31 +8204,27 @@ app.delete('/api/team-rosters/:rosterId', authenticateToken, async (req, res) =>
 
     // Verify ownership
     const verifyQuery = `
-      SELECT tr.id FROM team_rosters tr
+      SELECT tr.teamId FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1 AND t.createdby = $2
+      WHERE tr.id = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(403).json({ error: 'You do not have permission to delete this roster' });
     }
 
+    const teamId = verifyRows[0].teamId;
+
     // Delete associated players first (cascade handled by DB)
-    await db.query('DELETE FROM team_players WHERE teamId = $1', [rosterId]);
+    await db.query('DELETE FROM team_players WHERE teamId = ?', [rosterId]);
 
     // Delete roster
-    const deleteQuery = `
-      DELETE FROM team_rosters
-      WHERE id = $1
-      RETURNING teamId
-    `;
-    const deleteResult = await db.query(deleteQuery, [rosterId]);
+    await db.query('DELETE FROM team_rosters WHERE id = ?', [rosterId]);
 
-    if (deleteResult.rows && deleteResult.rows.length > 0) {
-      // Also delete the associated team
-      await db.query('DELETE FROM teams WHERE id = $1', [deleteResult.rows[0].teamId]);
-    }
+    // Also delete the associated team
+    await db.query('DELETE FROM teams WHERE id = ?', [teamId]);
 
     res.json({ message: 'Roster deleted successfully' });
   } catch (error) {
@@ -8263,19 +8252,19 @@ app.post('/api/team-rosters/:rosterId/players', authenticateToken, [
     const verifyQuery = `
       SELECT tr.id FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1 AND t.createdby = $2
+      WHERE tr.id = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(403).json({ error: 'You do not have permission to add players to this roster' });
     }
 
     // Add player
     const addQuery = `
       INSERT INTO team_players (teamId, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive, addedAt, updatedAt
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const result = await db.query(addQuery, [
       rosterId,
@@ -8288,7 +8277,17 @@ app.post('/api/team-rosters/:rosterId/players', authenticateToken, [
       notes || null
     ]);
 
-    const player = result.rows[0];
+    const player = {
+      id: result.lastID || result.rows[0].id,
+      playerName,
+      bestPosition,
+      alternativePositions: alternativePositions || [],
+      preferredFoot,
+      age: age || null,
+      contactInfo: contactInfo || null,
+      notes: notes || null,
+      isActive: true
+    };
 
     res.status(201).json({ message: 'Player added successfully', player });
   } catch (error) {
@@ -8308,42 +8307,77 @@ app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, asyn
       SELECT tp.id FROM team_players tp
       JOIN team_rosters tr ON tp.teamId = tr.id
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tp.id = $1 AND tp.teamId = $2 AND t.createdby = $3
+      WHERE tp.id = ? AND tp.teamId = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [playerId, rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(403).json({ error: 'You do not have permission to update this player' });
     }
 
-    // Update player
+    // Build dynamic update query
+    const updateFields = [];
+    const updateValues = [];
+
+    if (playerName) {
+      updateFields.push('playerName = ?');
+      updateValues.push(playerName);
+    }
+    if (bestPosition) {
+      updateFields.push('bestPosition = ?');
+      updateValues.push(bestPosition);
+    }
+    if (alternativePositions) {
+      updateFields.push('alternativePositions = ?');
+      updateValues.push(JSON.stringify(alternativePositions));
+    }
+    if (preferredFoot) {
+      updateFields.push('preferredFoot = ?');
+      updateValues.push(preferredFoot);
+    }
+    if (age !== undefined) {
+      updateFields.push('age = ?');
+      updateValues.push(age);
+    }
+    if (contactInfo) {
+      updateFields.push('contactInfo = ?');
+      updateValues.push(contactInfo);
+    }
+    if (notes) {
+      updateFields.push('notes = ?');
+      updateValues.push(notes);
+    }
+    if (isActive !== undefined) {
+      updateFields.push('isActive = ?');
+      updateValues.push(isActive);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updateFields.push('updatedAt = CURRENT_TIMESTAMP');
+    updateValues.push(playerId);
+
     const updateQuery = `
       UPDATE team_players
-      SET playerName = COALESCE($1, playerName),
-          bestPosition = COALESCE($2, bestPosition),
-          alternativePositions = COALESCE($3, alternativePositions),
-          preferredFoot = COALESCE($4, preferredFoot),
-          age = COALESCE($5, age),
-          contactInfo = COALESCE($6, contactInfo),
-          notes = COALESCE($7, notes),
-          isActive = COALESCE($8, isActive),
-          updatedAt = CURRENT_TIMESTAMP
-      WHERE id = $9
-      RETURNING id, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive, addedAt, updatedAt
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
     `;
-    const result = await db.query(updateQuery, [
-      playerName || null,
-      bestPosition || null,
-      alternativePositions ? JSON.stringify(alternativePositions) : null,
-      preferredFoot || null,
-      age || null,
-      contactInfo || null,
-      notes || null,
-      isActive !== undefined ? isActive : null,
-      playerId
-    ]);
+    await db.query(updateQuery, updateValues);
 
-    const player = result.rows[0];
+    // Fetch updated player
+    const fetchQuery = `
+      SELECT id, playerName, bestPosition, alternativePositions, 
+             preferredFoot, age, contactInfo, notes, isActive, 
+             addedAt, updatedAt
+      FROM team_players
+      WHERE id = ?
+    `;
+    const fetchResult = await db.query(fetchQuery, [playerId]);
+    const fetchRows = fetchResult.rows || fetchResult || [];
+    const player = fetchRows[0];
 
     res.json({ message: 'Player updated successfully', player });
   } catch (error) {
@@ -8362,16 +8396,17 @@ app.delete('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, a
       SELECT tp.id FROM team_players tp
       JOIN team_rosters tr ON tp.teamId = tr.id
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tp.id = $1 AND tp.teamId = $2 AND t.createdby = $3
+      WHERE tp.id = ? AND tp.teamId = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [playerId, rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(403).json({ error: 'You do not have permission to remove this player' });
     }
 
     // Delete player
-    await db.query('DELETE FROM team_players WHERE id = $1', [playerId]);
+    await db.query('DELETE FROM team_players WHERE id = ?', [playerId]);
 
     res.json({ message: 'Player removed successfully' });
   } catch (error) {
@@ -8389,11 +8424,12 @@ app.get('/api/team-rosters/:rosterId/position-analysis', authenticateToken, asyn
     const verifyQuery = `
       SELECT tr.id FROM team_rosters tr
       LEFT JOIN teams t ON tr.teamId = t.id
-      WHERE tr.id = $1 AND t.createdby = $2
+      WHERE tr.id = ? AND t.createdby = ?
     `;
     const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+    const verifyRows = verifyResult.rows || verifyResult || [];
 
-    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+    if (verifyRows.length === 0) {
       return res.status(404).json({ error: 'Roster not found' });
     }
 
@@ -8401,12 +8437,12 @@ app.get('/api/team-rosters/:rosterId/position-analysis', authenticateToken, asyn
     const positionQuery = `
       SELECT bestPosition, COUNT(*) as count
       FROM team_players
-      WHERE teamId = $1 AND isActive = true
+      WHERE teamId = ? AND isActive = true
       GROUP BY bestPosition
       ORDER BY bestPosition
     `;
     const positionResult = await db.query(positionQuery, [rosterId]);
-    const positions = positionResult.rows || [];
+    const positions = positionResult.rows || positionResult || [];
 
     // Define ideal squad composition
     const idealComposition = {
