@@ -7987,6 +7987,457 @@ app.delete('/api/teams/:teamId/members/:userId', authenticateToken, async (req, 
   }
 });
 
+// ============= Team Rosters Endpoints =============
+
+// Get all rosters for authenticated coach
+app.get('/api/team-rosters', authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT tr.id, tr.teamId, tr.maxSquadSize, tr.createdAt, tr.updatedAt,
+             t.teamname as "teamName", t.clubname as "clubName", 
+             t.agegroup as "ageGroup", t.league
+      FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE t.createdby = $1
+      ORDER BY tr.createdAt DESC
+    `;
+    const result = await db.query(query, [req.user.userId]);
+    const rosters = result.rows || [];
+
+    // Get players for each roster
+    const rostersWithPlayers = await Promise.all(
+      rosters.map(async (roster) => {
+        const playersQuery = `
+          SELECT id, playerName, bestPosition, alternativePositions, 
+                 preferredFoot, age, contactInfo, notes, isActive, 
+                 addedAt, updatedAt
+          FROM team_players
+          WHERE teamId = $1
+          ORDER BY playerName
+        `;
+        const playersResult = await db.query(playersQuery, [roster.id]);
+        return {
+          ...roster,
+          players: playersResult.rows || []
+        };
+      })
+    );
+
+    res.json({ rosters: rostersWithPlayers });
+  } catch (error) {
+    console.error('Error fetching rosters:', error);
+    res.status(500).json({ error: 'Failed to fetch rosters' });
+  }
+});
+
+// Create a new team roster
+app.post('/api/team-rosters', authenticateToken, [
+  body('teamName').notEmpty().withMessage('Team name is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('league').notEmpty().withMessage('League is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { teamName, clubName, ageGroup, league, maxSquadSize } = req.body;
+
+    // Create team first
+    const teamQuery = `
+      INSERT INTO teams (teamName, clubName, ageGroup, league, createdBy)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `;
+    const teamResult = await db.query(teamQuery, [
+      teamName,
+      clubName || null,
+      ageGroup,
+      league,
+      req.user.userId
+    ]);
+
+    const teamId = teamResult.rows[0].id;
+
+    // Create roster linked to team
+    const rosterQuery = `
+      INSERT INTO team_rosters (teamId, maxSquadSize)
+      VALUES ($1, $2)
+      RETURNING id, createdAt, updatedAt
+    `;
+    const rosterResult = await db.query(rosterQuery, [
+      teamId,
+      maxSquadSize || null
+    ]);
+
+    const roster = {
+      id: rosterResult.rows[0].id,
+      teamId,
+      teamName,
+      clubName: clubName || '',
+      ageGroup,
+      league,
+      maxSquadSize: maxSquadSize || null,
+      players: [],
+      createdAt: rosterResult.rows[0].createdAt,
+      updatedAt: rosterResult.rows[0].updatedAt
+    };
+
+    res.status(201).json({ message: 'Team roster created successfully', roster });
+  } catch (error) {
+    console.error('Error creating roster:', error);
+    res.status(500).json({ error: 'Failed to create roster' });
+  }
+});
+
+// Get a specific roster with players
+app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
+  try {
+    const rosterId = req.params.rosterId;
+
+    const query = `
+      SELECT tr.id, tr.teamId, tr.maxSquadSize, tr.createdAt, tr.updatedAt,
+             t.teamname as "teamName", t.clubname as "clubName", 
+             t.agegroup as "ageGroup", t.league
+      FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1 AND t.createdby = $2
+    `;
+    const result = await db.query(query, [rosterId, req.user.userId]);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    const roster = result.rows[0];
+
+    // Get players
+    const playersQuery = `
+      SELECT id, playerName, bestPosition, alternativePositions, 
+             preferredFoot, age, contactInfo, notes, isActive, 
+             addedAt, updatedAt
+      FROM team_players
+      WHERE teamId = $1
+      ORDER BY playerName
+    `;
+    const playersResult = await db.query(playersQuery, [roster.id]);
+
+    roster.players = playersResult.rows || [];
+
+    res.json({ roster });
+  } catch (error) {
+    console.error('Error fetching roster:', error);
+    res.status(500).json({ error: 'Failed to fetch roster' });
+  }
+});
+
+// Update team roster details
+app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
+  try {
+    const rosterId = req.params.rosterId;
+    const { teamName, clubName, ageGroup, league, maxSquadSize } = req.body;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tr.id FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1 AND t.createdby = $2
+    `;
+    const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to update this roster' });
+    }
+
+    // Update roster
+    const updateQuery = `
+      UPDATE team_rosters
+      SET maxSquadSize = $1, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, teamId, maxSquadSize, createdAt, updatedAt
+    `;
+    const updateResult = await db.query(updateQuery, [maxSquadSize || null, rosterId]);
+
+    const roster = updateResult.rows[0];
+
+    // Update team info if provided
+    if (teamName || clubName || ageGroup || league) {
+      const teamUpdateQuery = `
+        UPDATE teams
+        SET ${[
+          teamName ? 'teamName = $1' : '',
+          clubName ? `clubName = $${teamName ? 2 : 1}` : '',
+          ageGroup ? `ageGroup = $${teamName || clubName ? (teamName && clubName ? 3 : 2) : 1}` : '',
+          league ? `league = $${teamName || clubName || ageGroup ? (teamName && clubName && ageGroup ? 4 : 3) : 1}` : ''
+        ].filter(Boolean).join(', ')}
+        WHERE id = $5
+      `;
+      const params = [];
+      if (teamName) params.push(teamName);
+      if (clubName) params.push(clubName);
+      if (ageGroup) params.push(ageGroup);
+      if (league) params.push(league);
+      params.push(roster.teamId);
+
+      if (params.length > 1) {
+        await db.query(teamUpdateQuery, params);
+      }
+    }
+
+    // Fetch updated roster data
+    const fetchQuery = `
+      SELECT tr.id, tr.teamId, tr.maxSquadSize, tr.createdAt, tr.updatedAt,
+             t.teamname as "teamName", t.clubname as "clubName", 
+             t.agegroup as "ageGroup", t.league
+      FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1
+    `;
+    const fetchResult = await db.query(fetchQuery, [rosterId]);
+    const updatedRoster = fetchResult.rows[0];
+
+    res.json({ message: 'Roster updated successfully', roster: updatedRoster });
+  } catch (error) {
+    console.error('Error updating roster:', error);
+    res.status(500).json({ error: 'Failed to update roster' });
+  }
+});
+
+// Delete a team roster
+app.delete('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
+  try {
+    const rosterId = req.params.rosterId;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tr.id FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1 AND t.createdby = $2
+    `;
+    const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to delete this roster' });
+    }
+
+    // Delete associated players first (cascade handled by DB)
+    await db.query('DELETE FROM team_players WHERE teamId = $1', [rosterId]);
+
+    // Delete roster
+    const deleteQuery = `
+      DELETE FROM team_rosters
+      WHERE id = $1
+      RETURNING teamId
+    `;
+    const deleteResult = await db.query(deleteQuery, [rosterId]);
+
+    if (deleteResult.rows && deleteResult.rows.length > 0) {
+      // Also delete the associated team
+      await db.query('DELETE FROM teams WHERE id = $1', [deleteResult.rows[0].teamId]);
+    }
+
+    res.json({ message: 'Roster deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting roster:', error);
+    res.status(500).json({ error: 'Failed to delete roster' });
+  }
+});
+
+// Add a player to the roster
+app.post('/api/team-rosters/:rosterId/players', authenticateToken, [
+  body('playerName').notEmpty().withMessage('Player name is required'),
+  body('bestPosition').notEmpty().withMessage('Best position is required'),
+  body('preferredFoot').isIn(['Left', 'Right', 'Both']).withMessage('Invalid preferred foot')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const rosterId = req.params.rosterId;
+    const { playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes } = req.body;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tr.id FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1 AND t.createdby = $2
+    `;
+    const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to add players to this roster' });
+    }
+
+    // Add player
+    const addQuery = `
+      INSERT INTO team_players (teamId, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive, addedAt, updatedAt
+    `;
+    const result = await db.query(addQuery, [
+      rosterId,
+      playerName,
+      bestPosition,
+      JSON.stringify(alternativePositions || []),
+      preferredFoot,
+      age || null,
+      contactInfo || null,
+      notes || null
+    ]);
+
+    const player = result.rows[0];
+
+    res.status(201).json({ message: 'Player added successfully', player });
+  } catch (error) {
+    console.error('Error adding player:', error);
+    res.status(500).json({ error: 'Failed to add player' });
+  }
+});
+
+// Update player details
+app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, async (req, res) => {
+  try {
+    const { rosterId, playerId } = req.params;
+    const { playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive } = req.body;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tp.id FROM team_players tp
+      JOIN team_rosters tr ON tp.teamId = tr.id
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tp.id = $1 AND tp.teamId = $2 AND t.createdby = $3
+    `;
+    const verifyResult = await db.query(verifyQuery, [playerId, rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to update this player' });
+    }
+
+    // Update player
+    const updateQuery = `
+      UPDATE team_players
+      SET playerName = COALESCE($1, playerName),
+          bestPosition = COALESCE($2, bestPosition),
+          alternativePositions = COALESCE($3, alternativePositions),
+          preferredFoot = COALESCE($4, preferredFoot),
+          age = COALESCE($5, age),
+          contactInfo = COALESCE($6, contactInfo),
+          notes = COALESCE($7, notes),
+          isActive = COALESCE($8, isActive),
+          updatedAt = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING id, playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive, addedAt, updatedAt
+    `;
+    const result = await db.query(updateQuery, [
+      playerName || null,
+      bestPosition || null,
+      alternativePositions ? JSON.stringify(alternativePositions) : null,
+      preferredFoot || null,
+      age || null,
+      contactInfo || null,
+      notes || null,
+      isActive !== undefined ? isActive : null,
+      playerId
+    ]);
+
+    const player = result.rows[0];
+
+    res.json({ message: 'Player updated successfully', player });
+  } catch (error) {
+    console.error('Error updating player:', error);
+    res.status(500).json({ error: 'Failed to update player' });
+  }
+});
+
+// Remove player from roster
+app.delete('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, async (req, res) => {
+  try {
+    const { rosterId, playerId } = req.params;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tp.id FROM team_players tp
+      JOIN team_rosters tr ON tp.teamId = tr.id
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tp.id = $1 AND tp.teamId = $2 AND t.createdby = $3
+    `;
+    const verifyResult = await db.query(verifyQuery, [playerId, rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to remove this player' });
+    }
+
+    // Delete player
+    await db.query('DELETE FROM team_players WHERE id = $1', [playerId]);
+
+    res.json({ message: 'Player removed successfully' });
+  } catch (error) {
+    console.error('Error removing player:', error);
+    res.status(500).json({ error: 'Failed to remove player' });
+  }
+});
+
+// Get position analysis for roster (squad gaps)
+app.get('/api/team-rosters/:rosterId/position-analysis', authenticateToken, async (req, res) => {
+  try {
+    const rosterId = req.params.rosterId;
+
+    // Verify ownership
+    const verifyQuery = `
+      SELECT tr.id FROM team_rosters tr
+      LEFT JOIN teams t ON tr.teamId = t.id
+      WHERE tr.id = $1 AND t.createdby = $2
+    `;
+    const verifyResult = await db.query(verifyQuery, [rosterId, req.user.userId]);
+
+    if (!verifyResult.rows || verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    // Get position counts
+    const positionQuery = `
+      SELECT bestPosition, COUNT(*) as count
+      FROM team_players
+      WHERE teamId = $1 AND isActive = true
+      GROUP BY bestPosition
+      ORDER BY bestPosition
+    `;
+    const positionResult = await db.query(positionQuery, [rosterId]);
+    const positions = positionResult.rows || [];
+
+    // Define ideal squad composition
+    const idealComposition = {
+      'Goalkeeper': 2,
+      'Defender': 6,
+      'Midfielder': 5,
+      'Forward': 3
+    };
+
+    // Calculate gaps
+    const gaps = Object.entries(idealComposition).map(([position, ideal]) => {
+      const current = positions.find(p => p.bestPosition === position)?.count || 0;
+      const gap = ideal - current;
+      const priority = gap > 2 ? 'high' : gap > 0 ? 'medium' : 'low';
+
+      return {
+        position,
+        currentCount: current,
+        idealCount: ideal,
+        gap: Math.max(0, gap),
+        priority
+      };
+    });
+
+    res.json({ analysis: gaps });
+  } catch (error) {
+    console.error('Error analyzing roster positions:', error);
+    res.status(500).json({ error: 'Failed to analyze roster positions' });
+  }
+});
+
 // Helper function to get default permissions for a role
 function getDefaultPermissions(role) {
   const permissionMap = {
