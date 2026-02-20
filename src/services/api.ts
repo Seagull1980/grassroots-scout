@@ -144,6 +144,11 @@ rosterApi.interceptors.request.use(async (config) => {
 
 // Handle auth errors for both instances
 const handleAuthError = (error: any) => {
+  // Suppress 404 errors for team-rosters (feature not yet implemented)
+  if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
+    return Promise.reject(error);
+  }
+
   // Log all errors to console for debugging
   console.error('[API Error Interceptor]', {
     url: error.config?.url,
