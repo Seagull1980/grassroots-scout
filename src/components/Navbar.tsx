@@ -159,11 +159,7 @@ const Navbar: React.FC = () => {
   // Primary navigation items for desktop
   const primaryNavItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
-    { path: '/search', label: 'Search Adverts', icon: <Search /> },
-    { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
-    ...(user?.role !== 'Admin' ? [
-      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
-    ] : []),
+    { path: '/search', label: 'Search', icon: <Search /> },
     { path: '/maps', label: 'Maps', icon: <Map /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
@@ -173,6 +169,10 @@ const Navbar: React.FC = () => {
 
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
+    { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
+    ...(user?.role !== 'Admin' ? [
+      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
+    ] : []),
     { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
     ...(user?.role === 'Coach' ? [
@@ -279,7 +279,7 @@ const Navbar: React.FC = () => {
     <>
       {/* Desktop/Tablet Navbar */}
       {!isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 99999, pointerEvents: 'auto', position: 'sticky !important' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 1100, pointerEvents: 'auto', position: 'sticky !important' }}>
           <Toolbar>
             <Typography
               variant="h6"
@@ -468,7 +468,7 @@ const Navbar: React.FC = () => {
             bottom: 0,
             left: 0,
             right: 0,
-            zIndex: 99999,
+            zIndex: 1100,
             pointerEvents: 'auto',
             borderTop: 1,
             borderColor: 'divider'
@@ -500,7 +500,7 @@ const Navbar: React.FC = () => {
 
       {/* Mobile Top App Bar */}
       {isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 99999, pointerEvents: 'auto', position: 'sticky !important' }}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 1100, pointerEvents: 'auto', position: 'sticky !important' }}>
           <Toolbar>
             <IconButton
               color="inherit"

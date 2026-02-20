@@ -528,7 +528,10 @@ const TeamManagement: React.FC = () => {
           <Autocomplete
             fullWidth
             options={coaches}
-            getOptionLabel={(option) => `${option.name} (${option.email})`}
+            getOptionLabel={(option) => {
+              if (!option || typeof option === 'string') return '';
+              return `${option.name} (${option.email})`;
+            }}
             inputValue={inviteForm.coachName}
             onInputChange={(_, value) => {
               setInviteForm({ ...inviteForm, coachName: value });
