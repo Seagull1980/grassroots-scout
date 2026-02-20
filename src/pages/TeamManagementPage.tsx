@@ -394,6 +394,10 @@ const TeamManagement: React.FC = () => {
             freeSolo
             options={clubs}
             value={createForm.clubName || null}
+            getOptionLabel={(option) => {
+              if (!option) return '';
+              return typeof option === 'string' ? option : '';
+            }}
             onChange={(_, newValue) => setCreateForm({ ...createForm, clubName: newValue || '' })}
             onInputChange={(_, newValue) => {
               setCreateForm({ ...createForm, clubName: newValue });
@@ -430,6 +434,7 @@ const TeamManagement: React.FC = () => {
             fullWidth
             options={AGE_GROUP_OPTIONS}
             value={createForm.ageGroup || null}
+            getOptionLabel={(option) => option || ''}
             onChange={(_, newValue) => setCreateForm({ ...createForm, ageGroup: newValue || '' })}
             renderInput={(params) => (
               <TextField {...params} label="Age Group" required />
@@ -454,6 +459,7 @@ const TeamManagement: React.FC = () => {
                 fullWidth
                 options={leagues.map(l => l.name)}
                 value={createForm.league || null}
+                getOptionLabel={(option) => option || ''}
                 onChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue || '' })}
                 inputValue={createForm.league}
                 onInputChange={(_, newValue) => setCreateForm({ ...createForm, league: newValue })}
