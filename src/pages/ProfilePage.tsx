@@ -37,6 +37,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import VerificationBadge from '../components/VerificationBadge';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { useGoogleMapsScript } from '../hooks/useGoogleMapsScript';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -62,6 +64,7 @@ function TabPanel(props: TabPanelProps) {
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isGoogleMapsLoaded = useGoogleMapsScript();
   const [tabValue, setTabValue] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -86,6 +89,13 @@ const ProfilePage: React.FC = () => {
     return localStorage.getItem('profileCompletionAlertDismissed') !== 'true';
   });
   const lastLoadedUserIdRef = useRef<string | null>(null);
+  
+  // Location state
+  const [locationCoordinates, setLocationCoordinates] = useState<{
+    lat: number;
+    lng: number;
+    address: string;
+  } | null>(null);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -572,11 +582,20 @@ const ProfilePage: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
+              <LocationAutocomplete
                 fullWidth
                 label="Location"
                 value={profileData.location}
-                onChange={handleInputChange('location')}
+                onChange={(address, placeDetails) => {
+                  setProfileData(prev => ({
+                    ...prev,
+                    location: address
+                  }));
+                  setHasUnsavedChanges(true);
+                }}
+                onLocationSelect={(location) => {
+                  setLocationCoordinates(location);
+                }}
                 placeholder="City, County"
               />
             </Grid>
@@ -728,11 +747,17 @@ const ProfilePage: React.FC = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
+                <LocationAutocomplete
                   fullWidth
                   label="Training Location"
                   value={profileData.trainingLocation}
-                  onChange={handleInputChange('trainingLocation')}
+                  onChange={(address) => {
+                    setProfileData(prev => ({
+                      ...prev,
+                      trainingLocation: address
+                    }));
+                    setHasUnsavedChanges(true);
+                  }}
                   placeholder="Training ground, facility name"
                 />
               </Grid>
@@ -762,11 +787,17 @@ const ProfilePage: React.FC = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
+                <LocationAutocomplete
                   fullWidth
                   label="Home Match Location"
                   value={profileData.matchLocation}
-                  onChange={handleInputChange('matchLocation')}
+                  onChange={(address) => {
+                    setProfileData(prev => ({
+                      ...prev,
+                      matchLocation: address
+                    }));
+                    setHasUnsavedChanges(true);
+                  }}
                   placeholder="Home ground, stadium name"
                 />
               </Grid>
