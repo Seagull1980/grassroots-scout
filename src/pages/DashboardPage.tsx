@@ -37,6 +37,8 @@ import api from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
 import PageHeader from '../components/PageHeader';
+import CoachOnboardingChecklist from '../components/CoachOnboardingChecklist';
+import VacancyStatusWidget from '../components/VacancyStatusWidget';
 
 interface RecentActivity {
   id: number;
@@ -284,8 +286,21 @@ const DashboardPage: React.FC = () => {
         </Grid>
       </Paper>
 
+      {/* Coach Onboarding Checklist */}
+      {user?.role === 'Coach' && !localStorage.getItem('coach_onboarding_dismissed') && (
+        <CoachOnboardingChecklist
+          onDismiss={() => window.location.reload()}
+        />
+      )}
+
       {/* Main Content Grid */}
       <Grid container spacing={3}>
+        {/* Vacancy Status Widget for Coaches */}
+        {user?.role === 'Coach' && (
+          <Grid item xs={12}>
+            <VacancyStatusWidget compact={false} />
+          </Grid>
+        )}
         {/* Recent Activity */}
         <Grid item xs={12} md={6}>
           <Card>

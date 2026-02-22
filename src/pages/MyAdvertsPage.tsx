@@ -43,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import PageHeader from '../components/PageHeader';
+import EnquiryDashboard from '../components/EnquiryDashboard';
 
 interface Advert {
   id: number;
@@ -596,6 +597,13 @@ const MyAdvertsPage: React.FC = () => {
                   {vacancies.map(renderAdvertCard)}
                 </Grid>
               )}
+            </Box>
+          )}
+
+          {/* Enquiry Dashboard for Coaches */}
+          {user?.role === 'Coach' && vacancies.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <EnquiryDashboard />
             </Box>
           )}
 
