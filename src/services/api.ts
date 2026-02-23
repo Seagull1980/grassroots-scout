@@ -1011,8 +1011,7 @@ export const trainingAPI = {
       const response = await api.get('/api/training/sessions');
       return response.data;
     } catch (err) {
-      // Endpoint not implemented, return empty list
-      console.warn('Training sessions endpoint not available');
+      // Endpoint not implemented, return empty list silently
       return { sessions: [] };
     }
   },
