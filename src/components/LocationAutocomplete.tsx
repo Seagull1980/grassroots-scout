@@ -36,7 +36,11 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isGoogleMapsLoaded || !containerRef.current) return;
+    if (!isGoogleMapsLoaded) return;
+    
+    // Check for appropriate ref based on API type
+    if (!useLegacyAPI && !containerRef.current) return;
+    if (useLegacyAPI && !inputRef.current) return;
 
     // Use new PlaceAutocompleteElement API if available
     if (!useLegacyAPI && window.google?.maps?.places?.PlaceAutocompleteElement) {
@@ -84,8 +88,10 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
           }
         });
 
-        containerRef.current.appendChild(autocompleteElement);
-        autocompleteElementRef.current = autocompleteElement;
+        if (containerRef.current) {
+          containerRef.current.appendChild(autocompleteElement);
+          autocompleteElementRef.current = autocompleteElement;
+        }
       } catch (error) {
         console.error('Error initializing PlaceAutocompleteElement:', error);
         setUseLegacyAPI(true);
