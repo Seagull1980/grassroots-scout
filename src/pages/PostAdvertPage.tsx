@@ -96,6 +96,50 @@ const PostAdvertPage: React.FC = () => {
 
   const [locationData, setLocationData] = useState<Location | null>(null);
 
+  // Define age groups and positions at component level for use in useEffect and JSX
+  const ageGroups = [
+    'Under 6',
+    'Under 7',
+    'Under 8',
+    'Under 9',
+    'Under 10',
+    'Under 11',
+    'Under 12',
+    'Under 13',
+    'Under 14',
+    'Under 15',
+    'Under 16',
+    'Under 17',
+    'Under 18',
+    'Under 19',
+    'Under 20',
+    'Under 21',
+    'Adult (18+)',
+    'Veterans (35+)',
+  ];
+
+  // Generic position categories
+  const genericPositions = [
+    'Defender',
+    'Midfielder',
+    'Attacker',
+  ];
+
+  // Specific positions
+  const specificPositions = [
+    'Goalkeeper',
+    'Right Back',
+    'Left Back',
+    'Centre Back',
+    'Defensive Midfielder',
+    'Central Midfielder',
+    'Attacking Midfielder',
+    'Right Winger',
+    'Left Winger',
+    'Striker',
+    'Any Position',
+  ];
+
   React.useEffect(() => {
     if (!isLoading && !user) {
       navigate('/login');
@@ -292,12 +336,32 @@ const PostAdvertPage: React.FC = () => {
   useEffect(() => {
     if (formData.teamId) {
       const selectedTeam = teams.find(t => t.id.toString() === formData.teamId.toString());
-      if (selectedTeam && (selectedTeam.ageGroup || selectedTeam.league)) {
-        setFormData(prev => ({
-          ...prev,
-          ageGroup: selectedTeam.ageGroup || prev.ageGroup,
-          league: selectedTeam.league || prev.league
-        }));
+      if (selectedTeam) {
+        const updates: Partial<typeof formData> = {};
+        
+        // Auto-populate age group if team has it and it matches our ageGroups list
+        if (selectedTeam.ageGroup) {
+          const trimmedAgeGroup = selectedTeam.ageGroup.trim();
+          // Verify it exists in our ageGroups list
+          if (ageGroups.includes(trimmedAgeGroup)) {
+            updates.ageGroup = trimmedAgeGroup;
+          }
+        }
+        
+        // Auto-populate league if team has it
+        if (selectedTeam.league) {
+          const trimmedLeague = selectedTeam.league.trim();
+          if (trimmedLeague) {
+            updates.league = trimmedLeague;
+          }
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            ...updates
+          }));
+        }
       }
     }
   }, [formData.teamId, teams]);
@@ -484,49 +548,6 @@ const PostAdvertPage: React.FC = () => {
     }
   };
 
-  const ageGroups = [
-    'Under 6',
-    'Under 7',
-    'Under 8',
-    'Under 9',
-    'Under 10',
-    'Under 11',
-    'Under 12',
-    'Under 13',
-    'Under 14',
-    'Under 15',
-    'Under 16',
-    'Under 17',
-    'Under 18',
-    'Under 19',
-    'Under 20',
-    'Under 21',
-    'Adult (18+)',
-    'Veterans (35+)',
-  ];
-
-  // Generic position categories
-  const genericPositions = [
-    'Defender',
-    'Midfielder',
-    'Attacker',
-  ];
-
-  // Specific positions
-  const specificPositions = [
-    'Goalkeeper',
-    'Right Back',
-    'Left Back',
-    'Centre Back',
-    'Defensive Midfielder',
-    'Central Midfielder',
-    'Attacking Midfielder',
-    'Right Winger',
-    'Left Winger',
-    'Striker',
-    'Any Position',
-  ];
-
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       <PageHeader
@@ -610,6 +631,48 @@ const PostAdvertPage: React.FC = () => {
                     <Chip label={isCoach ? "1. Team & League" : "1. Preferences"} color="primary" variant="outlined" />
                   </Divider>
                 </Grid>
+
+                {isCoach && (
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth required error={showValidation && !formData.teamId}>
+                      <InputLabel>Team</InputLabel>
+                      <Select
+                        name="teamId"
+                        value={formData.teamId}
+                        label="Team"
+                        onChange={handleSelectChange}
+                        disabled={loadingTeams}
+                      >
+                        {teams.map((team) => (
+                          <MenuItem key={team.id} value={team.id}>
+                            {team.teamName}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {loadingTeams && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                          <CircularProgress size={16} sx={{ mr: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading teams...
+                          </Typography>
+                        </Box>
+                      )}
+                      {teams.length === 0 && !loadingTeams && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            No teams found. Create a team first to post vacancies.
+                          </Typography>
+                          <Button size="small" variant="outlined" onClick={() => navigate('/team-management')}>
+                            Create Team
+                          </Button>
+                        </Box>
+                      )}
+                      {showValidation && !formData.teamId && (
+                        <FormHelperText>Team is required</FormHelperText>
+                      )}
+                    </FormControl>
+                  </Grid>
+                )}
 
                 <Grid item xs={12} sm={6}>
                   <Autocomplete
@@ -750,48 +813,6 @@ const PostAdvertPage: React.FC = () => {
                     }}
                   />
                 </Grid>
-
-                {isCoach && (
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth required error={showValidation && !formData.teamId}>
-                      <InputLabel>Team</InputLabel>
-                      <Select
-                        name="teamId"
-                        value={formData.teamId}
-                        label="Team"
-                        onChange={handleSelectChange}
-                        disabled={loadingTeams}
-                      >
-                        {teams.map((team) => (
-                          <MenuItem key={team.id} value={team.id}>
-                            {team.teamName}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {loadingTeams && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                          <CircularProgress size={16} sx={{ mr: 1 }} />
-                          <Typography variant="body2" color="text.secondary">
-                            Loading teams...
-                          </Typography>
-                        </Box>
-                      )}
-                      {teams.length === 0 && !loadingTeams && (
-                        <Box sx={{ mt: 1 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            No teams found. Create a team first to post vacancies.
-                          </Typography>
-                          <Button size="small" variant="outlined" onClick={() => navigate('/team-management')}>
-                            Create Team
-                          </Button>
-                        </Box>
-                      )}
-                      {showValidation && !formData.teamId && (
-                        <FormHelperText>Team is required</FormHelperText>
-                      )}
-                    </FormControl>
-                  </Grid>
-                )}
 
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth required error={showValidation && !formData.ageGroup}>
