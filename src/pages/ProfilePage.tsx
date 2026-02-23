@@ -31,7 +31,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close } from '@mui/icons-material';
+import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -39,6 +39,17 @@ import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
+import api, { API_URL } from '../services/api';
+
+interface Team {
+  id: number;
+  teamName: string;
+  clubName?: string;
+  ageGroup: string;
+  league: string;
+  teamGender: string;
+  userRole: string;
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -88,6 +99,8 @@ const ProfilePage: React.FC = () => {
     return localStorage.getItem('profileCompletionAlertDismissed') !== 'true';
   });
   const lastLoadedUserIdRef = useRef<string | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(false);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -138,14 +151,6 @@ const ProfilePage: React.FC = () => {
     'Youth Development', 'Technical Skills', 'Tactical Awareness', 'Physical Conditioning',
     'Goalkeeping', 'Set Pieces', 'Mental Coaching', 'Injury Prevention'
   ];
-
-  const ageGroups = [
-    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10', 'Under 11',
-    'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16', 'Under 17',
-    'Under 18', 'Under 21', 'Senior', 'Veterans'
-  ];
-
-  const matchDayOptions = ['Saturday', 'Sunday', 'Midweek'];
 
   const getProfileCompletion = () => {
     const requiredFields = ['firstName', 'lastName', 'dateOfBirth'];
@@ -199,6 +204,9 @@ const ProfilePage: React.FC = () => {
 
     lastLoadedUserIdRef.current = user.id;
     loadProfile();
+    if (user.role === 'Coach') {
+      loadTeams();
+    }
   }, [user, navigate]);
 
   const handleDismissCompletionAlert = () => {
@@ -242,6 +250,21 @@ const ProfilePage: React.FC = () => {
   const handleKeepEditing = () => {
     setShowUnsavedDialog(false);
     setPendingNavigation(null);
+  };
+
+  const loadTeams = async () => {
+    try {
+      setLoadingTeams(true);
+      const apiPrefix = API_URL ? '' : '/api';
+      const response = await api.get(`${apiPrefix}/teams`);
+      const teamsData = response.data.teams || response.data || [];
+      setTeams(Array.isArray(teamsData) ? teamsData : []);
+    } catch (error: any) {
+      console.error('Error loading teams:', error);
+      setTeams([]);
+    } finally {
+      setLoadingTeams(false);
+    }
   };
 
   const loadProfile = async () => {
@@ -708,94 +731,60 @@ const ProfilePage: React.FC = () => {
 
         {user?.role === 'Coach' && (
           <TabPanel value={tabValue} index={1}>
-            <Typography variant="h6" gutterBottom>
-              Team Details
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">
+                My Teams
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={() => navigate('/teams')}
+                endIcon={<ArrowForward />}
+              >
+                Manage Teams
+              </Button>
+            </Box>
+
+            {loadingTeams ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+              </Box>
+            ) : teams.length > 0 ? (
+              <Grid container spacing={2} sx={{ mb: 4 }}>
+                {teams.map((team) => (
+                  <Grid item xs={12} key={team.id}>
+                    <Paper sx={{ p: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                        <Box>
+                          <Typography variant="h6" gutterBottom>
+                            {team.teamName}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                            {team.clubName && (
+                              <Chip label={team.clubName} size="small" color="primary" variant="outlined" />
+                            )}
+                            <Chip label={team.ageGroup} size="small" />
+                            <Chip label={team.league} size="small" />
+                            <Chip label={team.teamGender} size="small" color="secondary" variant="outlined" />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            Role: {team.userRole}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            ) : (
+              <Alert severity="info" sx={{ mb: 4 }}>
+                You haven't created any teams yet. Click "Manage Teams" to create your first team.
+              </Alert>
+            )}
+
+            <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
+              Coaching Profile
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Team Name"
-                  value={profileData.teamName}
-                  onChange={handleInputChange('teamName')}
-                  placeholder="e.g., Manchester United FC Youth"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Current Age Group</InputLabel>
-                  <Select
-                    value={profileData.currentAgeGroup || ''}
-                    onChange={handleSelectChange('currentAgeGroup')}
-                    label="Current Age Group"
-                  >
-                    {ageGroups.map((group) => (
-                      <MenuItem key={group} value={group}>
-                        {group}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <GoogleMapsWrapper>
-                  <LocationAutocomplete
-                    fullWidth
-                    label="Training Location"
-                    value={profileData.trainingLocation || ''}
-                    onChange={(address) => {
-                      setProfileData(prev => ({
-                        ...prev,
-                        trainingLocation: address
-                      }));
-                      setHasUnsavedChanges(true);
-                    }}
-                    placeholder="Training ground, facility name"
-                  />
-                </GoogleMapsWrapper>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Training Time"
-                  value={profileData.trainingTime}
-                  onChange={handleInputChange('trainingTime')}
-                  placeholder="e.g., Tuesday 6:30 PM, Saturday 10:00 AM"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Match Day</InputLabel>
-                  <Select
-                    value={profileData.matchDay || ''}
-                    onChange={handleSelectChange('matchDay')}
-                    label="Match Day"
-                  >
-                    {matchDayOptions.map((day) => (
-                      <MenuItem key={day} value={day}>
-                        {day}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <GoogleMapsWrapper>
-                  <LocationAutocomplete
-                    fullWidth
-                    label="Home Match Location"
-                    value={profileData.matchLocation || ''}
-                    onChange={(address) => {
-                      setProfileData(prev => ({
-                        ...prev,
-                        matchLocation: address
-                      }));
-                      setHasUnsavedChanges(true);
-                    }}
-                    placeholder="Home ground, stadium name"
-                  />
-                </GoogleMapsWrapper>
-              </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
