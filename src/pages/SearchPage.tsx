@@ -197,6 +197,17 @@ const SearchPage: React.FC = () => {
     } else if (tabParam === 'availability') {
       setTabValue(1);
     }
+    
+    // Pre-fill search filters from user role
+    if (user && !tabParam) {
+      if (user.role === 'Player' || user.role === 'Parent/Guardian') {
+        // Set to vacancies tab since players are looking for teams
+        setTabValue(0);
+      } else if (user.role === 'Coach') {
+        // Set to player availability tab since coaches are looking for players
+        setTabValue(1);
+      }
+    }
 
     // If there's an ID parameter, we could highlight the specific advert
     // For now, we'll just ensure the correct tab is selected
@@ -359,6 +370,26 @@ const SearchPage: React.FC = () => {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
+  };
+
+  // Calculate days until expiration (adverts typically expire after 30 days)
+  const getDaysUntilExpiration = (createdAt?: string) => {
+    if (!createdAt) return null;
+    const createdDate = new Date(createdAt);
+    if (Number.isNaN(createdDate.getTime())) return null;
+    const expirationDate = new Date(createdDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const daysLeft = Math.ceil((expirationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, daysLeft);
+  };
+
+  // Get expiration badge color and text
+  const getExpirationBadge = (createdAt?: string) => {
+    const daysLeft = getDaysUntilExpiration(createdAt);
+    if (daysLeft === null) return null;
+    if (daysLeft === 0) return { color: 'error' as const, text: 'Expires today' };
+    if (daysLeft <= 3) return { color: 'error' as const, text: `Expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}` };
+    if (daysLeft <= 7) return { color: 'warning' as const, text: `Expires in ${daysLeft} days` };
+    return { color: 'default' as const, text: null };
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1955,12 +1986,17 @@ const SearchPage: React.FC = () => {
                         {tabValue === 0 ? (
                           // Team Vacancy Card
                           <>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" sx={{ flex: 1 }}>
                                 {(item as TeamVacancy).title}
                               </Typography>
-                              {expandedCards[`vacancy-${item.id}`] && (
-                                <Chip label="Full Details" size="small" color="info" variant="outlined" />
+                              {getExpirationBadge((item as TeamVacancy).createdAt)?.text && (
+                                <Chip 
+                                  label={getExpirationBadge((item as TeamVacancy).createdAt)?.text}
+                                  size="small"
+                                  color={getExpirationBadge((item as TeamVacancy).createdAt)?.color || 'default'}
+                                  icon={getExpirationBadge((item as TeamVacancy).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                />
                               )}
                             </Box>
                             <Typography
@@ -2028,12 +2064,17 @@ const SearchPage: React.FC = () => {
                         ) : (
                           // Player Availability Card
                           <>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" gutterBottom>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                              <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3">
                                 {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
                               </Typography>
-                              {expandedCards[`player-${item.id}`] && (
-                                <Chip label="Full Details" size="small" color="info" variant="outlined" />
+                              {getExpirationBadge((item as PlayerAvailability).createdAt)?.text && (
+                                <Chip 
+                                  label={getExpirationBadge((item as PlayerAvailability).createdAt)?.text}
+                                  size="small"
+                                  color={getExpirationBadge((item as PlayerAvailability).createdAt)?.color || 'default'}
+                                  icon={getExpirationBadge((item as PlayerAvailability).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                />
                               )}
                             </Box>
                             <Typography

@@ -100,6 +100,52 @@ const PostAdvertPage: React.FC = () => {
     }
   }, [user, isLoading, navigate]);
 
+  // Calculate advert quality score (0-100)
+  const calculateQualityScore = () => {
+    let score = 0;
+    const isCoach = user?.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
+    
+    // Title (10 points)
+    if (formData.title) {
+      score += formData.title.length > 10 ? 10 : 5;
+    }
+    
+    // Description length (25 points)
+    if (formData.description) {
+      const descLength = formData.description.length;
+      if (descLength > 150) score += 25;
+      else if (descLength > 100) score += 20;
+      else if (descLength > 50) score += 15;
+      else score += 5;
+    }
+    
+    // League (10 points)
+    if (formData.league) score += 10;
+    
+    // Age group (10 points)
+    if (formData.ageGroup) score += 10;
+    
+    // Position (10 points)
+    if (isCoach && formData.position) score += 10;
+    else if (!isCoach && formData.positions.length > 0) score += 10;
+    
+    // Team (10 points for coaches)
+    if (isCoach && formData.teamId) score += 10;
+    else if (!isCoach) score += 10;
+    
+    // Location (15 points)
+    if (formData.location) score += 15;
+    
+    // Additional details (coach-specific)
+    if (isCoach) {
+      if (formData.playingTimePolicy) score += 5;
+      if (formData.hasPathwayToSenior) score += 3;
+      if (formData.hasMatchRecording) score += 2;
+    }
+    
+    return Math.min(score, 100);
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
@@ -778,7 +824,7 @@ const PostAdvertPage: React.FC = () => {
                     fullWidth
                     required
                     multiline
-                    rows={4}
+                    rows={5}
                     label="Description"
                     name="description"
                     value={formData.description}
@@ -786,11 +832,14 @@ const PostAdvertPage: React.FC = () => {
                     placeholder={descriptionPlaceholder}
                     error={showValidation && !formData.description}
                     helperText={showValidation && !formData.description
-                      ? 'Description is required'
+                      ? 'Description is required (aim for 100+ characters)'
                       : (isCoach
-                          ? 'Include training days, expectations, and facilities.'
-                          : 'Include availability, experience, and travel radius.')}
+                          ? '💡 Example: "Looking for experienced U16 strikers. Train Tues/Thurs 7-8pm, play league on Saturdays. Pathway to U18 team. Merit-based playing time."'
+                          : '💡 Example: "Experienced RB/CB, available weekends. Seeking competitive U15+ league football. Can travel up to 30km. Last played for [previous team]."')}
                   />
+                  <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: formData.description.length > 150 ? 'success.main' : 'text.secondary' }}>
+                    {formData.description.length} characters (100+ recommended)
+                  </Typography>
                 </Grid>
 
                 {/* Section 3: Location & Contact */}
@@ -920,6 +969,41 @@ const PostAdvertPage: React.FC = () => {
                         >
                           <DeleteIcon />
                         </IconButton>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Grid>
+
+                {/* Quality Score Indicator */}
+                <Grid item xs={12}>
+                  <Paper sx={{ p: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'space-between' }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            ✨ Advert Quality Score
+                          </Typography>
+                          <Chip 
+                            label={`${calculateQualityScore()}%`}
+                            color={calculateQualityScore() >= 80 ? 'success' : calculateQualityScore() >= 60 ? 'warning' : 'default'}
+                            size="small"
+                          />
+                        </Box>
+                        <Box sx={{ width: '100%', height: 8, bgcolor: 'action.disabledBackground', borderRadius: 1, overflow: 'hidden' }}>
+                          <Box sx={{
+                            height: '100%',
+                            width: `${calculateQualityScore()}%`,
+                            bgcolor: calculateQualityScore() >= 80 ? 'success.main' : calculateQualityScore() >= 60 ? 'warning.main' : 'grey.400',
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          {calculateQualityScore() >= 80 
+                            ? '✅ Excellent quality! Your advert is ready to attract responses.' 
+                            : calculateQualityScore() >= 60
+                            ? '📝 Good! Consider adding more details to improve visibility.'
+                            : '💡 Add more information to improve your advert\'s chances of success.'}
+                        </Typography>
                       </Box>
                     </Box>
                   </Paper>
