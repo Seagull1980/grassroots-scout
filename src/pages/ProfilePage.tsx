@@ -115,7 +115,7 @@ const ProfilePage: React.FC = () => {
     weight: undefined,
     experienceLevel: undefined,
     availability: [],
-    coachingLicense: '',
+    coachingLicense: [],
     yearsExperience: undefined,
     trainingLocation: '',
     matchLocation: '',
@@ -306,7 +306,7 @@ const ProfilePage: React.FC = () => {
         weight: profileResponse.weight,
         experienceLevel: profileResponse.experiencelevel,
         availability: profileResponse.availability || [],
-        coachingLicense: profileResponse.coachinglicense || '',
+        coachingLicense: profileResponse.coachinglicense || [],
         yearsExperience: profileResponse.yearsexperience,
         trainingLocation: profileResponse.traininglocation || '',
         matchLocation: profileResponse.matchlocation || '',
@@ -643,17 +643,26 @@ const ProfilePage: React.FC = () => {
                 Coach Profile
               </Typography>
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
                   <FormControl fullWidth>
-                    <InputLabel>Coaching License</InputLabel>
+                    <InputLabel>Coaching Licenses</InputLabel>
                     <Select
-                      value={profileData.coachingLicense || ''}
-                      onChange={handleSelectChange('coachingLicense')}
-                      label="Coaching License"
+                      multiple
+                      value={profileData.coachingLicense || []}
+                      onChange={handleMultiSelectChange('coachingLicense')}
+                      input={<OutlinedInput label="Coaching Licenses" />}
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {(selected as string[]).map((value) => (
+                            <Chip key={value} label={value} size="small" />
+                          ))}
+                        </Box>
+                      )}
                     >
                       {coachingLicenseOptions.map((license) => (
                         <MenuItem key={license} value={license}>
-                          {license}
+                          <Checkbox checked={(profileData.coachingLicense || []).indexOf(license) > -1} />
+                          <ListItemText primary={license} />
                         </MenuItem>
                       ))}
                     </Select>

@@ -230,7 +230,7 @@ export interface UserProfile {
   experiencelevel?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
   availability?: string[];
   // Coach-specific fields
-  coachinglicense?: string;
+  coachinglicense?: string[];
   yearsexperience?: number;
   traininglocation?: string;
   matchlocation?: string;
@@ -292,7 +292,7 @@ export interface ProfileUpdateData {
   weight?: number;
   experienceLevel?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Professional';
   availability?: string[];
-  coachingLicense?: string;
+  coachingLicense?: string[];
   yearsExperience?: number;
   trainingLocation?: string;
   matchLocation?: string;
