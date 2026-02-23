@@ -817,6 +817,7 @@ const MessagesPage: React.FC = () => {
             value={replyMessage}
             onChange={(e) => setReplyMessage(e.target.value)}
             placeholder="Type your message..."
+            autoFocus
             sx={{ mt: 1 }}
           />
         </DialogContent>
@@ -872,6 +873,7 @@ const MessagesPage: React.FC = () => {
             value={newMessageText}
             onChange={(e) => setNewMessageText(e.target.value)}
             placeholder="Type your message..."
+            autoFocus
             sx={{ mt: 1 }}
           />
         </DialogContent>

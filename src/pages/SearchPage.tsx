@@ -190,7 +190,6 @@ const SearchPage: React.FC = () => {
   // Comparison mode state
   const [comparisonMode, setComparisonMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
-  const [comparisonModalOpen, setComparisonModalOpen] = useState(false);
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -471,21 +470,13 @@ const SearchPage: React.FC = () => {
 
   const handleCompareSelected = () => {
     if (selectedItemIds.size >= 2) {
-      setComparisonModalOpen(true);
+      setComparisonMode(true);
     }
   };
 
   const clearSelection = () => {
     setSelectedItemIds(new Set());
     setComparisonMode(false);
-  };
-
-  const getSelectedItems = () => {
-    if (tabValue === 0) {
-      return sortedData.filter(item => selectedItemIds.has((item as TeamVacancy).id));
-    } else {
-      return sortedData.filter(item => selectedItemIds.has((item as PlayerAvailability).id));
-    }
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
