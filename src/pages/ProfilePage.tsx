@@ -790,7 +790,7 @@ const ProfilePage: React.FC = () => {
               </Typography>
               <Button
                 variant="contained"
-                onClick={() => navigate('/teams')}
+                onClick={() => navigate('/team-management')}
                 endIcon={<ArrowForward />}
               >
                 Manage Teams

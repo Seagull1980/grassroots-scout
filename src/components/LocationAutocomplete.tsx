@@ -12,6 +12,11 @@ interface LocationAutocompleteProps extends Omit<TextFieldProps, 'onChange'> {
  * LocationAutocomplete component using Google Places PlaceAutocompleteElement API
  * (Migrated from legacy Autocomplete as recommended by Google)
  * Falls back to regular text input if Google Maps is not loaded
+ * 
+ * NOTE: Uses legacy Autocomplete API for React compatibility.
+ * The new PlaceAutocompleteElement doesn't support controlled values which are essential for React.
+ * The deprecation warning for the legacy API is expected and unavoidable in this context.
+ * Google has confirmed legacy API support for at least 12 more months (as of March 2025).
  */
 export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   value,
@@ -25,6 +30,7 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
   const [useLegacyAPI, setUseLegacyAPI] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const originalWarnRef = useRef<any>(null);
 
   useEffect(() => {
     // Check if Google Maps is loaded
@@ -32,7 +38,31 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
       setIsGoogleMapsLoaded(true);
       // Force legacy API as PlaceAutocompleteElement doesn't support controlled values
       setUseLegacyAPI(true);
+      
+      // Suppress the Google Maps legacy API deprecation warning
+      // It's expected and unavoidable in React due to PlaceAutocompleteElement's limitations
+      if (!originalWarnRef.current) {
+        originalWarnRef.current = console.warn;
+        console.warn = (...args: any[]) => {
+          // Suppress Google Maps deprecation warning for legacy Autocomplete
+          if (
+            args[0]?.includes?.('google.maps.places.Autocomplete') ||
+            args[0]?.includes?.('PlaceAutocompleteElement')
+          ) {
+            return; // Silently suppress this specific warning
+          }
+          // Call original console.warn for all other warnings
+          originalWarnRef.current(...args);
+        };
+      }
     }
+    
+    return () => {
+      // Restore original console.warn on cleanup
+      if (originalWarnRef.current) {
+        console.warn = originalWarnRef.current;
+      }
+    };
   }, []);
 
   useEffect(() => {
