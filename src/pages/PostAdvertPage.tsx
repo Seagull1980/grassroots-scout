@@ -45,6 +45,8 @@ interface Team {
   id: number;
   teamName: string;
   clubName?: string;
+  ageGroup?: string;
+  league?: string;
   userRole: string;
   permissions: {
     canPostVacancies: boolean;
@@ -286,6 +288,21 @@ const PostAdvertPage: React.FC = () => {
     }
   }, [formData.positions, user?.role, formData.adminPostType]);
 
+  // Auto-populate age group and league when team is selected
+  useEffect(() => {
+    if (formData.teamId) {
+      const selectedTeam = teams.find(t => t.id.toString() === formData.teamId.toString());
+      if (selectedTeam && (selectedTeam.ageGroup || selectedTeam.league)) {
+        setFormData(prev => ({
+          ...prev,
+          ageGroup: selectedTeam.ageGroup || prev.ageGroup,
+          league: selectedTeam.league || prev.league
+        }));
+      }
+    }
+  }, [formData.teamId, teams]);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await submitAdvert();
@@ -488,7 +505,15 @@ const PostAdvertPage: React.FC = () => {
     'Veterans (35+)',
   ];
 
-  const positions = [
+  // Generic position categories
+  const genericPositions = [
+    'Defender',
+    'Midfielder',
+    'Attacker',
+  ];
+
+  // Specific positions
+  const specificPositions = [
     'Goalkeeper',
     'Right Back',
     'Left Back',
@@ -799,8 +824,16 @@ const PostAdvertPage: React.FC = () => {
                         label="Position"
                         onChange={handleSelectChange}
                       >
-                        {positions.map((position) => (
-                          <MenuItem key={position} value={position}>
+                        <MenuItem disabled>Generic Categories</MenuItem>
+                        {genericPositions.map((position) => (
+                          <MenuItem key={position} value={position} sx={{ pl: 4 }}>
+                            {position}
+                          </MenuItem>
+                        ))}
+                        <Divider />
+                        <MenuItem disabled>Specific Positions</MenuItem>
+                        {specificPositions.map((position) => (
+                          <MenuItem key={position} value={position} sx={{ pl: 4 }}>
                             {position}
                           </MenuItem>
                         ))}
@@ -826,14 +859,22 @@ const PostAdvertPage: React.FC = () => {
                             </Box>
                           )}
                         >
-                          {positions.map((position) => (
-                            <MenuItem key={position} value={position}>
+                          <MenuItem disabled>Generic Categories</MenuItem>
+                          {genericPositions.map((position) => (
+                            <MenuItem key={position} value={position} sx={{ pl: 4 }}>
+                              {position}
+                            </MenuItem>
+                          ))}
+                          <Divider />
+                          <MenuItem disabled>Specific Positions</MenuItem>
+                          {specificPositions.map((position) => (
+                            <MenuItem key={position} value={position} sx={{ pl: 4 }}>
                               {position}
                             </MenuItem>
                           ))}
                         </Select>
                         <FormHelperText>
-                          Select positions in order of preference (1st choice will be highlighted)
+                          Select positions in order of preference (1st choice will be highlighted). Use generic categories for broader roles or specific positions for exact requirements.
                         </FormHelperText>
                       </>
                     )}
