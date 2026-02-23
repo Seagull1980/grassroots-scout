@@ -634,6 +634,25 @@ const MessagesPage: React.FC = () => {
                         ))}
                       </Box>
                     </Box>
+
+                    {/* Advert Context */}
+                    {(selectedConversation.relatedVacancyId || selectedConversation.relatedPlayerAvailabilityId) && (
+                      <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                          📋 Related posting context
+                        </Typography>
+                        <Typography variant="body2" fontWeight={500}>
+                          {selectedConversation.relatedVacancyId 
+                            ? 'Team Vacancy' 
+                            : selectedConversation.relatedPlayerAvailabilityId 
+                            ? 'Player Availability' 
+                            : 'General Inquiry'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          ID: {selectedConversation.relatedVacancyId || selectedConversation.relatedPlayerAvailabilityId || 'Not specified'}
+                        </Typography>
+                      </Box>
+                    )}
                   </Paper>
                   
                   <Divider sx={{ mb: 2 }} />
