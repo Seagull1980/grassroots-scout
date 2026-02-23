@@ -303,7 +303,11 @@ const ProfilePage: React.FC = () => {
         weight: profileResponse.weight,
         experienceLevel: profileResponse.experiencelevel,
         availability: profileResponse.availability || [],
-        coachingLicense: profileResponse.coachinglicense || [],
+        coachingLicense: Array.isArray(profileResponse.coachinglicense) 
+          ? profileResponse.coachinglicense 
+          : profileResponse.coachinglicense 
+            ? [profileResponse.coachinglicense] 
+            : [],
         yearsExperience: profileResponse.yearsexperience,
         trainingLocation: profileResponse.traininglocation || '',
         matchLocation: profileResponse.matchlocation || '',
