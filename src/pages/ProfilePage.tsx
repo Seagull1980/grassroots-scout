@@ -117,7 +117,6 @@ const ProfilePage: React.FC = () => {
     availability: [],
     coachingLicense: '',
     yearsExperience: undefined,
-    specializations: [],
     trainingLocation: '',
     matchLocation: '',
     trainingDays: [],
@@ -145,11 +144,6 @@ const ProfilePage: React.FC = () => {
     'Wednesday Morning', 'Wednesday Evening', 'Thursday Morning', 'Thursday Evening',
     'Friday Morning', 'Friday Evening', 'Saturday Morning', 'Saturday Evening',
     'Sunday Morning', 'Sunday Evening'
-  ];
-
-  const specializationOptions = [
-    'Youth Development', 'Technical Skills', 'Tactical Awareness', 'Physical Conditioning',
-    'Goalkeeping', 'Set Pieces', 'Mental Coaching', 'Injury Prevention'
   ];
 
   const getProfileCompletion = () => {
@@ -298,7 +292,6 @@ const ProfilePage: React.FC = () => {
         availability: profileResponse.availability || [],
         coachingLicense: profileResponse.coachinglicense || '',
         yearsExperience: profileResponse.yearsexperience,
-        specializations: profileResponse.specializations || [],
         trainingLocation: profileResponse.traininglocation || '',
         matchLocation: profileResponse.matchlocation || '',
         trainingDays: profileResponse.trainingDays || [],
@@ -652,31 +645,6 @@ const ProfilePage: React.FC = () => {
                     onChange={handleInputChange('yearsExperience')}
                     inputProps={{ min: 0, max: 50 }}
                   />
-                </Grid>
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Specializations</InputLabel>
-                    <Select
-                      multiple
-                      value={profileData.specializations || []}
-                      onChange={handleMultiSelectChange('specializations')}
-                      input={<OutlinedInput label="Specializations" />}
-                      renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {(selected as string[]).map((value) => (
-                            <Chip key={value} label={value} size="small" />
-                          ))}
-                        </Box>
-                      )}
-                    >
-                      {specializationOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          <Checkbox checked={(profileData.specializations || []).indexOf(option) > -1} />
-                          <ListItemText primary={option} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
                 </Grid>
               </Grid>
             </>

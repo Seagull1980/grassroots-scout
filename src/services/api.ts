@@ -232,7 +232,6 @@ export interface UserProfile {
   // Coach-specific fields
   coachinglicense?: string;
   yearsexperience?: number;
-  specializations?: string[];
   traininglocation?: string;
   matchlocation?: string;
   trainingdays?: string[];
@@ -295,7 +294,6 @@ export interface ProfileUpdateData {
   availability?: string[];
   coachingLicense?: string;
   yearsExperience?: number;
-  specializations?: string[];
   trainingLocation?: string;
   matchLocation?: string;
   trainingDays?: string[];
