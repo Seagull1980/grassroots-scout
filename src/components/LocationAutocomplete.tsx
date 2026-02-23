@@ -30,10 +30,8 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
     // Check if Google Maps is loaded
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsGoogleMapsLoaded(true);
-      // Check if new API is available, otherwise use legacy
-      if (!window.google.maps.places.PlaceAutocompleteElement) {
-        setUseLegacyAPI(true);
-      }
+      // Force legacy API as PlaceAutocompleteElement doesn't support controlled values
+      setUseLegacyAPI(true);
     }
   }, []);
 
