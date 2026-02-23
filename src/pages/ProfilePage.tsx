@@ -146,6 +146,22 @@ const ProfilePage: React.FC = () => {
     'Sunday Morning', 'Sunday Evening'
   ];
 
+  const coachingLicenseOptions = [
+    'No Formal Licence At Present',
+    'UEFA Pro Licence',
+    'UEFA A Licence',
+    'UEFA B Licence',
+    'UEFA C Licence',
+    'UEFA Grassroots C Licence',
+    'FA Level 5 (UEFA Pro Licence)',
+    'FA Level 4 (UEFA A Licence)', 
+    'FA Level 3 (UEFA B Licence)',
+    'FA Level 2 (UEFA C Licence)',
+    'FA Level 1 (Introduction to Coaching)',
+    'FA Youth Award Modules 1-3',
+    'Other'
+  ];
+
   const getProfileCompletion = () => {
     const requiredFields = ['firstName', 'lastName', 'dateOfBirth'];
     const roleSpecificFields = user?.role === 'Player' 
@@ -628,13 +644,20 @@ const ProfilePage: React.FC = () => {
               </Typography>
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Coaching License"
-                    value={profileData.coachingLicense}
-                    onChange={handleInputChange('coachingLicense')}
-                    placeholder="UEFA A, FA Level 2, etc."
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Coaching License</InputLabel>
+                    <Select
+                      value={profileData.coachingLicense || ''}
+                      onChange={handleSelectChange('coachingLicense')}
+                      label="Coaching License"
+                    >
+                      {coachingLicenseOptions.map((license) => (
+                        <MenuItem key={license} value={license}>
+                          {license}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
