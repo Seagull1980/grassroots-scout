@@ -627,6 +627,60 @@ const ProfilePage: React.FC = () => {
               />
             </Grid>
           </Grid>
+
+          {user?.role === 'Coach' && (
+            <>
+              <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
+                Coach Profile
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Coaching License"
+                    value={profileData.coachingLicense}
+                    onChange={handleInputChange('coachingLicense')}
+                    placeholder="UEFA A, FA Level 2, etc."
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Years of Experience"
+                    type="number"
+                    value={profileData.yearsExperience || ''}
+                    onChange={handleInputChange('yearsExperience')}
+                    inputProps={{ min: 0, max: 50 }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Specializations</InputLabel>
+                    <Select
+                      multiple
+                      value={profileData.specializations || []}
+                      onChange={handleMultiSelectChange('specializations')}
+                      input={<OutlinedInput label="Specializations" />}
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {(selected as string[]).map((value) => (
+                            <Chip key={value} label={value} size="small" />
+                          ))}
+                        </Box>
+                      )}
+                    >
+                      {specializationOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          <Checkbox checked={(profileData.specializations || []).indexOf(option) > -1} />
+                          <ListItemText primary={option} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </>
+          )}
         </TabPanel>
 
         {user?.role === 'Player' && (
@@ -780,56 +834,6 @@ const ProfilePage: React.FC = () => {
                 You haven't created any teams yet. Click "Manage Teams" to create your first team.
               </Alert>
             )}
-
-            <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
-              Coaching Profile
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Coaching License"
-                  value={profileData.coachingLicense}
-                  onChange={handleInputChange('coachingLicense')}
-                  placeholder="UEFA A, FA Level 2, etc."
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Years of Experience"
-                  type="number"
-                  value={profileData.yearsExperience || ''}
-                  onChange={handleInputChange('yearsExperience')}
-                  inputProps={{ min: 0, max: 50 }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Specializations</InputLabel>
-                  <Select
-                    multiple
-                    value={profileData.specializations || []}
-                    onChange={handleMultiSelectChange('specializations')}
-                    input={<OutlinedInput label="Specializations" />}
-                    renderValue={(selected) => (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {(selected as string[]).map((value) => (
-                          <Chip key={value} label={value} size="small" />
-                        ))}
-                      </Box>
-                    )}
-                  >
-                    {specializationOptions.map((option) => (
-                      <MenuItem key={option} value={option}>
-                        <Checkbox checked={(profileData.specializations || []).indexOf(option) > -1} />
-                        <ListItemText primary={option} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
           </TabPanel>
         )}
 
