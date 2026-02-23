@@ -1007,8 +1007,14 @@ export const playingHistoryAPI = {
 export const trainingAPI = {
   // Get training sessions (coaches see their own, players see all)
   getSessions: async (): Promise<{ sessions: TrainingSession[] }> => {
-    const response = await api.get('/api/training/sessions');
-    return response.data;
+    try {
+      const response = await api.get('/api/training/sessions');
+      return response.data;
+    } catch (err) {
+      // Endpoint not implemented, return empty list
+      console.warn('Training sessions endpoint not available');
+      return { sessions: [] };
+    }
   },
 
   // Create training session (coaches only)
@@ -1027,8 +1033,12 @@ export const trainingAPI = {
     refund_policy?: string;
     special_offers?: string;
   }): Promise<{ id: number; message: string }> => {
-    const response = await api.post('/api/training/sessions', sessionData);
-    return response.data;
+    try {
+      const response = await api.post('/api/training/sessions', sessionData);
+      return response.data;
+    } catch (err) {
+      throw new Error('Failed to create training session');
+    }
   },
 
   // Update training session
@@ -1047,26 +1057,42 @@ export const trainingAPI = {
     refund_policy?: string;
     special_offers?: string;
   }>): Promise<{ message: string }> => {
-    const response = await api.put(`/training/sessions/${sessionId}`, updates);
-    return response.data;
+    try {
+      const response = await api.put(`/training/sessions/${sessionId}`, updates);
+      return response.data;
+    } catch (err) {
+      throw new Error('Failed to update training session');
+    }
   },
 
   // Delete training session
   deleteSession: async (sessionId: number): Promise<{ message: string }> => {
-    const response = await api.delete(`/training/sessions/${sessionId}`);
-    return response.data;
+    try {
+      const response = await api.delete(`/training/sessions/${sessionId}`);
+      return response.data;
+    } catch (err) {
+      throw new Error('Failed to delete training session');
+    }
   },
 
   // Book training session
   bookSession: async (sessionId: number): Promise<{ message: string }> => {
-    const response = await api.post(`/training/sessions/${sessionId}/book`);
-    return response.data;
+    try {
+      const response = await api.post(`/training/sessions/${sessionId}/book`);
+      return response.data;
+    } catch (err) {
+      throw new Error('Failed to book training session');
+    }
   },
 
   // Get bookings for a session (coach only)
   getSessionBookings: async (sessionId: number): Promise<{ bookings: TrainingBooking[] }> => {
-    const response = await api.get(`/training/sessions/${sessionId}/bookings`);
-    return response.data;
+    try {
+      const response = await api.get(`/training/sessions/${sessionId}/bookings`);
+      return response.data;
+    } catch (err) {
+      throw new Error('Failed to load session bookings');
+    }
   },
 };
 

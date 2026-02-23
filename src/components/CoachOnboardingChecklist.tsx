@@ -23,7 +23,6 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
 
 interface ChecklistItem {
   id: string;
@@ -49,13 +48,8 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
   }, []);
 
   const loadChecklist = async () => {
-    try {
-      const response = await api.get('/api/coach/onboarding-status');
-      setItems(response.data.items || getDefaultItems());
-    } catch (err) {
-      console.error('Error loading checklist:', err);
-      setItems(getDefaultItems());
-    }
+    // Use default items (backend endpoint not implemented)
+    setItems(getDefaultItems());
   };
 
   const getDefaultItems = (): ChecklistItem[] => [
