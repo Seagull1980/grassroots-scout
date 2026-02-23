@@ -429,6 +429,63 @@ const MessagesPage: React.FC = () => {
     }
   };
 
+  // Get message template suggestions based on user role and context
+  const getMessageTemplates = (): Array<{ label: string; text: string }> => {
+    const templates: Array<{ label: string; text: string }> = [];
+
+    if (user?.role === 'Coach') {
+      // Coach-specific templates
+      templates.push(
+        {
+          label: 'Express Interest',
+          text: "Hi! I saw your profile and I'm impressed with your experience. We're looking for players like you for our team. Would you be interested in discussing further?"
+        },
+        {
+          label: 'Trial Invitation',
+          text: "We'd love to see you in action! Would you be available for a trial session? We can arrange a time that works best for you."
+        },
+        {
+          label: 'Follow-up',
+          text: "Just checking in to see if you're still interested. Let me know if you have any questions about our program or team."
+        },
+        {
+          label: 'Offer Position',
+          text: "Based on your profile, I think you'd be a great fit for our [position] role. We'd like to offer you a spot on our squad."
+        }
+      );
+    } else {
+      // Player/Parent templates
+      templates.push(
+        {
+          label: 'Express Interest',
+          text: "Hi! I'm interested in this playing opportunity. Can you tell me more about the position, training schedule, and what you're looking for in a player?"
+        },
+        {
+          label: 'Ask Questions',
+          text: "Thanks for reaching out! I have a few questions: What's the training frequency?  What level of experience are you looking for? And what's the age group composition?"
+        },
+        {
+          label: 'Confirm Availability',
+          text: "Great! I'm very interested. I'm available for trials and haven't committed elsewhere. When would you like to schedule a session?"
+        },
+        {
+          label: 'Accept Offer',
+          text: "Thank you for the offer! I'm excited to join your team. When can I start training?"
+        }
+      );
+    }
+
+    return templates;
+  };
+
+  const insertTemplate = (text: string) => {
+    if (replyOpen) {
+      setReplyMessage(text);
+    } else if (newMessageOpen) {
+      setNewMessageText(text);
+    }
+  };
+
   if (loading) {
     return (
       <Container maxWidth="lg">
@@ -712,6 +769,28 @@ const MessagesPage: React.FC = () => {
       <Dialog open={replyOpen} onClose={() => setReplyOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Send Reply</DialogTitle>
         <DialogContent>
+          {/* Message Templates */}
+          {replyMessage.length === 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                💡 Quick templates ({getMessageTemplates().length} available):
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {getMessageTemplates().map((template) => (
+                  <Button
+                    key={template.label}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => insertTemplate(template.text)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {template.label}
+                  </Button>
+                ))}
+              </Box>
+              <Divider sx={{ my: 2 }} />
+            </Box>
+          )}
           <TextField
             fullWidth
             multiline
@@ -745,6 +824,28 @@ const MessagesPage: React.FC = () => {
           New Message {newMessageRecipient && `to ${newMessageRecipient.name}`}
         </DialogTitle>
         <DialogContent>
+          {/* Message Templates */}
+          {newMessageText.length === 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                💡 Quick templates ({getMessageTemplates().length} available):
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {getMessageTemplates().map((template) => (
+                  <Button
+                    key={template.label}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => insertTemplate(template.text)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {template.label}
+                  </Button>
+                ))}
+              </Box>
+              <Divider sx={{ my: 2 }} />
+            </Box>
+          )}
           <TextField
             fullWidth
             multiline
