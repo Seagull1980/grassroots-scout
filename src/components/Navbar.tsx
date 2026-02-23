@@ -19,7 +19,6 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   Paper,
-  Fab,
   Badge,
 } from '@mui/material';
 import {
@@ -49,7 +48,6 @@ import {
   Feedback as FeedbackIcon,
   Forum as ForumIcon,
   LockOpen,
-  Add,
   Home,
   Support,
   AcUnit,
@@ -162,6 +160,8 @@ const Navbar: React.FC = () => {
     { path: '/search', label: 'Search', icon: <Search /> },
     { path: '/maps', label: 'Maps', icon: <Map /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
+    ...(user?.role === 'Coach' ? [{ path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> }] : []),
+    { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> },
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
   ] : [
     { path: '/', label: 'Home', icon: <Home /> },
@@ -169,8 +169,7 @@ const Navbar: React.FC = () => {
 
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
-    { path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> },
-    ...(user?.role !== 'Admin' ? [
+    ...(user?.role !== 'Admin' && user?.role !== 'Coach' ? [
       { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
     ] : []),
     { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
@@ -222,9 +221,6 @@ const Navbar: React.FC = () => {
       safeNavigate(coreNavItems[newValue].path);
     }
   };
-
-  // Quick action for coaches to post adverts
-  const showQuickPost = user?.role === 'Coach' && !isMobile;
 
   const drawer = (
     <Box sx={{ width: 280 }}>
@@ -383,17 +379,6 @@ const Navbar: React.FC = () => {
 
             {/* Right side actions */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {showQuickPost && (
-                <Fab
-                  color="primary"
-                  size="small"
-                  onClick={() => safeNavigate('/post-advert')}
-                  sx={{ mr: 1 }}
-                >
-                  <Add />
-                </Fab>
-              )}
-
               {user && <NotificationBell />}
 
               {user ? (
@@ -529,17 +514,6 @@ const Navbar: React.FC = () => {
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {user && <NotificationBell />}
-
-              {user && showQuickPost && (
-                <Fab
-                  color="primary"
-                  size="small"
-                  onClick={() => safeNavigate('/post-advert')}
-                  sx={{ mr: 1 }}
-                >
-                  <Add />
-                </Fab>
-              )}
 
               {user ? (
                 <IconButton onClick={handleMenu}>
