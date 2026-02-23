@@ -146,6 +146,62 @@ const PostAdvertPage: React.FC = () => {
     return Math.min(score, 100);
   };
 
+  // Get actionable insights based on current form completion
+  const getInsights = (): Array<{ type: 'tip' | 'warning'; text: string }> => {
+    const insights: Array<{ type: 'tip' | 'warning'; text: string }> = [];
+    const isCoach = user?.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
+
+    // Check title
+    if (!formData.title) {
+      insights.push({ type: 'warning', text: '➕ Add a clear title (e.g., "Striker (U16) - Local League")' });
+    } else if (formData.title.length < 10) {
+      insights.push({ type: 'tip', text: '📝 Use a more descriptive title to catch attention' });
+    }
+
+    // Check description quality
+    if (!formData.description) {
+      insights.push({ type: 'warning', text: '📄 Write a description (150+ characters for best results)' });
+    } else if (formData.description.length < 100) {
+      insights.push({ type: 'tip', text: '💬 Add more details about expectations and benefits (currently ' + formData.description.length + ' chars, aim for 150+)' });
+    }
+
+    // Check league
+    if (!formData.league) {
+      insights.push({ type: 'warning', text: '🏆 Select a league to help players find you' });
+    }
+
+    // Check age group
+    if (!formData.ageGroup) {
+      insights.push({ type: 'warning', text: '👥 Specify age group for better targeting' });
+    }
+
+    // Check location
+    if (!formData.location) {
+      insights.push({ type: 'warning', text: '📍 Add location so players know where to meet' });
+    }
+
+    // Coach-specific insights
+    if (isCoach) {
+      if (!formData.position) {
+        insights.push({ type: 'warning', text: '⚽ Specify the playing position needed' });
+      }
+      if (!formData.teamId) {
+        insights.push({ type: 'tip', text: '🏅 Add your team name to build trust (optional)' });
+      }
+      if (!formData.hasPathwayToSenior) {
+        insights.push({ type: 'tip', text: '🎯 Mention pathway to senior team to attract ambitious players' });
+      }
+      if (!formData.hasMatchRecording) {
+        insights.push({ type: 'tip', text: '📹 Share match recordings to showcase your team' });
+      }
+      if (!formData.playingTimePolicy) {
+        insights.push({ type: 'tip', text: '⏱️ Clarify playing time expectations (starting XI, rotation, etc.)' });
+      }
+    }
+
+    return insights;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
@@ -1008,6 +1064,26 @@ const PostAdvertPage: React.FC = () => {
                     </Box>
                   </Paper>
                 </Grid>
+
+                {/* Actionable Insights */}
+                {getInsights().length > 0 && (
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2, bgcolor: 'info.lighter', border: '1px solid', borderColor: 'info.light' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                        💡 Improvement Tips ({getInsights().length})
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {getInsights().map((insight, idx) => (
+                          <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                            <Typography variant="body2" sx={{ flex: 1, color: insight.type === 'warning' ? 'warning.main' : 'info.main' }}>
+                              {insight.text}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Paper>
+                  </Grid>
+                )}
 
                 <Grid item xs={12}>
                   <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
