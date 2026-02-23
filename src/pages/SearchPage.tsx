@@ -115,6 +115,7 @@ interface PlayerAvailability {
   description: string;
   title: string; // Add title property
   createdAt?: string;
+  status?: 'active' | 'inactive'; // Add status property for relevance calculation
 }
 
 interface SavedAd {
@@ -184,7 +185,7 @@ const SearchPage: React.FC = () => {
     hasPathwayToSenior: false,
     playingTimePolicy: [] as string[],
   });
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('relevance');
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -390,6 +391,63 @@ const SearchPage: React.FC = () => {
     if (daysLeft <= 3) return { color: 'error' as const, text: `Expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}` };
     if (daysLeft <= 7) return { color: 'warning' as const, text: `Expires in ${daysLeft} days` };
     return { color: 'default' as const, text: null };
+  };
+
+  // Calculate relevance score for vacancy matches (when players are searching for teams)
+  const calculateVacancyRelevance = (vacancy: TeamVacancy): number => {
+    if (!user) return 0;
+    
+    let score = 0;
+    
+    // Base score for active vacancies
+    if (vacancy.status === 'active') score += 10;
+    
+    // Recent postings are more relevant (within 3 days = +15 points)
+    const daysOld = getDaysUntilExpiration(vacancy.createdAt);
+    if (daysOld && daysOld > 27) score += 15; // Posted within last 3 days
+    else if (daysOld && daysOld > 20) score += 10; // Posted within last 10 days
+    else if (daysOld && daysOld > 14) score += 5; // Posted within last 16 days
+    
+    // Bonus for special features
+    if (vacancy.hasMatchRecording) score += 10;
+    if (vacancy.hasPathwayToSenior) score += 15;
+    
+    // Quality factors (description quality indicates better-run teams)
+    if (vacancy.description && vacancy.description.length > 200) score += 10;
+    if (vacancy.description && vacancy.description.length > 100) score += 5;
+    
+    return Math.min(score, 100); // Cap at 100
+  };
+
+  // Calculate relevance score for player matches (when coaches are recruiting)
+  const calculatePlayerRelevance = (player: PlayerAvailability): number => {
+    if (!user) return 0;
+    
+    let score = 0;
+    
+    // Base score for active players
+    if (player.status === 'active') score += 10;
+    
+    // Recent players are more likely to respond (within 3 days = +15 points)
+    const daysOld = getDaysUntilExpiration(player.createdAt);
+    if (daysOld && daysOld > 27) score += 15; // Posted within last 3 days
+    else if (daysOld && daysOld > 20) score += 10; // Posted within last 10 days
+    else if (daysOld && daysOld > 14) score += 5; // Posted within last 16 days
+    
+    // Quality factors (more detailed profiles show more interested players)
+    if (player.description && player.description.length > 200) score += 15;
+    else if (player.description && player.description.length > 100) score += 10;
+    else if (player.description && player.description.length > 50) score += 5;
+    
+    // Multiple position flexibility = +10
+    if (Array.isArray(player.positions) && player.positions.length > 1) score += 10;
+    
+    return Math.min(score, 100); // Cap at 100
+  };
+
+  // Convert raw score (0-100) to percentage string
+  const getRelevancePercentage = (score: number): string => {
+    return `${Math.round(score)}%`;
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -800,6 +858,7 @@ const SearchPage: React.FC = () => {
   const tabLabel = tabValue === 0 ? 'Team Vacancies' : 'Player Availability';
   const sortOptions = tabValue === 0
     ? [
+        { value: 'relevance', label: '⭐ Best Match' },
         { value: 'newest', label: 'Newest' },
         { value: 'oldest', label: 'Oldest' },
         { value: 'league', label: 'League (A-Z)' },
@@ -808,6 +867,7 @@ const SearchPage: React.FC = () => {
         { value: 'location', label: 'Location' },
       ]
     : [
+        { value: 'relevance', label: '⭐ Best Match' },
         { value: 'newest', label: 'Newest' },
         { value: 'oldest', label: 'Oldest' },
         { value: 'age', label: 'Age' },
@@ -824,6 +884,8 @@ const SearchPage: React.FC = () => {
     if (tabValue === 0) {
       const vacanciesData = items as TeamVacancy[];
       switch (sortBy) {
+        case 'relevance':
+          return vacanciesData.sort((a, b) => calculateVacancyRelevance(b) - calculateVacancyRelevance(a));
         case 'newest':
           return vacanciesData.sort((a, b) => getDate(b.createdAt) - getDate(a.createdAt));
         case 'oldest':
@@ -843,6 +905,8 @@ const SearchPage: React.FC = () => {
 
     const playerData = items as PlayerAvailability[];
     switch (sortBy) {
+      case 'relevance':
+        return playerData.sort((a, b) => calculatePlayerRelevance(b) - calculatePlayerRelevance(a));
       case 'newest':
         return playerData.sort((a, b) => getDate(b.createdAt) - getDate(a.createdAt));
       case 'oldest':
@@ -1986,18 +2050,27 @@ const SearchPage: React.FC = () => {
                         {tabValue === 0 ? (
                           // Team Vacancy Card
                           <>
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                               <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3" sx={{ flex: 1 }}>
                                 {(item as TeamVacancy).title}
                               </Typography>
-                              {getExpirationBadge((item as TeamVacancy).createdAt)?.text && (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                 <Chip 
-                                  label={getExpirationBadge((item as TeamVacancy).createdAt)?.text}
+                                  label={getRelevancePercentage(calculateVacancyRelevance(item as TeamVacancy)) + ' match'}
                                   size="small"
-                                  color={getExpirationBadge((item as TeamVacancy).createdAt)?.color || 'default'}
-                                  icon={getExpirationBadge((item as TeamVacancy).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                  color="success"
+                                  variant="outlined"
+                                  icon={<span>⭐</span>}
                                 />
-                              )}
+                                {getExpirationBadge((item as TeamVacancy).createdAt)?.text && (
+                                  <Chip 
+                                    label={getExpirationBadge((item as TeamVacancy).createdAt)?.text}
+                                    size="small"
+                                    color={getExpirationBadge((item as TeamVacancy).createdAt)?.color || 'default'}
+                                    icon={getExpirationBadge((item as TeamVacancy).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                  />
+                                )}
+                              </Box>
                             </Box>
                             <Typography
                               variant="body2"
@@ -2064,18 +2137,27 @@ const SearchPage: React.FC = () => {
                         ) : (
                           // Player Availability Card
                           <>
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                               <Typography variant={isMobile ? 'subtitle1' : 'h6'} component="h3">
                                 {(item as PlayerAvailability).playerName} - {(item as PlayerAvailability).position}
                               </Typography>
-                              {getExpirationBadge((item as PlayerAvailability).createdAt)?.text && (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                 <Chip 
-                                  label={getExpirationBadge((item as PlayerAvailability).createdAt)?.text}
+                                  label={getRelevancePercentage(calculatePlayerRelevance(item as PlayerAvailability)) + ' match'}
                                   size="small"
-                                  color={getExpirationBadge((item as PlayerAvailability).createdAt)?.color || 'default'}
-                                  icon={getExpirationBadge((item as PlayerAvailability).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                  color="success"
+                                  variant="outlined"
+                                  icon={<span>⭐</span>}
                                 />
-                              )}
+                                {getExpirationBadge((item as PlayerAvailability).createdAt)?.text && (
+                                  <Chip 
+                                    label={getExpirationBadge((item as PlayerAvailability).createdAt)?.text}
+                                    size="small"
+                                    color={getExpirationBadge((item as PlayerAvailability).createdAt)?.color || 'default'}
+                                    icon={getExpirationBadge((item as PlayerAvailability).createdAt)?.color === 'error' ? <span>⚠️</span> : undefined}
+                                  />
+                                )}
+                              </Box>
                             </Box>
                             <Typography
                               variant="body2"
