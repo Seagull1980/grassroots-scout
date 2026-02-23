@@ -157,6 +157,73 @@ const MessagesPage: React.FC = () => {
     }
   };
 
+  const updateMatchStage = async (conversationId: string, newStage: MatchProgressStage) => {
+    try {
+      const response = await fetch(`${API_URL}/conversations/${conversationId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ matchProgressStage: newStage })
+      });
+
+      if (response.ok) {
+        // Update selected conversation
+        if (selectedConversation && selectedConversation.id === conversationId) {
+          setSelectedConversation({
+            ...selectedConversation,
+            matchProgressStage: newStage
+          });
+        }
+        // Refresh conversations and match progress
+        await loadConversations();
+        await loadMatchProgress();
+      } else {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        alert(`Failed to update status: ${error.error || 'Please try again'}`);
+      }
+    } catch (error) {
+      console.error('Failed to update match stage:', error);
+      alert('Failed to update status. Please check your connection.');
+    }
+  };
+
+  // Get possible next stages based on current stage
+  const getNextStages = (currentStage: MatchProgressStage): Array<{ stage: MatchProgressStage; label: string }> => {
+    const transitions: Record<MatchProgressStage, MatchProgressStage[]> = {
+      'initial_interest': ['dialogue_active', 'match_declined'],
+      'dialogue_active': ['trial_invited', 'decision_pending', 'match_declined'],
+      'trial_invited': ['trial_scheduled', 'match_declined'],
+      'trial_scheduled': ['trial_completed', 'match_declined'],
+      'trial_completed': ['match_confirmed', 'decision_pending', 'match_declined'],
+      'decision_pending': ['match_confirmed', 'match_declined'],
+      'match_confirmed': ['completed'],
+      'match_declined': [],
+      'completed': []
+    };
+
+    return (transitions[currentStage] || []).map(stage => ({
+      stage,
+      label: getStageLabel(stage)
+    }));
+  };
+
+  const getStageColor = (stage: MatchProgressStage): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
+    switch (stage) {
+      case 'initial_interest': return 'info';
+      case 'dialogue_active': return 'primary';
+      case 'trial_invited': return 'warning';
+      case 'trial_scheduled': return 'warning';
+      case 'trial_completed': return 'info';
+      case 'decision_pending': return 'warning';
+      case 'match_confirmed': return 'success';
+      case 'match_declined': return 'error';
+      case 'completed': return 'success';
+      default: return 'default';
+    }
+  };
+
   const loadConversationMessages = async (conversationId: string) => {
     try {
       const response = await fetch(`${API_URL}/conversations/${conversationId}/messages`, {
@@ -332,21 +399,6 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  const getStageColor = (stage: MatchProgressStage): string => {
-    switch (stage) {
-      case 'initial_interest': return 'info';
-      case 'dialogue_active': return 'primary';
-      case 'trial_invited': return 'warning';
-      case 'trial_scheduled': return 'warning';
-      case 'trial_completed': return 'secondary';
-      case 'decision_pending': return 'warning';
-      case 'match_confirmed': return 'success';
-      case 'match_declined': return 'error';
-      case 'completed': return 'success';
-      default: return 'default';
-    }
-  };
-
   const getStageIcon = (stage: MatchProgressStage) => {
     switch (stage) {
       case 'initial_interest': return <MessageIcon />;
@@ -498,6 +550,35 @@ const MessagesPage: React.FC = () => {
                       Reply
                     </Button>
                   </Box>
+
+                  {/* Status and Quick Actions */}
+                  <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'action.hover' }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" fontWeight={600}>Status:</Typography>
+                        <Chip
+                          icon={getStageIcon(selectedConversation.matchProgressStage)}
+                          label={getStageLabel(selectedConversation.matchProgressStage)}
+                          color={getStageColor(selectedConversation.matchProgressStage) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                          size="small"
+                        />
+                      </Box>
+                      {/* Quick action buttons for next stages */}
+                      <Box display="flex" gap={1} flexWrap="wrap">
+                        {getNextStages(selectedConversation.matchProgressStage).slice(0, 2).map((option) => (
+                          <Button
+                            key={option.stage}
+                            size="small"
+                            variant="outlined"
+                            onClick={() => updateMatchStage(selectedConversation.id, option.stage)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </Box>
+                    </Box>
+                  </Paper>
+                  
                   <Divider sx={{ mb: 2 }} />
                   
                   {messages.length === 0 ? (
