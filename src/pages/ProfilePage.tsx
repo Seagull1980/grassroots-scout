@@ -30,6 +30,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
 } from '@mui/material';
 import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -101,6 +102,7 @@ const ProfilePage: React.FC = () => {
   const lastLoadedUserIdRef = useRef<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -946,7 +948,21 @@ const ProfilePage: React.FC = () => {
               {profile?.isprofilecomplete ? (
                 <Chip label="Profile Complete" color="success" variant="outlined" />
               ) : (
-                <Chip label="Profile Incomplete" color="warning" variant="outlined" />
+                <Tooltip 
+                  title={`Missing: ${getProfileCompletion().checklist
+                    .filter(item => !item.completed)
+                    .map(item => item.label)
+                    .join(', ')}`}
+                  arrow
+                >
+                  <Chip 
+                    label="Profile Incomplete" 
+                    color="warning" 
+                    variant="outlined"
+                    onClick={() => setShowCompletionModal(true)}
+                    sx={{ cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                  />
+                </Tooltip>
               )}
             </Box>
             <Button
@@ -973,6 +989,60 @@ const ProfilePage: React.FC = () => {
           </Typography>
         </Alert>
       )}
+
+      {/* Completion Details Modal */}
+      <Dialog open={showCompletionModal} onClose={() => setShowCompletionModal(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Profile Completion Status</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Box sx={{ mb: 3 }}>
+              <Box display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={getProfileCompletion().percentage} 
+                  sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                />
+                <Typography variant="body2" sx={{ minWidth: '50px' }}>
+                  {getProfileCompletion().percentage}%
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {getProfileCompletion().checklist.filter(item => item.completed).length} of {getProfileCompletion().checklist.length} fields completed
+              </Typography>
+            </Box>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1.5 }}>
+              Required Fields:
+            </Typography>
+            <List sx={{ p: 0 }}>
+              {getProfileCompletion().checklist.map((item) => (
+                <ListItem key={item.field} sx={{ p: 0, mb: 1 }}>
+                  <ListItemIcon sx={{ minWidth: 40 }}>
+                    {item.completed ? (
+                      <CheckCircle sx={{ color: 'success.main' }} />
+                    ) : (
+                      <RadioButtonUnchecked sx={{ color: 'warning.main' }} />
+                    )}
+                  </ListItemIcon>
+                  <Typography 
+                    variant="body2"
+                    sx={{ 
+                      textDecoration: item.completed ? 'line-through' : 'none',
+                      color: item.completed ? 'text.secondary' : 'text.primary'
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCompletionModal(false)} variant="contained">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Unsaved changes dialog */}
       <Dialog open={showUnsavedDialog} onClose={handleKeepEditing}>
