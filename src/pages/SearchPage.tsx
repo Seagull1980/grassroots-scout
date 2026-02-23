@@ -187,6 +187,11 @@ const SearchPage: React.FC = () => {
   });
   const [sortBy, setSortBy] = useState('relevance');
 
+  // Comparison mode state
+  const [comparisonMode, setComparisonMode] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  const [comparisonModalOpen, setComparisonModalOpen] = useState(false);
+
   // Handle URL parameters on component mount
   useEffect(() => {
     const tabParam = searchParams.get('tab');
@@ -448,6 +453,39 @@ const SearchPage: React.FC = () => {
   // Convert raw score (0-100) to percentage string
   const getRelevancePercentage = (score: number): string => {
     return `${Math.round(score)}%`;
+  };
+
+  // Comparison mode handlers
+  const toggleItemSelection = (itemId: number) => {
+    const newSelection = new Set(selectedItemIds);
+    if (newSelection.has(itemId)) {
+      newSelection.delete(itemId);
+    } else {
+      // Limit to 4 items for comparison
+      if (newSelection.size < 4) {
+        newSelection.add(itemId);
+      }
+    }
+    setSelectedItemIds(newSelection);
+  };
+
+  const handleCompareSelected = () => {
+    if (selectedItemIds.size >= 2) {
+      setComparisonModalOpen(true);
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedItemIds(new Set());
+    setComparisonMode(false);
+  };
+
+  const getSelectedItems = () => {
+    if (tabValue === 0) {
+      return sortedData.filter(item => selectedItemIds.has((item as TeamVacancy).id));
+    } else {
+      return sortedData.filter(item => selectedItemIds.has((item as PlayerAvailability).id));
+    }
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2042,10 +2080,75 @@ const SearchPage: React.FC = () => {
             </Paper>
           ) : (
             <>
+              {/* Comparison Bar */}
+              {comparisonMode && (
+                <Alert 
+                  severity="info" 
+                  onClose={() => setComparisonMode(false)}
+                  sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <Box>
+                    <Typography variant="body2">
+                      📊 Comparison mode: Select 2-4 items to compare side-by-side
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Selected: {selectedItemIds.size}/4
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleCompareSelected}
+                      disabled={selectedItemIds.size < 2}
+                    >
+                      Compare ({selectedItemIds.size})
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={clearSelection}
+                    >
+                      Cancel
+                    </Button>
+                  </Box>
+                </Alert>
+              )}
+              
+              {/* Toggle Comparison Mode Button */}
+              {!comparisonMode && sortedData.length > 1 && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setComparisonMode(true)}
+                  sx={{ mb: 2 }}
+                >
+                  📊 Compare Results
+                </Button>
+              )}
+
               <Grid container spacing={cardSpacing}>
                 {sortedData.map((item) => (
-                  <Grid item xs={12} md={6} key={item.id}>
-                    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Grid item xs={12} md={comparisonMode ? 12 : 6} key={item.id} sx={{ position: 'relative' }}>
+                    {/* Comparison Checkbox Overlay */}
+                    {comparisonMode && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: 12,
+                        left: 12,
+                        zIndex: 10,
+                        bgcolor: 'background.paper',
+                        borderRadius: 1,
+                        p: 0.5
+                      }}>
+                        <Checkbox
+                          checked={selectedItemIds.has(item.id)}
+                          onChange={() => toggleItemSelection(item.id)}
+                          disabled={!selectedItemIds.has(item.id) && selectedItemIds.size >= 4}
+                        />
+                      </Box>
+                    )}
+                    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', opacity: comparisonMode && !selectedItemIds.has(item.id) ? 0.5 : 1 }}>
                       <CardContent sx={{ flexGrow: 1, p: isMobile ? 2 : 3 }}>
                         {tabValue === 0 ? (
                           // Team Vacancy Card
