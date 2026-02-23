@@ -38,6 +38,7 @@ import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -573,19 +574,21 @@ const ProfilePage: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <LocationAutocomplete
-                fullWidth
-                label="Location"
-                value={profileData.location || ''}
-                onChange={(address) => {
-                  setProfileData(prev => ({
-                    ...prev,
-                    location: address
-                  }));
-                  setHasUnsavedChanges(true);
-                }}
-                placeholder="City, County"
-              />
+              <GoogleMapsWrapper>
+                <LocationAutocomplete
+                  fullWidth
+                  label="Location"
+                  value={profileData.location || ''}
+                  onChange={(address) => {
+                    setProfileData(prev => ({
+                      ...prev,
+                      location: address
+                    }));
+                    setHasUnsavedChanges(true);
+                  }}
+                  placeholder="City, County"
+                />
+              </GoogleMapsWrapper>
             </Grid>
             <Grid item xs={12}>
               <TextField
@@ -735,19 +738,21 @@ const ProfilePage: React.FC = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <LocationAutocomplete
-                  fullWidth
-                  label="Training Location"
-                  value={profileData.trainingLocation || ''}
-                  onChange={(address) => {
-                    setProfileData(prev => ({
-                      ...prev,
-                      trainingLocation: address
-                    }));
-                    setHasUnsavedChanges(true);
-                  }}
-                  placeholder="Training ground, facility name"
-                />
+                <GoogleMapsWrapper>
+                  <LocationAutocomplete
+                    fullWidth
+                    label="Training Location"
+                    value={profileData.trainingLocation || ''}
+                    onChange={(address) => {
+                      setProfileData(prev => ({
+                        ...prev,
+                        trainingLocation: address
+                      }));
+                      setHasUnsavedChanges(true);
+                    }}
+                    placeholder="Training ground, facility name"
+                  />
+                </GoogleMapsWrapper>
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -775,19 +780,21 @@ const ProfilePage: React.FC = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <LocationAutocomplete
-                  fullWidth
-                  label="Home Match Location"
-                  value={profileData.matchLocation || ''}
-                  onChange={(address) => {
-                    setProfileData(prev => ({
-                      ...prev,
-                      matchLocation: address
-                    }));
-                    setHasUnsavedChanges(true);
-                  }}
-                  placeholder="Home ground, stadium name"
-                />
+                <GoogleMapsWrapper>
+                  <LocationAutocomplete
+                    fullWidth
+                    label="Home Match Location"
+                    value={profileData.matchLocation || ''}
+                    onChange={(address) => {
+                      setProfileData(prev => ({
+                        ...prev,
+                        matchLocation: address
+                      }));
+                      setHasUnsavedChanges(true);
+                    }}
+                    placeholder="Home ground, stadium name"
+                  />
+                </GoogleMapsWrapper>
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
