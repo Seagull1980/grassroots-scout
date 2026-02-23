@@ -31,7 +31,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { Save, Person, Work, ContactMail, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward } from '@mui/icons-material';
+import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -125,9 +125,6 @@ const ProfilePage: React.FC = () => {
     currentAgeGroup: '',
     trainingTime: '',
     matchDay: '',
-    emergencyContact: '',
-    emergencyPhone: '',
-    medicalInfo: '',
   });
 
   // Options for dropdowns
@@ -316,9 +313,6 @@ const ProfilePage: React.FC = () => {
         currentAgeGroup: profileResponse.currentagegroup || '',
         trainingTime: profileResponse.trainingtime || '',
         matchDay: profileResponse.matchday || '',
-        emergencyContact: profileResponse.emergencycontact || '',
-        emergencyPhone: profileResponse.emergencyphone || '',
-        medicalInfo: profileResponse.medicalinfo || '',
       });
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -552,7 +546,6 @@ const ProfilePage: React.FC = () => {
             {user?.role === 'Player' && <Tab icon={<Work />} label="Player Details" />}
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
             {user?.role === 'Player' && <Tab icon={<History />} label="Playing History" />}
-            <Tab icon={<ContactMail />} label="Contact & Emergency" />
             <Tab icon={<Lock />} label="Security" />
           </Tabs>
         </Box>
@@ -844,46 +837,8 @@ const ProfilePage: React.FC = () => {
           </TabPanel>
         )}
 
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 2 : 1)}>
-          <Typography variant="h6" gutterBottom>
-            Contact & Emergency Information
-          </Typography>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Emergency Contact Name"
-                value={profileData.emergencyContact}
-                onChange={handleInputChange('emergencyContact')}
-                placeholder="Full name of emergency contact"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Emergency Contact Phone"
-                value={profileData.emergencyPhone}
-                onChange={handleInputChange('emergencyPhone')}
-                placeholder="+1 (555) 123-4567"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Medical Information"
-                value={profileData.medicalInfo}
-                onChange={handleInputChange('medicalInfo')}
-                placeholder="Any medical conditions, allergies, or important health information..."
-                helperText="This information will be kept confidential and used only for safety purposes"
-              />
-            </Grid>
-          </Grid>
-        </TabPanel>
-
         {/* Security Tab - Password Change */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 3 : 2)}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 2 : 1)}>
           <Typography variant="h6" gutterBottom>
             Change Password
           </Typography>

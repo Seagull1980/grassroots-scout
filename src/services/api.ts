@@ -241,10 +241,6 @@ export interface UserProfile {
   currentagegroup?: string;
   trainingtime?: string;
   matchday?: string;
-  // Contact and additional info
-  emergencycontact?: string;
-  emergencyphone?: string;
-  medicalinfo?: string;
   profilepicture?: string;
   isprofilecomplete?: boolean;
   lastupdated?: string;
@@ -302,9 +298,6 @@ export interface ProfileUpdateData {
   currentAgeGroup?: string;
   trainingTime?: string;
   matchDay?: string;
-  emergencyContact?: string;
-  emergencyPhone?: string;
-  medicalInfo?: string;
   profilePicture?: string;
 }
 
