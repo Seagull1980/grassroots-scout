@@ -257,9 +257,9 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
             label="Sort By"
             onChange={(e) => handleFilterChange('sortBy', e.target.value)}
           >
-            {sortOptions.map(option => (
+            {sortOptions.filter(Boolean).map(option => (
               <MenuItem key={option.value} value={option.value}>
-                {option.label}
+                {option?.label || option.value}
               </MenuItem>
             ))}
           </Select>

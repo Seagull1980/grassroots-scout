@@ -383,11 +383,11 @@ const Calendar = () => {
                 value={eventForm.eventType}
                 onChange={(e: SelectChangeEvent) => setEventForm({ ...eventForm, eventType: e.target.value as "training" | "match" | "trial" })}
               >
-                {eventTypes.map(type => (
-                  <MenuItem key={type.value} value={type.value}>
+                {eventTypes.filter(Boolean).map((type, index) => (
+                  <MenuItem key={type?.value || index} value={type?.value || ''}>
                     <Box display="flex" alignItems="center" gap={1}>
-                      {type.icon}
-                      {type.label}
+                      {type?.icon}
+                      {type?.label || 'Event'}
                     </Box>
                   </MenuItem>
                 ))}

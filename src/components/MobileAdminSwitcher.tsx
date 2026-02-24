@@ -307,7 +307,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                     <ListItemText
                       primary={
                         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                          {userType.label}
+                          {userType?.label || 'User'}
                         </Typography>
                       }
                       secondary={
@@ -503,8 +503,8 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                   </ListItemIcon>
                   <ListItemText
                     primary={
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        {userType.label}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {userType?.label || 'User'}
                       </Typography>
                     }
                     secondary={

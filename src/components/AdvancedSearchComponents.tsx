@@ -153,10 +153,10 @@ export const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
               {/* Smart Filter Suggestions */}
               {smartFilters.length > 0 && (
                 <Box display="flex" gap={0.5}>
-                  {smartFilters.slice(0, 2).map((filter, index) => (
+                  {smartFilters.filter(Boolean).slice(0, 2).map((filter, index) => (
                     <Chip
                       key={index}
-                      label={filter.label}
+                      label={filter?.label || 'Filter'}
                       size="small"
                       variant="outlined"
                       onClick={() => {

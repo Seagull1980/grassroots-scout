@@ -587,10 +587,10 @@ const PlayerPerformanceComponent: React.FC<PlayerPerformanceProps> = ({
             { type: 'season', label: 'Season' },
             { type: 'month', label: 'This Month' },
             { type: 'last_10_matches', label: 'Last 10 Matches' }
-          ].map((period) => (
+          ].filter(Boolean).map((period) => (
             <Chip
               key={period.type}
-              label={period.label}
+              label={period?.label || 'Period'}
               onClick={() => setSelectedPeriod(period as AnalyticsPeriod)}
               color={selectedPeriod.type === period.type ? 'primary' : 'default'}
               variant={selectedPeriod.type === period.type ? 'filled' : 'outlined'}

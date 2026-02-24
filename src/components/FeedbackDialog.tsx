@@ -171,9 +171,9 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onClose, defaultT
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>Category</InputLabel>
               <Select value={category} onChange={(e) => setCategory(e.target.value)} label="Category">
-                {categories.map((cat) => (
-                  <MenuItem key={cat.value} value={cat.value}>
-                    {cat.label}
+                {categories.filter(Boolean).map((cat, index) => (
+                  <MenuItem key={cat?.value || index} value={cat?.value || ''}>
+                    {cat?.label || 'Category'}
                   </MenuItem>
                 ))}
               </Select>
