@@ -153,6 +153,7 @@ const PostAdvertPage: React.FC = () => {
   const calculateQualityScore = () => {
     let score = 0;
     const isCoach = user?.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
+    const hasLocation = Boolean(formData.location?.trim() || locationData?.address?.trim());
     
     // Title (10 points)
     if (formData.title) {
@@ -183,7 +184,7 @@ const PostAdvertPage: React.FC = () => {
     else if (!isCoach) score += 10;
     
     // Location (15 points)
-    if (formData.location) score += 15;
+    if (hasLocation) score += 15;
     
     // Additional details (coach-specific)
     if (isCoach) {
@@ -199,6 +200,7 @@ const PostAdvertPage: React.FC = () => {
   const getInsights = (): Array<{ type: 'tip' | 'warning'; text: string }> => {
     const insights: Array<{ type: 'tip' | 'warning'; text: string }> = [];
     const isCoach = user?.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
+    const hasLocation = Boolean(formData.location?.trim() || locationData?.address?.trim());
 
     // Check title
     if (!formData.title) {
@@ -225,7 +227,7 @@ const PostAdvertPage: React.FC = () => {
     }
 
     // Check location
-    if (!formData.location) {
+    if (!hasLocation) {
       insights.push({ type: 'warning', text: '📍 Add location so players know where to meet' });
     }
 
