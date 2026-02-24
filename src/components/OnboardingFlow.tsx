@@ -432,14 +432,14 @@ export const OnboardingFlow: React.FC = () => {
           </Typography>
           
           <Grid container spacing={2}>
-            {[
+            [
               { id: 'finding-teams', label: 'Finding a team to join', icon: <GroupIcon /> },
               { id: 'recruiting-players', label: 'Recruiting players for my team', icon: <PersonIcon /> },
               { id: 'coaching-opportunities', label: 'Coaching opportunities', icon: <SportsIcon /> },
               { id: 'youth-football', label: 'Youth football (under 18)', icon: <PersonIcon /> },
               { id: 'match-results', label: 'Recording match results', icon: <CheckCircleIcon /> },
               { id: 'local-leagues', label: 'Following local leagues', icon: <MapIcon /> }
-            ].map((interest) => (
+            ].filter(Boolean).map((interest) => (
               <Grid item xs={12} sm={6} key={interest.id}>
                 <Card 
                   sx={{ 
@@ -473,8 +473,8 @@ export const OnboardingFlow: React.FC = () => {
                   }}
                 >
                   <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
-                    {interest.icon}
-                    <Typography variant="body2">{interest.label}</Typography>
+                    {interest?.icon}
+                    <Typography variant="body2">{interest?.label || 'Interest'}</Typography>
                   </CardContent>
                 </Card>
               </Grid>
@@ -627,7 +627,7 @@ export const OnboardingFlow: React.FC = () => {
                 label: 'Dependent on Circumstances', 
                 description: 'Varies based on match situation, opponent, training attendance, etc.'
               }
-            ].map((policy) => (
+            ].filter(Boolean).map((policy) => (
               <Card
                 key={policy.value}
                 sx={{
@@ -658,10 +658,10 @@ export const OnboardingFlow: React.FC = () => {
               >
                 <CardContent>
                   <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                    {policy.label}
+                    {policy?.label || 'Policy'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {policy.description}
+                    {policy?.description || ''}
                   </Typography>
                 </CardContent>
               </Card>
