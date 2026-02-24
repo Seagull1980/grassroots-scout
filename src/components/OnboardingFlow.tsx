@@ -432,7 +432,7 @@ export const OnboardingFlow: React.FC = () => {
           </Typography>
           
           <Grid container spacing={2}>
-            [
+            {[
               { id: 'finding-teams', label: 'Finding a team to join', icon: <GroupIcon /> },
               { id: 'recruiting-players', label: 'Recruiting players for my team', icon: <PersonIcon /> },
               { id: 'coaching-opportunities', label: 'Coaching opportunities', icon: <SportsIcon /> },
