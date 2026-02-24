@@ -54,13 +54,13 @@ app.post('/api/teams', authenticateToken, [
   }
 
   try {
-    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia } = req.body;
+    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours } = req.body;
 
     // Create the team
     const teamResult = await db.query(`
-      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', playingTimePolicy || null, location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null]);
+      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', playingTimePolicy || null, location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null, teamBio || null, trainingLocation || null, homePitchLocation || null, honours || null]);
 
     const teamId = teamResult.lastID || teamResult.rows[0].id;
 
@@ -109,7 +109,27 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
     }
 
     const teams = await db.query(`
-      SELECT t.*, tm.role as userRole, tm.permissions
+      SELECT 
+        t.id,
+        t.teamname as "teamName",
+        t.clubname as "clubName",
+        t.agegroup as "ageGroup",
+        t.league,
+        t.teamgender as "teamGender",
+        t.playingtimepolicy as "playingTimePolicy",
+        t.location,
+        t.locationdata as "locationData",
+        t.contactemail as "contactEmail",
+        t.website,
+        t.socialmedia as "socialMedia",
+        t.teambio as "teamBio",
+        t.traininglocation as "trainingLocation",
+        t.homepitchlocation as "homePitchLocation",
+        t.honours as "honours",
+        t.createdat as "createdAt",
+        t.updatedat as "updatedAt",
+        tm.role as "userRole",
+        tm.permissions
       FROM teams t
       JOIN team_members tm ON t.id = tm.teamId
       WHERE tm.userId = ?
@@ -130,7 +150,27 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
 
     // Check if user is a member of the team
     const membership = await db.query(`
-      SELECT tm.role, tm.permissions, t.*
+      SELECT 
+        tm.role,
+        tm.permissions,
+        t.id,
+        t.teamname as "teamName",
+        t.clubname as "clubName",
+        t.agegroup as "ageGroup",
+        t.league,
+        t.teamgender as "teamGender",
+        t.playingtimepolicy as "playingTimePolicy",
+        t.location,
+        t.locationdata as "locationData",
+        t.contactemail as "contactEmail",
+        t.website,
+        t.socialmedia as "socialMedia",
+        t.teambio as "teamBio",
+        t.traininglocation as "trainingLocation",
+        t.homepitchlocation as "homePitchLocation",
+        t.honours as "honours",
+        t.createdat as "createdAt",
+        t.updatedat as "updatedAt"
       FROM team_members tm
       JOIN teams t ON tm.teamId = t.id
       WHERE tm.teamId = ? AND tm.userId = ?
@@ -178,15 +218,16 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this team' });
     }
 
-    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia } = req.body;
+    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours } = req.body;
 
     await db.query(`
       UPDATE teams SET
         teamName = ?, clubName = ?, ageGroup = ?, league = ?, teamGender = ?, playingTimePolicy = ?,
         location = ?, locationData = ?, contactEmail = ?, website = ?, socialMedia = ?,
+        teamBio = ?, trainingLocation = ?, homePitchLocation = ?, honours = ?,
         updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [teamName, clubName, ageGroup, league, teamGender, playingTimePolicy || null, location, locationData ? JSON.stringify(locationData) : null, contactEmail, website, socialMedia ? JSON.stringify(socialMedia) : null, teamId]);
+    `, [teamName, clubName, ageGroup, league, teamGender, playingTimePolicy || null, location, locationData ? JSON.stringify(locationData) : null, contactEmail, website, socialMedia ? JSON.stringify(socialMedia) : null, teamBio || null, trainingLocation || null, homePitchLocation || null, honours || null, teamId]);
 
     res.json({ message: 'Team updated successfully' });
   } catch (error) {

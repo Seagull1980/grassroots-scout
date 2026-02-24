@@ -32,6 +32,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import api, { API_URL, leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
 
@@ -44,6 +45,10 @@ interface Team {
   teamGender: string;
   playingTimePolicy?: string;
   location?: string;
+  teamBio?: string;
+  trainingLocation?: string;
+  homePitchLocation?: string;
+  honours?: string;
   userRole: string;
   permissions: {
     canPostVacancies: boolean;
@@ -72,6 +77,7 @@ interface Coach {
 
 const TeamManagement: React.FC = () => {
   const apiPrefix = API_URL ? '' : '/api';
+  const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,7 +102,11 @@ const TeamManagement: React.FC = () => {
     league: '',
     teamGender: 'Mixed',
     location: '',
-    playingTimePolicy: ''
+    playingTimePolicy: '',
+    teamBio: '',
+    trainingLocation: '',
+    homePitchLocation: '',
+    honours: ''
   });
 
   const [editForm, setEditForm] = useState({
@@ -106,7 +116,11 @@ const TeamManagement: React.FC = () => {
     league: '',
     teamGender: 'Mixed',
     location: '',
-    playingTimePolicy: ''
+    playingTimePolicy: '',
+    teamBio: '',
+    trainingLocation: '',
+    homePitchLocation: '',
+    honours: ''
   });
 
   const [inviteForm, setInviteForm] = useState({
@@ -167,7 +181,11 @@ const TeamManagement: React.FC = () => {
         league: '',
         teamGender: 'Mixed',
         location: '',
-        playingTimePolicy: ''
+        playingTimePolicy: '',
+        teamBio: '',
+        trainingLocation: '',
+        homePitchLocation: '',
+        honours: ''
       });
       loadTeams();
     } catch (error: any) {
@@ -270,7 +288,11 @@ const TeamManagement: React.FC = () => {
       league: team.league || '',
       teamGender: team.teamGender || 'Mixed',
       location: team.location || '',
-      playingTimePolicy: team.playingTimePolicy || ''
+      playingTimePolicy: team.playingTimePolicy || '',
+      teamBio: team.teamBio || '',
+      trainingLocation: team.trainingLocation || '',
+      homePitchLocation: team.homePitchLocation || '',
+      honours: team.honours || ''
     });
     setEditDialogOpen(true);
   };
@@ -352,7 +374,10 @@ const TeamManagement: React.FC = () => {
         {teams && teams.length > 0 ? (
           teams.map((team) => (
           <Grid item xs={12} md={6} lg={4} key={team.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Card
+              onClick={() => navigate(`/team-profile/${team.id}`)}
+              sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
+            >
               <CardContent sx={{ flexGrow: 1 }}>
                 <Typography variant="h6" gutterBottom>
                   {team.teamName}
@@ -381,7 +406,10 @@ const TeamManagement: React.FC = () => {
                   fullWidth
                   variant="outlined"
                   startIcon={<GroupIcon />}
-                  onClick={() => handleViewTeam(team)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleViewTeam(team);
+                  }}
                   sx={{ mb: 1 }}
                 >
                   View Team
@@ -391,7 +419,10 @@ const TeamManagement: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     startIcon={<EditIcon />}
-                    onClick={() => handleEditTeam(team)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleEditTeam(team);
+                    }}
                     sx={{ mb: 1 }}
                   >
                     Edit Team
@@ -402,7 +433,8 @@ const TeamManagement: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     startIcon={<PersonAddIcon />}
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
                       setSelectedTeam(team);
                       setInviteDialogOpen(true);
                     }}
@@ -571,6 +603,38 @@ const TeamManagement: React.FC = () => {
             value={createForm.location}
             onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
             sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Team Bio"
+            value={createForm.teamBio}
+            onChange={(e) => setCreateForm({ ...createForm, teamBio: e.target.value })}
+            sx={{ mt: 2 }}
+            multiline
+            rows={3}
+          />
+          <TextField
+            fullWidth
+            label="Training Location"
+            value={createForm.trainingLocation}
+            onChange={(e) => setCreateForm({ ...createForm, trainingLocation: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Home Pitch Location"
+            value={createForm.homePitchLocation}
+            onChange={(e) => setCreateForm({ ...createForm, homePitchLocation: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Honours"
+            value={createForm.honours}
+            onChange={(e) => setCreateForm({ ...createForm, honours: e.target.value })}
+            sx={{ mt: 2 }}
+            multiline
+            rows={3}
           />
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Playing Time Policy</InputLabel>
@@ -749,6 +813,38 @@ const TeamManagement: React.FC = () => {
             value={editForm.location}
             onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
             sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Team Bio"
+            value={editForm.teamBio}
+            onChange={(e) => setEditForm({ ...editForm, teamBio: e.target.value })}
+            sx={{ mt: 2 }}
+            multiline
+            rows={3}
+          />
+          <TextField
+            fullWidth
+            label="Training Location"
+            value={editForm.trainingLocation}
+            onChange={(e) => setEditForm({ ...editForm, trainingLocation: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Home Pitch Location"
+            value={editForm.homePitchLocation}
+            onChange={(e) => setEditForm({ ...editForm, homePitchLocation: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Honours"
+            value={editForm.honours}
+            onChange={(e) => setEditForm({ ...editForm, honours: e.target.value })}
+            sx={{ mt: 2 }}
+            multiline
+            rows={3}
           />
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Playing Time Policy</InputLabel>

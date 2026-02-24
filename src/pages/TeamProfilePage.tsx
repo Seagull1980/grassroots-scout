@@ -32,6 +32,7 @@ import {
   Stadium as StadiumIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate, useParams } from 'react-router-dom';
 
 interface TeamProfile {
   id?: number;
@@ -63,10 +64,29 @@ interface TeamProfile {
   contactPreferences: string;
 }
 
+interface TeamDetails {
+  id: number;
+  teamName: string;
+  clubName?: string;
+  ageGroup: string;
+  league: string;
+  teamGender?: string;
+  location?: string;
+  teamBio?: string;
+  trainingLocation?: string;
+  homePitchLocation?: string;
+  honours?: string;
+}
+
 const TeamProfilePage: React.FC = () => {
   const { user } = useAuth();
+  const { teamId } = useParams();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<TeamProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState<TeamProfile>({
     teamName: '',
@@ -103,12 +123,46 @@ const TeamProfilePage: React.FC = () => {
   const [loadingClubs, setLoadingClubs] = useState(false);
 
   useEffect(() => {
+    if (teamId) {
+      return;
+    }
     if (user?.role === 'Coach') {
       fetchProfile();
     } else {
       setLoading(false);
     }
-  }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
+  }, [user?.id, teamId]); // Only reload when user ID changes (login/logout), not on every user object update
+
+  useEffect(() => {
+    if (!teamId) return;
+
+    const fetchTeamDetails = async () => {
+      setTeamLoading(true);
+      setTeamError(null);
+
+      try {
+        const response = await fetch(`/api/teams/${teamId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch team details');
+        }
+
+        const data = await response.json();
+        setTeamDetails(data.team || null);
+      } catch (err: any) {
+        setTeamError(err.message || 'Failed to fetch team details');
+      } finally {
+        setTeamLoading(false);
+      }
+    };
+
+    fetchTeamDetails();
+  }, [teamId]);
 
   const searchClubs = async (searchTerm: string) => {
     try {
@@ -229,6 +283,111 @@ const TeamProfilePage: React.FC = () => {
       [field]: value
     }));
   };
+
+  if (teamId) {
+    if (teamLoading) {
+      return (
+        <Container maxWidth="md" sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+          <CircularProgress />
+        </Container>
+      );
+    }
+
+    if (teamError) {
+      return (
+        <Container maxWidth="md" sx={{ mt: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {teamError}
+          </Alert>
+          <Button variant="outlined" onClick={() => navigate('/team-management')}>
+            Back to Team Management
+          </Button>
+        </Container>
+      );
+    }
+
+    if (!teamDetails) {
+      return (
+        <Container maxWidth="md" sx={{ mt: 3 }}>
+          <Alert severity="info">Team details are unavailable.</Alert>
+        </Container>
+      );
+    }
+
+    return (
+      <Container maxWidth="md" sx={{ mt: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, mb: 3 }}>
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              {teamDetails.teamName}
+            </Typography>
+            {teamDetails.clubName && (
+              <Typography variant="subtitle1" color="text.secondary">
+                {teamDetails.clubName}
+              </Typography>
+            )}
+          </Box>
+          <Button variant="outlined" onClick={() => navigate('/team-management')}>
+            Edit Team
+          </Button>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+          <Chip label={teamDetails.ageGroup} color="primary" size="small" />
+          <Chip label={teamDetails.league} variant="outlined" size="small" />
+          {teamDetails.teamGender && (
+            <Chip label={teamDetails.teamGender} variant="outlined" size="small" />
+          )}
+        </Box>
+
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Team Bio
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {teamDetails.teamBio || 'No team bio added yet.'}
+              </Typography>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" gutterBottom>
+                Training Location
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {teamDetails.trainingLocation || 'Not specified.'}
+              </Typography>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" gutterBottom>
+                Home Pitch Location
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {teamDetails.homePitchLocation || 'Not specified.'}
+              </Typography>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Honours
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {teamDetails.honours || 'No honours listed yet.'}
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Container>
+    );
+  }
 
   if (user?.role !== 'Coach') {
     return (

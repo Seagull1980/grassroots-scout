@@ -310,6 +310,10 @@ class Database {
         contactEmail VARCHAR,
         website VARCHAR,
         socialMedia JSONB,
+        teamBio TEXT,
+        trainingLocation VARCHAR,
+        homePitchLocation VARCHAR,
+        honours TEXT,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -1017,6 +1021,36 @@ class Database {
             console.log('✅ Added playingTimePolicy column to teams table');
           } catch (err) {
             if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      // Migration 3b: Add team bio fields to teams table if they don't exist
+      const teamBioColumns = [
+        { name: 'teamBio', type: 'TEXT' },
+        { name: 'trainingLocation', type: 'VARCHAR' },
+        { name: 'homePitchLocation', type: 'VARCHAR' },
+        { name: 'honours', type: 'TEXT' }
+      ];
+
+      if (this.dbType === 'postgresql') {
+        const columnNames = teamsColumnsResult.rows.map(row => row.column_name.toLowerCase());
+        for (const column of teamBioColumns) {
+          if (!columnNames.includes(column.name.toLowerCase())) {
+            await this.query(`ALTER TABLE teams ADD COLUMN ${column.name} ${column.type}`);
+            console.log(`✅ Added ${column.name} column to teams table`);
+          }
+        }
+      } else {
+        for (const column of teamBioColumns) {
+          const hasColumn = teamsColumnsResult.rows.some(row => row.name === column.name);
+          if (!hasColumn) {
+            try {
+              await this.query(`ALTER TABLE teams ADD COLUMN ${column.name} ${column.type}`);
+              console.log(`✅ Added ${column.name} column to teams table`);
+            } catch (err) {
+              if (!err.message.includes('duplicate column')) throw err;
+            }
           }
         }
       }

@@ -234,6 +234,11 @@ const AppRoutes = () => {
             <TeamProfilePage />
           </ProtectedRoute>
         } />
+        <Route path="/team-profile/:teamId" element={
+          <ProtectedRoute>
+            <TeamProfilePage />
+          </ProtectedRoute>
+        } />
         <Route path="/children" element={
           <ProtectedRoute>
             <ChildrenManagementPage />
