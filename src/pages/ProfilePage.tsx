@@ -510,20 +510,20 @@ const ProfilePage: React.FC = () => {
               />
             </Box>
             <List dense>
-              {completionChecklist.map((item) => (
-                <ListItem key={item.field} disableGutters sx={{ py: 0.5 }}>
+              {completionChecklist.filter(Boolean).map((item, index) => (
+                <ListItem key={item?.field || index} disableGutters sx={{ py: 0.5 }}>
                   <ListItemIcon sx={{ minWidth: 32 }}>
-                    {item.completed ? (
+                    {item?.completed ? (
                       <CheckCircle fontSize="small" color="success" />
                     ) : (
                       <RadioButtonUnchecked fontSize="small" color="disabled" />
                     )}
                   </ListItemIcon>
                   <ListItemText 
-                    primary={item.label} 
+                    primary={item?.label || 'Unknown item'} 
                     primaryTypographyProps={{ 
                       variant: 'body2',
-                      color: item.completed ? 'text.primary' : 'text.secondary'
+                      color: item?.completed ? 'text.primary' : 'text.secondary'
                     }}
                   />
                 </ListItem>
@@ -950,8 +950,8 @@ const ProfilePage: React.FC = () => {
               ) : (
                 <Tooltip 
                   title={`Missing: ${getProfileCompletion().checklist
-                    .filter(item => !item.completed)
-                    .map(item => item.label)
+                    .filter(item => item && !item.completed)
+                    .map(item => item?.label || 'Unknown item')
                     .join(', ')}`}
                   arrow
                 >
@@ -1014,10 +1014,10 @@ const ProfilePage: React.FC = () => {
               Required Fields:
             </Typography>
             <List sx={{ p: 0 }}>
-              {getProfileCompletion().checklist.map((item) => (
-                <ListItem key={item.field} sx={{ p: 0, mb: 1 }}>
+              {getProfileCompletion().checklist.filter(Boolean).map((item, index) => (
+                <ListItem key={item?.field || index} sx={{ p: 0, mb: 1 }}>
                   <ListItemIcon sx={{ minWidth: 40 }}>
-                    {item.completed ? (
+                    {item?.completed ? (
                       <CheckCircle sx={{ color: 'success.main' }} />
                     ) : (
                       <RadioButtonUnchecked sx={{ color: 'warning.main' }} />
@@ -1026,11 +1026,11 @@ const ProfilePage: React.FC = () => {
                   <Typography 
                     variant="body2"
                     sx={{ 
-                      textDecoration: item.completed ? 'line-through' : 'none',
-                      color: item.completed ? 'text.secondary' : 'text.primary'
+                      textDecoration: item?.completed ? 'line-through' : 'none',
+                      color: item?.completed ? 'text.secondary' : 'text.primary'
                     }}
                   >
-                    {item.label}
+                    {item?.label || 'Unknown item'}
                   </Typography>
                 </ListItem>
               ))}

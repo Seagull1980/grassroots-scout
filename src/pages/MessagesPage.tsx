@@ -622,14 +622,17 @@ const MessagesPage: React.FC = () => {
                       </Box>
                       {/* Quick action buttons for next stages */}
                       <Box display="flex" gap={1} flexWrap="wrap">
-                        {getNextStages(selectedConversation.matchProgressStage).slice(0, 2).map((option) => (
+                        {getNextStages(selectedConversation.matchProgressStage)
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((option) => (
                           <Button
                             key={option.stage}
                             size="small"
                             variant="outlined"
                             onClick={() => updateMatchStage(selectedConversation.id, option.stage)}
                           >
-                            {option.label}
+                            {option?.label || 'Next step'}
                           </Button>
                         ))}
                       </Box>
@@ -795,15 +798,15 @@ const MessagesPage: React.FC = () => {
                 💡 Quick templates ({getMessageTemplates().length} available):
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {getMessageTemplates().map((template) => (
+                {getMessageTemplates().filter(Boolean).map((template) => (
                   <Button
-                    key={template.label}
+                    key={template?.label || 'template'}
                     size="small"
                     variant="outlined"
                     onClick={() => insertTemplate(template.text)}
                     sx={{ textTransform: 'none' }}
                   >
-                    {template.label}
+                    {template?.label || 'Template'}
                   </Button>
                 ))}
               </Box>
@@ -851,15 +854,15 @@ const MessagesPage: React.FC = () => {
                 💡 Quick templates ({getMessageTemplates().length} available):
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {getMessageTemplates().map((template) => (
+                {getMessageTemplates().filter(Boolean).map((template) => (
                   <Button
-                    key={template.label}
+                    key={template?.label || 'template'}
                     size="small"
                     variant="outlined"
                     onClick={() => insertTemplate(template.text)}
                     sx={{ textTransform: 'none' }}
                   >
-                    {template.label}
+                    {template?.label || 'Template'}
                   </Button>
                 ))}
               </Box>

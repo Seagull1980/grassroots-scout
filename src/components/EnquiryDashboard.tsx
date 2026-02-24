@@ -298,15 +298,15 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
             Quick Templates
           </Typography>
           <Grid container spacing={1}>
-            {QUICK_RESPONSES.map((template) => (
-              <Grid item xs={12} sm={6} key={template.label}>
+            {QUICK_RESPONSES.filter(Boolean).map((template, index) => (
+              <Grid item xs={12} sm={6} key={template?.label || index}>
                 <Button
                   fullWidth
                   variant="outlined"
                   size="small"
                   onClick={() => handleQuickReply(template)}
                 >
-                  {template.label}
+                  {template?.label || 'Template'}
                 </Button>
               </Grid>
             ))}

@@ -124,8 +124,8 @@ const QuickUserSwitcher = ({
 
       {/* User Type Buttons */}
       <Grid container spacing={compact ? 1 : 2}>
-        {userTypes.map((userType) => (
-          <Grid item xs={compact ? 4 : 12} sm={compact ? 4 : 6} md={compact ? 4 : 4} key={userType.type}>
+        {userTypes.filter(Boolean).map((userType, index) => (
+          <Grid item xs={compact ? 4 : 12} sm={compact ? 4 : 6} md={compact ? 4 : 4} key={userType?.type || index}>
             <Button
               variant={isImpersonating && user?.role === userType.type ? "contained" : "outlined"}
               fullWidth
@@ -155,7 +155,7 @@ const QuickUserSwitcher = ({
             >
               <Box sx={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', gap: compact ? 0.5 : 1 }}>
                 <Typography variant={compact ? "caption" : "button"} sx={{ fontWeight: 600 }}>
-                  {userType.label}
+                  {userType?.label || 'Unknown'}
                 </Typography>
                 {!compact && (
                   <Typography variant="caption" color="inherit" sx={{ opacity: 0.8 }}>

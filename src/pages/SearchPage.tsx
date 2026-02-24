@@ -1492,9 +1492,9 @@ const SearchPage: React.FC = () => {
                 label="Sort By"
                 onChange={(e) => setSortBy(e.target.value)}
               >
-                {sortOptions.map((option) => (
+                {sortOptions.filter(Boolean).map((option) => (
                   <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                    {option?.label || option.value}
                   </MenuItem>
                 ))}
               </Select>
@@ -2004,14 +2004,14 @@ const SearchPage: React.FC = () => {
                   Suggested next steps
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {emptyStateSuggestions.map((suggestion) => (
+                  {emptyStateSuggestions.filter(Boolean).map((suggestion) => (
                     <Button
-                      key={suggestion.label}
+                      key={suggestion?.label || 'suggestion'}
                       size="small"
                       variant="outlined"
                       onClick={suggestion.action}
                     >
-                      {suggestion.label}
+                      {suggestion?.label || 'Suggestion'}
                     </Button>
                   ))}
                 </Box>

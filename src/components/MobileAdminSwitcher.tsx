@@ -249,7 +249,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                 Current Testing Mode:
               </Typography>
               <Chip
-                label={`${currentUserType.label} View`}
+                label={`${currentUserType?.label || 'Unknown'} View`}
                 color={currentUserType.color as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
                 icon={isImpersonating ? <SwapIcon /> : <AdminIcon />}
                 sx={{ mb: 2, fontWeight: 500 }}
@@ -446,7 +446,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
               Current Testing Mode:
             </Typography>
             <Chip
-              label={`${currentUserType.label} View`}
+              label={`${currentUserType?.label || 'Unknown'} View`}
               color={currentUserType.color as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
               icon={isImpersonating ? <SwapIcon /> : <AdminIcon />}
               sx={{ mb: 2, fontWeight: 500 }}
