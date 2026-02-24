@@ -87,16 +87,18 @@ class AnalyticsTrackingService {
   public track(event: string, properties: Record<string, any> = {}): void {
     if (!this.isTrackingEnabled) return;
 
+    const safeProperties = properties || {};
+
     const analyticsEvent: AnalyticsEvent = {
       event,
-      category: properties.category || 'General',
-      action: properties.action || event,
-      label: properties.label,
-      value: properties.value,
+      category: safeProperties.category || 'General',
+      action: safeProperties.action || event,
+      label: safeProperties.label,
+      value: safeProperties.value,
       userId: this.userId,
       sessionId: this.sessionId,
       timestamp: Date.now(),
-      metadata: { ...properties, userAgent: navigator.userAgent, url: window.location.href }
+      metadata: { ...safeProperties, userAgent: navigator.userAgent, url: window.location.href }
     };
 
     this.events.push(analyticsEvent);
@@ -188,11 +190,12 @@ class AnalyticsTrackingService {
 
   // Business metrics tracking
   public trackBusinessEvent(eventType: string, data: Record<string, any>): void {
+    const safeData = data || {};
     this.track('business_event', {
       category: 'Business',
       action: eventType,
-      label: data.label || eventType,
-      ...data
+      label: safeData.label || eventType,
+      ...safeData
     });
   }
 
