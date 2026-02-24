@@ -205,14 +205,14 @@ const Navbar: React.FC = () => {
     { path: '/about', label: 'About Us', icon: <Info /> },
   ];
 
-  const isSecondaryActive = secondaryNavItems.some((item) => isActive(item.path));
+  const isSecondaryActive = secondaryNavItems.filter(item => item != null && item.path).some((item) => isActive(item.path));
 
   // All navigation items for mobile drawer
-  const navigationItems = [...primaryNavItems, ...secondaryNavItems];
+  const navigationItems = [...primaryNavItems, ...secondaryNavItems].filter(item => item != null);
 
   // Get current bottom nav value
   const getBottomNavValue = () => {
-    const activeItem = coreNavItems.find(item => isActive(item.path));
+    const activeItem = coreNavItems.filter(item => item != null && item.path).find(item => isActive(item.path));
     return activeItem ? coreNavItems.indexOf(activeItem) : false;
   };
 
@@ -231,7 +231,7 @@ const Navbar: React.FC = () => {
       </Box>
 
       <List sx={{ pt: 1 }}>
-        {navigationItems.map((item) => (
+        {navigationItems.filter(item => item != null && item.path && item.label).map((item) => (
           <ListItem
             key={item.path}
             onClick={() => {
@@ -294,7 +294,7 @@ const Navbar: React.FC = () => {
 
             {/* Primary Navigation */}
             <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
-              {primaryNavItems.map((item) => (
+              {primaryNavItems.filter(item => item != null && item.path && item.label).map((item) => (
                 <Button
                   key={item.path}
                   startIcon={item.icon}
@@ -352,7 +352,7 @@ const Navbar: React.FC = () => {
                       }
                     }}
                   >
-                    {secondaryNavItems.map((item: any) => (
+                    {secondaryNavItems.filter(item => item != null && item.path && item.label).map((item: any) => (
                       <MenuItem
                         key={item.path}
                         onClick={() => {
@@ -465,7 +465,7 @@ const Navbar: React.FC = () => {
             onChange={handleBottomNavChange}
             showLabels
           >
-            {coreNavItems.map((item) => (
+            {coreNavItems.filter(item => item != null && item.path && item.label).map((item) => (
               <BottomNavigationAction
                 key={item.path}
                 label={item.label}

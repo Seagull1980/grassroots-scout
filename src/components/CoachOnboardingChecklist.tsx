@@ -163,9 +163,9 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
         <Collapse in={expanded}>
           <Box sx={{ px: 3, pb: 3, borderTop: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
             <List sx={{ p: 0 }}>
-              {items.map((item, index) => (
+              {items.filter(item => item != null).map((item, index) => (
                 <ListItem
-                  key={item.id}
+                  key={item?.id || index}
                   sx={{
                     py: 1.5,
                     px: 0,
@@ -174,7 +174,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                   }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: 'white' }}>
-                    {item.completed ? (
+                    {item?.completed ? (
                       <CheckCircleIcon sx={{ color: '#4caf50' }} />
                     ) : (
                       <RadioButtonUncheckedIcon />
@@ -186,19 +186,19 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                         variant="body2"
                         sx={{
                           fontWeight: 500,
-                          textDecoration: item.completed ? 'line-through' : 'none',
+                          textDecoration: item?.completed ? 'line-through' : 'none',
                         }}
                       >
-                        {item.label}
+                        {item?.label || 'Unknown item'}
                       </Typography>
                     }
                     secondary={
                       <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                        {item.description}
+                        {item?.description || ''}
                       </Typography>
                     }
                   />
-                  {!item.completed && (
+                  {!item?.completed && item?.action && (
                     <Button
                       size="small"
                       variant="outlined"
@@ -212,7 +212,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                       endIcon={<ArrowForwardIcon />}
                       onClick={() => handleActionClick(item.action)}
                     >
-                      {item.actionLabel}
+                      {item?.actionLabel || 'Go'}
                     </Button>
                   )}
                 </ListItem>
