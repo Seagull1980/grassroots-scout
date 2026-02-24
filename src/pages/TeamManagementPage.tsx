@@ -919,6 +919,17 @@ const TeamManagement: React.FC = () => {
           </List>
         </DialogContent>
         <DialogActions>
+          {selectedTeam?.permissions.canEditTeam && (
+            <Button 
+              onClick={() => {
+                handleEditTeam(selectedTeam);
+                setSelectedTeam(null);
+              }}
+              startIcon={<EditIcon />}
+            >
+              Edit Team
+            </Button>
+          )}
           <Button onClick={() => setSelectedTeam(null)}>Close</Button>
         </DialogActions>
       </Dialog>
