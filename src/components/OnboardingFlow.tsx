@@ -1113,7 +1113,7 @@ export const OnboardingFlow: React.FC = () => {
 
         {/* Current Step */}
         <Box sx={{ minHeight: 400 }}>
-          {steps[currentStep].component}
+          {steps && steps.length > 0 && currentStep >= 0 && currentStep < steps.length && steps[currentStep] ? steps[currentStep].component : <Typography>Loading...</Typography>}
         </Box>
 
         {/* Navigation */}
