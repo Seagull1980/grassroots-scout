@@ -376,15 +376,25 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <Navbar />
+              <ErrorBoundary>
+                <Navbar />
+              </ErrorBoundary>
               <StorageNotification />
-              <AuthDebugger />
-              <OnboardingFlow />
-              <FeedbackButton />
-              <MobileAdminSwitcher 
-                useSpeedDial={true}
-                position={{ bottom: 100, right: 16 }}
-              />
+              <ErrorBoundary>
+                <AuthDebugger />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <OnboardingFlow />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <FeedbackButton />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <MobileAdminSwitcher 
+                  useSpeedDial={true}
+                  position={{ bottom: 100, right: 16 }}
+                />
+              </ErrorBoundary>
               <AppRoutes />
             </Router>
           </NotificationProvider>

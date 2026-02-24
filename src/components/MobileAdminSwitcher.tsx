@@ -57,7 +57,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
   useSpeedDial = true,
   showOnLoginPage = false,
 }) => {
-  // Declare all hooks first
+  // Declare all hooks first - hooks must be called unconditionally
   const theme = useTheme();
   const { user, impersonateUser, stopImpersonation, isImpersonating } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);

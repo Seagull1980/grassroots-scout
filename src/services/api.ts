@@ -155,23 +155,38 @@ const handleAuthError = (error: any) => {
   });
 
   if (error.response?.status === 401) {
+    const currentPath = window.location.pathname;
+    const requestUrl = error.config?.url || '';
+    
+    // Don't redirect for non-critical endpoints (search, autocomplete, etc.)
+    // These endpoints failing shouldn't break the entire app
+    const isNonCriticalEndpoint = 
+      requestUrl.includes('/clubs/search') ||
+      requestUrl.includes('/teams/search') ||
+      requestUrl.includes('/coaches/search') ||
+      requestUrl.includes('/team-profile');
+    
+    if (isNonCriticalEndpoint) {
+      console.warn(`401 on non-critical endpoint ${requestUrl} - not redirecting`);
+      return Promise.reject(error);
+    }
+    
     // Only redirect if we're not already on the login/register pages
     // and we're not in the middle of a login/register request
-    const currentPath = window.location.pathname;
     const isAuthPage = currentPath === '/login' || currentPath === '/register' || 
                        currentPath === '/forgot-password' || currentPath.startsWith('/reset-password') ||
                        currentPath.startsWith('/verify-email');
-    const isAuthRequest = error.config?.url?.includes('/auth/login') || 
-                          error.config?.url?.includes('/auth/register');
+    const isAuthRequest = requestUrl.includes('/auth/login') || 
+                          requestUrl.includes('/auth/register');
     
     if (!isAuthPage && !isAuthRequest) {
-      console.warn('Authentication failed - clearing session and redirecting to login');
+      console.warn('Authentication failed on critical endpoint - clearing session and redirecting to login');
       storage.removeItem('token');
       storage.removeItem('user');
-      // Delay redirect slightly to allow React to finish current render cycle
-      setTimeout(() => {
+      // Use a flag to prevent multiple simultaneous redirects
+      if (!window.location.href.includes('/login')) {
         window.location.href = '/login';
-      }, 100);
+      }
     } else {
       console.log('Auth error on auth page/request - not redirecting');
     }
@@ -179,19 +194,26 @@ const handleAuthError = (error: any) => {
   return Promise.reject(error);
 };
 
-// Add response interceptor that suppresses team-rosters 404 errors completely
+// Add response interceptor that suppresses errors for non-critical endpoints
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Silently reject 404 errors for endpoints not yet implemented
-    // This prevents them from appearing in console and breaking the app
-    if (error.response?.status === 404) {
-      const url = error.config?.url || '';
-      if (url.includes('team-rosters') || url.includes('/clubs/search') || url.includes('/team-profile')) {
-        console.warn(`[API] 404 for ${url} - endpoint may not be deployed yet`)
-        return Promise.reject(error);
-      }
+    const url = error.config?.url || '';
+    const status = error.response?.status;
+    
+    // For non-critical endpoints (search, autocomplete), just reject without redirecting
+    const isNonCriticalEndpoint = 
+      url.includes('team-rosters') || 
+      url.includes('/clubs/search') || 
+      url.includes('/teams/search') ||
+      url.includes('/coaches/search') ||
+      url.includes('/team-profile');
+    
+    if (isNonCriticalEndpoint && (status === 404 || status === 401)) {
+      console.warn(`[API] ${status} for ${url} - endpoint may not be deployed yet or auth expired`);
+      return Promise.reject(error);
     }
+    
     return handleAuthError(error);
   }
 );
@@ -199,14 +221,22 @@ api.interceptors.response.use(
 rosterApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Silently reject 404 errors for endpoints not yet implemented
-    if (error.response?.status === 404) {
-      const url = error.config?.url || '';
-      if (url.includes('team-rosters') || url.includes('/clubs/search') || url.includes('/team-profile')) {
-        console.warn(`[RosterAPI] 404 for ${url} - endpoint may not be deployed yet`);
-        return Promise.reject(error);
-      }
+    const url = error.config?.url || '';
+    const status = error.response?.status;
+    
+    // For non-critical endpoints, just reject without redirecting
+    const isNonCriticalEndpoint = 
+      url.includes('team-rosters') || 
+      url.includes('/clubs/search') || 
+      url.includes('/teams/search') ||
+      url.includes('/coaches/search') ||
+      url.includes('/team-profile');
+    
+    if (isNonCriticalEndpoint && (status === 404 || status === 401)) {
+      console.warn(`[RosterAPI] ${status} for ${url} - endpoint may not be deployed yet or auth expired`);
+      return Promise.reject(error);
     }
+    
     return handleAuthError(error);
   }
 );
