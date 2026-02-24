@@ -111,10 +111,6 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      const showTechnicalDetails =
-        process.env.NODE_ENV === 'development' ||
-        (this.state.error?.message || '').includes("reading 'label'");
-
       // Custom fallback if provided
       if (this.props.fallback) {
         return this.props.fallback;
@@ -169,8 +165,8 @@ class ErrorBoundary extends Component<Props, State> {
               </Button>
             </Box>
 
-            {/* Developer Details (development or label crash debugging) */}
-            {showTechnicalDetails && (
+            {/* Technical Details */}
+            {
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
                   <Typography variant="subtitle2" color="text.secondary">
@@ -205,20 +201,18 @@ class ErrorBoundary extends Component<Props, State> {
                       </Box>
                     )}
 
-                    {this.state.errorInfo?.componentStack && (
-                      <Box>
-                        <Typography variant="subtitle2" color="error.main">
-                          Component Stack:
-                        </Typography>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', bgcolor: 'grey.100', p: 1, borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
-                          {this.state.errorInfo.componentStack}
-                        </Typography>
-                      </Box>
-                    )}
+                    <Box>
+                      <Typography variant="subtitle2" color="error.main">
+                        Component Stack:
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', bgcolor: 'grey.100', p: 1, borderRadius: 1, maxHeight: 200, overflow: 'auto' }}>
+                        {this.state.errorInfo?.componentStack || 'Component stack not available.'}
+                      </Typography>
+                    </Box>
                   </Box>
                 </AccordionDetails>
               </Accordion>
-            )}
+            }
           </Paper>
 
           <ContactFormModal
