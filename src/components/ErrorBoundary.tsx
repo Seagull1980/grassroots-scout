@@ -111,6 +111,10 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      const showTechnicalDetails =
+        process.env.NODE_ENV === 'development' ||
+        (this.state.error?.message || '').includes("reading 'label'");
+
       // Custom fallback if provided
       if (this.props.fallback) {
         return this.props.fallback;
@@ -165,12 +169,12 @@ class ErrorBoundary extends Component<Props, State> {
               </Button>
             </Box>
 
-            {/* Developer Details (only in development) */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Developer Details (development or label crash debugging) */}
+            {showTechnicalDetails && (
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMore />}>
                   <Typography variant="subtitle2" color="text.secondary">
-                    Technical Details (Development Only)
+                    Technical Details
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
