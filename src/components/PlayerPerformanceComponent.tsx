@@ -413,14 +413,14 @@ const PlayerPerformanceComponent: React.FC<PlayerPerformanceProps> = ({
               responsive: true,
               maintainAspectRatio: false,
               scales: {
-                [
-                  { type: 'season', label: 'Season' },
-                  { type: 'month', label: 'This Month' },
-                  { type: 'last_10_matches', label: 'Last 10 Matches' }
-                ].filter(Boolean).map((period) => (
-              }
+                r: {
+                  angleLines: { display: true },
+                  suggestedMin: 0,
+                  suggestedMax: 10,
+                },
+              },
             }}
-                    label={period?.label || 'Period'}
+          />
         </Box>
       </Paper>
     );
