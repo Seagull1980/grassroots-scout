@@ -168,8 +168,10 @@ const handleAuthError = (error: any) => {
       console.warn('Authentication failed - clearing session and redirecting to login');
       storage.removeItem('token');
       storage.removeItem('user');
-      // Only redirect if not already on an auth page
-      window.location.href = '/login';
+      // Delay redirect slightly to allow React to finish current render cycle
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 100);
     } else {
       console.log('Auth error on auth page/request - not redirecting');
     }
@@ -181,10 +183,14 @@ const handleAuthError = (error: any) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Silently reject 404 errors for team-rosters (feature not yet implemented)
-    // This prevents them from appearing in console
-    if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
-      return Promise.reject(error);
+    // Silently reject 404 errors for endpoints not yet implemented
+    // This prevents them from appearing in console and breaking the app
+    if (error.response?.status === 404) {
+      const url = error.config?.url || '';
+      if (url.includes('team-rosters') || url.includes('/clubs/search') || url.includes('/team-profile')) {
+        console.warn(`[API] 404 for ${url} - endpoint may not be deployed yet`)
+        return Promise.reject(error);
+      }
     }
     return handleAuthError(error);
   }
@@ -193,8 +199,13 @@ api.interceptors.response.use(
 rosterApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 404 && error.config?.url?.includes('team-rosters')) {
-      return Promise.reject(error);
+    // Silently reject 404 errors for endpoints not yet implemented
+    if (error.response?.status === 404) {
+      const url = error.config?.url || '';
+      if (url.includes('team-rosters') || url.includes('/clubs/search') || url.includes('/team-profile')) {
+        console.warn(`[RosterAPI] 404 for ${url} - endpoint may not be deployed yet`);
+        return Promise.reject(error);
+      }
     }
     return handleAuthError(error);
   }

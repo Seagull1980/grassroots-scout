@@ -25,6 +25,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
+    // Log more details to help debug the issue
+    console.error('[useAuth] Hook called outside AuthProvider!', {
+      location: window.location.href,
+      hasAuthProvider: !!window.document.querySelector('[data-auth-provider]'),
+      stackTrace: new Error().stack
+    });
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

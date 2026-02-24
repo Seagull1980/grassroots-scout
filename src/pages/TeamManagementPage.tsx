@@ -218,6 +218,11 @@ const TeamManagement: React.FC = () => {
       setClubs(response.data.clubs || []);
     } catch (error: any) {
       console.error('Error searching clubs:', error);
+      // Don't crash the UI if clubs search fails - just show empty results
+      // This can happen if the backend endpoint isn't deployed yet
+      if (error.response?.status === 404) {
+        console.warn('Clubs search endpoint not available - feature not deployed yet');
+      }
       setClubs([]);
     } finally {
       setLoadingClubs(false);
