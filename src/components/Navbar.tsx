@@ -217,8 +217,9 @@ const Navbar: React.FC = () => {
   };
 
   const handleBottomNavChange = (_event: React.SyntheticEvent, newValue: number) => {
-    if (newValue >= 0 && newValue < coreNavItems.length) {
-      safeNavigate(coreNavItems[newValue].path);
+    const filteredItems = coreNavItems?.filter(item => item != null && item.path) || [];
+    if (newValue >= 0 && newValue < filteredItems.length && filteredItems[newValue]?.path) {
+      safeNavigate(filteredItems[newValue].path);
     }
   };
 
