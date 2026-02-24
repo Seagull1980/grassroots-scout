@@ -47,6 +47,9 @@ interface Team {
   clubName?: string;
   ageGroup?: string;
   league?: string;
+  location?: string;
+  locationData?: Location | string | null;
+  playingTimePolicy?: string;
   userRole: string;
   permissions: {
     canPostVacancies: boolean;
@@ -375,15 +378,38 @@ const PostAdvertPage: React.FC = () => {
           }
         }
 
+        if (!formData.location && selectedTeam.location) {
+          const trimmedLocation = selectedTeam.location.trim();
+          if (trimmedLocation) {
+            updates.location = trimmedLocation;
+          }
+        }
+
+        if (!formData.playingTimePolicy && selectedTeam.playingTimePolicy) {
+          updates.playingTimePolicy = selectedTeam.playingTimePolicy;
+        }
+
         if (Object.keys(updates).length > 0) {
           setFormData(prev => ({
             ...prev,
             ...updates
           }));
         }
+
+        if (!locationData && selectedTeam.locationData) {
+          if (typeof selectedTeam.locationData === 'string') {
+            try {
+              setLocationData(JSON.parse(selectedTeam.locationData));
+            } catch {
+              // Ignore invalid JSON
+            }
+          } else {
+            setLocationData(selectedTeam.locationData);
+          }
+        }
       }
     }
-  }, [formData.teamId, teams]);
+  }, [formData.teamId, teams, formData.location, formData.playingTimePolicy, locationData]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {

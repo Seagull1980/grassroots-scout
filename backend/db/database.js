@@ -304,6 +304,7 @@ class Database {
         ageGroup VARCHAR NOT NULL,
         league VARCHAR NOT NULL,
         teamGender VARCHAR NOT NULL DEFAULT 'Mixed',
+        playingTimePolicy VARCHAR,
         location VARCHAR,
         locationData JSONB,
         contactEmail VARCHAR,
@@ -995,7 +996,32 @@ class Database {
         }
       }
 
-      // Migration 3: Add betaAccess column to users table if it doesn't exist
+      // Migration 3: Add playingTimePolicy column to teams table if it doesn't exist
+      const checkTeamsColumns = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'teams'`
+        : `PRAGMA table_info(teams)`;
+
+      const teamsColumnsResult = await this.query(checkTeamsColumns);
+
+      if (this.dbType === 'postgresql') {
+        const columnNames = teamsColumnsResult.rows.map(row => row.column_name);
+        if (!columnNames.includes('playingtimepolicy')) {
+          await this.query('ALTER TABLE teams ADD COLUMN playingTimePolicy VARCHAR');
+          console.log('✅ Added playingTimePolicy column to teams table');
+        }
+      } else {
+        const hasPlayingTimePolicy = teamsColumnsResult.rows.some(row => row.name === 'playingTimePolicy');
+        if (!hasPlayingTimePolicy) {
+          try {
+            await this.query('ALTER TABLE teams ADD COLUMN playingTimePolicy VARCHAR');
+            console.log('✅ Added playingTimePolicy column to teams table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      // Migration 4: Add betaAccess column to users table if it doesn't exist
       console.log('🔍 Checking if betaAccess column exists...');
       const checkBetaAccessColumn = this.dbType === 'postgresql' 
         ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'betaaccess'`

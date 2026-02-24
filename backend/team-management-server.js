@@ -54,13 +54,13 @@ app.post('/api/teams', authenticateToken, [
   }
 
   try {
-    const { teamName, clubName, ageGroup, league, teamGender, location, locationData, contactEmail, website, socialMedia } = req.body;
+    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia } = req.body;
 
     // Create the team
     const teamResult = await db.query(`
-      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, location, locationData, contactEmail, website, socialMedia)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null]);
+      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', playingTimePolicy || null, location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null]);
 
     const teamId = teamResult.lastID || teamResult.rows[0].id;
 
@@ -178,15 +178,15 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this team' });
     }
 
-    const { teamName, clubName, ageGroup, league, teamGender, location, locationData, contactEmail, website, socialMedia } = req.body;
+    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia } = req.body;
 
     await db.query(`
       UPDATE teams SET
-        teamName = ?, clubName = ?, ageGroup = ?, league = ?, teamGender = ?,
+        teamName = ?, clubName = ?, ageGroup = ?, league = ?, teamGender = ?, playingTimePolicy = ?,
         location = ?, locationData = ?, contactEmail = ?, website = ?, socialMedia = ?,
         updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [teamName, clubName, ageGroup, league, teamGender, location, locationData ? JSON.stringify(locationData) : null, contactEmail, website, socialMedia ? JSON.stringify(socialMedia) : null, teamId]);
+    `, [teamName, clubName, ageGroup, league, teamGender, playingTimePolicy || null, location, locationData ? JSON.stringify(locationData) : null, contactEmail, website, socialMedia ? JSON.stringify(socialMedia) : null, teamId]);
 
     res.json({ message: 'Team updated successfully' });
   } catch (error) {

@@ -41,6 +41,8 @@ interface Team {
   ageGroup: string;
   league: string;
   teamGender: string;
+  playingTimePolicy?: string;
+  location?: string;
   userRole: string;
   permissions: {
     canPostVacancies: boolean;
@@ -89,7 +91,9 @@ const TeamManagement: React.FC = () => {
     clubName: '',
     ageGroup: '',
     league: '',
-    teamGender: 'Mixed'
+    teamGender: 'Mixed',
+    location: '',
+    playingTimePolicy: ''
   });
 
   const [inviteForm, setInviteForm] = useState({
@@ -148,7 +152,9 @@ const TeamManagement: React.FC = () => {
         clubName: '',
         ageGroup: '',
         league: '',
-        teamGender: 'Mixed'
+        teamGender: 'Mixed',
+        location: '',
+        playingTimePolicy: ''
       });
       loadTeams();
     } catch (error: any) {
@@ -497,6 +503,28 @@ const TeamManagement: React.FC = () => {
               Request League
             </Button>
           </Box>
+          <TextField
+            fullWidth
+            label="Location"
+            value={createForm.location}
+            onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
+            <InputLabel>Playing Time Policy</InputLabel>
+            <Select
+              label="Playing Time Policy"
+              value={createForm.playingTimePolicy}
+              onChange={(e) => setCreateForm({ ...createForm, playingTimePolicy: e.target.value })}
+              MenuProps={{
+                sx: { zIndex: 1301 }
+              }}
+            >
+              <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
+              <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
+              <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
+            </Select>
+          </FormControl>
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
             <InputLabel>Team Gender</InputLabel>
             <Select
