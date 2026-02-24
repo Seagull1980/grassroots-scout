@@ -332,30 +332,49 @@ const PostAdvertPage: React.FC = () => {
     }
   }, [formData.positions, user?.role, formData.adminPostType]);
 
+  const normalizeAgeGroup = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const lower = trimmed.toLowerCase();
+
+    if (lower.includes('veteran')) return 'Veterans (35+)';
+    if (lower.includes('adult') || lower.includes('open')) return 'Adult (18+)';
+
+    const underMatch = lower.match(/^(?:u|under)\s*(\d{1,2})$/);
+    if (underMatch) {
+      return `Under ${underMatch[1]}`;
+    }
+
+    return trimmed;
+  };
+
   // Auto-populate age group and league when team is selected
   useEffect(() => {
     if (formData.teamId) {
       const selectedTeam = teams.find(t => t.id.toString() === formData.teamId.toString());
       if (selectedTeam) {
         const updates: Partial<typeof formData> = {};
-        
-        // Auto-populate age group if team has it and it matches our ageGroups list
+
         if (selectedTeam.ageGroup) {
-          const trimmedAgeGroup = selectedTeam.ageGroup.trim();
-          // Verify it exists in our ageGroups list
-          if (ageGroups.includes(trimmedAgeGroup)) {
-            updates.ageGroup = trimmedAgeGroup;
+          const normalizedAgeGroup = normalizeAgeGroup(selectedTeam.ageGroup);
+          if (normalizedAgeGroup) {
+            const matchedAgeGroup = ageGroups.find(
+              (age) => age.toLowerCase() === normalizedAgeGroup.toLowerCase()
+            );
+            if (matchedAgeGroup) {
+              updates.ageGroup = matchedAgeGroup;
+            }
           }
         }
-        
-        // Auto-populate league if team has it
+
         if (selectedTeam.league) {
           const trimmedLeague = selectedTeam.league.trim();
           if (trimmedLeague) {
             updates.league = trimmedLeague;
           }
         }
-        
+
         if (Object.keys(updates).length > 0) {
           setFormData(prev => ({
             ...prev,
