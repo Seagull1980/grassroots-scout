@@ -652,8 +652,10 @@ const TeamManagement: React.FC = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
-            <InputLabel>Team Gender</InputLabel>
+            <InputLabel id="team-gender-label">Team Gender</InputLabel>
             <Select
+              labelId="team-gender-label"
+              id="team-gender"
               label="Team Gender"
               value={createForm.teamGender}
               onChange={(e) => setCreateForm({ ...createForm, teamGender: e.target.value })}
@@ -862,8 +864,10 @@ const TeamManagement: React.FC = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
-            <InputLabel>Team Gender</InputLabel>
+            <InputLabel id="edit-team-gender-label">Team Gender</InputLabel>
             <Select
+              labelId="edit-team-gender-label"
+              id="edit-team-gender"
               label="Team Gender"
               value={editForm.teamGender}
               onChange={(e) => setEditForm({ ...editForm, teamGender: e.target.value })}
