@@ -7616,6 +7616,131 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================
+// TEAM PROFILE ENDPOINTS
+// ============================================
+
+// Get coach's team profile
+app.get('/api/team-profile', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can access team profiles' });
+    }
+
+    const profile = await db.query(`
+      SELECT * FROM team_profiles WHERE coachId = ?
+    `, [req.user.userId]);
+
+    if (!profile.rows || profile.rows.length === 0) {
+      return res.status(404).json({ error: 'Team profile not found' });
+    }
+
+    res.json(profile.rows[0]);
+  } catch (error) {
+    console.error('Error fetching team profile:', error);
+    res.status(500).json({ error: 'Failed to fetch team profile' });
+  }
+});
+
+// Create or update coach's team profile
+app.post('/api/team-profile', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can create team profiles' });
+    }
+
+    const {
+      teamName, clubName, establishedYear, teamDescription, homeGroundName,
+      homeGroundAddress, trainingSchedule, hasRegularSocialEvents, socialEventsDescription,
+      welcomesParentInvolvement, parentInvolvementDetails, attendsSummerTournaments,
+      tournamentDetails, hasPathwayProgram, pathwayDescription, linkedAdultTeam,
+      academyAffiliation, coachingPhilosophy, trainingFocus, developmentAreas,
+      coachingStaff, teamAchievements, specialRequirements, equipmentProvided,
+      seasonalFees, contactPreferences
+    } = req.body;
+
+    // Check if profile already exists
+    const existing = await db.query(`
+      SELECT id FROM team_profiles WHERE coachId = ?
+    `, [req.user.userId]);
+
+    if (existing.rows && existing.rows.length > 0) {
+      // Update existing profile
+      await db.query(`
+        UPDATE team_profiles SET
+          teamName = ?, clubName = ?, establishedYear = ?, teamDescription = ?,
+          homeGroundName = ?, homeGroundAddress = ?, trainingSchedule = ?,
+          hasRegularSocialEvents = ?, socialEventsDescription = ?, welcomesParentInvolvement = ?,
+          parentInvolvementDetails = ?, attendsSummerTournaments = ?, tournamentDetails = ?,
+          hasPathwayProgram = ?, pathwayDescription = ?, linkedAdultTeam = ?,
+          academyAffiliation = ?, coachingPhilosophy = ?, trainingFocus = ?,
+          developmentAreas = ?, coachingStaff = ?, teamAchievements = ?,
+          specialRequirements = ?, equipmentProvided = ?, seasonalFees = ?,
+          contactPreferences = ?, updatedAt = CURRENT_TIMESTAMP
+        WHERE coachId = ?
+      `, [
+        teamName, clubName, establishedYear, teamDescription, homeGroundName,
+        homeGroundAddress, trainingSchedule, hasRegularSocialEvents, socialEventsDescription,
+        welcomesParentInvolvement, parentInvolvementDetails, attendsSummerTournaments,
+        tournamentDetails, hasPathwayProgram, pathwayDescription, linkedAdultTeam,
+        academyAffiliation, coachingPhilosophy, trainingFocus, developmentAreas,
+        coachingStaff, teamAchievements, specialRequirements, equipmentProvided,
+        seasonalFees, contactPreferences, req.user.userId
+      ]);
+
+      res.json({ message: 'Team profile updated successfully' });
+    } else {
+      // Create new profile
+      await db.query(`
+        INSERT INTO team_profiles (
+          coachId, teamName, clubName, establishedYear, teamDescription,
+          homeGroundName, homeGroundAddress, trainingSchedule,
+          hasRegularSocialEvents, socialEventsDescription, welcomesParentInvolvement,
+          parentInvolvementDetails, attendsSummerTournaments, tournamentDetails,
+          hasPathwayProgram, pathwayDescription, linkedAdultTeam,
+          academyAffiliation, coachingPhilosophy, trainingFocus,
+          developmentAreas, coachingStaff, teamAchievements,
+          specialRequirements, equipmentProvided, seasonalFees,
+          contactPreferences
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        req.user.userId, teamName, clubName, establishedYear, teamDescription,
+        homeGroundName, homeGroundAddress, trainingSchedule,
+        hasRegularSocialEvents, socialEventsDescription, welcomesParentInvolvement,
+        parentInvolvementDetails, attendsSummerTournaments, tournamentDetails,
+        hasPathwayProgram, pathwayDescription, linkedAdultTeam,
+        academyAffiliation, coachingPhilosophy, trainingFocus,
+        developmentAreas, coachingStaff, teamAchievements,
+        specialRequirements, equipmentProvided, seasonalFees,
+        contactPreferences
+      ]);
+
+      res.status(201).json({ message: 'Team profile created successfully' });
+    }
+  } catch (error) {
+    console.error('Error saving team profile:', error);
+    res.status(500).json({ error: 'Failed to save team profile' });
+  }
+});
+
+// Delete coach's team profile
+app.delete('/api/team-profile', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can delete team profiles' });
+    }
+
+    await db.query(`
+      DELETE FROM team_profiles WHERE coachId = ?
+    `, [req.user.userId]);
+
+    res.json({ message: 'Team profile deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting team profile:', error);
+    res.status(500).json({ error: 'Failed to delete team profile' });
+  }
+});
+
 // Get team vacancies
 app.get('/api/teams/:teamId/vacancies', authenticateToken, async (req, res) => {
   try {
