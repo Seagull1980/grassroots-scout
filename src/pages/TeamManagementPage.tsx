@@ -29,7 +29,8 @@ import {
   Add as AddIcon,
   Group as GroupIcon,
   PersonAdd as PersonAddIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import api, { API_URL, leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
@@ -84,9 +85,21 @@ const TeamManagement: React.FC = () => {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [clubs, setClubs] = useState<string[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   // Form states
   const [createForm, setCreateForm] = useState({
+    teamName: '',
+    clubName: '',
+    ageGroup: '',
+    league: '',
+    teamGender: 'Mixed',
+    location: '',
+    playingTimePolicy: ''
+  });
+
+  const [editForm, setEditForm] = useState({
     teamName: '',
     clubName: '',
     ageGroup: '',
@@ -248,6 +261,40 @@ const TeamManagement: React.FC = () => {
     loadTeamMembers(team.id);
   };
 
+  const handleEditTeam = (team: Team) => {
+    setEditingTeam(team);
+    setEditForm({
+      teamName: team.teamName || '',
+      clubName: team.clubName || '',
+      ageGroup: team.ageGroup || '',
+      league: team.league || '',
+      teamGender: team.teamGender || 'Mixed',
+      location: team.location || '',
+      playingTimePolicy: team.playingTimePolicy || ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateTeam = async () => {
+    if (!editingTeam) return;
+
+    try {
+      await api.put(`${apiPrefix}/teams/${editingTeam.id}`, editForm);
+      setEditDialogOpen(false);
+      setEditingTeam(null);
+      loadTeams();
+
+      if (selectedTeam?.id === editingTeam.id) {
+        setSelectedTeam({
+          ...selectedTeam,
+          ...editForm
+        });
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.error || 'Failed to update team');
+    }
+  };
+
   const handleRequestLeague = async () => {
     try {
       await api.post(`${apiPrefix}/api/league-requests`, leagueRequest);
@@ -255,7 +302,11 @@ const TeamManagement: React.FC = () => {
       setLeagueRequest({ name: '', region: '', url: '', description: '' });
       alert('League request submitted successfully! Admins will review your request.');
       // Add the requested league to the createForm
-      setCreateForm({ ...createForm, league: leagueRequest.name });
+      if (editDialogOpen) {
+        setEditForm((prev) => ({ ...prev, league: leagueRequest.name }));
+      } else {
+        setCreateForm({ ...createForm, league: leagueRequest.name });
+      }
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to submit league request');
     }
@@ -335,6 +386,17 @@ const TeamManagement: React.FC = () => {
                 >
                   View Team
                 </Button>
+                {team.permissions.canEditTeam && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<EditIcon />}
+                    onClick={() => handleEditTeam(team)}
+                    sx={{ mb: 1 }}
+                  >
+                    Edit Team
+                  </Button>
+                )}
                 {team.permissions.canInviteMembers && (
                   <Button
                     fullWidth
@@ -545,6 +607,189 @@ const TeamManagement: React.FC = () => {
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleCreateTeam} variant="contained">
             Create Team
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Team Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditingTeam(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+        sx={{ zIndex: 1300 }}
+      >
+        <DialogTitle>Edit Team</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Team Name"
+            value={editForm.teamName}
+            onChange={(e) => setEditForm({ ...editForm, teamName: e.target.value })}
+            sx={{ mt: 2 }}
+            required
+          />
+          <Autocomplete
+            fullWidth
+            freeSolo
+            options={clubs}
+            value={editForm.clubName || null}
+            getOptionLabel={(option) => {
+              if (!option) return '';
+              return typeof option === 'string' ? option : '';
+            }}
+            onChange={(_, newValue) => setEditForm({ ...editForm, clubName: newValue || '' })}
+            onInputChange={(_, newValue) => {
+              setEditForm({ ...editForm, clubName: newValue });
+              if (newValue.length >= 1) {
+                searchClubs(newValue);
+              } else {
+                setClubs([]);
+              }
+            }}
+            loading={loadingClubs}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Club Name (Optional)"
+                helperText="Start typing to search existing clubs or create a new one"
+                sx={{ mt: 2 }}
+              />
+            )}
+            noOptionsText="No clubs found - you can create a new one"
+            disableClearable={false}
+            slotProps={{
+              popper: {
+                modifiers: [
+                  {
+                    name: 'flip',
+                    enabled: false,
+                  }
+                ],
+                sx: { zIndex: 1301 }
+              }
+            }}
+          />
+          <Autocomplete
+            fullWidth
+            options={AGE_GROUP_OPTIONS}
+            value={editForm.ageGroup || null}
+            getOptionLabel={(option) => option || ''}
+            onChange={(_, newValue) => setEditForm({ ...editForm, ageGroup: newValue || '' })}
+            renderInput={(params) => (
+              <TextField {...params} label="Age Group" required />
+            )}
+            sx={{ mt: 2 }}
+            disableClearable={false}
+            slotProps={{
+              popper: {
+                modifiers: [
+                  {
+                    name: 'flip',
+                    enabled: false,
+                  }
+                ],
+                sx: { zIndex: 1301 }
+              }
+            }}
+          />
+          <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 1 }}>
+              <Autocomplete
+                fullWidth
+                options={leagues.map(l => l.name)}
+                value={editForm.league || null}
+                getOptionLabel={(option) => option || ''}
+                onChange={(_, newValue) => setEditForm({ ...editForm, league: newValue || '' })}
+                inputValue={editForm.league}
+                onInputChange={(_, newValue) => setEditForm({ ...editForm, league: newValue })}
+                renderInput={(params) => (
+                  <TextField 
+                    {...params} 
+                    label="League" 
+                    required
+                    helperText={loadingLeagues ? 'Loading leagues...' : "Can't find your league? Request it below"}
+                  />
+                )}
+                loading={loadingLeagues}
+                disableClearable={false}
+                filterOptions={(options, state) => {
+                  const filtered = options.filter(option =>
+                    option.toLowerCase().includes(state.inputValue.toLowerCase())
+                  );
+                  return filtered;
+                }}
+                slotProps={{
+                  popper: {
+                    modifiers: [
+                      {
+                        name: 'flip',
+                        enabled: false,
+                      }
+                    ],
+                    sx: { zIndex: 1301 }
+                  }
+                }}
+              />
+            </Box>
+            <Button 
+              variant="outlined" 
+              onClick={() => setRequestLeagueDialogOpen(true)}
+              sx={{ mt: 1 }}
+            >
+              Request League
+            </Button>
+          </Box>
+          <TextField
+            fullWidth
+            label="Location"
+            value={editForm.location}
+            onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+            sx={{ mt: 2 }}
+          />
+          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
+            <InputLabel>Playing Time Policy</InputLabel>
+            <Select
+              label="Playing Time Policy"
+              value={editForm.playingTimePolicy}
+              onChange={(e) => setEditForm({ ...editForm, playingTimePolicy: e.target.value })}
+              MenuProps={{
+                sx: { zIndex: 1301 }
+              }}
+            >
+              <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
+              <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
+              <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
+            <InputLabel>Team Gender</InputLabel>
+            <Select
+              label="Team Gender"
+              value={editForm.teamGender}
+              onChange={(e) => setEditForm({ ...editForm, teamGender: e.target.value })}
+              MenuProps={{
+                sx: { zIndex: 1301 }
+              }}
+            >
+              {TEAM_GENDER_OPTIONS.map(option => (
+                <MenuItem key={option} value={option}>{option}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setEditDialogOpen(false);
+            setEditingTeam(null);
+          }}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpdateTeam} variant="contained" disabled={!editingTeam}>
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>
