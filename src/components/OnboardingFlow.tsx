@@ -217,6 +217,39 @@ export const OnboardingFlow: React.FC = () => {
     }
   };
 
+  // Reset onboarding state when user changes
+  useEffect(() => {
+    if (user) {
+      // Reset internal state to defaults for new user
+      setCurrentStep(0);
+      setUserData({
+        interests: [] as string[],
+        location: '',
+        preferredLeagues: [] as string[],
+        searchRadius: 10,
+        playingTimePolicy: '' as string,
+        dateOfBirth: '',
+        phone: '',
+        bio: '',
+        position: '',
+        experienceLevel: '',
+        notifications: {
+          newVacancies: true,
+          matchUpdates: true,
+          messages: true
+        }
+      });
+      setLocationCoords(null);
+      setTeamData({
+        teamName: '',
+        clubName: '',
+        ageGroup: '',
+        league: '',
+        teamGender: 'Mixed'
+      });
+    }
+  }, [user?.id]);
+
   // Load saved progress from localStorage
   useEffect(() => {
     if (user) {
