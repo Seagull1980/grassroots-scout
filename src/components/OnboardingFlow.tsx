@@ -234,7 +234,7 @@ export const OnboardingFlow: React.FC = () => {
         }
       }
     }
-  }, [user]);
+  }, [user?.id]); // Only depend on user.id to ensure consistent loading
 
   // Save progress to localStorage whenever userData or currentStep changes
   useEffect(() => {

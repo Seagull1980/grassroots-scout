@@ -66,7 +66,13 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isGoogleMapsLoaded) return;
+    // Update the input value when the value prop changes (e.g., when loading from localStorage)
+    if (inputRef.current && value) {
+      inputRef.current.value = value;
+    }
+  }, [value]);
+
+  useEffect(() => {
     
     // Check for appropriate ref based on API type
     if (!useLegacyAPI && !containerRef.current) return;
