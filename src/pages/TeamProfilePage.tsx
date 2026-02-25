@@ -691,12 +691,19 @@ const TeamProfilePage: React.FC = () => {
                   <TextField
                     {...params}
                     label="Club Name"
-                    helperText="Start typing to search existing clubs or create a new one"
+                    helperText="Start typing to search for your club. If found, your team will be linked to it. Otherwise, you can create a new club entry."
                   />
                 )}
                 noOptionsText="No clubs found - you can create a new one"
                 disableClearable={false}
               />
+            </Grid>
+            <Grid item xs={12}>
+              <Alert severity="info">
+                <Typography variant="body2">
+                  <strong>Club Linking:</strong> We'll search our database for existing clubs. If your club is already registered, your team will be linked to it automatically. This helps keep all your club's teams organized in one place.
+                </Typography>
+              </Alert>
             </Grid>
             
             <Grid item xs={12} sm={6}>

@@ -515,7 +515,7 @@ const TeamManagement: React.FC = () => {
               <TextField
                 {...params}
                 label="Club Name (Optional)"
-                helperText="Start typing to search existing clubs or create a new one"
+                helperText="Start typing to search for your club. If found, your team will be linked to it. Otherwise, you can create a new club entry."
                 sx={{ mt: 2 }}
               />
             )}
@@ -533,6 +533,11 @@ const TeamManagement: React.FC = () => {
               }
             }}
           />
+          <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Club Linking:</strong> We'll search our database for existing clubs. If your club is already registered, your team will be linked to it automatically. This helps keep all your club's teams organized in one place.
+            </Typography>
+          </Alert>
           <Autocomplete
             fullWidth
             options={AGE_GROUP_OPTIONS}
@@ -727,7 +732,7 @@ const TeamManagement: React.FC = () => {
               <TextField
                 {...params}
                 label="Club Name (Optional)"
-                helperText="Start typing to search existing clubs or create a new one"
+                helperText="Start typing to search for your club. If found, your team will be linked to it. Otherwise, you can create a new club entry."
                 sx={{ mt: 2 }}
               />
             )}
@@ -745,6 +750,11 @@ const TeamManagement: React.FC = () => {
               }
             }}
           />
+          <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Club Linking:</strong> We'll search our database for existing clubs. If your club is already registered, your team will be linked to it automatically. This helps keep all your club's teams organized in one place.
+            </Typography>
+          </Alert>
           <Autocomplete
             fullWidth
             options={AGE_GROUP_OPTIONS}
