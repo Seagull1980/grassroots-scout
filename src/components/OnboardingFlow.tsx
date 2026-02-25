@@ -207,7 +207,8 @@ export const OnboardingFlow: React.FC = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      setClubs(response.data.clubs || []);
+      const clubResults = Array.isArray(response.data.clubs) ? response.data.clubs : [];
+      setClubs(clubResults.filter(Boolean));
     } catch (error: any) {
       console.error('Error searching clubs:', error);
       setClubs([]);
@@ -696,7 +697,8 @@ export const OnboardingFlow: React.FC = () => {
             <Autocomplete
               fullWidth
               freeSolo
-              options={clubs}
+              options={clubs.filter(Boolean)}
+              getOptionLabel={(option) => option || ''}
               value={teamData.clubName || null}
               onChange={(_, newValue) => setTeamData({ ...teamData, clubName: newValue || '' })}
               onInputChange={(_, newValue) => {

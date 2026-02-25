@@ -215,7 +215,8 @@ const TeamManagement: React.FC = () => {
     try {
       setLoadingClubs(true);
       const response = await api.get(`${apiPrefix}/clubs/search`, { params: { q: searchTerm } });
-      setClubs(response.data.clubs || []);
+      const clubResults = Array.isArray(response.data.clubs) ? response.data.clubs : [];
+      setClubs(clubResults.filter(Boolean));
     } catch (error: any) {
       console.error('Error searching clubs:', error);
       // Don't crash the UI if clubs search fails - just show empty results
@@ -494,7 +495,7 @@ const TeamManagement: React.FC = () => {
           <Autocomplete
             fullWidth
             freeSolo
-            options={clubs}
+            options={clubs.filter(Boolean)}
             value={createForm.clubName || null}
             getOptionLabel={(option) => {
               if (!option) return '';
@@ -706,7 +707,7 @@ const TeamManagement: React.FC = () => {
           <Autocomplete
             fullWidth
             freeSolo
-            options={clubs}
+            options={clubs.filter(Boolean)}
             value={editForm.clubName || null}
             getOptionLabel={(option) => {
               if (!option) return '';

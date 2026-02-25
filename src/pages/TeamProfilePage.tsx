@@ -174,7 +174,8 @@ const TeamProfilePage: React.FC = () => {
         }
       });
       const data = await response.json();
-      setClubs(data.clubs || []);
+      const clubResults = Array.isArray(data.clubs) ? data.clubs : [];
+      setClubs(clubResults.filter(Boolean));
     } catch (error: any) {
       console.error('Error searching clubs:', error);
       setClubs([]);
@@ -673,7 +674,8 @@ const TeamProfilePage: React.FC = () => {
               <Autocomplete
                 fullWidth
                 freeSolo
-                options={clubs}
+                options={clubs.filter(Boolean)}
+                getOptionLabel={(option) => option || ''}
                 value={formData.clubName || null}
                 onChange={(_, newValue) => setFormData({ ...formData, clubName: newValue || '' })}
                 onInputChange={(_, newValue) => {
