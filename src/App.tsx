@@ -45,6 +45,8 @@ import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
 import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
+import AdminClubsPage from './pages/AdminClubsPage';
+import AdminTeamsPage from './pages/AdminTeamsPage';
 
 // Heavy features - lazy loaded
 const {
@@ -178,6 +180,16 @@ const AppRoutes = () => {
         <Route path="/admin/users" element={
           <ProtectedRoute>
             <UserAdminPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/clubs" element={
+          <ProtectedRoute>
+            <AdminClubsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/clubs/:clubName" element={
+          <ProtectedRoute>
+            <AdminTeamsPage />
           </ProtectedRoute>
         } />
         <Route path="/admin/beta-access" element={

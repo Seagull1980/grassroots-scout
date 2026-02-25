@@ -110,6 +110,11 @@ const AdminPage: React.FC = () => {
   const [analytics, setAnalytics] = useState<{ totalUsers: number; totalMatches: number }>({ totalUsers: 0, totalMatches: 0 });
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+  // State for clubs and teams count
+  const [clubsCount, setClubsCount] = useState(0);
+  const [teamsCount, setTeamsCount] = useState(0);
+  const [clubsTeamsLoading, setClubsTeamsLoading] = useState(false);
+
   // All state hooks must be declared BEFORE any conditional returns
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(false);
@@ -185,6 +190,32 @@ const AdminPage: React.FC = () => {
     };
     fetchAnalytics();
   }, []); // Empty dependency - fetch only once on mount, not when user object changes
+
+  // Fetch clubs and teams counts
+  useEffect(() => {
+    const fetchClubsAndTeams = async () => {
+      if (!user || user.role !== 'Admin') return;
+      setClubsTeamsLoading(true);
+      try {
+        // Fetch all teams to count unique clubs and total teams
+        const teamsResponse = await fetch('/api/teams', { 
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } 
+        });
+        if (teamsResponse.ok) {
+          const teamsData = await teamsResponse.json();
+          const teams = teamsData.teams || [];
+          const uniqueClubs = new Set(teams.map((t: any) => t.clubName).filter(Boolean));
+          setTeamsCount(teams.length);
+          setClubsCount(uniqueClubs.size);
+        }
+      } catch (err) {
+        console.error('Error fetching clubs and teams:', err);
+      } finally {
+        setClubsTeamsLoading(false);
+      }
+    };
+    fetchClubsAndTeams();
+  }, []); // Empty dependency - fetch only once on mount
 
   // Check user permissions AFTER all hooks are declared
   if (!user) {
@@ -619,6 +650,64 @@ const AdminPage: React.FC = () => {
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
                       Active Matches
+                    </Typography>
+                  </Box>
+                  <DashboardIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} lg={3}>
+            <Card 
+              sx={{ 
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/clubs')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {clubsTeamsLoading ? <CircularProgress size={28} color="inherit" /> : clubsCount}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Total Clubs
+                    </Typography>
+                  </Box>
+                  <GroupIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} lg={3}>
+            <Card 
+              sx={{ 
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/clubs')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h4" fontWeight="bold">
+                      {clubsTeamsLoading ? <CircularProgress size={28} color="inherit" /> : teamsCount}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Total Teams
                     </Typography>
                   </Box>
                   <DashboardIcon sx={{ fontSize: 40, opacity: 0.8 }} />
