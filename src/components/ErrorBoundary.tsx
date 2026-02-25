@@ -225,6 +225,12 @@ URL: ${window.location.href}
 User Agent: ${navigator.userAgent}
 Timestamp: ${new Date().toISOString()}
 
+Component Stack:
+${this.state.errorInfo?.componentStack || 'Component stack not available.'}
+
+Stack Trace:
+${this.state.error?.stack || 'Stack trace not available.'}
+
 Please describe what you were doing when this error occurred:
 `}
             pageUrl={window.location.href}
