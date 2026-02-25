@@ -1349,19 +1349,47 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
     const user = userResult.rows[0];
     
-    // Get user profile data (use quoted names for case sensitivity)
-    const profileResult = await db.query('SELECT * FROM user_profiles WHERE userid = ?', [userId]);
-    const profile = profileResult.rows && profileResult.rows.length > 0 ? profileResult.rows[0] : {};
+    // Get user profile data (database uses camelCase column names)
+    const profileResult = await db.query('SELECT * FROM user_profiles WHERE userId = ?', [userId]);
+    const dbProfile = profileResult.rows && profileResult.rows.length > 0 ? profileResult.rows[0] : {};
     
     console.log('Profile data retrieved:', {
       userId,
-      profileExists: !!profile.userid,
-      profileKeys: Object.keys(profile),
-      dateofbirth: profile.dateofbirth,
-      phone: profile.phone
+      profileExists: !!dbProfile.userId,
+      profileKeys: Object.keys(dbProfile),
+      dateOfBirth: dbProfile.dateOfBirth,
+      phone: dbProfile.phone
     });
     
-    // Return combined profile (map camelCase to lowercase for frontend)
+    // Map database camelCase columns to lowercase for frontend response
+    const profile = {
+      phone: dbProfile.phone,
+      dateofbirth: dbProfile.dateOfBirth,
+      location: dbProfile.location,
+      bio: dbProfile.bio,
+      position: dbProfile.position,
+      preferredfoot: dbProfile.preferredFoot,
+      preferredteamgender: dbProfile.preferredTeamGender,
+      height: dbProfile.height,
+      weight: dbProfile.weight,
+      experiencelevel: dbProfile.experienceLevel,
+      availability: dbProfile.availability,
+      coachinglicense: dbProfile.coachingLicense,
+      yearsexperience: dbProfile.yearsExperience,
+      specializations: dbProfile.specializations,
+      traininglocation: dbProfile.trainingLocation,
+      matchlocation: dbProfile.matchLocation,
+      trainingdays: dbProfile.trainingDays,
+      agegroupscoached: dbProfile.ageGroupsCoached,
+      emergencycontact: dbProfile.emergencyContact,
+      emergencyphone: dbProfile.emergencyPhone,
+      medicalinfo: dbProfile.medicalInfo,
+      profilepicture: dbProfile.profilePicture,
+      isprofilecomplete: dbProfile.isProfileComplete,
+      lastupdated: dbProfile.lastUpdated
+    };
+    
+    // Return combined profile
     res.json({
       profile: {
         id: user.id,
@@ -1370,29 +1398,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         lastname: user.lastname,
         role: user.role,
         createdat: user.createdat,
-        phone: profile.phone,
-        dateofbirth: profile.dateofbirth,
-        location: profile.location,
-        bio: profile.bio,
-        position: profile.position,
-        preferredfoot: profile.preferredfoot,
-        height: profile.height,
-        weight: profile.weight,
-        experiencelevel: profile.experiencelevel,
-        availability: profile.availability,
-        coachinglicense: profile.coachinglicense,
-        yearsexperience: profile.yearsexperience,
-        specializations: profile.specializations,
-        traininglocation: profile.traininglocation,
-        matchlocation: profile.matchlocation,
-        trainingdays: profile.trainingdays,
-        agegroupscoached: profile.agegroupscoached,
-        emergencycontact: profile.emergencycontact,
-        emergencyphone: profile.emergencyphone,
-        medicalinfo: profile.medicalinfo,
-        profilepicture: profile.profilepicture,
-        isprofilecomplete: profile.isprofilecomplete,
-        lastupdated: profile.lastupdated
+        ...profile
       }
     });
   } catch (error) {
@@ -1406,6 +1412,33 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     
+    // Map lowercase keys from frontend to proper camelCase column names in database
+    const columnMapping = {
+      phone: 'phone',
+      dateofbirth: 'dateOfBirth',
+      location: 'location',
+      bio: 'bio',
+      position: 'position',
+      preferredfoot: 'preferredFoot',
+      preferredteamgender: 'preferredTeamGender',
+      height: 'height',
+      weight: 'weight',
+      experiencelevel: 'experienceLevel',
+      availability: 'availability',
+      coachinglicense: 'coachingLicense',
+      yearsexperience: 'yearsExperience',
+      specializations: 'specializations',
+      traininglocation: 'trainingLocation',
+      matchlocation: 'matchLocation',
+      trainingdays: 'trainingDays',
+      agegroupscoached: 'ageGroupsCoached',
+      emergencycontact: 'emergencyContact',
+      emergencyphone: 'emergencyPhone',
+      medicalinfo: 'medicalInfo',
+      profilepicture: 'profilePicture',
+      isprofilecomplete: 'isProfileComplete'
+    };
+    
     console.log('Profile update request body:', {
       userId,
       bodyKeys: Object.keys(req.body),
@@ -1414,100 +1447,78 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       location: req.body.location
     });
     
-    const {
-      phone,
-      dateofbirth,
-      location,
-      bio,
-      position,
-      preferredfoot,
-      height,
-      weight,
-      experiencelevel,
-      availability,
-      coachinglicense,
-      yearsexperience,
-      specializations,
-      traininglocation,
-      matchlocation,
-      trainingdays,
-      agegroupscoached,
-      emergencycontact,
-      emergencyphone,
-      medicalinfo,
-      profilepicture,
-      isprofilecomplete
-    } = req.body;
-
     // Check if profile exists
-    const existingProfile = await db.query('SELECT * FROM user_profiles WHERE userid = ?', [userId]);
+    const existingProfile = await db.query('SELECT * FROM user_profiles WHERE userId = ?', [userId]);
     
     if (!existingProfile.rows || existingProfile.rows.length === 0) {
-      // Create new profile with lowercase column names
-      await db.query(
-        `INSERT INTO user_profiles (
-          userid, phone, dateofbirth, location, bio, position, preferredfoot,
-          height, weight, experiencelevel, availability, coachinglicense,
-          yearsexperience, specializations, traininglocation, matchlocation,
-          trainingdays, agegroupscoached, emergencycontact, emergencyphone,
-          medicalinfo, profilepicture, isprofilecomplete, lastupdated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          userId, phone, dateofbirth, location, bio, position, preferredfoot,
-          height, weight, experiencelevel, JSON.stringify(availability),
-          coachinglicense, yearsexperience, JSON.stringify(specializations),
-          traininglocation, matchlocation, JSON.stringify(trainingdays),
-          JSON.stringify(agegroupscoached), emergencycontact, emergencyphone,
-          medicalinfo, profilepicture, isprofilecomplete
-        ]
-      );
+      // Create new profile
+      const insertCols = [];
+      const insertValues = [];
+      const insertPlaceholders = [];
+
+      insertCols.push('userId');
+      insertValues.push(userId);
+      insertPlaceholders.push('?');
+
+      for (const [key, value] of Object.entries(req.body)) {
+        if (value !== undefined && columnMapping[key]) {
+          const dbColName = columnMapping[key];
+          insertCols.push(dbColName);
+          // Handle JSON fields
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+            insertValues.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+          } else {
+            insertValues.push(value);
+          }
+          insertPlaceholders.push('?');
+        }
+      }
+
+      insertCols.push('lastUpdated');
+      insertPlaceholders.push('NOW()');
+
+      const insertQuery = `INSERT INTO user_profiles (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
+      console.log('INSERT Query:', insertQuery);
+      console.log('INSERT Values:', insertValues);
+      
+      await db.query(insertQuery, insertValues);
     } else {
-      // Update existing profile with lowercase column names
+      // Update existing profile  
       const updates = [];
       const values = [];
 
-      if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
-      if (dateofbirth !== undefined) { updates.push('dateofbirth = ?'); values.push(dateofbirth); }
-      if (location !== undefined) { updates.push('location = ?'); values.push(location); }
-      if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
-      if (position !== undefined) { updates.push('position = ?'); values.push(position); }
-      if (preferredfoot !== undefined) { updates.push('preferredfoot = ?'); values.push(preferredfoot); }
-      if (height !== undefined) { updates.push('height = ?'); values.push(height); }
-      if (weight !== undefined) { updates.push('weight = ?'); values.push(weight); }
-      if (experiencelevel !== undefined) { updates.push('experiencelevel = ?'); values.push(experiencelevel); }
-      if (availability !== undefined) { updates.push('availability = ?'); values.push(JSON.stringify(availability)); }
-      if (coachinglicense !== undefined) { updates.push('coachinglicense = ?'); values.push(coachinglicense); }
-      if (yearsexperience !== undefined) { updates.push('yearsexperience = ?'); values.push(yearsexperience); }
-      if (specializations !== undefined) { updates.push('specializations = ?'); values.push(JSON.stringify(specializations)); }
-      if (traininglocation !== undefined) { updates.push('traininglocation = ?'); values.push(traininglocation); }
-      if (matchlocation !== undefined) { updates.push('matchlocation = ?'); values.push(matchlocation); }
-      if (trainingdays !== undefined) { updates.push('trainingdays = ?'); values.push(JSON.stringify(trainingdays)); }
-      if (agegroupscoached !== undefined) { updates.push('agegroupscoached = ?'); values.push(JSON.stringify(agegroupscoached)); }
-      if (emergencycontact !== undefined) { updates.push('emergencycontact = ?'); values.push(emergencycontact); }
-      if (emergencyphone !== undefined) { updates.push('emergencyphone = ?'); values.push(emergencyphone); }
-      if (medicalinfo !== undefined) { updates.push('medicalinfo = ?'); values.push(medicalinfo); }
-      if (profilepicture !== undefined) { updates.push('profilepicture = ?'); values.push(profilepicture); }
-      if (isprofilecomplete !== undefined) { updates.push('isprofilecomplete = ?'); values.push(isprofilecomplete); }
+      for (const [key, value] of Object.entries(req.body)) {
+        if (value !== undefined && columnMapping[key]) {
+          const dbColName = columnMapping[key];
+          updates.push(`${dbColName} = ?`);
+          
+          // Handle JSON fields
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+            values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+          } else {
+            values.push(value);
+          }
+        }
+      }
       
-      // Always update lastupdated
-      updates.push('lastupdated = NOW()');
+      // Always update lastUpdated
+      updates.push('lastUpdated = NOW()');
 
       if (updates.length === 1) {
         return res.status(400).json({ error: 'No fields to update' });
       }
 
       values.push(userId);
-      const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE userid = ?`;
+      const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE userId = ?`;
 
       console.log('UPDATE Query:', query);
       console.log('UPDATE Values:', values);
-      console.log('dateofbirth being updated:', dateofbirth);
       
       await db.query(query, values);
       
       // Verify what was saved
-      const verifyResult = await db.query('SELECT dateofbirth, location FROM user_profiles WHERE userid = ?', [userId]);
-      console.log('After UPDATE - dateofbirth in DB:', verifyResult.rows[0]);
+      const verifyResult = await db.query('SELECT dateOfBirth, location FROM user_profiles WHERE userId = ?', [userId]);
+      console.log('After UPDATE - data in DB:', verifyResult.rows[0]);
     }
 
     console.log(`✅ Profile updated successfully for user ID: ${userId}`);
