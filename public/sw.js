@@ -84,8 +84,13 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Fallback to cache
-        return caches.match(request);
+        // Fallback to cache or a safe offline response
+        return caches.match(request).then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          return new Response('Offline', { status: 503 });
+        });
       })
   );
 });
