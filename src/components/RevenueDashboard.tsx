@@ -54,7 +54,7 @@ const RevenueDashboard: React.FC = () => {
   const fetchRevenueData = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/analytics/revenue');
+      const response = await api.get('/analytics/revenue');
       setRevenueData(response.data);
     } catch (err: any) {
       console.error('Failed to fetch revenue data:', err);

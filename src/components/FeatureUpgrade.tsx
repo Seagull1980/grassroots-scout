@@ -52,7 +52,7 @@ const FeatureUpgrade: React.FC<FeatureUpgradeProps> = ({
 
   const fetchPricing = async () => {
     try {
-      const response = await api.get('/api/pricing');
+      const response = await api.get('/pricing');
       setPricing(response.data.pricing);
     } catch (err) {
       console.error('Failed to fetch pricing:', err);
@@ -71,7 +71,7 @@ const FeatureUpgrade: React.FC<FeatureUpgradeProps> = ({
 
     try {
       // Create payment intent
-      const paymentResponse = await api.post('/api/payments/create-intent', {
+      const paymentResponse = await api.post('/payments/create-intent', {
         featureType: selectedFeature,
         itemId,
         itemType

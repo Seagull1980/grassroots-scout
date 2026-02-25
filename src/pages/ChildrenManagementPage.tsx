@@ -102,7 +102,7 @@ const ChildrenManagementPage: React.FC = () => {
   const loadChildren = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/children');
+      const response = await api.get('/children');
       setChildren(response.data.children || []);
     } catch (err: any) {
       console.error('Error loading children:', err);
@@ -150,7 +150,7 @@ const ChildrenManagementPage: React.FC = () => {
         return;
       }
 
-      await api.post('/api/children', formData);
+      await api.post('/children', formData);
       
       setSuccess('Child added successfully!');
       setShowAddDialog(false);

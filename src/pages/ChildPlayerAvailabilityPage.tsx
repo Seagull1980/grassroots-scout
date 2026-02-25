@@ -151,8 +151,8 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     try {
       setLoading(true);
       const [childrenResponse, availabilityResponse] = await Promise.all([
-        api.get('/api/children'),
-        api.get('/api/child-player-availability')
+        api.get('/children'),
+        api.get('/child-player-availability')
       ]);
       
       setChildren(childrenResponse.data.children);
@@ -227,7 +227,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
         return;
       }
 
-      await api.post('/api/child-player-availability', formData);
+      await api.post('/child-player-availability', formData);
       
       setSuccess('Player availability created successfully!');
       setShowAddDialog(false);

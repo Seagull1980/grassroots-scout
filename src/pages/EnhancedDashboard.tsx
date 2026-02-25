@@ -67,7 +67,7 @@ const EnhancedDashboard: React.FC = () => {
 
   const trackPageView = async () => {
     try {
-      await api.post('/api/engagement/track', {
+      await api.post('/engagement/track', {
         actionType: 'page_view',
         targetType: 'dashboard',
         metadata: {
@@ -85,7 +85,7 @@ const EnhancedDashboard: React.FC = () => {
       setLoading(true);
       
       // Load recent bookmarks
-      const bookmarksResponse = await api.get('/api/bookmarks?limit=5');
+      const bookmarksResponse = await api.get('/bookmarks?limit=5');
 
       // Transform bookmarks to recent activity format
       const bookmarkActivities = (bookmarksResponse.data?.bookmarks || []).map((bookmark: BookmarkData) => ({
@@ -109,7 +109,7 @@ const EnhancedDashboard: React.FC = () => {
 
   const trackAction = async (actionType: string, metadata: Record<string, unknown> = {}) => {
     try {
-      await api.post('/api/engagement/track', {
+      await api.post('/engagement/track', {
         actionType,
         metadata: {
           ...metadata,

@@ -68,7 +68,7 @@ const TrainingScheduleSetup: React.FC<TrainingScheduleSetupProps> = ({
         return;
       }
 
-      await api.post('/api/team/training-schedule', {
+      await api.post('/team/training-schedule', {
         teamId,
         trainingDays,
         startTime,
