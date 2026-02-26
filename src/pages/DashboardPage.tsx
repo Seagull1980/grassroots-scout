@@ -59,6 +59,10 @@ const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const vacancyUpdates = recentActivity.filter((activity) => activity.type === 'vacancy').length;
+  const playerUpdates = recentActivity.filter((activity) => activity.type === 'player_availability').length;
+  const totalUpdates = recentActivity.length;
+
   useEffect(() => {
     loadDashboardData();
     trackPageView();
@@ -66,7 +70,7 @@ const DashboardPage: React.FC = () => {
 
   const trackPageView = async () => {
     try {
-      await api.post('/engagement/track', {
+      await api.post('/api/engagement/track', {
         actionType: 'page_view',
         targetType: 'dashboard',
         metadata: {
@@ -286,6 +290,69 @@ const DashboardPage: React.FC = () => {
         </Grid>
       </Paper>
 
+      {/* Quick Stats */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {[
+          {
+            label: 'Recent Updates',
+            value: loading ? '—' : totalUpdates,
+            helper: 'Last 7 days',
+            icon: <AssessmentIcon />
+          },
+          {
+            label: 'Team Vacancies',
+            value: loading ? '—' : vacancyUpdates,
+            helper: 'New or updated',
+            icon: <GroupIcon />
+          },
+          {
+            label: 'Player Availability',
+            value: loading ? '—' : playerUpdates,
+            helper: 'New or updated',
+            icon: <PersonIcon />
+          }
+        ].map((stat) => (
+          <Grid item xs={12} sm={4} key={stat.label}>
+            <Card
+              sx={{
+                height: '100%',
+                background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.06) 0%, rgba(255, 107, 53, 0.04) 100%)',
+                border: '1px solid rgba(0, 102, 255, 0.1)',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
+                }
+              }}
+            >
+              <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {stat.label}
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
+                    {stat.value}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {stat.helper}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: 'rgba(0, 102, 255, 0.12)',
+                    color: 'primary.main',
+                    width: 48,
+                    height: 48
+                  }}
+                >
+                  {stat.icon}
+                </Avatar>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
       {/* Coach Onboarding Checklist */}
       {user?.role === 'Coach' && !localStorage.getItem('coach_onboarding_dismissed') && (
         <CoachOnboardingChecklist
@@ -306,9 +373,22 @@ const DashboardPage: React.FC = () => {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" component="h2">
-                  Recent Activity
-                </Typography>
+                <Box>
+                  <Typography variant="h6" component="h2">
+                    Recent Activity
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Updates from your network
+                  </Typography>
+                </Box>
+                {totalUpdates > 0 && (
+                  <Chip
+                    label={`${totalUpdates} new`}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
                 <Button
                   size="small"
                   onClick={() => navigate('/search')}
@@ -348,9 +428,14 @@ const DashboardPage: React.FC = () => {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom>
-                Quick Actions
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" component="h2">
+                  Quick Actions
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Jump into the most common tasks
+                </Typography>
+              </Box>
               
               <Grid container spacing={2}>
                 {/* Role-specific actions */}
