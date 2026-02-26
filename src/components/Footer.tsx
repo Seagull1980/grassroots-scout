@@ -16,153 +16,229 @@ const Footer: React.FC = () => {
       sx={{
         background: 'linear-gradient(135deg, #1E293B 0%, #334155 100%)',
         color: 'white',
-        py: 6,
-        mt: 8,
+        py: 8,
+        mt: 10,
+        borderTop: '1px solid rgba(0, 102, 255, 0.1)',
       }}
     >
       <Container maxWidth="lg">
-        <Grid container spacing={4} alignItems="center">
+        <Grid container spacing={6} alignItems="flex-start">
           {/* Logo and Brand Section */}
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Box
-                component="img"
-                src="/logo.jpg"
-                alt="The Grassroots Hub Logo"
-                sx={{
-                  height: 50,
-                  width: 50,
-                  borderRadius: '8px',
-                  objectFit: 'cover',
-                  mr: 2,
-                }}
-              />
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-                  The Grassroots Hub
-                </Typography>
-                <Typography
-                  variant="subtitle2"
+          <Grid item xs={12} md={3}>
+            <Box sx={{ pb: 3, borderBottom: { xs: '1px solid rgba(0, 102, 255, 0.1)', md: 'none' } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Box
+                  component="img"
+                  src="/logo.jpg"
+                  alt="The Grassroots Hub Logo"
                   sx={{
-                    color: 'rgba(255,255,255,0.7)',
-                    fontStyle: 'italic',
-                    fontSize: '0.9rem'
+                    height: 50,
+                    width: 50,
+                    borderRadius: '8px',
+                    objectFit: 'cover',
+                    mr: 2,
                   }}
-                >
-                  Connect. Play. Develop
-                </Typography>
+                />
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    The Grassroots Hub
+                  </Typography>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontStyle: 'italic',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    Connect. Play. Develop
+                  </Typography>
+                </Box>
               </Box>
+              <Typography
+                variant="body2"
+                sx={{ color: 'rgba(255,255,255,0.7)', maxWidth: '300px', lineHeight: 1.8 }}
+              >
+                Building bridges between talented players and grassroots football teams across communities.
+              </Typography>
             </Box>
-            <Typography
-              variant="body2"
-              sx={{ color: 'rgba(255,255,255,0.7)', maxWidth: '300px' }}
-            >
-              Building bridges between talented players and grassroots football teams 
-              across communities. Your journey to football excellence starts here.
-            </Typography>
           </Grid>
 
           {/* Quick Links */}
-          <Grid item xs={12} md={4}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Quick Links
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => navigate('/search')}
-                sx={{ 
-                  color: 'rgba(255,255,255,0.7)', 
-                  textAlign: 'left',
-                  textDecoration: 'none',
-                  '&:hover': { color: 'white', textDecoration: 'underline' }
-                }}
-              >
-                Find Teams
-              </Link>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => navigate('/post-advert')}
-                sx={{ 
-                  color: 'rgba(255,255,255,0.7)', 
-                  textAlign: 'left',
-                  textDecoration: 'none',
-                  '&:hover': { color: 'white', textDecoration: 'underline' }
-                }}
-              >
-                Post Vacancy
-              </Link>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => navigate('/success-stories')}
-                sx={{ 
-                  color: 'rgba(255,255,255,0.7)', 
-                  textAlign: 'left',
-                  textDecoration: 'none',
-                  '&:hover': { color: 'white', textDecoration: 'underline' }
-                }}
-              >
-                Success Stories
-              </Link>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => navigate('/about')}
-                sx={{ 
-                  color: 'rgba(255,255,255,0.7)', 
-                  textAlign: 'left',
-                  textDecoration: 'none',
-                  '&:hover': { color: 'white', textDecoration: 'underline' }
-                }}
-              >
-                About Us
-              </Link>
+          <Grid item xs={12} md={3}>
+            <Box sx={{ pb: 3, borderBottom: { xs: '1px solid rgba(0, 102, 255, 0.1)', md: 'none' } }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#0066FF', mb: 2 }}>
+                Quick Links
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/search')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#0066FF', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Find Teams
+                </Link>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/post-advert')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#0066FF', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Post Vacancy
+                </Link>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/success-stories')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#0066FF', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Success Stories
+                </Link>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/about')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#0066FF', transform: 'translateX(4px)' }
+                  }}
+                >
+                  About Us
+                </Link>
+              </Box>
             </Box>
           </Grid>
 
           {/* Contact & Info */}
-          <Grid item xs={12} md={4}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Get In Touch
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ color: 'rgba(255,255,255,0.7)', mb: 2 }}
-            >
-              Have questions or suggestions? We'd love to hear from you and help 
-              you connect with the perfect football opportunity.
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ color: 'rgba(255,255,255,0.7)' }}
-            >
-              📧 thegrassrootsupp@gmail.com
-            </Typography>
+          <Grid item xs={12} md={3}>
+            <Box sx={{ pb: 3, borderBottom: { xs: '1px solid rgba(0, 102, 255, 0.1)', md: 'none' } }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#FF6B35', mb: 2 }}>
+                Get In Touch
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: 'rgba(255,255,255,0.8)', mb: 3, lineHeight: 1.8, fontSize: '0.95rem' }}
+              >
+                Have questions or suggestions? We'd love to hear from you and help you connect with the perfect opportunity.
+              </Typography>
+              <Box sx={{ 
+                backgroundColor: 'rgba(0, 102, 255, 0.1)', 
+                p: 2, 
+                borderRadius: 2,
+                border: '1px solid rgba(0, 102, 255, 0.2)'
+              }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}
+                >
+                  📧 thegrassrootsupp@gmail.com
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+          
+          {/* Resources Section */}
+          <Grid item xs={12} md={3}>
+            <Box sx={{ pb: 3, borderBottom: { xs: '1px solid rgba(0, 102, 255, 0.1)', md: 'none' } }}>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#10B981', mb: 2 }}>
+                Resources
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/about')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#10B981', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Privacy Policy
+                </Link>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/about')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#10B981', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Terms of Service
+                </Link>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => navigate('/about')}
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    fontSize: '0.95rem',
+                    transition: 'all 0.2s ease',
+                    '&:hover': { color: '#10B981', transform: 'translateX(4px)' }
+                  }}
+                >
+                  Contact Support
+                </Link>
+              </Box>
+            </Box>
           </Grid>
         </Grid>
 
         {/* Bottom Section */}
         <Box
           sx={{
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            mt: 4,
-            pt: 3,
+            borderTop: '1px solid rgba(0, 102, 255, 0.1)',
+            mt: 6,
+            pt: 4,
             textAlign: 'center',
           }}
         >
           <Typography
             variant="body2"
-            sx={{ color: 'rgba(255,255,255,0.5)' }}
+            sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}
           >
             © {new Date().getFullYear()} The Grassroots Hub. Connecting communities through football.
           </Typography>
           <Typography
             variant="caption"
             sx={{ 
-              color: 'rgba(255,255,255,0.4)', 
+              color: 'rgba(255,255,255,0.5)', 
               display: 'block', 
               mt: 1,
               fontStyle: 'italic' 

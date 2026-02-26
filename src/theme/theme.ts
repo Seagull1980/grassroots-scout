@@ -112,22 +112,29 @@ const theme = createTheme({
           boxShadow: 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            boxShadow: 'none',
-            transform: 'none',
+            transform: 'translateY(-2px)',
           },
         },
         containedPrimary: {
           backgroundColor: '#0066FF',
           '&:hover': {
             backgroundColor: '#0052CC',
-            boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
+            boxShadow: '0 8px 24px rgba(0, 102, 255, 0.3)',
+          },
+          '&:active': {
+            boxShadow: '0 4px 12px rgba(0, 102, 255, 0.2)',
+            transform: 'translateY(0)',
           },
         },
         containedSecondary: {
           backgroundColor: '#FF6B35',
           '&:hover': {
             backgroundColor: '#E55A24',
-            boxShadow: '0 4px 20px rgba(255, 107, 53, 0.25)',
+            boxShadow: '0 8px 24px rgba(255, 107, 53, 0.3)',
+          },
+          '&:active': {
+            boxShadow: '0 4px 12px rgba(255, 107, 53, 0.2)',
+            transform: 'translateY(0)',
           },
         },
         outlined: {
@@ -148,12 +155,13 @@ const theme = createTheme({
         root: {
           borderRadius: 20,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-          border: 'none',
+          border: '1px solid rgba(0, 102, 255, 0.08)',
           padding: '24px',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-            transform: 'scale(1.02)',
+            border: '1px solid rgba(0, 102, 255, 0.15)',
+            transform: 'translateY(-4px)',
           },
         },
       },
@@ -170,6 +178,7 @@ const theme = createTheme({
         root: {
           borderRadius: 20,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+          border: '1px solid rgba(0, 102, 255, 0.06)',
         },
         elevation1: {
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
