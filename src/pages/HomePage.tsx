@@ -24,7 +24,7 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isMobile } = useResponsive();
-  const { containerSpacing, sectionSpacing } = useResponsiveSpacing();
+  const { containerSpacing } = useResponsiveSpacing();
 
   const [siteStats, setSiteStats] = useState({
     activeTeams: 0,
