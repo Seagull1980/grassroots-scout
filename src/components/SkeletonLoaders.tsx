@@ -162,10 +162,4 @@ export const ListItemSkeleton: React.FC<{ count?: number }> = ({ count = 5 }) =>
     ))}
   </Box>
 );
-          <Skeleton variant="text" width="60%" />
-          <Skeleton variant="text" width="40%" />
-        </Box>
-      </Box>
-    ))}
-  </Box>
-);
+
