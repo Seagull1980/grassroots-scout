@@ -686,6 +686,24 @@ class Database {
         FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE SET NULL
       )`,
 
+      // Child Co-Owners - tracks multiple parents managing the same child
+      `CREATE TABLE IF NOT EXISTS child_co_owners (
+        id SERIAL PRIMARY KEY,
+        childId INTEGER NOT NULL,
+        parentId INTEGER NOT NULL,
+        requestedByParentId INTEGER NOT NULL,
+        status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'declined')),
+        approvedAt TIMESTAMP,
+        declinedAt TIMESTAMP,
+        declineReason TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(childId, parentId),
+        FOREIGN KEY (childId) REFERENCES children (id) ON DELETE CASCADE,
+        FOREIGN KEY (parentId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (requestedByParentId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
       // Analytics tables for admin dashboard
       `CREATE TABLE IF NOT EXISTS page_views (
         id SERIAL PRIMARY KEY,
@@ -1314,6 +1332,63 @@ class Database {
           }
         }
       }
+
+      // Migration: Add tracking for child co-owners (multiple parents)
+      console.log('🔍 Checking if child_co_owners table exists...');
+      try {
+        const childCoOwnersCheck = this.dbType === 'postgresql'
+          ? `SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'child_co_owners')`
+          : `SELECT name FROM sqlite_master WHERE type='table' AND name='child_co_owners'`;
+        
+        const result = await this.query(childCoOwnersCheck);
+        const tableExists = this.dbType === 'postgresql' ? result.rows[0]?.exists : result.rows?.length > 0;
+        
+        if (!tableExists) {
+          console.log('➕ Creating child_co_owners table for multi-parent support...');
+          const createTableSQL = this.dbType === 'postgresql'
+            ? `CREATE TABLE child_co_owners (
+                id SERIAL PRIMARY KEY,
+                childId INTEGER NOT NULL,
+                parentId INTEGER NOT NULL,
+                requestedByParentId INTEGER NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'declined')),
+                approvedAt TIMESTAMP,
+                declinedAt TIMESTAMP,
+                declineReason TEXT,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(childId, parentId),
+                FOREIGN KEY (childId) REFERENCES children (id) ON DELETE CASCADE,
+                FOREIGN KEY (parentId) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (requestedByParentId) REFERENCES users (id) ON DELETE CASCADE
+              )`
+            : `CREATE TABLE child_co_owners (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                childId INTEGER NOT NULL,
+                parentId INTEGER NOT NULL,
+                requestedByParentId INTEGER NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'declined')),
+                approvedAt TIMESTAMP,
+                declinedAt TIMESTAMP,
+                declineReason TEXT,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(childId, parentId),
+                FOREIGN KEY (childId) REFERENCES children (id) ON DELETE CASCADE,
+                FOREIGN KEY (parentId) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (requestedByParentId) REFERENCES users (id) ON DELETE CASCADE
+              )`;
+          
+          await this.query(createTableSQL);
+          console.log('✅ Created child_co_owners table');
+        } else {
+          console.log('✅ child_co_owners table already exists');
+        }
+      } catch (err) {
+        if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
+          console.warn('Warning creating child_co_owners table:', err.message);
+        }
+      }
     } catch (error) {
       // Only log non-duplicate column errors
       if (!error.message.includes('duplicate column')) {
@@ -1354,6 +1429,10 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_coach_children_coachId ON coach_children(coachId)',
       'CREATE INDEX IF NOT EXISTS idx_coach_children_childId ON coach_children(childId)',
       'CREATE INDEX IF NOT EXISTS idx_coach_children_teamId ON coach_children(teamId)',
+      'CREATE INDEX IF NOT EXISTS idx_child_co_owners_childId ON child_co_owners(childId)',
+      'CREATE INDEX IF NOT EXISTS idx_child_co_owners_parentId ON child_co_owners(parentId)',
+      'CREATE INDEX IF NOT EXISTS idx_child_co_owners_status ON child_co_owners(status)',
+      'CREATE INDEX IF NOT EXISTS idx_child_co_owners_requestedByParentId ON child_co_owners(requestedByParentId)',
     ];
 
     for (const index of indexes) {

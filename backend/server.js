@@ -1725,6 +1725,315 @@ app.delete('/api/children/:childId', authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================================================
+// Child Co-Owner Management - Multiple Parents for Same Child
+// ============================================================================
+
+// Request another parent to manage the same child
+app.post('/api/children/:childId/request-co-parent', [
+  authenticateToken,
+  body('otherParentId').isInt().withMessage('Valid parent ID is required'),
+  body('relationshipType').optional().isIn(['mother', 'father', 'step_parent', 'guardian']).withMessage('Valid relationship type is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can manage children' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { childId } = req.params;
+    const { otherParentId } = req.body;
+
+    // Verify this child belongs to the requesting parent
+    const childResult = await db.query(
+      'SELECT * FROM children WHERE id = ? AND parentId = ?',
+      [childId, req.user.userId]
+    );
+
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
+    }
+
+    // Verify the other parent exists and is a Parent/Guardian
+    const otherParentResult = await db.query(
+      'SELECT id, firstName, lastName, email FROM users WHERE id = ? AND role = ?',
+      [otherParentId, 'Parent/Guardian']
+    );
+
+    if (!otherParentResult.rows || otherParentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Other parent not found or is not a Parent/Guardian' });
+    }
+
+    // Check if request already exists
+    const existingRequest = await db.query(
+      'SELECT * FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = ?',
+      [childId, otherParentId, 'pending']
+    );
+
+    if (existingRequest.rows && existingRequest.rows.length > 0) {
+      return res.status(409).json({ error: 'Request already pending for this parent' });
+    }
+
+    // Check if co-owner already approved
+    const approvedRequest = await db.query(
+      'SELECT * FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = ?',
+      [childId, otherParentId, 'approved']
+    );
+
+    if (approvedRequest.rows && approvedRequest.rows.length > 0) {
+      return res.status(409).json({ error: 'This parent already co-owns this child' });
+    }
+
+    // Create the request
+    const result = await db.query(
+      `INSERT INTO child_co_owners (childId, parentId, requestedByParentId, status, createdAt, updatedAt) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [childId, otherParentId, req.user.userId, 'pending', new Date().toISOString(), new Date().toISOString()]
+    );
+
+    res.status(201).json({
+      message: 'Co-parent request sent successfully',
+      request: {
+        id: result.lastID,
+        childId,
+        parentId: otherParentId,
+        requestedByParentId: req.user.userId,
+        status: 'pending',
+        otherParent: {
+          id: otherParentResult.rows[0].id,
+          firstName: otherParentResult.rows[0].firstName,
+          lastName: otherParentResult.rows[0].lastName,
+          email: otherParentResult.rows[0].email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Request co-parent error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get co-owners for a child
+app.get('/api/children/:childId/co-owners', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can view co-owners' });
+    }
+
+    const { childId } = req.params;
+
+    // Verify this child belongs to or is shared with the requesting parent
+    const childResult = await db.query(
+      `SELECT c.*, 
+              (SELECT COUNT(*) FROM child_co_owners WHERE childId = ? AND status = 'approved') as coOwnerCount
+       FROM children c 
+       WHERE c.id = ? AND (c.parentId = ? OR EXISTS(
+         SELECT 1 FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = 'approved'
+       ))`,
+      [childId, childId, req.user.userId, childId, req.user.userId]
+    );
+
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
+    }
+
+    // Get all co-owner requests and approvals
+    const coOwnersResult = await db.query(
+      `SELECT cco.*, u.firstName, u.lastName, u.email
+       FROM child_co_owners cco
+       JOIN users u ON cco.parentId = u.id
+       WHERE cco.childId = ?
+       ORDER BY cco.status DESC, cco.createdAt DESC`,
+      [childId]
+    );
+
+    res.json({
+      coOwners: coOwnersResult.rows || [],
+      childInfo: {
+        id: childResult.rows[0].id,
+        firstName: childResult.rows[0].firstName,
+        lastName: childResult.rows[0].lastName,
+        coOwnerCount: childResult.rows[0].coOwnerCount || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get co-owners error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Approve or decline a co-parent request
+app.post('/api/children/:childId/approve-co-parent/:requestId', [
+  authenticateToken,
+  body('approved').isBoolean().withMessage('Approved field must be boolean'),
+  body('declineReason').optional().isString().withMessage('Decline reason must be a string')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can approve co-parent requests' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { childId, requestId } = req.params;
+    const { approved, declineReason } = req.body;
+
+    // Get the request
+    const requestResult = await db.query(
+      'SELECT * FROM child_co_owners WHERE id = ? AND childId = ?',
+      [requestId, childId]
+    );
+
+    if (!requestResult.rows || requestResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    const request = requestResult.rows[0];
+
+    // Verify the requesting parent owns the child or is an approved co-owner
+    const childResult = await db.query(
+      `SELECT * FROM children WHERE id = ? AND (parentId = ? OR EXISTS(
+        SELECT 1 FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = 'approved'
+      ))`,
+      [childId, req.user.userId, childId, req.user.userId]
+    );
+
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to manage this child' });
+    }
+
+    if (approved) {
+      // Approve the request
+      await db.query(
+        'UPDATE child_co_owners SET status = ?, approvedAt = ?, updatedAt = ? WHERE id = ?',
+        ['approved', new Date().toISOString(), new Date().toISOString(), requestId]
+      );
+
+      res.json({
+        message: 'Co-parent request approved',
+        status: 'approved'
+      });
+    } else {
+      // Decline the request
+      await db.query(
+        'UPDATE child_co_owners SET status = ?, declinedAt = ?, declineReason = ?, updatedAt = ? WHERE id = ?',
+        ['declined', new Date().toISOString(), declineReason || null, new Date().toISOString(), requestId]
+      );
+
+      res.json({
+        message: 'Co-parent request declined',
+        status: 'declined'
+      });
+    }
+  } catch (error) {
+    console.error('Approve co-parent error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove a co-parent
+app.delete('/api/children/:childId/remove-co-parent/:parentId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can manage co-parents' });
+    }
+
+    const { childId, parentId } = req.params;
+
+    // Verify this child belongs to the requesting parent or is shared with them
+    const childResult = await db.query(
+      `SELECT * FROM children WHERE id = ? AND (parentId = ? OR EXISTS(
+        SELECT 1 FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = 'approved'
+      ))`,
+      [childId, req.user.userId, childId, req.user.userId]
+    );
+
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to manage this child' });
+    }
+
+    // Delete the co-owner relationship
+    await db.query(
+      'DELETE FROM child_co_owners WHERE childId = ? AND parentId = ?',
+      [childId, parentId]
+    );
+
+    res.json({ message: 'Co-parent removed successfully' });
+  } catch (error) {
+    console.error('Remove co-parent error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Link to an existing child record instead of creating a duplicate
+app.post('/api/children/link-to-existing', [
+  authenticateToken,
+  body('existingChildId').isInt().withMessage('Valid existing child ID is required'),
+  body('relationshipType').optional().isIn(['mother', 'father', 'step_parent', 'guardian']).withMessage('Valid relationship type is required')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only parents/guardians can link children' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { existingChildId } = req.body;
+
+    // Verify the existing child exists
+    const existingChildResult = await db.query(
+      'SELECT * FROM children WHERE id = ?',
+      [existingChildId]
+    );
+
+    if (!existingChildResult.rows || existingChildResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Existing child not found' });
+    }
+
+    const existingChild = existingChildResult.rows[0];
+
+    // Check if this parent already has this child linked
+    const existingLink = await db.query(
+      'SELECT * FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = ?',
+      [existingChildId, req.user.userId, 'approved']
+    );
+
+    if (existingLink.rows && existingLink.rows.length > 0) {
+      return res.status(409).json({ error: 'You already have this child linked' });
+    }
+
+    // Create a co-owner request to the original parent
+    const result = await db.query(
+      `INSERT INTO child_co_owners (childId, parentId, requestedByParentId, status, createdAt, updatedAt) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [existingChildId, req.user.userId, req.user.userId, 'pending', new Date().toISOString(), new Date().toISOString()]
+    );
+
+    res.status(201).json({
+      message: 'Link request sent to the primary parent for approval',
+      request: {
+        id: result.lastID,
+        childId: existingChildId,
+        childName: `${existingChild.firstName} ${existingChild.lastName}`,
+        status: 'pending'
+      }
+    });
+  } catch (error) {
+    console.error('Link to existing child error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Player Availability Endpoints (for adult players)
 
 // Get authenticated player's own availability

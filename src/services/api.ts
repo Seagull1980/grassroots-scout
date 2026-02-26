@@ -588,6 +588,37 @@ export interface UpdateCoachChildData {
   notes?: string;
 }
 
+export interface ChildCoOwner {
+  id: number;
+  childId: number;
+  parentId: number;
+  requestedByParentId: number;
+  status: 'pending' | 'approved' | 'declined';
+  approvedAt?: string;
+  declinedAt?: string;
+  declineReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface RequestCoParentData {
+  otherParentId: number;
+  relationshipType?: 'mother' | 'father' | 'step_parent' | 'guardian';
+}
+
+export interface ApproveCoParentData {
+  approved: boolean;
+  declineReason?: string;
+}
+
+export interface LinkToExistingChildData {
+  existingChildId: number;
+  relationshipType?: 'mother' | 'father' | 'step_parent' | 'guardian';
+}
+
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -1237,6 +1268,39 @@ export const coachChildrenAPI = {
   // Remove coach-child relationship
   delete: async (relationshipId: number): Promise<{ message: string }> => {
     const response = await api.delete(`/coach-children/${relationshipId}`);
+    return response.data;
+  },
+};
+
+// Child Co-Owners API (multiple parents managing same child)
+export const childCoOwnersAPI = {
+  // Request another parent to co-manage a child
+  requestCoParent: async (childId: number, data: RequestCoParentData): Promise<{ message: string; request: ChildCoOwner }> => {
+    const response = await api.post(`/children/${childId}/request-co-parent`, data);
+    return response.data;
+  },
+
+  // Get all co-owners for a child
+  getCoOwners: async (childId: number): Promise<{ coOwners: ChildCoOwner[]; childInfo: { id: number; firstName: string; lastName: string; coOwnerCount: number } }> => {
+    const response = await api.get(`/children/${childId}/co-owners`);
+    return response.data;
+  },
+
+  // Approve or decline a co-parent request
+  approveCoParent: async (childId: number, requestId: number, data: ApproveCoParentData): Promise<{ message: string; status: string }> => {
+    const response = await api.post(`/children/${childId}/approve-co-parent/${requestId}`, data);
+    return response.data;
+  },
+
+  // Remove a co-parent
+  removeCoParent: async (childId: number, parentId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/children/${childId}/remove-co-parent/${parentId}`);
+    return response.data;
+  },
+
+  // Link to an existing child profile instead of creating duplicate
+  linkToExisting: async (data: LinkToExistingChildData): Promise<{ message: string; request: { id: number; childId: number; childName: string; status: string } }> => {
+    const response = await api.post('/children/link-to-existing', data);
     return response.data;
   },
 };

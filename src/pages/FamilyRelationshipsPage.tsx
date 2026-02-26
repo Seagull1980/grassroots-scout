@@ -27,8 +27,9 @@ import {
   Delete as DeleteIcon,
   VerifiedUser as VerifiedIcon,
   People as PeopleIcon,
+  Groups as PeopleGroupsIcon,
 } from '@mui/icons-material';
-import { familyRelationshipsAPI, coachChildrenAPI, FamilyRelationship, CoachChild } from '../services/api';
+import { familyRelationshipsAPI, coachChildrenAPI, childCoOwnersAPI, FamilyRelationship, CoachChild } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const FamilyRelationshipsPage: React.FC = () => {
@@ -40,6 +41,8 @@ const FamilyRelationshipsPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [coachChildDialogOpen, setCoachChildDialogOpen] = useState(false);
+  const [requestCoParentDialogOpen, setRequestCoParentDialogOpen] = useState(false);
+  const [linkChildDialogOpen, setLinkChildDialogOpen] = useState(false);
 
   // Form state for family relationship
   const [formData, setFormData] = useState({
@@ -57,7 +60,19 @@ const FamilyRelationshipsPage: React.FC = () => {
     notes: '',
   });
 
+  // Form state for requesting co-parent
+  const [coParentForm, setCoParentForm] = useState({
+    otherParentId: '',
+    childId: '',
+  });
+
+  // Form state for linking to existing child
+  const [linkChildForm, setLinkChildForm] = useState({
+    existingChildId: '',
+  });
+
   const isCoach = user?.role === 'Coach';
+  const isParent = user?.role === 'Parent/Guardian';
 
   useEffect(() => {
     loadData();
@@ -186,6 +201,55 @@ const FamilyRelationshipsPage: React.FC = () => {
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to unlink child');
+    }
+  };
+
+  const handleRequestCoParent = async () => {
+    try {
+      setError('');
+      setSuccess('');
+
+      if (!coParentForm.otherParentId || !coParentForm.childId) {
+        setError('Please provide both Parent ID and Child ID');
+        return;
+      }
+
+      const childId = parseInt(coParentForm.childId);
+      const data = {
+        otherParentId: parseInt(coParentForm.otherParentId),
+      };
+
+      await childCoOwnersAPI.requestCoParent(childId, data);
+      setSuccess('Co-parent request sent successfully');
+      setRequestCoParentDialogOpen(false);
+      setCoParentForm({ otherParentId: '', childId: '' });
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to send co-parent request');
+    }
+  };
+
+  const handleLinkToExistingChild = async () => {
+    try {
+      setError('');
+      setSuccess('');
+
+      if (!linkChildForm.existingChildId) {
+        setError('Please provide an Existing Child ID');
+        return;
+      }
+
+      const data = {
+        existingChildId: parseInt(linkChildForm.existingChildId),
+      };
+
+      await childCoOwnersAPI.linkToExisting(data);
+      setSuccess('Link request sent to the other parent for approval');
+      setLinkChildDialogOpen(false);
+      setLinkChildForm({ existingChildId: '' });
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to link child');
     }
   };
 
@@ -334,6 +398,79 @@ const FamilyRelationshipsPage: React.FC = () => {
               </Grid>
             </Box>
           )}
+        </Paper>
+      )}
+
+      {isParent && (
+        <Paper sx={{ p: 3, mb: 4, bgcolor: 'success.50' }}>
+          <Typography variant="h6" gutterBottom display="flex" alignItems="center">
+            <PeopleGroupsIcon sx={{ mr: 1 }} /> Multi-Parent Child Management
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            If you share custody or parenting responsibilities for a child, you can request co-parent access
+            or link to an existing child profile to manage them together.
+          </Typography>
+          <Box display="flex" gap={2}>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => setRequestCoParentDialogOpen(true)}
+            >
+              Request Co-Parent Access
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => setLinkChildDialogOpen(true)}
+            >
+              Link to Existing Child
+            </Button>
+          </Box>
+
+          {/* Display pending co-owner requests */}
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Pending Co-Parent Requests (waiting for approval)
+            </Typography>
+            {relationships.length > 0 ? (
+              <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                {relationships
+                  .filter(rel => !rel.verifiedBy)
+                  .map((rel) => (
+                    <Grid item xs={12} md={6} key={rel.id}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                            <Box>
+                              <Chip label="Pending" color="warning" size="small" />
+                              <Typography variant="body2" sx={{ mt: 1 }}>
+                                {rel.relatedName || 'Pending approval'}
+                              </Typography>
+                            </Box>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteRelationship(rel.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                {relationships.filter(rel => !rel.verifiedBy).length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No pending requests
+                  </Typography>
+                )}
+              </Grid>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No co-parent requests yet
+              </Typography>
+            )}
+          </Box>
         </Paper>
       )}
 
@@ -531,6 +668,80 @@ const FamilyRelationshipsPage: React.FC = () => {
           <Button onClick={() => setCoachChildDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleCreateCoachChild} variant="contained">
             Link Child
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Request Co-Parent Dialog */}
+      <Dialog open={requestCoParentDialogOpen} onClose={() => setRequestCoParentDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Request Co-Parent Access</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Send a request to another parent to co-manage one of your children. They will need to approve the request.
+            </Alert>
+
+            <TextField
+              fullWidth
+              label="Other Parent ID"
+              type="number"
+              value={coParentForm.otherParentId}
+              onChange={(e) => setCoParentForm({ ...coParentForm, otherParentId: e.target.value })}
+              sx={{ mb: 2 }}
+              required
+              helperText="The user ID of the other parent"
+            />
+
+            <TextField
+              fullWidth
+              label="Child ID"
+              type="number"
+              value={coParentForm.childId}
+              onChange={(e) => setCoParentForm({ ...coParentForm, childId: e.target.value })}
+              sx={{ mb: 2 }}
+              required
+              helperText="ID of the child you want to share"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRequestCoParentDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleRequestCoParent} variant="contained">
+            Send Request
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Link to Existing Child Dialog */}
+      <Dialog open={linkChildDialogOpen} onClose={() => setLinkChildDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Link to Existing Child Profile</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              If a child already exists in the system managed by another parent, you can request co-ownership
+              of their profile instead of creating a duplicate.
+            </Alert>
+
+            <TextField
+              fullWidth
+              label="Existing Child ID"
+              type="number"
+              value={linkChildForm.existingChildId}
+              onChange={(e) => setLinkChildForm({ existingChildId: e.target.value })}
+              sx={{ mb: 2 }}
+              required
+              helperText="The ID of the child profile already in the system"
+            />
+
+            <Typography variant="body2" color="text.secondary">
+              The child's primary parent will receive a request for you to co-manage the profile.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinkChildDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleLinkToExistingChild} variant="contained">
+            Send Link Request
           </Button>
         </DialogActions>
       </Dialog>
