@@ -33,6 +33,7 @@ import {
   Groups,
   FamilyRestroom,
   ChildCare,
+  People,
   CheckCircle,
   EmojiEvents,
   Schedule,
@@ -179,11 +180,13 @@ const Navbar: React.FC = () => {
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
       { path: '/invitations', label: 'Team Invitations', icon: <MailOutline />, badge: pendingInvitationsCount },
       { path: '/training-sessions', label: 'Training Sessions', icon: <FitnessCenter /> },
-      { path: '/team-profile', label: 'Team Profile', icon: <Business /> }
+      { path: '/team-profile', label: 'Team Profile', icon: <Business /> },
+      { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [
       { path: '/children', label: 'Manage Children', icon: <FamilyRestroom /> },
-      { path: '/child-player-availability', label: 'Parent View', icon: <ChildCare /> }
+      { path: '/child-player-availability', label: 'Parent View', icon: <ChildCare /> },
+      { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
     ...(user && (user.role === 'Coach' || user.role === 'Player') ? [{ path: '/training-invitations', label: 'Training Invites', icon: <Schedule /> }] : []),
     { path: '/performance-analytics', label: 'Performance Analytics', icon: <Analytics /> },

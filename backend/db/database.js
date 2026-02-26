@@ -648,6 +648,44 @@ class Database {
         FOREIGN KEY (approvedBy) REFERENCES users (id) ON DELETE SET NULL
       )`,
 
+      // Family Relationships - tracks family connections between users
+      `CREATE TABLE IF NOT EXISTS family_relationships (
+        id SERIAL PRIMARY KEY,
+        userId INTEGER NOT NULL,
+        relatedUserId INTEGER,
+        childId INTEGER,
+        relationship VARCHAR NOT NULL CHECK(relationship IN ('parent', 'child', 'sibling', 'guardian')),
+        verifiedBy INTEGER,
+        verifiedAt TIMESTAMP,
+        notes TEXT,
+        isActive BOOLEAN DEFAULT TRUE,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (relatedUserId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (childId) REFERENCES children (id) ON DELETE CASCADE,
+        FOREIGN KEY (verifiedBy) REFERENCES users (id) ON DELETE SET NULL,
+        CHECK ((relatedUserId IS NOT NULL AND childId IS NULL) OR (relatedUserId IS NULL AND childId IS NOT NULL))
+      )`,
+
+      // Coach Children - junction table for coaches with children, tracks team relationships
+      `CREATE TABLE IF NOT EXISTS coach_children (
+        id SERIAL PRIMARY KEY,
+        coachId INTEGER NOT NULL,
+        childId INTEGER NOT NULL,
+        relationshipType VARCHAR NOT NULL DEFAULT 'parent' CHECK(relationshipType IN ('parent', 'guardian', 'step_parent')),
+        relationshipVerified BOOLEAN DEFAULT FALSE,
+        inSameTeam BOOLEAN DEFAULT FALSE,
+        teamId INTEGER,
+        notes TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(coachId, childId),
+        FOREIGN KEY (coachId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (childId) REFERENCES children (id) ON DELETE CASCADE,
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE SET NULL
+      )`,
+
       // Analytics tables for admin dashboard
       `CREATE TABLE IF NOT EXISTS page_views (
         id SERIAL PRIMARY KEY,
@@ -1310,6 +1348,12 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_trial_evaluations_coach ON trial_evaluations(coachId)',
       'CREATE INDEX IF NOT EXISTS idx_trial_evaluations_ranking ON trial_evaluations(ranking)',
       'CREATE INDEX IF NOT EXISTS idx_trial_evaluations_rating ON trial_evaluations(overallRating)',
+      'CREATE INDEX IF NOT EXISTS idx_family_relationships_userId ON family_relationships(userId)',
+      'CREATE INDEX IF NOT EXISTS idx_family_relationships_relatedUserId ON family_relationships(relatedUserId)',
+      'CREATE INDEX IF NOT EXISTS idx_family_relationships_childId ON family_relationships(childId)',
+      'CREATE INDEX IF NOT EXISTS idx_coach_children_coachId ON coach_children(coachId)',
+      'CREATE INDEX IF NOT EXISTS idx_coach_children_childId ON coach_children(childId)',
+      'CREATE INDEX IF NOT EXISTS idx_coach_children_teamId ON coach_children(teamId)',
     ];
 
     for (const index of indexes) {

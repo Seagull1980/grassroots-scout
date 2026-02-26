@@ -128,6 +128,11 @@ export const LazyComponents = {
     () => import('../pages/ChildrenManagementPage'),
     'ChildrenManagementPage'
   ),
+
+  FamilyRelationshipsPage: createLazyComponent(
+    () => import('../pages/FamilyRelationshipsPage'),
+    'FamilyRelationshipsPage'
+  ),
   
   // Training features
   TrainingInvitations: createLazyComponent(

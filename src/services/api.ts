@@ -531,6 +531,63 @@ export interface TrainingBooking {
   email: string;
 }
 
+// Family Relationships
+export interface FamilyRelationship {
+  id: number;
+  userId: number;
+  relatedUserId?: number;
+  childId?: number;
+  relationship: 'parent' | 'child' | 'sibling' | 'guardian';
+  relatedName?: string;
+  relatedDateOfBirth?: string;
+  verifiedBy?: number;
+  verifiedAt?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CoachChild {
+  id: number;
+  coachId: number;
+  childId: number;
+  relationshipType: 'parent' | 'guardian' | 'step_parent';
+  relationshipVerified: boolean;
+  inSameTeam: boolean;
+  teamId?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  preferredPosition?: string;
+  preferredTeamGender?: string;
+  currentTeamName?: string;
+  currentTeamAgeGroup?: string;
+}
+
+export interface CreateFamilyRelationshipData {
+  childId?: number;
+  relatedUserId?: number;
+  relationship: 'parent' | 'child' | 'sibling' | 'guardian';
+  notes?: string;
+}
+
+export interface CreateCoachChildData {
+  childId: number;
+  relationshipType: 'parent' | 'guardian' | 'step_parent';
+  teamId?: number;
+  notes?: string;
+}
+
+export interface UpdateCoachChildData {
+  teamId?: number;
+  inSameTeam?: boolean;
+  notes?: string;
+}
+
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -1133,6 +1190,54 @@ export const trainingAPI = {
     } catch (err) {
       throw new Error('Failed to load session bookings');
     }
+  },
+};
+
+// Family Relationships API
+export const familyRelationshipsAPI = {
+  // Get all family relationships for current user
+  getAll: async (): Promise<{ relationships: FamilyRelationship[] }> => {
+    const response = await api.get('/family-relationships');
+    return response.data;
+  },
+
+  // Create a new family relationship
+  create: async (data: CreateFamilyRelationshipData): Promise<{ message: string; relationship: FamilyRelationship }> => {
+    const response = await api.post('/family-relationships', data);
+    return response.data;
+  },
+
+  // Delete a family relationship
+  delete: async (relationshipId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/family-relationships/${relationshipId}`);
+    return response.data;
+  },
+};
+
+// Coach Children API (for coaches who are also parents)
+export const coachChildrenAPI = {
+  // Get all children linked to coach account
+  getAll: async (): Promise<{ children: CoachChild[] }> => {
+    const response = await api.get('/coach-children');
+    return response.data;
+  },
+
+  // Link a child to coach account
+  create: async (data: CreateCoachChildData): Promise<{ message: string; relationship: CoachChild }> => {
+    const response = await api.post('/coach-children', data);
+    return response.data;
+  },
+
+  // Update coach-child relationship (e.g., team assignment)
+  update: async (relationshipId: number, data: UpdateCoachChildData): Promise<{ message: string; relationship: CoachChild }> => {
+    const response = await api.put(`/coach-children/${relationshipId}`, data);
+    return response.data;
+  },
+
+  // Remove coach-child relationship
+  delete: async (relationshipId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/coach-children/${relationshipId}`);
+    return response.data;
   },
 };
 

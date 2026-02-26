@@ -71,6 +71,7 @@ const {
   RecommendationsPage,
   ChildPlayerAvailabilityPage,
   ChildrenManagementPage,
+  FamilyRelationshipsPage,
   TrainingInvitations
 } = LazyComponents;
 
@@ -259,6 +260,11 @@ const AppRoutes = () => {
         <Route path="/child-player-availability" element={
           <ProtectedRoute>
             <ChildPlayerAvailabilityPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/family-relationships" element={
+          <ProtectedRoute>
+            <FamilyRelationshipsPage />
           </ProtectedRoute>
         } />
         <Route path="/match-completions" element={

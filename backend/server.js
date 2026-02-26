@@ -2326,6 +2326,405 @@ app.get('/api/public/child-player-availability', async (req, res) => {
   }
 });
 
+// ==================== FAMILY RELATIONSHIPS ENDPOINTS ====================
+
+// Get all family relationships for the current user
+app.get('/api/family-relationships', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get relationships where user is the parent/primary
+    const relationshipsResult = await db.query(`
+      SELECT 
+        fr.id,
+        fr.userId,
+        fr.relatedUserId,
+        fr.childId,
+        fr.relationship,
+        fr.verifiedBy,
+        fr.verifiedAt,
+        fr.notes,
+        fr.isActive,
+        fr.createdAt,
+        CASE 
+          WHEN fr.relatedUserId IS NOT NULL THEN 
+            (SELECT CONCAT(u.firstName, ' ', u.lastName) FROM users u WHERE u.id = fr.relatedUserId)
+          WHEN fr.childId IS NOT NULL THEN 
+            (SELECT CONCAT(c.firstName, ' ', c.lastName) FROM children c WHERE c.id = fr.childId)
+        END as relatedName,
+        CASE 
+          WHEN fr.childId IS NOT NULL THEN 
+            (SELECT c.dateOfBirth FROM children c WHERE c.id = fr.childId)
+        END as relatedDateOfBirth
+      FROM family_relationships fr
+      WHERE fr.userId = ? AND fr.isActive = true
+      ORDER BY fr.createdAt DESC
+    `, [userId]);
+
+    res.json({
+      relationships: relationshipsResult.rows || []
+    });
+  } catch (error) {
+    console.error('Get family relationships error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create a new family relationship
+app.post('/api/family-relationships', [
+  authenticateToken,
+  body('childId').optional().isInt().withMessage('Valid child ID is required'),
+  body('relatedUserId').optional().isInt().withMessage('Valid user ID is required'),
+  body('relationship').isIn(['parent', 'child', 'sibling', 'guardian']).withMessage('Valid relationship type is required'),
+  body('notes').optional().isString()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const userId = req.user.userId;
+    const { childId, relatedUserId, relationship, notes } = req.body;
+
+    // Validate that exactly one of childId or relatedUserId is provided
+    if ((childId && relatedUserId) || (!childId && !relatedUserId)) {
+      return res.status(400).json({ 
+        error: 'Must provide either childId OR relatedUserId, not both' 
+      });
+    }
+
+    // If childId is provided, verify it exists and belongs to current user
+    if (childId) {
+      const childCheck = await db.query(
+        'SELECT * FROM children WHERE id = ? AND parentId = ?',
+        [childId, userId]
+      );
+
+      if (!childCheck.rows || childCheck.rows.length === 0) {
+        return res.status(404).json({ 
+          error: 'Child not found or you do not have permission to link this child' 
+        });
+      }
+    }
+
+    // If relatedUserId is provided, verify user exists
+    if (relatedUserId) {
+      const userCheck = await db.query(
+        'SELECT * FROM users WHERE id = ?',
+        [relatedUserId]
+      );
+
+      if (!userCheck.rows || userCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Related user not found' });
+      }
+    }
+
+    // Check if relationship already exists
+    const existingCheck = await db.query(
+      'SELECT * FROM family_relationships WHERE userId = ? AND (childId = ? OR relatedUserId = ?)',
+      [userId, childId || null, relatedUserId || null]
+    );
+
+    if (existingCheck.rows && existingCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'This relationship already exists' });
+    }
+
+    // Create the relationship
+    const result = await db.query(
+      `INSERT INTO family_relationships (userId, childId, relatedUserId, relationship, notes)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, childId || null, relatedUserId || null, relationship, notes || null]
+    );
+
+    const newRelationship = await db.query(
+      'SELECT * FROM family_relationships WHERE id = ?',
+      [result.lastID || result.insertId]
+    );
+
+    res.json({
+      message: 'Family relationship created successfully',
+      relationship: newRelationship.rows[0]
+    });
+  } catch (error) {
+    console.error('Create family relationship error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a family relationship
+app.delete('/api/family-relationships/:relationshipId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { relationshipId } = req.params;
+
+    // Verify ownership
+    const relationship = await db.query(
+      'SELECT * FROM family_relationships WHERE id = ? AND userId = ?',
+      [relationshipId, userId]
+    );
+
+    if (!relationship.rows || relationship.rows.length === 0) {
+      return res.status(404).json({ error: 'Relationship not found or you do not have permission' });
+    }
+
+    // Soft delete by setting isActive to false
+    await db.query(
+      'UPDATE family_relationships SET isActive = false WHERE id = ?',
+      [relationshipId]
+    );
+
+    res.json({ message: 'Family relationship removed successfully' });
+  } catch (error) {
+    console.error('Delete family relationship error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==================== COACH CHILDREN ENDPOINTS ====================
+
+// Get coach's children (for coaches who are also parents)
+app.get('/api/coach-children', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can access this endpoint' });
+    }
+
+    const coachId = req.user.userId;
+
+    // Get all registered children relationships for this coach
+    const coachChildrenResult = await db.query(`
+      SELECT 
+        cc.id,
+        cc.coachId,
+        cc.childId,
+        cc.relationshipType,
+        cc.relationshipVerified,
+        cc.inSameTeam,
+        cc.teamId,
+        cc.notes,
+        cc.createdAt,
+        c.firstName,
+        c.lastName,
+        c.dateOfBirth,
+        c.gender,
+        c.preferredPosition,
+        c.preferredTeamGender,
+        t.teamName as currentTeamName,
+        t.ageGroup as currentTeamAgeGroup
+      FROM coach_children cc
+      JOIN children c ON cc.childId = c.id
+      LEFT JOIN teams t ON cc.teamId = t.id
+      WHERE cc.coachId = ?
+      ORDER BY c.firstName, c.lastName
+    `, [coachId]);
+
+    res.json({
+      children: coachChildrenResult.rows || []
+    });
+  } catch (error) {
+    console.error('Get coach children error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Link a child to a coach (for coaches who are parents)
+app.post('/api/coach-children', [
+  authenticateToken,
+  body('childId').isInt().withMessage('Valid child ID is required'),
+  body('relationshipType').isIn(['parent', 'guardian', 'step_parent']).withMessage('Valid relationship type is required'),
+  body('teamId').optional().isInt().withMessage('Valid team ID is required'),
+  body('notes').optional().isString()
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can access this endpoint' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const coachId = req.user.userId;
+    const { childId, relationshipType, teamId, notes } = req.body;
+
+    // Verify child exists
+    const childCheck = await db.query(
+      'SELECT * FROM children WHERE id = ?',
+      [childId]
+    );
+
+    if (!childCheck.rows || childCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found' });
+    }
+
+    // If teamId provided, verify coach owns that team
+    if (teamId) {
+      const teamCheck = await db.query(
+        'SELECT * FROM teams WHERE id = ? AND coachId = ?',
+        [teamId, coachId]
+      );
+
+      if (!teamCheck.rows || teamCheck.rows.length === 0) {
+        return res.status(404).json({ 
+          error: 'Team not found or you do not have permission to manage this team' 
+        });
+      }
+    }
+
+    // Check if relationship already exists
+    const existingCheck = await db.query(
+      'SELECT * FROM coach_children WHERE coachId = ? AND childId = ?',
+      [coachId, childId]
+    );
+
+    if (existingCheck.rows && existingCheck.rows.length > 0) {
+      return res.status(400).json({ 
+        error: 'This child is already linked to your coach account' 
+      });
+    }
+
+    // Determine if child is in same team as coach
+    const inSameTeam = teamId ? true : false;
+
+    // Create the coach-child relationship
+    const result = await db.query(
+      `INSERT INTO coach_children (coachId, childId, relationshipType, inSameTeam, teamId, notes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [coachId, childId, relationshipType, inSameTeam, teamId || null, notes || null]
+    );
+
+    const newRelationship = await db.query(
+      'SELECT * FROM coach_children WHERE id = ?',
+      [result.lastID || result.insertId]
+    );
+
+    res.json({
+      message: 'Child linked to coach account successfully',
+      relationship: newRelationship.rows[0]
+    });
+  } catch (error) {
+    console.error('Link coach child error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update coach-child relationship (e.g., when child joins/leaves coach's team)
+app.put('/api/coach-children/:relationshipId', [
+  authenticateToken,
+  body('teamId').optional().isInt().withMessage('Valid team ID is required'),
+  body('inSameTeam').optional().isBoolean().withMessage('Valid boolean required'),
+  body('notes').optional().isString()
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can access this endpoint' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const coachId = req.user.userId;
+    const { relationshipId } = req.params;
+    const { teamId, inSameTeam, notes } = req.body;
+
+    // Verify ownership
+    const relationship = await db.query(
+      'SELECT * FROM coach_children WHERE id = ? AND coachId = ?',
+      [relationshipId, coachId]
+    );
+
+    if (!relationship.rows || relationship.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Relationship not found or you do not have permission' 
+      });
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+
+    if (teamId !== undefined) {
+      updates.push('teamId = ?');
+      values.push(teamId);
+    }
+
+    if (inSameTeam !== undefined) {
+      updates.push('inSameTeam = ?');
+      values.push(inSameTeam);
+    }
+
+    if (notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(notes);
+    }
+
+    updates.push('updatedAt = NOW()');
+
+    if (updates.length === 1) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(relationshipId);
+
+    await db.query(
+      `UPDATE coach_children SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    const updatedRelationship = await db.query(
+      'SELECT * FROM coach_children WHERE id = ?',
+      [relationshipId]
+    );
+
+    res.json({
+      message: 'Coach-child relationship updated successfully',
+      relationship: updatedRelationship.rows[0]
+    });
+  } catch (error) {
+    console.error('Update coach-child relationship error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove coach-child relationship
+app.delete('/api/coach-children/:relationshipId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach') {
+      return res.status(403).json({ error: 'Only coaches can access this endpoint' });
+    }
+
+    const coachId = req.user.userId;
+    const { relationshipId } = req.params;
+
+    // Verify ownership
+    const relationship = await db.query(
+      'SELECT * FROM coach_children WHERE id = ? AND coachId = ?',
+      [relationshipId, coachId]
+    );
+
+    if (!relationship.rows || relationship.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'Relationship not found or you do not have permission' 
+      });
+    }
+
+    // Delete the relationship
+    await db.query(
+      'DELETE FROM coach_children WHERE id = ?',
+      [relationshipId]
+    );
+
+    res.json({ message: 'Coach-child relationship removed successfully' });
+  } catch (error) {
+    console.error('Delete coach-child relationship error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get public site statistics (for homepage display)
 app.get('/api/public/site-stats', async (req, res) => {
   try {
