@@ -71,6 +71,20 @@ const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Track scroll position for navbar styling
+  useEffect(() => {
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 10;
+      if (isScrolled !== scrolled) {
+        setScrolled(isScrolled);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [scrolled]);
 
   // Fetch pending invitations count for coaches
   useEffect(() => {
@@ -227,15 +241,47 @@ const Navbar: React.FC = () => {
   };
 
   const drawer = (
-    <Box sx={{ width: 280 }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Navigation
-        </Typography>
+    <Box sx={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box 
+        sx={{ 
+          p: 3, 
+          background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+        }}
+      >
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            borderRadius: 2,
+            bgcolor: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            GS
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+            Grassroots Scout
+          </Typography>
+          {user && (
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              {user.firstName} {user.lastName}
+            </Typography>
+          )}
+        </Box>
       </Box>
 
-      <List sx={{ pt: 1 }}>
-        {navigationItems.filter(item => item != null && item.path && item.label).map((item) => (
+      <List sx={{ pt: 2, flex: 1, overflow: 'auto' }}>
+        {navigationItems.filter(item => item != null && item.path && item.label).map((item, index) => (
           <ListItem
             key={item.path}
             onClick={() => {
@@ -244,18 +290,42 @@ const Navbar: React.FC = () => {
             }}
             sx={{
               cursor: 'pointer',
-              bgcolor: isActive(item.path) ? 'action.selected' : 'transparent',
-              '&:hover': { bgcolor: 'action.hover' },
+              mx: 1,
+              mb: 0.5,
+              borderRadius: 2,
+              bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.12)' : 'transparent',
+              transition: 'all 0.2s ease',
+              animation: `slideInFromLeft 0.3s ease-out ${index * 0.05}s both`,
+              '@keyframes slideInFromLeft': {
+                from: {
+                  opacity: 0,
+                  transform: 'translateX(-20px)',
+                },
+                to: {
+                  opacity: 1,
+                  transform: 'translateX(0)',
+                },
+              },
+              '&:hover': { 
+                bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
+                transform: 'translateX(4px)',
+              },
             }}
           >
-            <ListItemIcon sx={{ color: isActive(item.path) ? 'primary.main' : 'text.secondary' }}>
+            <ListItemIcon 
+              sx={{ 
+                color: isActive(item.path) ? '#0066FF' : 'text.secondary',
+                minWidth: 40,
+              }}
+            >
               {item.icon}
             </ListItemIcon>
             <ListItemText
               primary={item.label}
               primaryTypographyProps={{
-                fontWeight: isActive(item.path) ? 600 : 400,
-                color: isActive(item.path) ? 'primary.main' : 'text.primary'
+                fontWeight: isActive(item.path) ? 600 : 500,
+                color: isActive(item.path) ? '#0066FF' : 'text.primary',
+                fontSize: '0.95rem',
               }}
             />
           </ListItem>
@@ -263,14 +333,28 @@ const Navbar: React.FC = () => {
       </List>
 
       {user && (
-        <>
-          <Divider sx={{ my: 1 }} />
-          <List>
-            <ListItem onClick={handleLogout} sx={{ cursor: 'pointer' }}>
-              <ListItemText primary="Logout" />
-            </ListItem>
-          </List>
-        </>
+        <Box sx={{ borderTop: 1, borderColor: 'divider', p: 2 }}>
+          <ListItem 
+            onClick={handleLogout} 
+            sx={{ 
+              cursor: 'pointer',
+              borderRadius: 2,
+              transition: 'all 0.2s ease',
+              '&:hover': { 
+                bgcolor: 'rgba(239, 68, 68, 0.08)',
+                color: 'error.main',
+              },
+            }}
+          >
+            <ListItemText 
+              primary="Logout" 
+              primaryTypographyProps={{
+                fontWeight: 500,
+                textAlign: 'center',
+              }}
+            />
+          </ListItem>
+        </Box>
       )}
     </Box>
   );
@@ -279,7 +363,22 @@ const Navbar: React.FC = () => {
     <>
       {/* Desktop/Tablet Navbar */}
       {!isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 1100, pointerEvents: 'auto', position: 'sticky !important' }}>
+        <AppBar 
+          position="sticky" 
+          elevation={scrolled ? 2 : 0}
+          sx={{ 
+            bgcolor: scrolled ? 'rgba(255, 255, 255, 0.95)' : '#FFFFFF',
+            backdropFilter: scrolled ? 'blur(10px) saturate(180%)' : 'none',
+            WebkitBackdropFilter: scrolled ? 'blur(10px) saturate(180%)' : 'none',
+            color: '#0f172a', 
+            zIndex: 1100, 
+            pointerEvents: 'auto', 
+            position: 'sticky !important',
+            borderBottom: scrolled ? '1px solid rgba(0, 102, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)',
+          }}
+        >
           <Toolbar>
             <Typography
               variant="h6"
@@ -304,15 +403,30 @@ const Navbar: React.FC = () => {
                   startIcon={item.icon}
                   onClick={() => safeNavigate(item.path)}
                   sx={{
-                    color: isActive(item.path) ? '#1e3a8a' : '#0f172a',
-                    fontWeight: isActive(item.path) ? 600 : 400,
-                    bgcolor: isActive(item.path) ? 'rgba(30, 58, 138, 0.12)' : 'transparent',
+                    color: isActive(item.path) ? '#0066FF' : '#0f172a',
+                    fontWeight: isActive(item.path) ? 600 : 500,
+                    bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.12)' : 'transparent',
                     borderRadius: 999,
                     px: 1.75,
                     minHeight: 40,
+                    position: 'relative',
+                    overflow: 'visible',
+                    transition: 'all 0.2s ease',
+                    '&::after': isActive(item.path) ? {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '60%',
+                      height: '2px',
+                      bgcolor: '#0066FF',
+                      borderRadius: '2px 2px 0 0',
+                    } : {},
                     '&:hover': {
-                      bgcolor: isActive(item.path) ? 'rgba(30, 58, 138, 0.18)' : 'rgba(15, 23, 42, 0.06)',
-                      color: '#0f172a'
+                      bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
+                      color: '#0066FF',
+                      transform: 'translateY(-1px)',
                     },
                   }}
                 >
@@ -327,15 +441,17 @@ const Navbar: React.FC = () => {
                     startIcon={<MoreHoriz />}
                     onClick={handleMoreMenu}
                     sx={{ 
-                      color: isSecondaryActive ? '#1e3a8a' : '#0f172a',
-                      fontWeight: isSecondaryActive ? 600 : 400,
-                      bgcolor: isSecondaryActive ? 'rgba(30, 58, 138, 0.12)' : 'transparent',
+                      color: isSecondaryActive ? '#0066FF' : '#0f172a',
+                      fontWeight: isSecondaryActive ? 600 : 500,
+                      bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.12)' : 'transparent',
                       borderRadius: 999,
                       px: 1.75,
                       minHeight: 40,
+                      transition: 'all 0.2s ease',
                       '&:hover': { 
-                        bgcolor: isSecondaryActive ? 'rgba(30, 58, 138, 0.18)' : 'rgba(15, 23, 42, 0.06)',
-                        color: '#0f172a'
+                        bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
+                        color: '#0066FF',
+                        transform: 'translateY(-1px)',
                       },
                     }}
                   >
@@ -489,7 +605,22 @@ const Navbar: React.FC = () => {
 
       {/* Mobile Top App Bar */}
       {isMobile && (
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: '#FFFFFF', color: '#0f172a', zIndex: 1100, pointerEvents: 'auto', position: 'sticky !important' }}>
+        <AppBar 
+          position="sticky" 
+          elevation={scrolled ? 2 : 0}
+          sx={{ 
+            bgcolor: scrolled ? 'rgba(255, 255, 255, 0.95)' : '#FFFFFF',
+            backdropFilter: scrolled ? 'blur(10px) saturate(180%)' : 'none',
+            WebkitBackdropFilter: scrolled ? 'blur(10px) saturate(180%)' : 'none',
+            color: '#0f172a', 
+            zIndex: 1100, 
+            pointerEvents: 'auto', 
+            position: 'sticky !important',
+            borderBottom: scrolled ? '1px solid rgba(0, 102, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)',
+          }}
+        >
           <Toolbar>
             <IconButton
               color="inherit"
@@ -543,7 +674,17 @@ const Navbar: React.FC = () => {
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 280 },
+          '& .MuiDrawer-paper': { 
+            boxSizing: 'border-box', 
+            width: 280,
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)',
+            borderTopRightRadius: 16,
+            borderBottomRightRadius: 16,
+          },
+          '& .MuiBackdrop-root': {
+            backdropFilter: 'blur(4px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          },
         }}
       >
         {drawer}
