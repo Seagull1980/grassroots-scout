@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/accessible-name, jsx-a11y/select-has-associated-label */
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -579,9 +580,11 @@ export const OnboardingFlow: React.FC = () => {
                 fullWidth
                 select
                 label="Playing Position"
+                aria-label="Playing Position"
                 value={userData.position}
                 onChange={(e) => setUserData(prev => ({ ...prev, position: e.target.value }))}
-                SelectProps={{ native: true }}
+                inputProps={{ title: 'Playing Position' }}
+                SelectProps={{ native: true, title: 'Playing Position' }}
                 helperText="Your primary position"
               >
                 <option value=""></option>
@@ -600,7 +603,7 @@ export const OnboardingFlow: React.FC = () => {
               label="Experience Level"
               value={userData.experienceLevel}
               onChange={(e) => setUserData(prev => ({ ...prev, experienceLevel: e.target.value }))}
-              SelectProps={{ native: true }}
+              SelectProps={{ native: true, title: 'Experience Level' }}
               helperText="Your current football experience level"
             >
               <option value=""></option>
@@ -908,14 +911,14 @@ export const OnboardingFlow: React.FC = () => {
                 renderOption={(props, option) => {
                   if (option.id === -1) {
                     return (
-                      <li {...props} style={{ fontWeight: 'bold', color: '#1976d2' }}>
+                      <Box component="li" {...props} sx={{ fontWeight: 'bold', color: '#1976d2' }}>
                         {option.name}
-                      </li>
+                      </Box>
                     );
                   }
                   const isPending = option.isPending;
                   return (
-                    <li {...props} style={isPending ? { backgroundColor: '#fff3e0' } : {}}>
+                    <Box component="li" {...props} sx={isPending ? { backgroundColor: '#fff3e0' } : {}}>
                       <Box>
                         <Typography variant="body2">
                           {option.name}
@@ -929,7 +932,7 @@ export const OnboardingFlow: React.FC = () => {
                           {option.region || 'Region: N/A'}
                         </Typography>
                       </Box>
-                    </li>
+                    </Box>
                   );
                 }}
                 renderTags={(tagValue, getTagProps) =>

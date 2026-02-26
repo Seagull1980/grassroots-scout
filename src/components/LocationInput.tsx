@@ -172,9 +172,9 @@ const LocationInput: React.FC<LocationInputProps> = ({
   // Render new PlaceAutocompleteElement or legacy TextField
   if (!useLegacyAPI && isGoogleMapsLoaded) {
     return (
-      <div style={{ width: fullWidth ? '100%' : 'auto' }}>
-        <div ref={containerRef} style={{ width: '100%' }} />
-      </div>
+      <Box sx={{ width: fullWidth ? '100%' : 'auto' }}>
+        <Box ref={containerRef} sx={{ width: '100%' }} />
+      </Box>
     );
   }
 

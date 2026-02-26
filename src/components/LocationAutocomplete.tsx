@@ -177,7 +177,7 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   if (!useLegacyAPI && isGoogleMapsLoaded) {
     return (
       <Box sx={{ width: '100%' }}>
-        <div ref={containerRef} style={{ width: '100%' }} />
+        <Box ref={containerRef} sx={{ width: '100%' }} />
         {textFieldProps.helperText && (
           <Box sx={{ mt: 0.5, fontSize: '0.75rem', color: 'text.secondary' }}>
             {textFieldProps.helperText}

@@ -171,7 +171,7 @@ export const Map: React.FC<MapProps> = ({
 
   return (
     <>
-      <div ref={ref} style={style} />
+      <Box ref={ref} sx={{ ...style }} />
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
           return React.cloneElement(child, { map });

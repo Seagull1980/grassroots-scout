@@ -566,7 +566,7 @@ const MessagesPage: React.FC = () => {
                                 <Typography variant="body2" noWrap component="span" display="block">
                                   {conversation.latestMessage.message}
                                 </Typography>
-                                <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                <Box component="span" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: '4px' }}>
                                   <Chip 
                                     size="small" 
                                     label={getStageLabel(conversation.matchProgressStage)}
@@ -576,7 +576,7 @@ const MessagesPage: React.FC = () => {
                                   <Typography variant="caption" color="text.secondary" component="span">
                                     {formatDistanceToNow(new Date(conversation.latestMessage.createdAt))}
                                   </Typography>
-                                </span>
+                                </Box>
                               </React.Fragment>
                             }
                             secondaryTypographyProps={{ component: 'div' }}

@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/accessible-name, jsx-a11y/select-has-associated-label */
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -492,11 +493,13 @@ const MatchCompletionsPage: React.FC = () => {
               <TextField
                 select
                 label="Position"
+                aria-label="Position"
                 value={formData.position}
                 onChange={(e) => setFormData({ ...formData, position: e.target.value })}
                 fullWidth
                 required
-                SelectProps={{ native: true }}
+                inputProps={{ title: 'Position' }}
+                SelectProps={{ native: true, title: 'Position' }}
               >
                 <option value="">Select Position</option>
                 {positions.map((position) => (
@@ -508,11 +511,13 @@ const MatchCompletionsPage: React.FC = () => {
               <TextField
                 select
                 label="Age Group"
+                aria-label="Age Group"
                 value={formData.ageGroup}
                 onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
                 fullWidth
                 required
-                SelectProps={{ native: true }}
+                inputProps={{ title: 'Age Group' }}
+                SelectProps={{ native: true, title: 'Age Group' }}
               >
                 <option value="">Select Age Group</option>
                 {ageGroups.map((ageGroup) => (

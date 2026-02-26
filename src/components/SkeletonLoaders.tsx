@@ -1,5 +1,5 @@
 import React from 'react';
-import { Skeleton, Card, CardContent, Box } from '@mui/material';
+import { Skeleton, Card, CardContent, Box, TableCell } from '@mui/material';
 
 // Enhanced skeleton with wave animation
 const EnhancedSkeleton = (props: any) => (
@@ -128,9 +128,9 @@ export const TableRowSkeleton: React.FC<{ columns?: number }> = ({ columns = 4 }
     {Array.from({ length: 5 }).map((_, rowIndex) => (
       <tr key={rowIndex}>
         {Array.from({ length: columns }).map((_, colIndex) => (
-          <td key={colIndex} style={{ padding: '16px' }}>
+          <TableCell key={colIndex} sx={{ p: 2 }}>
             <EnhancedSkeleton variant="text" width="90%" />
-          </td>
+          </TableCell>
         ))}
       </tr>
     ))}
