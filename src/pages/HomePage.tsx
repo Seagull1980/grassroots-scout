@@ -88,27 +88,62 @@ const HomePage: React.FC = () => {
       <Box 
         sx={{ 
           textAlign: 'center', 
-          py: isMobile ? 4 : 10,
-          px: isMobile ? 2 : 4,
-          background: 'linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%)',
-          borderRadius: 4,
-          mb: sectionSpacing,
+          py: isMobile ? 6 : 12,
+          px: isMobile ? 3 : 6,
+          background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.03) 0%, rgba(255, 107, 53, 0.03) 100%)',
+          borderRadius: 6,
+          mb: 8,
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            background: 'linear-gradient(90deg, #0066FF 0%, #FF6B35 100%)',
+          },
         }}
       >
-        {/* Logo removed temporarily */}
-        <Box sx={{ mb: 2 }} />
+        {/* Decorative circles */}
+        <Box sx={{ 
+          position: 'absolute', 
+          top: -50, 
+          right: -50, 
+          width: 200, 
+          height: 200, 
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(0, 102, 255, 0.1) 0%, transparent 70%)',
+          display: isMobile ? 'none' : 'block',
+        }} />
+        <Box sx={{ 
+          position: 'absolute', 
+          bottom: -80, 
+          left: -80, 
+          width: 250, 
+          height: 250, 
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255, 107, 53, 0.08) 0%, transparent 70%)',
+          display: isMobile ? 'none' : 'block',
+        }} />
+        
+        <Box sx={{ mb: 3, position: 'relative', zIndex: 1 }} />
         
         <Typography 
           variant="h1" 
           component="h1" 
           gutterBottom 
           sx={{
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+            background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            mb: 2,
-            textAlign: 'center'
+            mb: 3,
+            textAlign: 'center',
+            fontSize: isMobile ? '2.5rem' : '3.5rem',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           The Grassroots Scout
@@ -120,13 +155,13 @@ const HomePage: React.FC = () => {
           component="h2" 
           gutterBottom 
           sx={{
-            background: 'linear-gradient(135deg, #1f2937 0%, #374151 100%)',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            fontWeight: 600,
-            mb: 3,
-            fontStyle: 'italic'
+            color: '#FF6B35',
+            fontWeight: 700,
+            mb: 4,
+            fontStyle: 'italic',
+            fontSize: isMobile ? '1.5rem' : '2rem',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           Discover. Connect. Develop
@@ -137,18 +172,31 @@ const HomePage: React.FC = () => {
           component="h3" 
           gutterBottom 
           color="text.secondary" 
-          sx={{ mb: 6, maxWidth: '600px', mx: 'auto' }}
+          sx={{ 
+            mb: 6, 
+            maxWidth: '700px', 
+            mx: 'auto',
+            fontSize: isMobile ? '1.1rem' : '1.3rem',
+            lineHeight: 1.8,
+            position: 'relative',
+            zIndex: 1,
+          }}
         >
           Scouting the perfect match between football players and grassroots teams
         </Typography>
-        <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
           {user ? (
             <>
               <Button
                 variant="contained"
                 size="large"
                 onClick={() => navigate('/dashboard')}
-                sx={{ px: 6, py: 2, fontSize: '1.1rem' }}
+                sx={{ 
+                  px: 6, 
+                  py: 2, 
+                  fontSize: '1.1rem',
+                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
+                }}
               >
                 Go to Dashboard
               </Button>
@@ -167,13 +215,19 @@ const HomePage: React.FC = () => {
                 variant="contained"
                 size="large"
                 onClick={() => navigate('/register')}
-                sx={{ px: 6, py: 2, fontSize: '1.1rem' }}
+                sx={{ 
+                  px: 6, 
+                  py: 2, 
+                  fontSize: '1.1rem',
+                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
+                }}
               >
                 Get Started
               </Button>
               <Button
                 variant="outlined"
                 size="large"
+                color="secondary"
                 onClick={() => navigate('/login')}
                 sx={{ px: 6, py: 2, fontSize: '1.1rem' }}
               >
@@ -191,11 +245,19 @@ const HomePage: React.FC = () => {
           component="h2" 
           textAlign="center" 
           gutterBottom 
-          sx={{ mb: 8, fontWeight: 700 }}
+          sx={{ mb: 2, fontWeight: 700 }}
         >
           How It Works
         </Typography>
-        <Grid container spacing={containerSpacing}>
+        <Typography 
+          variant="body1" 
+          textAlign="center" 
+          color="text.secondary" 
+          sx={{ mb: 8, maxWidth: '600px', mx: 'auto' }}
+        >
+          Connect with the right opportunities in just a few simple steps
+        </Typography>
+        <Grid container spacing={4}>
           {features.map((feature, index) => (
             <Grid item xs={12} sm={6} md={3} key={index}>
               <Card 
@@ -203,12 +265,18 @@ const HomePage: React.FC = () => {
                   height: '100%', 
                   display: 'flex', 
                   flexDirection: 'column',
-                  background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)',
-                  border: '2px solid transparent',
-                  backgroundClip: 'padding-box',
-                  '&:hover': {
-                    borderColor: 'primary.main',
-                    transform: 'translateY(-4px)',
+                  border: 'none',
+                  position: 'relative',
+                  overflow: 'visible',
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    background: index % 2 === 0 ? '#0066FF' : '#FF6B35',
+                    borderRadius: '20px 0 0 20px',
                   },
                 }}
               >
@@ -216,19 +284,21 @@ const HomePage: React.FC = () => {
                   <Box 
                     sx={{ 
                       mb: 3,
-                      p: 2,
+                      p: 2.5,
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                      background: index % 2 === 0 
+                        ? 'linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 102, 255, 0.2) 100%)' 
+                        : 'linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(255, 107, 53, 0.2) 100%)',
                       display: 'inline-flex',
-                      color: 'white',
+                      color: index % 2 === 0 ? '#0066FF' : '#FF6B35',
                     }}
                   >
                     {feature.icon}
                   </Box>
-                  <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
+                  <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>
                     {feature.title}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
                     {feature.description}
                   </Typography>
                 </CardContent>
@@ -237,6 +307,7 @@ const HomePage: React.FC = () => {
                     size="medium"
                     onClick={() => navigate(feature.path)}
                     variant="contained"
+                    color={index % 2 === 0 ? 'primary' : 'secondary'}
                     sx={{ borderRadius: 3 }}
                   >
                     {feature.action}
@@ -253,14 +324,18 @@ const HomePage: React.FC = () => {
         sx={{ 
           p: 6, 
           textAlign: 'center', 
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', 
+          background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)', 
           color: 'white', 
           mb: 8,
-          borderRadius: 4,
+          borderRadius: 6,
+          boxShadow: '0 8px 32px rgba(0, 102, 255, 0.25)',
         }}
       >
-        <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 700, mb: 4 }}>
+        <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>
           Join Our Growing Community
+        </Typography>
+        <Typography variant="body1" sx={{ mb: 6, opacity: 0.9 }}>
+          Thousands of players and teams have already connected
         </Typography>
         <Grid container spacing={containerSpacing} sx={{ mt: 2 }}>
           <Grid item xs={12} sm={4}>
