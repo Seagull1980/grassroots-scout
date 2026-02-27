@@ -623,27 +623,27 @@ export interface LinkToExistingChildData {
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
     console.log('[API] Login attempt:', { email, baseURL: api.defaults.baseURL });
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post('/api/auth/login', { email, password });
     return response.data;
   },
 
   register: async (userData: RegisterData): Promise<RegisterResponse> => {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/api/auth/register', userData);
     return response.data;
   },
 
   getCurrentUser: async (): Promise<{ user: User }> => {
-    const response = await api.get('/auth/me');
+    const response = await api.get('/api/auth/me');
     return response.data;
   },
 
   resendVerification: async (data: { email: string }): Promise<{ message: string }> => {
-    const response = await api.post('/auth/resend-verification', data);
+    const response = await api.post('/api/auth/resend-verification', data);
     return response.data;
   },
 
   verifyEmail: async (token: string): Promise<{ message: string; verified: boolean }> => {
-    const response = await api.get(`/auth/verify-email/${token}`);
+    const response = await api.get(`/api/auth/verify-email/${token}`);
     return response.data;
   },
 
