@@ -1117,25 +1117,28 @@ export const OnboardingFlow: React.FC = () => {
 
   if (!user || !open) return null;
 
+  // Keep Google Maps script loaded for the entire onboarding flow so
+  // autocomplete continues working when you move between steps.
   return (
-    <Dialog
-      open={open}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: { 
-          minHeight: 500,
-          zIndex: 1400  // Higher than AppBar (1100) and most other components
-        }
-      }}
-      slotProps={{
-        backdrop: {
-          sx: {
-            zIndex: 1399  // Just below the dialog
+    <GoogleMapsWrapper>
+      <Dialog
+        open={open}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { 
+            minHeight: 500,
+            zIndex: 1400  // Higher than AppBar (1100) and most other components
           }
-        }
-      }}
-    >
+        }}
+        slotProps={{
+          backdrop: {
+            sx: {
+              zIndex: 1399  // Just below the dialog
+            }
+          }
+        }}
+      >
       <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
         <IconButton onClick={handleSkipOnboarding} size="small">
           <CloseIcon />
@@ -1237,5 +1240,6 @@ export const OnboardingFlow: React.FC = () => {
         </Alert>
       </Snackbar>
     </Dialog>
+  </GoogleMapsWrapper>
   );
 };
