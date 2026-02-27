@@ -154,12 +154,11 @@ const handleAuthError = (error: any) => {
     message: error.message,
   });
 
-  if (error.response?.status === 401) {
+  if (error.response?.status === 401 || error.response?.status === 403) {
     const currentPath = window.location.pathname;
     const requestUrl = error.config?.url || '';
     
-    // Don't redirect for non-critical endpoints (search, autocomplete, etc.)
-    // These endpoints failing shouldn't break the entire app
+    // treat 403 as an expired/invalid token - same flow as 401
     const isNonCriticalEndpoint = 
       requestUrl.includes('/clubs/search') ||
       requestUrl.includes('/teams/search') ||
@@ -167,12 +166,10 @@ const handleAuthError = (error: any) => {
       requestUrl.includes('/team-profile');
     
     if (isNonCriticalEndpoint) {
-      console.warn(`401 on non-critical endpoint ${requestUrl} - not redirecting`);
+      console.warn(`${error.response?.status} on non-critical endpoint ${requestUrl} - not redirecting`);
       return Promise.reject(error);
     }
     
-    // Only redirect if we're not already on the login/register pages
-    // and we're not in the middle of a login/register request
     const isAuthPage = currentPath === '/login' || currentPath === '/register' || 
                        currentPath === '/forgot-password' || currentPath.startsWith('/reset-password') ||
                        currentPath.startsWith('/verify-email');
@@ -183,7 +180,6 @@ const handleAuthError = (error: any) => {
       console.warn('Authentication failed on critical endpoint - clearing session and redirecting to login');
       storage.removeItem('token');
       storage.removeItem('user');
-      // Use a flag to prevent multiple simultaneous redirects
       if (!window.location.href.includes('/login')) {
         window.location.href = '/login';
       }
