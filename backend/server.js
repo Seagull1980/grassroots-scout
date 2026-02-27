@@ -1457,7 +1457,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     const existingProfile = await db.query('SELECT * FROM user_profiles WHERE userId = ?', [userId]);
     
     if (!existingProfile.rows || existingProfile.rows.length === 0) {
-      // Create new profile
+      // Create new profile – build using normalizedBody so keys may be lowercased
       const insertCols = [];
       const insertValues = [];
       const insertPlaceholders = [];
@@ -1466,7 +1466,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       insertValues.push(userId);
       insertPlaceholders.push('?');
 
-      for (const [key, value] of Object.entries(req.body)) {
+      for (const [key, value] of Object.entries(normalizedBody)) {
         if (value !== undefined && columnMapping[key]) {
           const dbColName = columnMapping[key];
           insertCols.push(dbColName);
@@ -1484,8 +1484,17 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       // use CURRENT_TIMESTAMP for compatibility with SQLite and Postgres
       insertPlaceholders.push('CURRENT_TIMESTAMP');
 
-      const insertQuery = `INSERT INTO user_profiles (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
-      console.log('INSERT Query:', insertQuery);
+      // Attempt upsert when using PostgreSQL to avoid race/constraint errors
+      let insertQuery = `INSERT INTO user_profiles (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
+      if (db.dbType === 'postgresql') {
+        const conflictCols = insertCols.filter(c => c !== 'userId');
+        if (conflictCols.length > 0) {
+          const updates = conflictCols.map(c => `${c}=EXCLUDED.${c}`).join(', ');
+          insertQuery += ` ON CONFLICT (userId) DO UPDATE SET ${updates}`;
+        }
+      }
+
+      console.log('INSERT/UPSERT Query:', insertQuery);
       console.log('INSERT Values:', insertValues);
       
       await db.query(insertQuery, insertValues);
@@ -1494,7 +1503,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       const updates = [];
       const values = [];
 
-      for (const [key, value] of Object.entries(req.body)) {
+      for (const [key, value] of Object.entries(normalizedBody)) {
         if (value !== undefined && columnMapping[key]) {
           const dbColName = columnMapping[key];
           updates.push(`${dbColName} = ?`);
@@ -1533,6 +1542,39 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {
     console.error('Update profile error:', error);
+    console.error('Profile request body at failure:', req.body);
+    if (error.stack) console.error(error.stack);
+    // In case of duplicate key constraint we can retry as update
+    if (error.code === 'SQLITE_CONSTRAINT' || error.code === '23505') {
+      console.warn('Duplicate profile insert detected, attempting update instead');
+      try {
+        // try running the update logic without selecting again
+        const updates = [];
+        const values = [];
+        for (const [key, value] of Object.entries(normalizedBody)) {
+          if (value !== undefined && columnMapping[key]) {
+            const dbColName = columnMapping[key];
+            updates.push(`${dbColName} = ?`);
+            if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+              values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+            } else {
+              values.push(value);
+            }
+          }
+        }
+        updates.push('lastUpdated = CURRENT_TIMESTAMP');
+        if (updates.length > 0) {
+          values.push(userId);
+          const query = `UPDATE user_profiles SET ${updates.join(', ')} WHERE userId = ?`;
+          console.log('Retry UPDATE Query after conflict:', query);
+          console.log('Retry UPDATE Values:', values);
+          await db.query(query, values);
+          console.log(`⚠️ Conflict recovery: profile updated successfully for user ID: ${userId}`);
+        }
+      } catch (err2) {
+        console.error('Conflict recovery update failed:', err2);
+      }
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
