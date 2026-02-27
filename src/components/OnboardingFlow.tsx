@@ -415,6 +415,11 @@ export const OnboardingFlow: React.FC = () => {
         console.error('Failed to save onboarding data:', error);
         if (error.response) {
           console.error('Server response:', error.response.data);
+          console.error('Server status:', error.response.status);
+          // if auth failure, let the interceptor handle logout/redirect and don't show snackbar
+          if (error.response.status === 401 || error.response.status === 403) {
+            return;
+          }
         }
         setSnackbar({ 
           open: true, 
