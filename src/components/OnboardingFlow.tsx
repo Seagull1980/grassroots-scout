@@ -387,7 +387,7 @@ export const OnboardingFlow: React.FC = () => {
           subscribeToArea(locationCoords.lat, locationCoords.lng, userData.searchRadius);
         }
         
-        if (userData.preferredLeagues.length > 0) {
+        if (user.role !== 'Coach' && userData.preferredLeagues.length > 0) {
           userData.preferredLeagues.forEach(league => {
             subscribeToLeague(league, '');
           });
@@ -872,85 +872,87 @@ export const OnboardingFlow: React.FC = () => {
                 />
               </Box>
               
-              <Autocomplete
-                multiple
-                options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
-                getOptionLabel={(option) => {
-                  if (typeof option === 'string') return option;
-                  if (option.id === -1) return option.name || '';
-                  return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
-                }}
-                value={userData.preferredLeagues.map(leagueName => {
-                  const league = availableLeagues.find(l => l.name === leagueName);
-                  return league || { id: 0, name: leagueName, region: '', url: '', hits: 0 };
-                })}
-                onChange={(_, newValue) => {
-                  const selectedLeagues = newValue.map(item => {
-                    if (typeof item === 'string') return item;
-                    if (item.id === -1) {
-                      // Open league request dialog
-                      setLeagueRequestOpen(true);
-                      return null; // Don't add this to the selection
-                    }
-                    return item.name;
-                  }).filter(Boolean) as string[];
+              {user.role !== 'Coach' && (
+                <Autocomplete
+                  multiple
+                  options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option;
+                    if (option.id === -1) return option.name || '';
+                    return option.isPending ? `${option.name} (Under Review)` : (option.name || '');
+                  }}
+                  value={userData.preferredLeagues.map(leagueName => {
+                    const league = availableLeagues.find(l => l.name === leagueName);
+                    return league || { id: 0, name: leagueName, region: '', url: '', hits: 0 };
+                  })}
+                  onChange={(_, newValue) => {
+                    const selectedLeagues = newValue.map(item => {
+                      if (typeof item === 'string') return item;
+                      if (item.id === -1) {
+                        // Open league request dialog
+                        setLeagueRequestOpen(true);
+                        return null; // Don't add this to the selection
+                      }
+                      return item.name;
+                    }).filter(Boolean) as string[];
 
-                  setUserData(prev => ({
-                    ...prev,
-                    preferredLeagues: selectedLeagues
-                  }));
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Preferred Leagues"
-                    placeholder="Select preferred leagues..."
-                    disabled={loadingLeagues}
-                  />
-                )}
-                renderOption={(props, option) => {
-                  if (option.id === -1) {
+                    setUserData(prev => ({
+                      ...prev,
+                      preferredLeagues: selectedLeagues
+                    }));
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Preferred Leagues"
+                      placeholder="Select preferred leagues..."
+                      disabled={loadingLeagues}
+                    />
+                  )}
+                  renderOption={(props, option) => {
+                    if (option.id === -1) {
+                      return (
+                        <Box component="li" {...props} sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                          {option.name}
+                        </Box>
+                      );
+                    }
+                    const isPending = option.isPending;
                     return (
-                      <Box component="li" {...props} sx={{ fontWeight: 'bold', color: '#1976d2' }}>
-                        {option.name}
+                      <Box component="li" {...props} sx={isPending ? { backgroundColor: '#fff3e0' } : {}}>
+                        <Box>
+                          <Typography variant="body2">
+                            {option.name}
+                            {isPending && (
+                              <Typography component="span" variant="caption" sx={{ ml: 1, color: 'orange', fontWeight: 'bold' }}>
+                                (Under Review)
+                              </Typography>
+                            )}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.region || 'Region: N/A'}
+                          </Typography>
+                        </Box>
                       </Box>
                     );
+                  }}
+                  renderTags={(tagValue, getTagProps) =>
+                    tagValue.map((option, index) => (
+                      <Chip
+                        label={option.isPending ? `${option.name} (Under Review)` : option.name}
+                        {...getTagProps({ index })}
+                        size="small"
+                        sx={option.isPending ? {
+                          backgroundColor: '#fff3e0',
+                          '& .MuiChip-label': { color: '#f57c00' }
+                        } : {}}
+                      />
+                    ))
                   }
-                  const isPending = option.isPending;
-                  return (
-                    <Box component="li" {...props} sx={isPending ? { backgroundColor: '#fff3e0' } : {}}>
-                      <Box>
-                        <Typography variant="body2">
-                          {option.name}
-                          {isPending && (
-                            <Typography component="span" variant="caption" sx={{ ml: 1, color: 'orange', fontWeight: 'bold' }}>
-                              (Under Review)
-                            </Typography>
-                          )}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {option.region || 'Region: N/A'}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  );
-                }}
-                renderTags={(tagValue, getTagProps) =>
-                  tagValue.map((option, index) => (
-                    <Chip
-                      label={option.isPending ? `${option.name} (Under Review)` : option.name}
-                      {...getTagProps({ index })}
-                      size="small"
-                      sx={option.isPending ? {
-                        backgroundColor: '#fff3e0',
-                        '& .MuiChip-label': { color: '#f57c00' }
-                      } : {}}
-                    />
-                  ))
-                }
-                loading={loadingLeagues}
-                disabled={loadingLeagues}
-              />
+                  loading={loadingLeagues}
+                  disabled={loadingLeagues}
+                />
+              )}
 
               <Alert severity="info" sx={{ mt: 1 }}>
                 <Typography variant="body2">
