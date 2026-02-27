@@ -1466,15 +1466,30 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       insertValues.push(userId);
       insertPlaceholders.push('?');
 
+      // helper to convert user-friendly experience levels into values allowed by the database
+      const mapExperience = (val) => {
+        if (typeof val !== 'string') return val;
+        switch (val) {
+          case 'Grassroots': return 'Beginner';
+          case 'Amateur': return 'Intermediate';
+          case 'Semi-Pro': return 'Advanced';
+          default: return val;
+        }
+      };
+
       for (const [key, value] of Object.entries(normalizedBody)) {
         if (value !== undefined && columnMapping[key]) {
           const dbColName = columnMapping[key];
           insertCols.push(dbColName);
+          let finalVal = value;
+          if (dbColName === 'experienceLevel') {
+            finalVal = mapExperience(value);
+          }
           // Handle JSON fields
           if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
-            insertValues.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+            insertValues.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
-            insertValues.push(value);
+            insertValues.push(finalVal);
           }
           insertPlaceholders.push('?');
         }
@@ -1503,16 +1518,29 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       const updates = [];
       const values = [];
 
+      const mapExperience = (val) => {
+        if (typeof val !== 'string') return val;
+        switch (val) {
+          case 'Grassroots': return 'Beginner';
+          case 'Amateur': return 'Intermediate';
+          case 'Semi-Pro': return 'Advanced';
+          default: return val;
+        }
+      };
+
       for (const [key, value] of Object.entries(normalizedBody)) {
         if (value !== undefined && columnMapping[key]) {
           const dbColName = columnMapping[key];
           updates.push(`${dbColName} = ?`);
-          
+          let finalVal = value;
+          if (dbColName === 'experienceLevel') {
+            finalVal = mapExperience(value);
+          }
           // Handle JSON fields
           if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
-            values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+            values.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
-            values.push(value);
+            values.push(finalVal);
           }
         }
       }
