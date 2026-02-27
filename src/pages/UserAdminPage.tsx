@@ -28,6 +28,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Switch,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -51,6 +52,7 @@ interface User {
   firstName: string;
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
+  betaAccess?: boolean;
   createdAt: string;
   isEmailVerified: boolean;
   isBlocked?: boolean;
@@ -71,6 +73,9 @@ const UserAdminPage: React.FC = () => {
   // Filtering
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+
+  // Beta toggling
+  const [updatingBeta, setUpdatingBeta] = useState<number | null>(null);
   
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -114,6 +119,27 @@ const UserAdminPage: React.FC = () => {
       setError(err.response?.data?.error || 'Failed to fetch users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleBetaAccess = async (userId: number, current: boolean) => {
+    try {
+      setUpdatingBeta(userId);
+      const token = storage.getItem('token');
+      const response = await axios.patch(
+        `${adminUsersBaseUrl}/${userId}/beta-access`,
+        { betaAccess: !current },
+        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+      );
+      setUsers(prev =>
+        prev.map(u =>
+          u.id === userId ? { ...u, betaAccess: response.data.betaAccess ?? !current } : u
+        )
+      );
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update beta access');
+    } finally {
+      setUpdatingBeta(null);
     }
   };
 
@@ -281,6 +307,12 @@ const UserAdminPage: React.FC = () => {
     );
   }
 
+  const betaStats = {
+    total: users.length,
+    withAccess: users.filter(u => u.betaAccess || u.role === 'Admin').length,
+    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length,
+  };
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -297,6 +329,22 @@ const UserAdminPage: React.FC = () => {
         >
           Refresh
         </Button>
+      </Box>
+
+      {/* beta stats */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="h4">{betaStats.total}</Typography>
+          <Typography variant="body2" color="text.secondary">Total Users</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="h4" color="success.main">{betaStats.withAccess}</Typography>
+          <Typography variant="body2" color="text.secondary">With Beta Access</Typography>
+        </Paper>
+        <Paper sx={{ p: 2, flex: 1 }}>
+          <Typography variant="h4" color="warning.main">{betaStats.pending}</Typography>
+          <Typography variant="body2" color="text.secondary">Pending</Typography>
+        </Paper>
       </Box>
 
       {error && (
@@ -354,6 +402,7 @@ const UserAdminPage: React.FC = () => {
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
+                <TableCell align="center">Beta Access</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -375,6 +424,17 @@ const UserAdminPage: React.FC = () => {
                       color={getRoleColor(user.role)}
                       size="small"
                     />
+                  </TableCell>
+                  <TableCell align="center">
+                    {user.role === 'Admin' ? (
+                      <Chip label="Always" size="small" color="primary" />
+                    ) : (
+                      <Switch
+                        checked={!!user.betaAccess}
+                        onChange={() => toggleBetaAccess(user.id, !!user.betaAccess)}
+                        disabled={updatingBeta === user.id}
+                      />
+                    )}
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>

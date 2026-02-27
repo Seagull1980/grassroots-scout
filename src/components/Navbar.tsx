@@ -48,7 +48,7 @@ import {
   ManageAccounts,
   Feedback as FeedbackIcon,
   Forum as ForumIcon,
-  LockOpen,
+  // LockOpen (unused after beta merge)
   Home,
   Support,
   AcUnit,
@@ -211,7 +211,8 @@ const Navbar: React.FC = () => {
       { path: '/admin/feedback', label: 'Feedback Dashboard', icon: <FeedbackIcon /> },
       { path: '/admin/frozen-adverts', label: 'Frozen Adverts', icon: <AcUnit /> },
       { path: '/admin/support', label: 'Support Messages', icon: <Support /> },
-      { path: '/admin/beta-access', label: 'Beta Access', icon: <LockOpen /> }
+      // beta access now part of User Management
+      // { path: '/admin/beta-access', label: 'Beta Access', icon: <LockOpen /> }
     ] : []),
     { path: '/match-completions', label: 'Match Completions', icon: <CheckCircle /> },
     { path: '/success-stories', label: 'Success Stories', icon: <EmojiEvents /> },

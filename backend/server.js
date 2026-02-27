@@ -1412,6 +1412,12 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     
+    // normalize incoming keys to lowercase so we can map them reliably
+    const normalizedBody = {};
+    Object.entries(req.body).forEach(([k, v]) => {
+      normalizedBody[k.toLowerCase()] = v;
+    });
+    
     // Map lowercase keys from frontend to proper camelCase column names in database
     const columnMapping = {
       phone: 'phone',
@@ -1441,10 +1447,10 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     
     console.log('Profile update request body:', {
       userId,
-      bodyKeys: Object.keys(req.body),
-      phone: req.body.phone,
-      dateofbirth: req.body.dateofbirth,
-      location: req.body.location
+      bodyKeys: Object.keys(normalizedBody),
+      phone: normalizedBody.phone,
+      dateofbirth: normalizedBody.dateofbirth,
+      location: normalizedBody.location
     });
     
     // Check if profile exists
@@ -1475,7 +1481,8 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       }
 
       insertCols.push('lastUpdated');
-      insertPlaceholders.push('NOW()');
+      // use CURRENT_TIMESTAMP for compatibility with SQLite and Postgres
+      insertPlaceholders.push('CURRENT_TIMESTAMP');
 
       const insertQuery = `INSERT INTO user_profiles (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
       console.log('INSERT Query:', insertQuery);
@@ -1501,8 +1508,8 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
         }
       }
       
-      // Always update lastUpdated
-      updates.push('lastUpdated = NOW()');
+      // Always update lastUpdated (CURRENT_TIMESTAMP works in both SQLite and Postgres)
+      updates.push('lastUpdated = CURRENT_TIMESTAMP');
 
       if (updates.length === 1) {
         return res.status(400).json({ error: 'No fields to update' });
@@ -3950,7 +3957,7 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
     console.log('[Admin Users] Admin request from user:', req.user.userId);
     
     const result = await db.query(`
-      SELECT id, email, firstName, lastName, role, createdAt FROM users LIMIT 100
+      SELECT id, email, firstName, lastName, role, betaAccess, createdAt FROM users LIMIT 100
     `);
     
     console.log(`[Admin Users] Query successful, found ${result.rows ? result.rows.length : 0} users`);

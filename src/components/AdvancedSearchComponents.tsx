@@ -18,7 +18,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Stack
+  Stack,
+  InputAdornment
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -147,7 +148,11 @@ export const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         onFocus={() => setShowSuggestions(value.length > 0)}
         placeholder={placeholder}
         InputProps={{
-          startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />,
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon sx={{ color: 'text.secondary' }} />
+            </InputAdornment>
+          ),
           endAdornment: (
             <Box display="flex" alignItems="center" gap={1}>
               {/* Smart Filter Suggestions */}
@@ -212,7 +217,12 @@ export const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         }}
         sx={{
           '& .MuiOutlinedInput-root': {
-            pr: 1
+            pr: 1,
+            backgroundColor: 'background.paper',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: 'rgba(0, 102, 255, 0.04)'
+            }
           }
         }}
       />
@@ -228,7 +238,12 @@ export const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
             zIndex: 1000,
             mt: 1,
             maxHeight: 400,
-            overflow: 'auto'
+            overflow: 'auto',
+            animation: 'fadeInScale 0.2s ease-out',
+            '@keyframes fadeInScale': {
+              from: { opacity: 0, transform: 'scale(0.98)' },
+              to: { opacity: 1, transform: 'scale(1)' }
+            }
           }}
         >
           {/* Current Suggestions */}

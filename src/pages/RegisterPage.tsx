@@ -11,6 +11,7 @@ import {
   CircularProgress,
   FormControl,
   InputLabel,
+  OutlinedInput,
   Select,
   MenuItem,
   SelectChangeEvent,
@@ -24,7 +25,7 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import { Visibility, VisibilityOff, CheckCircle, Cancel, Info } from '@mui/icons-material';
+import { Visibility, VisibilityOff, CheckCircle, Cancel, Info, Person, Badge, MailOutline, Lock, CalendarToday, Group } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -281,6 +282,13 @@ const RegisterPage: React.FC = () => {
                 autoFocus
                 value={formData.firstName}
                 onChange={handleChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Person sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    )
+                  }}
               />
               <TextField
                 margin="normal"
@@ -292,6 +300,13 @@ const RegisterPage: React.FC = () => {
                 autoComplete="family-name"
                 value={formData.lastName}
                 onChange={handleChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Badge sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    )
+                  }}
               />
             </Box>
             <TextField
@@ -304,6 +319,13 @@ const RegisterPage: React.FC = () => {
               autoComplete="email"
               value={formData.email}
               onChange={handleChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <MailOutline sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                )
+              }}
             />
             <FormControl fullWidth margin="normal" required>
               <InputLabel id="role-label">I am a</InputLabel>
@@ -313,6 +335,16 @@ const RegisterPage: React.FC = () => {
                 value={formData.role}
                 label="I am a"
                 onChange={handleRoleChange}
+                input={
+                  <OutlinedInput
+                    label="I am a"
+                    startAdornment={
+                      <InputAdornment position="start">
+                        <Group sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    }
+                  />
+                }
               >
                 <MenuItem value="Coach">Coach</MenuItem>
                 <MenuItem value="Player">Player</MenuItem>
@@ -341,6 +373,13 @@ const RegisterPage: React.FC = () => {
                   InputLabelProps={{
                     shrink: true,
                   }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <CalendarToday sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    )
+                  }}
                   inputProps={{
                     max: new Date().toISOString().split('T')[0], // Prevent future dates
                   }}
@@ -365,6 +404,11 @@ const RegisterPage: React.FC = () => {
               value={formData.password}
               onChange={handleChange}
               InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
@@ -465,6 +509,11 @@ const RegisterPage: React.FC = () => {
               value={formData.confirmPassword}
               onChange={handleChange}
               InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton

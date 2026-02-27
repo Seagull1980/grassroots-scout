@@ -8,6 +8,7 @@ import {
   Chip,
   FormControl,
   InputLabel,
+  InputAdornment,
   Select,
   MenuItem,
   Accordion,
@@ -19,7 +20,8 @@ import {
   IconButton,
   Autocomplete,
   Paper,
-  Divider
+  Divider,
+  Badge
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -150,7 +152,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
   return (
     <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
       {/* Main Search Bar */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'flex-end' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <TextField
           fullWidth
           label="Search teams and players"
@@ -159,6 +161,11 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
           onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: 'text.secondary' }} />
+              </InputAdornment>
+            ),
             endAdornment: (
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {filters.searchTerm && (
@@ -185,7 +192,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
           onClick={handleSearch}
           disabled={loading}
           startIcon={<SearchIcon />}
-          sx={{ minWidth: 120, height: 56 }}
+          sx={{ minWidth: 140, height: 56 }}
         >
           Search
         </Button>
@@ -267,11 +274,15 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
 
         <Button
           variant="outlined"
-          startIcon={<FilterIcon />}
+          startIcon={
+            <Badge color="primary" badgeContent={getActiveFiltersCount()} invisible={getActiveFiltersCount() === 0}>
+              <FilterIcon />
+            </Badge>
+          }
           onClick={() => setShowAdvanced(!showAdvanced)}
           color={getActiveFiltersCount() > 0 ? 'primary' : 'inherit'}
         >
-          Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+          Filters
         </Button>
 
         {getActiveFiltersCount() > 0 && (
@@ -295,6 +306,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
               onDelete={() => handleFilterChange('league', '')}
               size="small"
               color="primary"
+              variant="outlined"
             />
           )}
           {filters.ageGroup && (
@@ -303,6 +315,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
               onDelete={() => handleFilterChange('ageGroup', '')}
               size="small"
               color="primary"
+              variant="outlined"
             />
           )}
           {filters.position && (
@@ -311,6 +324,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
               onDelete={() => handleFilterChange('position', '')}
               size="small"
               color="primary"
+              variant="outlined"
             />
           )}
           {filters.location && (
@@ -319,6 +333,7 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
               onDelete={() => handleFilterChange('location', '')}
               size="small"
               color="primary"
+              variant="outlined"
             />
           )}
         </Box>
@@ -371,7 +386,11 @@ const EnhancedSearch: React.FC<EnhancedSearchProps> = ({
                 value={filters.location}
                 onChange={(e) => handleFilterChange('location', e.target.value)}
                 InputProps={{
-                  startAdornment: <LocationIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LocationIcon sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  )
                 }}
               />
             </Grid>

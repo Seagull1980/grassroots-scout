@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { TextField } from '@mui/material';
+import { TextField, Box } from '@mui/material';
 import { Location } from '../types';
 import { geocodeAddress } from '../utils/maps';
 

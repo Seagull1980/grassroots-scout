@@ -11,6 +11,7 @@ import {
   IconButton,
   FormControl,
   InputLabel,
+  InputAdornment,
   Select,
   MenuItem,
   SelectChangeEvent,
@@ -19,6 +20,7 @@ import {
   CardContent,
   CardActions,
   Chip,
+  Badge,
   Collapse,
   Pagination,
   Tabs,
@@ -60,6 +62,7 @@ import {
   Send,
   Folder,
   Add,
+  Clear,
 } from '@mui/icons-material';
 import api, { leaguesAPI, League } from '../services/api';
 import { useDebounce } from '../utils/performance';
@@ -510,6 +513,158 @@ const SearchPage: React.FC = () => {
     });
     setPage(1);
   };
+
+  const resetFilterValue = (name: keyof typeof filters, value: string | number | boolean | string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setPage(1);
+  };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.search) count += 1;
+    if (filters.league) count += 1;
+    if (filters.ageGroup) count += 1;
+    if (filters.position) count += 1;
+    if (filters.region) count += 1;
+    if (filters.location) count += 1;
+    if (filters.teamGender) count += 1;
+    if (filters.experienceLevel) count += 1;
+    if (filters.trainingFrequency) count += 1;
+    if (filters.coachingLicense) count += 1;
+    if (filters.availability.length > 0) count += 1;
+    if (filters.playingTimePolicy.length > 0) count += 1;
+    if (filters.hasMatchRecording) count += 1;
+    if (filters.hasPathwayToSenior) count += 1;
+    if (filters.travelDistance !== 25) count += 1;
+    return count;
+  }, [filters]);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; onDelete: () => void }[] = [];
+
+    if (filters.search) {
+      chips.push({
+        key: 'search',
+        label: `Search: ${filters.search}`,
+        onDelete: () => resetFilterValue('search', ''),
+      });
+    }
+    if (filters.league) {
+      chips.push({
+        key: 'league',
+        label: `League: ${filters.league}`,
+        onDelete: () => resetFilterValue('league', ''),
+      });
+    }
+    if (filters.ageGroup) {
+      chips.push({
+        key: 'ageGroup',
+        label: `Age: ${filters.ageGroup}`,
+        onDelete: () => resetFilterValue('ageGroup', ''),
+      });
+    }
+    if (filters.position) {
+      chips.push({
+        key: 'position',
+        label: `Position: ${filters.position}`,
+        onDelete: () => resetFilterValue('position', ''),
+      });
+    }
+    if (filters.region) {
+      chips.push({
+        key: 'region',
+        label: `Region: ${filters.region}`,
+        onDelete: () => resetFilterValue('region', ''),
+      });
+    }
+    if (filters.location) {
+      chips.push({
+        key: 'location',
+        label: `Location: ${filters.location}`,
+        onDelete: () => resetFilterValue('location', ''),
+      });
+    }
+    if (filters.teamGender) {
+      chips.push({
+        key: 'teamGender',
+        label: `Team: ${filters.teamGender}`,
+        onDelete: () => resetFilterValue('teamGender', ''),
+      });
+    }
+    if (filters.experienceLevel) {
+      chips.push({
+        key: 'experienceLevel',
+        label: `Experience: ${filters.experienceLevel}`,
+        onDelete: () => resetFilterValue('experienceLevel', ''),
+      });
+    }
+    if (filters.trainingFrequency) {
+      chips.push({
+        key: 'trainingFrequency',
+        label: `Training: ${filters.trainingFrequency}`,
+        onDelete: () => resetFilterValue('trainingFrequency', ''),
+      });
+    }
+    if (filters.coachingLicense) {
+      chips.push({
+        key: 'coachingLicense',
+        label: `License: ${filters.coachingLicense}`,
+        onDelete: () => resetFilterValue('coachingLicense', ''),
+      });
+    }
+    if (filters.availability.length > 0) {
+      filters.availability.forEach((value) => {
+        chips.push({
+          key: `availability-${value}`,
+          label: `Availability: ${value}`,
+          onDelete: () =>
+            resetFilterValue(
+              'availability',
+              filters.availability.filter((item) => item !== value)
+            ),
+        });
+      });
+    }
+    if (filters.playingTimePolicy.length > 0) {
+      filters.playingTimePolicy.forEach((value) => {
+        chips.push({
+          key: `playingTimePolicy-${value}`,
+          label: `Playing Time: ${value}`,
+          onDelete: () =>
+            resetFilterValue(
+              'playingTimePolicy',
+              filters.playingTimePolicy.filter((item) => item !== value)
+            ),
+        });
+      });
+    }
+    if (filters.hasMatchRecording) {
+      chips.push({
+        key: 'hasMatchRecording',
+        label: 'Match Recording',
+        onDelete: () => resetFilterValue('hasMatchRecording', false),
+      });
+    }
+    if (filters.hasPathwayToSenior) {
+      chips.push({
+        key: 'hasPathwayToSenior',
+        label: 'Pathway to Senior',
+        onDelete: () => resetFilterValue('hasPathwayToSenior', false),
+      });
+    }
+    if (filters.travelDistance !== 25) {
+      chips.push({
+        key: 'travelDistance',
+        label: `Distance: ${filters.travelDistance}km`,
+        onDelete: () => resetFilterValue('travelDistance', 25),
+      });
+    }
+
+    return chips;
+  }, [filters]);
 
   const handleContact = (vacancy: TeamVacancy) => {
     setSelectedVacancy(vacancy);
@@ -1251,9 +1406,48 @@ const SearchPage: React.FC = () => {
 
       {/* Search and Filters */}
       <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Search Filters
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Box>
+            <Typography variant="h6">
+              Search Filters
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Refine results with targeted filters and smart suggestions
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {activeFiltersCount > 0 && (
+              <Chip
+                label={`${activeFiltersCount} active`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            )}
+            <Button
+              variant="text"
+              startIcon={<Clear />}
+              onClick={clearFilters}
+              disabled={activeFiltersCount === 0}
+            >
+              Clear all
+            </Button>
+          </Box>
+        </Box>
+        {activeFilterChips.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+            {activeFilterChips.map((chip) => (
+              <Chip
+                key={chip.key}
+                label={chip.label}
+                onDelete={chip.onDelete}
+                size="small"
+                variant="outlined"
+                sx={{ bgcolor: 'rgba(0, 102, 255, 0.04)' }}
+              />
+            ))}
+          </Box>
+        )}
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={6}>
             <TextField
@@ -1264,7 +1458,22 @@ const SearchPage: React.FC = () => {
               onChange={handleFilterChange}
               placeholder={`Search ${tabLabel.toLowerCase()}...`}
               InputProps={{
-                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: filters.search ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => resetFilterValue('search', '')}
+                      aria-label="Clear search"
+                    >
+                      <Clear fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : undefined,
               }}
             />
           </Grid>
@@ -1317,6 +1526,14 @@ const SearchPage: React.FC = () => {
                   placeholder="Type to search leagues..."
                   InputProps={{
                     ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <InputAdornment position="start">
+                          <Sports sx={{ color: 'text.secondary' }} />
+                        </InputAdornment>
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
                     endAdornment: (
                       <>
                         {loadingLeagues ? <CircularProgress color="inherit" size={20} /> : null}
@@ -1509,7 +1726,22 @@ const SearchPage: React.FC = () => {
               onChange={handleFilterChange}
               placeholder="Enter location"
               InputProps={{
-                startAdornment: <LocationOn sx={{ mr: 1, color: 'text.secondary' }} />,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LocationOn sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: filters.location ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => resetFilterValue('location', '')}
+                      aria-label="Clear location"
+                    >
+                      <Clear fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : undefined,
               }}
             />
           </Grid>
@@ -1518,6 +1750,8 @@ const SearchPage: React.FC = () => {
               fullWidth
               variant="outlined"
               onClick={clearFilters}
+              startIcon={<Clear />}
+              disabled={activeFiltersCount === 0}
               sx={{ height: '56px' }}
             >
               Clear Filters
@@ -1527,7 +1761,11 @@ const SearchPage: React.FC = () => {
             <Button
               fullWidth
               variant="outlined"
-              startIcon={<FilterList />}
+              startIcon={(
+                <Badge color="primary" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
+                  <FilterList />
+                </Badge>
+              )}
               onClick={() => setShowMoreFilters(!showMoreFilters)}
               sx={{ height: '56px' }}
             >

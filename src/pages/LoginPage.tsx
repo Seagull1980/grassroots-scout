@@ -12,7 +12,7 @@ import {
   InputAdornment,
   Alert,
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Visibility, VisibilityOff, MailOutline, Lock } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -118,6 +118,13 @@ const LoginPage: React.FC = () => {
               InputLabelProps={{
                 shrink: true,
               }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <MailOutline sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                )
+              }}
             />
             <TextField
               margin="normal"
@@ -135,6 +142,11 @@ const LoginPage: React.FC = () => {
                 shrink: true,
               }}
               InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton

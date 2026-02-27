@@ -182,14 +182,9 @@ export const OnboardingFlow: React.FC = () => {
         }
       } catch (error) {
         console.error('Failed to load leagues:', error);
-        // Fallback to default leagues if API fails (matching your database)
-        setAvailableLeagues([
-          { id: 1, name: 'County Youth League', region: 'Local' },
-          { id: 2, name: 'Sunday League', region: 'Local' },
-          { id: 3, name: 'Community League', region: 'Local' },
-          { id: 4, name: 'Local Girls League', region: 'Local' },
-          { id: 5, name: 'Development League', region: 'Local' }
-        ] as League[]);
+        // If the API call fails for any reason we leave `availableLeagues` empty.
+        // Admins can still request a new league later via the normal league request flow.
+        setAvailableLeagues([]);
       } finally {
         setLoadingLeagues(false);
       }
@@ -387,7 +382,7 @@ export const OnboardingFlow: React.FC = () => {
           subscribeToArea(locationCoords.lat, locationCoords.lng, userData.searchRadius);
         }
         
-        if (user.role !== 'Coach' && userData.preferredLeagues.length > 0) {
+        if (user?.role !== 'Coach' && userData.preferredLeagues.length > 0) {
           userData.preferredLeagues.forEach(league => {
             subscribeToLeague(league, '');
           });
@@ -415,8 +410,12 @@ export const OnboardingFlow: React.FC = () => {
             // User can create team later from Team Management page
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        // log full response for debugging
         console.error('Failed to save onboarding data:', error);
+        if (error.response) {
+          console.error('Server response:', error.response.data);
+        }
         setSnackbar({ 
           open: true, 
           message: 'Failed to save profile. Please try again or update from your profile page later.', 
@@ -872,7 +871,7 @@ export const OnboardingFlow: React.FC = () => {
                 />
               </Box>
               
-              {user.role !== 'Coach' && (
+              {user?.role !== 'Coach' && (
                 <Autocomplete
                   multiple
                   options={loadingLeagues ? [] : [...availableLeagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }]}
