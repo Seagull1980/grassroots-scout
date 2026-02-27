@@ -717,7 +717,8 @@ export const leaguesAPI = {
   getForSearch: async (includePending: boolean = true): Promise<League[]> => {
     const token = localStorage.getItem('token');
     const params = token && includePending ? '?includePending=true' : '';
-    const response = await api.get(`/leagues${params}`);
+    // always hit the api prefix so we reach backend; Vercel rewrites /api/*
+    const response = await api.get(`/api/leagues${params}`);
     return response.data.leagues || response.data;
   },
 
