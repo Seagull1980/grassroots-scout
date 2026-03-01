@@ -72,7 +72,7 @@ const AdminSupportPage: React.FC = () => {
       const token = localStorage.getItem('token');
       const params = statusFilter !== 'all' ? { status: statusFilter } : {};
       
-      const response = await axios.get(`${API_URL}/api/admin/support`, {
+      const response = await axios.get(`${API_URL}/admin/support`, {
         headers: { Authorization: `Bearer ${token}` },
         params,
       });
@@ -100,7 +100,7 @@ const AdminSupportPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `${API_URL}/api/admin/support/${selectedMessage.id}`,
+        `${API_URL}/admin/support/${selectedMessage.id}`,
         {
           status: updateStatus,
           priority: updatePriority,

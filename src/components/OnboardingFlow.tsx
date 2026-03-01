@@ -355,7 +355,7 @@ export const OnboardingFlow: React.FC = () => {
         // Only save if we have profile data
         if (Object.keys(profileData).length > 0) {
           await axios.put(
-            `${API_URL}/api/profile`,
+            `${API_URL}/profile`,
             profileData,
             {
               headers: { Authorization: `Bearer ${token}` }
@@ -392,7 +392,7 @@ export const OnboardingFlow: React.FC = () => {
         if (user.role === 'Coach' && teamData.teamName && teamData.ageGroup) {
           try {
             await axios.post(
-              `${API_URL}/api/teams`,
+              `${API_URL}/teams`,
               teamData,
               {
                 headers: { Authorization: `Bearer ${token}` }

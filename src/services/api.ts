@@ -10,13 +10,16 @@ const normalizeApiBase = (baseUrl: string) => {
 };
 
 const getAPIUrl = () => {
-  // Use environment variable if set, otherwise use relative URL for Vercel proxying
+  // Use environment variable if set, otherwise default to '/api' which
+  // will be proxied by the Vite dev server and matches production proxy
+  // conventions. Returning '/api' prevents 405 errors when code issues
+  // requests like api.get('/profile') without an explicit prefix.
   if (import.meta.env.VITE_API_URL) {
     // If URL is set, ensure it ends with /api for direct backend connections
     return normalizeApiBase(import.meta.env.VITE_API_URL);
   }
-  // Return empty string for relative URLs (Vercel proxying)
-  return '';
+  // Default path for local development and Vercel deployments
+  return '/api';
 };
 
 
@@ -25,8 +28,9 @@ const getRosterAPIUrl = () => {
     // If URL is set, ensure it ends with /api for direct backend connections
     return normalizeApiBase(import.meta.env.VITE_ROSTER_API_URL);
   }
-  // Return empty string for relative URLs (Vercel proxying)
-  return '';
+  // Default to '/api' so that requests are routed through the proxy in
+  // development and match the production setup.
+  return '/api';
 };
 
 const API_URL = getAPIUrl();

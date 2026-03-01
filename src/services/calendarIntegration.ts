@@ -62,12 +62,12 @@ class CalendarIntegrationService {
       syncEnabled: true,
     };
 
-    const response = await axios.post(`${API_URL}/api/calendar/integrations`, integration);
+    const response = await axios.post(`${API_URL}/calendar/integrations`, integration);
     return response.data.integration;
   }
 
   async syncWithGoogleCalendar(integrationId: string): Promise<{ synced: number; conflicts: ConflictDetection[] }> {
-    const response = await axios.post(`${API_URL}/api/calendar/integrations/${integrationId}/sync`);
+    const response = await axios.post(`${API_URL}/calendar/integrations/${integrationId}/sync`);
     return response.data;
   }
 
@@ -96,18 +96,18 @@ class CalendarIntegrationService {
       syncEnabled: true,
     };
 
-    const apiResponse = await axios.post(`${API_URL}/api/calendar/integrations`, integration);
+    const apiResponse = await axios.post(`${API_URL}/calendar/integrations`, integration);
     return apiResponse.data.integration;
   }
 
   // Recurring Events
   async createRecurringEvent(eventData: Omit<RecurringEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<RecurringEvent> {
-    const response = await axios.post(`${API_URL}/api/calendar/recurring-events`, eventData);
+    const response = await axios.post(`${API_URL}/recurring-events`, eventData);
     return response.data.event;
   }
 
   async getRecurringEvents(startDate: Date, endDate: Date): Promise<RecurringEvent[]> {
-    const response = await axios.get(`${API_URL}/api/calendar/recurring-events`, {
+    const response = await axios.get(`${API_URL}/recurring-events`, {
       params: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString()
@@ -117,7 +117,7 @@ class CalendarIntegrationService {
   }
 
   async updateRecurringEvent(eventId: string, updates: Partial<RecurringEvent>, updateType: 'this' | 'future' | 'all'): Promise<void> {
-    await axios.put(`${API_URL}/api/calendar/recurring-events/${eventId}`, {
+    await axios.put(`${API_URL}/recurring-events/${eventId}`, {
       ...updates,
       updateType
     });
@@ -130,12 +130,12 @@ class CalendarIntegrationService {
     participants: string[];
     eventId?: string;
   }): Promise<ConflictDetection> {
-    const response = await axios.post(`${API_URL}/api/calendar/conflicts/detect`, eventData);
+    const response = await axios.post(`${API_URL}/conflicts/detect`, eventData);
     return response.data;
   }
 
   async getConflictsForPeriod(startDate: Date, endDate: Date, userId?: string): Promise<ConflictDetection[]> {
-    const response = await axios.get(`${API_URL}/api/calendar/conflicts`, {
+    const response = await axios.get(`${API_URL}/conflicts`, {
       params: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
@@ -147,12 +147,12 @@ class CalendarIntegrationService {
 
   // Auto-scheduling
   async getSchedulingPreferences(userId: string): Promise<AutoSchedulingPreferences> {
-    const response = await axios.get(`${API_URL}/api/calendar/preferences/${userId}`);
+    const response = await axios.get(`${API_URL}/preferences/${userId}`);
     return response.data.preferences;
   }
 
   async updateSchedulingPreferences(userId: string, preferences: Partial<AutoSchedulingPreferences>): Promise<void> {
-    await axios.put(`${API_URL}/api/calendar/preferences/${userId}`, preferences);
+    await axios.put(`${API_URL}/preferences/${userId}`, preferences);
   }
 
   async suggestOptimalTimes(eventData: {
@@ -170,13 +170,13 @@ class CalendarIntegrationService {
       conflicts: number;
     }[];
   }> {
-    const response = await axios.post(`${API_URL}/api/calendar/suggest-times`, eventData);
+    const response = await axios.post(`${API_URL}/suggest-times`, eventData);
     return response.data;
   }
 
   // Reminders
   async setReminders(eventId: string, reminders: ReminderSettings[]): Promise<void> {
-    await axios.put(`${API_URL}/api/calendar/events/${eventId}/reminders`, { reminders });
+    await axios.put(`${API_URL}/events/${eventId}/reminders`, { reminders });
   }
 
   async getUpcomingReminders(userId: string): Promise<{
@@ -186,13 +186,13 @@ class CalendarIntegrationService {
     scheduledFor: string;
     sent: boolean;
   }[]> {
-    const response = await axios.get(`${API_URL}/api/calendar/reminders/${userId}`);
+    const response = await axios.get(`${API_URL}/reminders/${userId}`);
     return response.data.reminders;
   }
 
   // Export/Import
   async exportToICS(eventIds: string[]): Promise<Blob> {
-    const response = await axios.post(`${API_URL}/api/calendar/export/ics`, { eventIds }, {
+    const response = await axios.post(`${API_URL}/export/ics`, { eventIds }, {
       responseType: 'blob'
     });
     return response.data;
@@ -202,7 +202,7 @@ class CalendarIntegrationService {
     const formData = new FormData();
     formData.append('icsFile', file);
     
-    const response = await axios.post(`${API_URL}/api/calendar/import/ics`, formData, {
+    const response = await axios.post(`${API_URL}/import/ics`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;

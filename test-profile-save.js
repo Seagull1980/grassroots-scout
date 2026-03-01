@@ -4,33 +4,27 @@ import axios from 'axios';
 async function testProfileSave() {
   try {
     // First, try to login to get a token
-    const loginResponse = await axios.post('http://localhost:3000/api/login', {
+    const loginResponse = await axios.post('http://localhost:5000/api/auth/login', {
       email: 'admin@test.com',
-      password: 'password123'
+      password: 'admin123'
     });
 
     const token = loginResponse.data.token;
     console.log('Login successful, token received');
 
     // Now try to save a profile
+    // only send the fields that the current backend mapping understands
     const profileData = {
-      firstName: 'Test',
-      lastName: 'User',
-      dateOfBirth: '1990-01-01',
+      // follow backend mapping by using lowercase keys
+      dateofbirth: '1990-01-01',
       location: 'Test City',
       bio: 'Test bio',
       position: 'Forward',
-      preferredFoot: 'Right',
-      height: 180,
-      weight: 75,
-      experienceLevel: 'Intermediate',
-      availability: JSON.stringify(['Weekends']),
-      specializations: JSON.stringify(['Attacking']),
-      trainingDays: JSON.stringify(['Saturday', 'Sunday']),
-      ageGroupsCoached: JSON.stringify(['U16', 'U18'])
+      experiencelevel: 'Intermediate',
+      phone: '07123 456789'
     };
 
-    const saveResponse = await axios.put('http://localhost:3000/api/profile', profileData, {
+    const saveResponse = await axios.put('http://localhost:5000/api/profile', profileData, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

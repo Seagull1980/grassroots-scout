@@ -56,7 +56,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
       const userId = localStorage.getItem('userId');
       const userAgent = navigator.userAgent;
 
-      await axios.post(`${API_URL}/api/support/submit`, {
+      await axios.post(`${API_URL}/support/submit`, {
         name: name.trim(),
         email: email.trim(),
         subject: subject.trim(),

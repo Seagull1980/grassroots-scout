@@ -69,7 +69,7 @@ const AdminFrozenAdvertsPage: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/admin/frozen-adverts`, {
+      const response = await axios.get(`${API_URL}/admin/frozen-adverts`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           search: search.trim() || undefined
@@ -92,7 +92,7 @@ const AdminFrozenAdvertsPage: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/admin/adverts/${type}/${id}`, {
+      await axios.delete(`${API_URL}/admin/adverts/${type}/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
