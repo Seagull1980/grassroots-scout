@@ -251,7 +251,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
         return;
       }
 
-      await api.put(`/api/child-player-availability/${editingAvailability.id}`, formData);
+      await api.put(`/child-player-availability/${editingAvailability.id}`, formData);
       
       setSuccess('Player availability updated successfully!');
       setEditingAvailability(null);
@@ -269,7 +269,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     }
 
     try {
-      await api.delete(`/api/child-player-availability/${availabilityId}`);
+      await api.delete(`/child-player-availability/${availabilityId}`);
       setSuccess('Player availability removed successfully!');
       loadData();
     } catch (err: any) {
@@ -281,7 +281,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
   const toggleAvailabilityStatus = async (availability: ChildPlayerAvailability) => {
     try {
       const newStatus = availability.status === 'active' ? 'paused' : 'active';
-      await api.put(`/api/child-player-availability/${availability.id}`, { status: newStatus });
+      await api.put(`/child-player-availability/${availability.id}`, { status: newStatus });
       setSuccess(`Player availability ${newStatus === 'active' ? 'activated' : 'paused'} successfully!`);
       loadData();
     } catch (err: any) {

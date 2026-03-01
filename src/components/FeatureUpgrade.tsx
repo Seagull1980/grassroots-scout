@@ -79,7 +79,7 @@ const FeatureUpgrade: React.FC<FeatureUpgradeProps> = ({
 
       // For demo purposes, we'll auto-complete the payment
       // In a real implementation, you'd integrate with Stripe here
-      await api.post(`/api/payments/${paymentResponse.data.paymentId}/complete`);
+      await api.post(`/payments/${paymentResponse.data.paymentId}/complete`);
 
       setSuccess('Feature purchased successfully! Your listing is now featured.');
       setOpen(false);

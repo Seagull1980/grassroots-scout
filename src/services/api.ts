@@ -643,7 +643,7 @@ export const authAPI = {
   },
 
   verifyEmail: async (token: string): Promise<{ message: string; verified: boolean }> => {
-    const response = await api.get(`/api/auth/verify-email/${token}`);
+    const response = await api.get(`/auth/verify-email/${token}`);
     return response.data;
   },
 
@@ -717,8 +717,8 @@ export const leaguesAPI = {
   getForSearch: async (includePending: boolean = true): Promise<League[]> => {
     const token = localStorage.getItem('token');
     const params = token && includePending ? '?includePending=true' : '';
-    // always hit the api prefix so we reach backend; Vercel rewrites /api/*
-    const response = await api.get(`/api/leagues${params}`);
+    // baseURL already includes /api prefix
+    const response = await api.get(`/leagues${params}`);
     return response.data.leagues || response.data;
   },
 
@@ -755,12 +755,12 @@ export const leaguesAPI = {
     description?: string; 
     isActive?: boolean 
   }): Promise<{ message: string; league: League }> => {
-    const response = await rosterApi.put(`/api/admin/leagues/${id}`, leagueData);
+    const response = await rosterApi.put(`/admin/leagues/${id}`, leagueData);
     return response.data;
   },
 
   delete: async (id: number): Promise<{ message: string }> => {
-    const response = await rosterApi.delete(`/api/admin/leagues/${id}`);
+    const response = await rosterApi.delete(`/admin/leagues/${id}`);
     return response.data;
   },
 
@@ -836,7 +836,7 @@ export const adminAPI = {
   },
   
   freezeLeague: async (id: number, freeze: boolean): Promise<{ message: string; league: League }> => {
-    const response = await api.patch(`/api/admin/leagues/${id}/freeze`, { freeze });
+    const response = await api.patch(`/admin/leagues/${id}/freeze`, { freeze });
     return response.data;
   },
 };

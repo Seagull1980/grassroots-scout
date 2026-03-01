@@ -181,7 +181,7 @@ const ChildrenManagementPage: React.FC = () => {
         return;
       }
 
-      await api.put(`/api/children/${editingChild.id}`, formData);
+      await api.put(`/children/${editingChild.id}`, formData);
       
       setSuccess('Child information updated successfully!');
       setEditingChild(null);
@@ -199,7 +199,7 @@ const ChildrenManagementPage: React.FC = () => {
     }
 
     try {
-      await api.delete(`/api/children/${childId}`);
+      await api.delete(`/children/${childId}`);
       setSuccess('Child removed successfully!');
       loadChildren();
     } catch (err: any) {

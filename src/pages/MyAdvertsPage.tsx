@@ -135,7 +135,7 @@ const MyAdvertsPage: React.FC = () => {
     if (!menuAdvert) return;
     try {
       const newPausedState = !menuAdvert.paused;
-      await api.put(`/api/adverts/${menuAdvert.id}/status`, {
+      await api.put(`/adverts/${menuAdvert.id}/status`, {
         paused: newPausedState
       });
       
@@ -156,7 +156,7 @@ const MyAdvertsPage: React.FC = () => {
   const handleCloseAdvert = async (reason: string) => {
     if (!selectedAdvert) return;
     try {
-      await api.post(`/api/adverts/${selectedAdvert.id}/close`, {
+      await api.post(`/adverts/${selectedAdvert.id}/close`, {
         reason
       });
       setSuccess(`Advert closed: ${reason}`);
@@ -172,7 +172,7 @@ const MyAdvertsPage: React.FC = () => {
     if (!selectedAdvert) return;
     try {
       const advertType = 'position' in selectedAdvert ? 'vacancy' : 'player';
-      await api.delete(`/api/adverts/${selectedAdvert.id}`, {
+      await api.delete(`/adverts/${selectedAdvert.id}`, {
         data: { type: advertType }
       });
       setSuccess('Advert deleted');
@@ -258,7 +258,7 @@ const MyAdvertsPage: React.FC = () => {
 
   const handleRepost = async (advert: Advert) => {
     try {
-      await api.post(`/api/adverts/${advert.id}/repost`);
+      await api.post(`/adverts/${advert.id}/repost`);
       setSuccess('Advert reposted successfully! Redirecting...');
       setTimeout(() => {
         navigate('/my-adverts');
@@ -282,7 +282,7 @@ const MyAdvertsPage: React.FC = () => {
       setAnalyticsLoading(true);
       setAnalyticsOpen(true);
       
-      const response = await api.get(`/api/adverts/${advert.id}/analytics`);
+      const response = await api.get(`/adverts/${advert.id}/analytics`);
       setAnalytics(response.data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load analytics');
@@ -294,7 +294,7 @@ const MyAdvertsPage: React.FC = () => {
 
   const handleAutoExtend = async (advert: Advert, enabled: boolean) => {
     try {
-      await api.put(`/api/adverts/${advert.id}/auto-extend`, {
+      await api.put(`/adverts/${advert.id}/auto-extend`, {
         autoExtend: enabled
       });
       setSuccess(enabled ? 'Auto-extend enabled' : 'Auto-extend disabled');
@@ -306,7 +306,7 @@ const MyAdvertsPage: React.FC = () => {
 
   const handleTrackView = async (advertId: number) => {
     try {
-      await api.post(`/api/adverts/${advertId}/track-view`);
+      await api.post(`/adverts/${advertId}/track-view`);
     } catch (err) {
       console.error('Failed to track view:', err);
     }

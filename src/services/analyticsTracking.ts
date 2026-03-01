@@ -329,7 +329,7 @@ class AnalyticsTrackingService {
     this.events = [];
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/track`, {
+      const response = await fetch(`${API_BASE_URL}/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

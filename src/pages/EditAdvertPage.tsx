@@ -87,7 +87,7 @@ const EditAdvertPage: React.FC = () => {
       setError('');
       
       // Fetch the advert - we'll need to determine if it's a vacancy or player availability
-      const response = await api.get(`/api/adverts/${id}`);
+      const response = await api.get(`/adverts/${id}`);
       const advertData = response.data;
       
       setAdvert(advertData);
@@ -161,7 +161,7 @@ const EditAdvertPage: React.FC = () => {
         locationData: locationData,
       };
 
-      await api.put(`/api/adverts/${id}`, updateData);
+      await api.put(`/adverts/${id}`, updateData);
       setSuccess('Advert updated successfully!');
       setTimeout(() => {
         navigate('/my-adverts');

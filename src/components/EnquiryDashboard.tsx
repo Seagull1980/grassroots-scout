@@ -109,7 +109,7 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
 
     try {
       setSendingReply(true);
-      await api.post(`/api/enquiries/${selectedEnquiry.id}/reply`, {
+      await api.post(`/enquiries/${selectedEnquiry.id}/reply`, {
         message: replyMessage,
         status: 'replied',
       });
@@ -135,7 +135,7 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
 
   const handleStatusChange = async (enquiry: Enquiry, newStatus: Enquiry['status']) => {
     try {
-      await api.patch(`/api/enquiries/${enquiry.id}`, {
+      await api.patch(`/enquiries/${enquiry.id}`, {
         status: newStatus,
       });
 
