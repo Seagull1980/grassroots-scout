@@ -88,14 +88,27 @@ const EnhancedDashboard: React.FC = () => {
       const bookmarksResponse = await api.get('/bookmarks?limit=5');
 
       // Transform bookmarks to recent activity format
-      const bookmarkActivities = (bookmarksResponse.data?.bookmarks || []).map((bookmark: BookmarkData) => ({
-        id: bookmark.id,
-        type: bookmark.targetType,
-        title: bookmark.targetData?.title || 'Bookmarked Item',
-        description: bookmark.targetData?.description || '',
-        createdAt: bookmark.createdAt,
-        status: 'bookmarked'
-      }));
+      const bookmarkActivities = (bookmarksResponse.data?.bookmarks || [])
+        .map((bookmark: BookmarkData) => {
+          if (bookmark.targetType !== 'vacancy' && bookmark.targetType !== 'player_availability') {
+            return null;
+          }
+
+          const title = bookmark.targetData?.title?.trim();
+          if (!title) {
+            return null;
+          }
+
+          return {
+            id: bookmark.id,
+            type: bookmark.targetType as 'vacancy' | 'player_availability',
+            title,
+            description: bookmark.targetData?.description || '',
+            createdAt: bookmark.createdAt,
+            status: 'bookmarked'
+          };
+        })
+        .filter((activity: RecentActivity | null): activity is RecentActivity => activity !== null);
 
       setRecentActivity(bookmarkActivities);
       
@@ -138,10 +151,10 @@ const EnhancedDashboard: React.FC = () => {
         navigate('/calendar');
         break;
       case 'bookmarks':
-        navigate('/bookmarks');
+        navigate('/search');
         break;
       case 'alerts':
-        navigate('/alerts');
+        navigate('/alert-preferences');
         break;
       default:
         break;
@@ -266,7 +279,7 @@ const EnhancedDashboard: React.FC = () => {
                 </Typography>
                 <Button
                   size="small"
-                  onClick={() => navigate('/activity')}
+                  onClick={() => navigate('/search')}
                   endIcon={<SearchIcon />}
                 >
                   View All
@@ -339,7 +352,7 @@ const EnhancedDashboard: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     startIcon={<SettingsIcon />}
-                    onClick={() => navigate('/alerts')}
+                    onClick={() => navigate('/alert-preferences')}
                     sx={{ py: 2 }}
                   >
                     Alert Settings

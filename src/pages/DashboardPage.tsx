@@ -40,6 +40,16 @@ import PageHeader from '../components/PageHeader';
 import CoachOnboardingChecklist from '../components/CoachOnboardingChecklist';
 import VacancyStatusWidget from '../components/VacancyStatusWidget';
 
+interface BookmarkData {
+  id: number;
+  targetType: string;
+  targetData?: {
+    title?: string;
+    description?: string;
+  };
+  createdAt: string;
+}
+
 interface RecentActivity {
   id: number;
   type: 'vacancy' | 'player_availability' | 'trial' | 'bookmark';
@@ -86,26 +96,31 @@ const DashboardPage: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Mock recent activity
-      setRecentActivity([
-        {
-          id: 1,
-          type: 'vacancy',
-          title: 'Midfielder Position Open',
-          description: 'Looking for experienced midfielder',
-          createdAt: new Date().toISOString(),
-          status: 'active'
-        },
-        {
-          id: 2,
-          type: 'player_availability',
-          title: 'New Player Available',
-          description: 'Young striker seeking opportunities',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          status: 'available'
-        }
-      ]);
+
+      const bookmarksResponse = await api.get('/bookmarks?limit=10');
+      const bookmarkActivities = (bookmarksResponse.data?.bookmarks || [])
+        .map((bookmark: BookmarkData) => {
+          if (bookmark.targetType !== 'vacancy' && bookmark.targetType !== 'player_availability') {
+            return null;
+          }
+
+          const title = bookmark.targetData?.title?.trim();
+          if (!title) {
+            return null;
+          }
+
+          return {
+            id: bookmark.id,
+            type: bookmark.targetType as 'vacancy' | 'player_availability',
+            title,
+            description: bookmark.targetData?.description || '',
+            createdAt: bookmark.createdAt,
+            status: 'bookmarked'
+          };
+        })
+        .filter((activity: RecentActivity | null): activity is RecentActivity => activity !== null);
+
+      setRecentActivity(bookmarkActivities);
       
     } catch (error: any) {
       setError('Failed to load dashboard data');

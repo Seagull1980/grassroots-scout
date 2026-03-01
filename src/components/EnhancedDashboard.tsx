@@ -31,6 +31,15 @@ import api from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
 
+interface BookmarkData {
+  id: number;
+  targetType: string;
+  targetData?: {
+    title?: string;
+    description?: string;
+  };
+  createdAt: string;
+}
 
 interface RecentActivity {
   id: number;
@@ -74,26 +83,31 @@ const EnhancedDashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Mock recent activity data for now
-      setRecentActivity([
-        {
-          id: 1,
-          type: 'vacancy',
-          title: 'Midfielder Position Open',
-          description: 'Looking for experienced midfielder',
-          createdAt: new Date().toISOString(),
-          status: 'active'
-        },
-        {
-          id: 2,
-          type: 'player_availability',
-          title: 'New Player Available',
-          description: 'Young striker seeking opportunities',
-          createdAt: new Date(Date.now() - 86400000).toISOString(), // yesterday
-          status: 'available'
-        }
-      ]);
+
+      const bookmarksResponse = await api.get('/bookmarks?limit=10');
+      const bookmarkActivities = (bookmarksResponse.data?.bookmarks || [])
+        .map((bookmark: BookmarkData) => {
+          if (bookmark.targetType !== 'vacancy' && bookmark.targetType !== 'player_availability') {
+            return null;
+          }
+
+          const title = bookmark.targetData?.title?.trim();
+          if (!title) {
+            return null;
+          }
+
+          return {
+            id: bookmark.id,
+            type: bookmark.targetType as 'vacancy' | 'player_availability',
+            title,
+            description: bookmark.targetData?.description || '',
+            createdAt: bookmark.createdAt,
+            status: 'bookmarked'
+          };
+        })
+        .filter((activity: RecentActivity | null): activity is RecentActivity => activity !== null);
+
+      setRecentActivity(bookmarkActivities);
       
     } catch (error: any) {
       setError('Failed to load dashboard data');
@@ -134,10 +148,10 @@ const EnhancedDashboard: React.FC = () => {
         navigate('/calendar');
         break;
       case 'bookmarks':
-        navigate('/bookmarks');
+        navigate('/search');
         break;
       case 'alerts':
-        navigate('/alerts');
+        navigate('/alert-preferences');
         break;
       default:
         break;
@@ -262,7 +276,7 @@ const EnhancedDashboard: React.FC = () => {
                 </Typography>
                 <Button
                   size="small"
-                  onClick={() => navigate('/activity')}
+                  onClick={() => navigate('/search')}
                   endIcon={<SearchIcon />}
                 >
                   View All
@@ -335,7 +349,7 @@ const EnhancedDashboard: React.FC = () => {
                     fullWidth
                     variant="outlined"
                     startIcon={<SettingsIcon />}
-                    onClick={() => navigate('/alerts')}
+                    onClick={() => navigate('/alert-preferences')}
                     sx={{ py: 2 }}
                   >
                     Alert Settings
