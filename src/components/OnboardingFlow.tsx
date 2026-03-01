@@ -825,42 +825,29 @@ export const OnboardingFlow: React.FC = () => {
       title: 'Set your location',
       description: 'Help us show you relevant opportunities nearby',
       component: (
-        <GoogleMapsWrapper>
-          <Box py={2}>
-            <Typography variant="h6" gutterBottom>
-              Where are you based?
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              This helps us show you teams and players in your area
-            </Typography>
-            
-            <Stack spacing={3}>
-              <LocationAutocomplete
-                fullWidth
-                label="Location (City, Town, or Postcode) *"
-                required
-                value={userData.location}
-                onChange={(value) => {
-                  setUserData(prev => ({ ...prev, location: value }));
-                }}
-                onLocationSelect={(location) => {
-                  setLocationCoords({ lat: location.lat, lng: location.lng });
-                  setUserData(prev => ({ ...prev, location: location.address }));
-                }}
-                placeholder="e.g., Manchester, London, B1 1AA"
-                InputProps={{
-                  startAdornment: <LocationIcon sx={{ color: 'text.secondary', mr: 1 }} />
-                }}
-              />
-              
-              <Box>
-                <Typography variant="body2" gutterBottom>
-                  Search radius: {userData.searchRadius} km
-                </Typography>
-                <Slider
-                  value={userData.searchRadius}
-                  onChange={(_, newValue) => setUserData(prev => ({ 
-                    ...prev, 
+        <Box py={2}>
+          <Typography variant="h6" gutterBottom>
+            Where are you based?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            This helps us show you teams and players in your area
+          </Typography>
+          
+          <Stack spacing={3}>
+            <LocationAutocomplete
+              fullWidth
+              label="Location (City, Town, or Postcode) *"
+              required
+              value={userData.location}
+              onChange={(value) => {
+                setUserData(prev => ({ ...prev, location: value }));
+              }}
+              onLocationSelect={(location) => {
+                setLocationCoords({ lat: location.lat, lng: location.lng });
+                setUserData(prev => ({ ...prev, location: location.address }));
+              }}
+              placeholder="e.g., Manchester, London, B1 1AA"
+              helperText="Start typing and select from the dropdown suggestions"
                     searchRadius: newValue as number 
                   }))}
                   min={5}
@@ -965,7 +952,6 @@ export const OnboardingFlow: React.FC = () => {
               </Alert>
             </Stack>
           </Box>
-        </GoogleMapsWrapper>
       )
     },
     {
