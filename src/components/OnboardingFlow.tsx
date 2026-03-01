@@ -440,12 +440,12 @@ export const OnboardingFlow: React.FC = () => {
       title: 'Welcome to Grassroots Hub!',
       description: 'Let\'s get you set up to find the perfect football opportunities',
       component: (
-        <Box textAlign="center" py={3}>
-          <SportsIcon sx={{ fontSize: 80, color: 'primary.main', mb: 2 }} />
+        <Box textAlign="center" py={1}>
+          <SportsIcon sx={{ fontSize: 80, color: 'primary.main', mb: 1 }} />
           <Typography variant="h4" gutterBottom>
             Welcome to Grassroots Hub!
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2, maxWidth: 400, mx: 'auto' }}>
             We'll help you discover football teams, players, and opportunities in your area. 
             This quick setup will personalize your experience.
           </Typography>
@@ -1050,12 +1050,12 @@ export const OnboardingFlow: React.FC = () => {
       title: 'You\'re all set!',
       description: 'Start exploring and connecting with your local football community',
       component: (
-        <Box textAlign="center" py={3}>
-          <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
+        <Box textAlign="center" py={1}>
+          <CheckCircleIcon sx={{ fontSize: 80, color: 'success.main', mb: 1 }} />
           <Typography variant="h5" gutterBottom>
             You're ready to go!
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 400, mx: 'auto' }}>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
             Your profile is set up and you'll start receiving personalized recommendations 
             and notifications based on your preferences.
           </Typography>
@@ -1145,9 +1145,9 @@ export const OnboardingFlow: React.FC = () => {
         </IconButton>
       </Box>
       
-      <DialogContent sx={{ p: 4 }}>
+      <DialogContent sx={{ p: 3 }}>
         {/* Progress */}
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 3 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="body2" color="text.secondary">
               Step {currentStep + 1} of {steps.length}
@@ -1169,7 +1169,7 @@ export const OnboardingFlow: React.FC = () => {
         </Box>
 
         {/* Navigation */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
           <Button
             onClick={handleBack}
             disabled={currentStep === 0}
