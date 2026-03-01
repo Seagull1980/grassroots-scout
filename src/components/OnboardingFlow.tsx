@@ -440,8 +440,8 @@ export const OnboardingFlow: React.FC = () => {
       title: 'Welcome to Grassroots Hub!',
       description: 'Let\'s get you set up to find the perfect football opportunities',
       component: (
-        <Box textAlign="center" py={1}>
-          <SportsIcon sx={{ fontSize: 80, color: 'primary.main', mb: 1 }} />
+        <Box textAlign="center">
+          <SportsIcon sx={{ fontSize: 64, color: 'primary.main', mb: 1 }} />
           <Typography variant="h4" gutterBottom>
             Welcome to Grassroots Hub!
           </Typography>
@@ -1164,7 +1164,7 @@ export const OnboardingFlow: React.FC = () => {
         </Box>
 
         {/* Current Step */}
-        <Box sx={{ minHeight: 400 }}>
+        <Box sx={{ minHeight: 280 }}>
           {steps && steps.length > 0 && currentStep >= 0 && currentStep < steps.length && steps[currentStep] ? steps[currentStep].component : <Typography>Loading...</Typography>}
         </Box>
 
