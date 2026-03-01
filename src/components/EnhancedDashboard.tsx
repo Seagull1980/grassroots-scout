@@ -58,7 +58,7 @@ const EnhancedDashboard: React.FC = () => {
 
   const trackPageView = async () => {
     try {
-      await api.post('/api/engagement/track', {
+      await api.post('/engagement/track', {
         actionType: 'page_view',
         targetType: 'dashboard',
         metadata: {
@@ -105,7 +105,7 @@ const EnhancedDashboard: React.FC = () => {
 
   const trackAction = async (actionType: string, metadata: Record<string, unknown> = {}) => {
     try {
-      await api.post('/api/engagement/track', {
+      await api.post('/engagement/track', {
         actionType,
         metadata: {
           ...metadata,
