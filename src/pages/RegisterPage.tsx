@@ -252,14 +252,14 @@ const RegisterPage: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          mt: 8,
+          mt: 2,
         }}
       >
-        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+        <Paper elevation={3} sx={{ p: 3, width: '100%' }}>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             Create Account
           </Typography>
-          <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 3 }}>
+          <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 2 }}>
             Join The Grassroots Scout community
           </Typography>
 
