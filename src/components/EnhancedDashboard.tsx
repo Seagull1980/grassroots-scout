@@ -294,7 +294,9 @@ const EnhancedDashboard: React.FC = () => {
               ) : (
                 <Box sx={{ textAlign: 'center', py: 3 }}>
                   <Typography color="text.secondary">
-                    No recent activity. Start exploring to see updates here!
+                    {user?.role === 'Coach'
+                      ? 'No current activity. Removed or expired items are hidden.'
+                      : 'No recent activity. Start exploring to see updates here!'}
                   </Typography>
                 </Box>
               )}
