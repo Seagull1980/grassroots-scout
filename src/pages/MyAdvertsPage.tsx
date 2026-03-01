@@ -107,7 +107,7 @@ const MyAdvertsPage: React.FC = () => {
   const loadAdverts = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/my-adverts');
+      const response = await api.get('/my-adverts');
       setVacancies(response.data.vacancies || []);
       setPlayerAvailabilities(response.data.playerAvailabilities || []);
       setError('');

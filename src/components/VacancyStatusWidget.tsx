@@ -55,7 +55,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
   const loadVacancies = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/my-adverts');
+      const response = await api.get('/my-adverts');
       const allVacancies = response.data.vacancies || [];
       
       // Filter and organize vacancies
