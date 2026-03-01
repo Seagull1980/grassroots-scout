@@ -848,20 +848,33 @@ export const OnboardingFlow: React.FC = () => {
               }}
               placeholder="e.g., Manchester, London, B1 1AA"
               helperText="Start typing and select from the dropdown suggestions"
-                    searchRadius: newValue as number 
-                  }))}
-                  min={5}
-                  max={50}
-                  step={1}
-                  marks={[
-                    { value: 5, label: '5 km' },
-                    { value: 25, label: '25 km' },
-                    { value: 50, label: '50 km' }
-                  ]}
-                  valueLabelDisplay="auto"
-                  aria-label="Search radius"
-                />
-              </Box>
+              InputProps={{
+                startAdornment: <LocationIcon sx={{ color: 'text.secondary', mr: 1 }} />
+              }}
+            />
+
+            <Box>
+              <Typography variant="body2" gutterBottom>
+                Search radius: {userData.searchRadius} km
+              </Typography>
+              <Slider
+                value={userData.searchRadius}
+                onChange={(_, newValue) => setUserData(prev => ({
+                  ...prev,
+                  searchRadius: newValue as number 
+                }))}
+                min={5}
+                max={50}
+                step={1}
+                marks={[
+                  { value: 5, label: '5 km' },
+                  { value: 25, label: '25 km' },
+                  { value: 50, label: '50 km' }
+                ]}
+                valueLabelDisplay="auto"
+                aria-label="Search radius"
+              />
+            </Box>
               
               {user?.role !== 'Coach' && (
                 <Autocomplete
