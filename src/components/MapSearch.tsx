@@ -206,6 +206,11 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   // Email Alert functionality
   const [emailAlerts, setEmailAlerts] = useState<EmailAlert[]>([]);
   const [showAlertDialog, setShowAlertDialog] = useState(false);
+  const safeEmailAlerts = Array.isArray(emailAlerts) ? emailAlerts : [];
+  const activeAlertsCount = safeEmailAlerts.filter(alert => alert.isActive).length;
+  const availabilityResultsCount = Array.isArray(results)
+    ? results.filter(result => result.type === 'availability').length
+    : 0;
   
   // Filter states
   const [selectedLeague, setSelectedLeague] = useState<string>('');
@@ -438,7 +443,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const loadEmailAlerts = async () => {
     try {
       const response = await emailAlertAPI.getAll();
-      setEmailAlerts(response.alerts);
+      setEmailAlerts(Array.isArray(response?.alerts) ? response.alerts : []);
     } catch (error: any) {
       // Suppress auth errors (401/403) but log other errors
       if (error?.response?.status !== 401 && error?.response?.status !== 403) {
@@ -1744,7 +1749,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                         fontSize: isMobile ? '0.9rem' : '0.875rem'
                       }}
                     >
-                      {isMobile ? `Alerts (${emailAlerts.filter(alert => alert.isActive).length})` : `Email Alerts (${emailAlerts.filter(alert => alert.isActive).length})`}
+                      {isMobile ? `Alerts (${activeAlertsCount})` : `Email Alerts (${activeAlertsCount})`}
                     </Button>
                   </>
                 )}
@@ -1813,9 +1818,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 {(searchType === 'availability' || searchType === 'both') && (
                   <Box sx={{ ml: 1 }}>
                     <Typography variant="caption" color="text.secondary">
-                      Players loaded: {playerAvailabilityCount} • In current results: {results.filter(result => result.type === 'availability').length}
+                      Players loaded: {playerAvailabilityCount} • In current results: {availabilityResultsCount}
                     </Typography>
-                    {playerAvailabilityCount > 0 && results.filter(r => r.type === 'availability').length === 0 && (
+                    {playerAvailabilityCount > 0 && availabilityResultsCount === 0 && (
                       <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
                         Filtered out: {filterStats.filteredByDistance} too far away
                         {filterStats.filteredByLeague > 0 && ` • ${filterStats.filteredByLeague} by league`}
@@ -2318,16 +2323,16 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               {/* Existing Alerts Section */}
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  Your Active Alerts ({emailAlerts.filter(alert => alert.isActive).length})
+                  Your Active Alerts ({activeAlertsCount})
                 </Typography>
                 
-                {emailAlerts.length === 0 ? (
+                {safeEmailAlerts.length === 0 ? (
                   <Typography variant="body2" color="textSecondary">
                     No email alerts created yet.
                   </Typography>
                 ) : (
                   <Stack spacing={2}>
-                    {emailAlerts.map((alert) => (
+                    {safeEmailAlerts.map((alert) => (
                       <Card key={alert.id} variant="outlined">
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
