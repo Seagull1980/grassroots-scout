@@ -1325,13 +1325,24 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       const userLocation = await getCurrentLocation();
       if (userLocation && 'lat' in userLocation && 'lng' in userLocation) {
         console.log('Location obtained successfully:', userLocation);
+        const accuracy = typeof userLocation.accuracy === 'number' ? userLocation.accuracy : null;
+        const targetZoom = accuracy === null
+          ? 15
+          : accuracy <= 100
+            ? 15
+            : accuracy <= 1000
+              ? 13
+              : 11;
+
         setMapCenter(userLocation);
-        setMapZoom(15);
+        setMapZoom(targetZoom);
         searchInArea(userLocation, searchRadius);
         
         setSnackbar({
           open: true,
-          message: 'Location found! Map centered on your position.',
+          message: accuracy
+            ? `Location found (±${Math.round(accuracy)}m). Map centered on your position.`
+            : 'Location found! Map centered on your position.',
           severity: 'success'
         });
       } else if (userLocation && 'error' in userLocation) {

@@ -46,7 +46,7 @@ export const geocodeAddress = async (address: string): Promise<Location | null> 
   });
 };
 
-export const getCurrentLocation = (): Promise<{ lat: number; lng: number } | { error: string; userMessage: string } | null> => {
+export const getCurrentLocation = (): Promise<{ lat: number; lng: number; accuracy?: number } | { error: string; userMessage: string } | null> => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       console.warn('Geolocation is not supported by this browser');
@@ -54,13 +54,40 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number } | { e
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-      },
+    const requestPosition = (options: PositionOptions) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+
+          if (
+            typeof latitude !== 'number' ||
+            typeof longitude !== 'number' ||
+            latitude < -90 ||
+            latitude > 90 ||
+            longitude < -180 ||
+            longitude > 180
+          ) {
+            resolve({
+              error: 'Invalid location coordinates received',
+              userMessage: 'Invalid location received. Please try again or set location manually on the map.'
+            });
+            return;
+          }
+
+          if (typeof accuracy === 'number' && accuracy > 10000) {
+            resolve({
+              error: `Low accuracy location (±${Math.round(accuracy)}m)`,
+              userMessage: `Your location is too imprecise (±${Math.round(accuracy / 1000)}km). Please enable precise location and try again.`
+            });
+            return;
+          }
+
+          resolve({
+            lat: latitude,
+            lng: longitude,
+            accuracy
+          });
+        },
       (error) => {
         let errorMessage = 'Unknown error';
         let logLevel = 'warn';
@@ -95,12 +122,15 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number } | { e
         // Return error with user-friendly message
         resolve({ error: errorMessage, userMessage });
       },
-      {
-        timeout: 15000,
-        enableHighAccuracy: true,
-        maximumAge: 60000 // Cache location for 1 minute
-      }
+      options
     );
+    };
+
+    requestPosition({
+      timeout: 20000,
+      enableHighAccuracy: true,
+      maximumAge: 0
+    });
   });
 };
 
