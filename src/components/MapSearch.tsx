@@ -2074,79 +2074,88 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               {renderMarkers()}
             </Map>
 
-            {/* Drawing Instructions - Floating Panel */}
+            {/* Drawing Instructions - Compact Floating Panel */}
             {isDrawingMode && (
               <Paper
                 elevation={6}
                 sx={{
                   position: 'absolute',
-                  top: 20,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
+                  bottom: 20,
+                  right: 20,
                   zIndex: 10,
-                  p: 2,
-                  minWidth: 320,
-                  maxWidth: 500,
-                  backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                  border: '2px solid #2196F3'
+                  p: 1.5,
+                  minWidth: 280,
+                  maxWidth: 300,
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  border: '2px solid #2196F3',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                 }}
               >
-                <Box display="flex" flexDirection="column" gap={1.5}>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  {/* Header with close button */}
                   <Box display="flex" alignItems="center" justifyContent="space-between">
-                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <DrawIcon color="primary" />
-                      Drawing Mode
-                    </Typography>
                     <Chip 
                       label={`${drawingPath.length} point${drawingPath.length !== 1 ? 's' : ''}`}
                       color={drawingPath.length >= 3 ? 'success' : 'warning'}
                       size="small"
+                      variant="outlined"
+                      icon={<DrawIcon />}
                     />
+                    <IconButton 
+                      size="small" 
+                      onClick={handleClearDrawing}
+                      title="Exit drawing mode"
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
                   </Box>
 
-                  <Typography variant="body2" color="text.secondary">
-                    <strong>How to draw:</strong>
+                  {/* Compact instructions */}
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                    ✓ Click map to add points<br/>
+                    ✓ Need 3+ points to complete
                   </Typography>
-                  <Box component="ul" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.5 } }}>
-                    <li><Typography variant="body2">Click on the map to add points</Typography></li>
-                    <li><Typography variant="body2">Add at least 3 points to create an area</Typography></li>
-                    <li><Typography variant="body2">Use buttons below to complete or undo</Typography></li>
-                  </Box>
 
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {/* Action buttons - stacked for mobile, wrapped for desktop */}
+                  <Stack direction="column" spacing={0.75} sx={{ mt: 0.5 }}>
                     <Button
                       variant="contained"
                       color="success"
                       size="small"
                       onClick={handleCompleteDrawing}
                       disabled={drawingPath.length < 3}
-                      startIcon={<SaveIcon />}
+                      fullWidth
+                      sx={{ fontSize: '0.75rem', py: 0.75 }}
                     >
-                      Complete Drawing
+                      Complete ({drawingPath.length >= 3 ? '✓' : drawingPath.length})
                     </Button>
-                    <Button
-                      variant="outlined"
-                      color="warning"
-                      size="small"
-                      onClick={handleUndoLastPoint}
-                      disabled={drawingPath.length === 0}
-                    >
-                      Undo Last Point
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      onClick={handleClearDrawing}
-                      startIcon={<ClearIcon />}
-                    >
-                      Cancel
-                    </Button>
+                    <Stack direction="row" spacing={0.5}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleUndoLastPoint}
+                        disabled={drawingPath.length === 0}
+                        fullWidth
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                      >
+                        Undo
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        onClick={handleClearDrawing}
+                        fullWidth
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                      >
+                        Exit
+                      </Button>
+                    </Stack>
                   </Stack>
 
                   {drawingPath.length < 3 && (
-                    <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
-                      ⚠️ Need {3 - drawingPath.length} more point{3 - drawingPath.length !== 1 ? 's' : ''} to complete the area
+                    <Typography variant="caption" color="error" sx={{ fontSize: '0.65rem', mt: 0.5 }}>
+                      ⚠️ {3 - drawingPath.length} more point{3 - drawingPath.length !== 1 ? 's' : ''} needed
                     </Typography>
                   )}
                 </Box>
