@@ -401,8 +401,13 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     try {
       const response = await emailAlertAPI.getAll();
       setEmailAlerts(response.alerts);
-    } catch (error) {
-      console.error('Error loading email alerts:', error);
+    } catch (error: any) {
+      // Suppress auth errors (401/403) but log other errors
+      if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+        console.error('Error loading email alerts:', error);
+      }
+      // Set empty alerts on auth error to avoid blocking component
+      setEmailAlerts([]);
     }
   };
 
