@@ -59,6 +59,13 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number; accura
         (position) => {
           const { latitude, longitude, accuracy } = position.coords;
 
+          console.log('[Geolocation] Raw coordinates received:', {
+            lat: latitude,
+            lng: longitude,
+            accuracy: accuracy ? `±${Math.round(accuracy)}m` : 'unknown',
+            timestamp: new Date(position.timestamp).toISOString()
+          });
+
           if (
             typeof latitude !== 'number' ||
             typeof longitude !== 'number' ||
@@ -67,6 +74,7 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number; accura
             longitude < -180 ||
             longitude > 180
           ) {
+            console.error('[Geolocation] Invalid coordinates detected:', { latitude, longitude });
             resolve({
               error: 'Invalid location coordinates received',
               userMessage: 'Invalid location received. Please try again or set location manually on the map.'
@@ -75,6 +83,7 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number; accura
           }
 
           if (typeof accuracy === 'number' && accuracy > 10000) {
+            console.warn('[Geolocation] Low accuracy rejected:', { accuracy, threshold: 10000 });
             resolve({
               error: `Low accuracy location (±${Math.round(accuracy)}m)`,
               userMessage: `Your location is too imprecise (±${Math.round(accuracy / 1000)}km). Please enable precise location and try again.`
@@ -82,6 +91,7 @@ export const getCurrentLocation = (): Promise<{ lat: number; lng: number; accura
             return;
           }
 
+          console.log('[Geolocation] Location accepted and returning:', { lat: latitude, lng: longitude, accuracy });
           resolve({
             lat: latitude,
             lng: longitude,

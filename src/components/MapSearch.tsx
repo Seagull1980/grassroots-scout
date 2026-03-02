@@ -1298,6 +1298,23 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     }
   };
 
+  const handleClearSavedLocation = () => {
+    try {
+      localStorage.removeItem(SAVED_MAP_POSITION_KEY);
+      // Reset to UK default center
+      const defaultCenter = GOOGLE_MAPS_CONFIG.defaultCenter;
+      setMapCenter(defaultCenter);
+      setMapZoom(GOOGLE_MAPS_CONFIG.defaultZoom);
+      setSnackbar({
+        open: true,
+        message: 'Saved location cleared. Map reset to UK center.',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error clearing saved location:', error);
+    }
+  };
+
   const handleMyLocation = async () => {
     try {
       // Check if geolocation is supported
@@ -1322,7 +1339,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         severity: 'success'
       });
 
+      console.log('[Maps] handleMyLocation: requesting geolocation...');
       const userLocation = await getCurrentLocation();
+      console.log('[Maps] handleMyLocation: received location response:', userLocation);
       if (userLocation && 'lat' in userLocation && 'lng' in userLocation) {
         console.log('Location obtained successfully:', userLocation);
         const accuracy = typeof userLocation.accuracy === 'number' ? userLocation.accuracy : null;
@@ -1743,6 +1762,21 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                   }}
                 >
                   My Location
+                </Button>
+
+                <Button
+                  startIcon={<ClearIcon />}
+                  onClick={handleClearSavedLocation}
+                  variant="outlined"
+                  size={isMobile ? "large" : "small"}
+                  color="warning"
+                  title="Clear your saved map position from memory"
+                  sx={{ 
+                    minHeight: isMobile ? 44 : 'auto',
+                    fontSize: isMobile ? '0.9rem' : '0.875rem'
+                  }}
+                >
+                  {isMobile ? 'Clear' : 'Clear Location'}
                 </Button>
 
                 {user && (
