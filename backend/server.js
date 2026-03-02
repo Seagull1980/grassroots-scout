@@ -2118,6 +2118,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
   try {
     // Allow Coach, Player, and Admin roles to view available players
     if (req.user.role !== 'Coach' && req.user.role !== 'Player' && req.user.role !== 'Admin') {
+      console.log(`Access denied for role: ${req.user.role}`);
       return res.status(403).json({ error: 'Unauthorized to access player availability' });
     }
 
@@ -2139,16 +2140,22 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       
       try {
         preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
-        if (!Array.isArray(preferredLeagues)) preferredLeagues = [];
+        if (!Array.isArray(preferredLeagues)) {
+          preferredLeagues = [row.preferredLeagues];
+        }
       } catch (e) {
-        preferredLeagues = [];
+        // If parsing fails, treat as string array
+        preferredLeagues = row.preferredLeagues ? [row.preferredLeagues] : [];
       }
       
       try {
         positions = row.positions ? JSON.parse(row.positions) : [];
-        if (!Array.isArray(positions)) positions = [];
+        if (!Array.isArray(positions)) {
+          positions = [row.positions];
+        }
       } catch (e) {
-        positions = [];
+        // If parsing fails, treat as string array
+        positions = row.positions ? [row.positions] : [];
       }
       
       return {
@@ -2164,6 +2171,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
     };
     });
 
+    console.log(`Returning ${availability.length} player availability records for user role: ${req.user.role}`);
     res.json({ availability });
   } catch (error) {
     console.error('Get player availability error:', error);
