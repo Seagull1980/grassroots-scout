@@ -877,30 +877,37 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       }
 
       if (searchType === 'availability' || searchType === 'both') {
-        const availability = await getPlayerAvailability();
-        availability.forEach((player) => {
-          if (player.locationData) {
-            // Apply filters
-            if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
-              return;
+        try {
+          const availability = await getPlayerAvailability();
+          availability.forEach((player) => {
+            if (player.locationData) {
+              // Apply filters
+              if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
+                return;
+              }
+              if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
+                return;
+              }
+              
+              const distance = calculateDistance(
+                center,
+                { lat: player.locationData.latitude, lng: player.locationData.longitude }
+              );
+              if (distance <= radius) {
+                searchResults.push({
+                  item: player,
+                  distance,
+                  type: 'availability'
+                });
+              }
             }
-            if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
-              return;
-            }
-            
-            const distance = calculateDistance(
-              center,
-              { lat: player.locationData.latitude, lng: player.locationData.longitude }
-            );
-            if (distance <= radius) {
-              searchResults.push({
-                item: player,
-                distance,
-                type: 'availability'
-              });
-            }
+          });
+        } catch (error: any) {
+          // Suppress auth errors (401/403) to prevent logout; log other errors
+          if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+            console.warn('Failed to fetch player availability:', error?.message);
           }
-        });
+        }
       }
 
       // Sort results by distance
@@ -943,27 +950,34 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       }
 
       if (searchType === 'availability' || searchType === 'both') {
-        const availability = await getPlayerAvailability();
-        availability.forEach((player) => {
-          if (player.locationData) {
-            // Apply filters
-            if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) return;
-            if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) return;
-            
-            const point = new google.maps.LatLng(
-              player.locationData.latitude,
-              player.locationData.longitude
-            );
-            
-            if (google.maps.geometry.poly.containsLocation(point, polygon)) {
-              searchResults.push({
-                item: player,
-                distance: 0,
-                type: 'availability'
-              });
+        try {
+          const availability = await getPlayerAvailability();
+          availability.forEach((player) => {
+            if (player.locationData) {
+              // Apply filters
+              if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) return;
+              if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) return;
+              
+              const point = new google.maps.LatLng(
+                player.locationData.latitude,
+                player.locationData.longitude
+              );
+              
+              if (google.maps.geometry.poly.containsLocation(point, polygon)) {
+                searchResults.push({
+                  item: player,
+                  distance: 0,
+                  type: 'availability'
+                });
+              }
             }
+          });
+        } catch (error: any) {
+          // Suppress auth errors (401/403) to prevent logout; log other errors
+          if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+            console.warn('Failed to fetch player availability:', error?.message);
           }
-        });
+        }
       }
 
       setResults(searchResults);
