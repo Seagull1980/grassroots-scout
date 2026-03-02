@@ -1541,25 +1541,30 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 
                 <Divider orientation="vertical" flexItem />
 
-                {/* Location Type Toggle */}
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    variant={locationType === 'training' ? 'contained' : 'outlined'}
-                    size="small"
-                    onClick={() => setLocationType('training')}
-                  >
-                    Training
-                  </Button>
-                  <Button
-                    variant={locationType === 'match' ? 'contained' : 'outlined'}
-                    size="small"
-                    onClick={() => setLocationType('match')}
-                  >
-                    Match
-                  </Button>
-                </Stack>
+                {/* Location Type Toggle - Only show when searching for team vacancies */}
+                {(searchType === 'vacancies' || searchType === 'both') && (
+                  <>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant={locationType === 'training' ? 'contained' : 'outlined'}
+                        size="small"
+                        onClick={() => setLocationType('training')}
+                      >
+                        Training
+                      </Button>
+                      <Button
+                        variant={locationType === 'match' ? 'contained' : 'outlined'}
+                        size="small"
+                        onClick={() => setLocationType('match')}
+                      >
+                        Match
+                      </Button>
+                    </Stack>
+                    
+                    <Divider orientation="vertical" flexItem />
+                  </>
+                )}
                 
-                <Divider orientation="vertical" flexItem />
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Button
                     startIcon={<DrawIcon />}
