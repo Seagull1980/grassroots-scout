@@ -84,12 +84,38 @@ interface DrawingState {
 }
 
 const SAVED_REGIONS_KEY = 'grassroots-hub-saved-regions';
+const SAVED_MAP_POSITION_KEY = 'grassroots-hub-map-position';
 
 const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [mapCenter, setMapCenter] = useState(GOOGLE_MAPS_CONFIG.defaultCenter);
-  const [mapZoom, setMapZoom] = useState(GOOGLE_MAPS_CONFIG.defaultZoom);
+  
+  // Load saved map position from localStorage, fallback to default
+  const [mapCenter, setMapCenter] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SAVED_MAP_POSITION_KEY);
+      if (saved) {
+        const { lat, lng } = JSON.parse(saved);
+        return { lat, lng };
+      }
+    } catch (error) {
+      console.error('Error loading saved map position:', error);
+    }
+    return GOOGLE_MAPS_CONFIG.defaultCenter;
+  });
+  
+  const [mapZoom, setMapZoom] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SAVED_MAP_POSITION_KEY);
+      if (saved) {
+        const { zoom } = JSON.parse(saved);
+        return zoom || GOOGLE_MAPS_CONFIG.defaultZoom;
+      }
+    } catch (error) {
+      console.error('Error loading saved map zoom:', error);
+    }
+    return GOOGLE_MAPS_CONFIG.defaultZoom;
+  });
   const [searchRadius, setSearchRadius] = useState(GOOGLE_MAPS_CONFIG.searchRadius);
   const [results, setResults] = useState<MapSearchResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<MapSearchResult | null>(null);
@@ -708,12 +734,30 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     const doubleClickListener = map.addListener('dblclick', handleMapDoubleClick);
     const mouseDownListener = map.addListener('mousedown', handleMapMouseDown);
     
+    // Save map position (center and zoom) whenever user pans or zooms
+    const boundsChangedListener = map.addListener('bounds_changed', () => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      if (center && zoom) {
+        try {
+          localStorage.setItem(SAVED_MAP_POSITION_KEY, JSON.stringify({
+            lat: center.lat(),
+            lng: center.lng(),
+            zoom
+          }));
+        } catch (error) {
+          console.error('Error saving map position:', error);
+        }
+      }
+    });
+    
     setDrawingListeners([clickListener, doubleClickListener]);
 
     return () => {
       google.maps.event.removeListener(clickListener);
       google.maps.event.removeListener(doubleClickListener);
       google.maps.event.removeListener(mouseDownListener);
+      google.maps.event.removeListener(boundsChangedListener);
     };
   }, [map, completePolygon]);
 
