@@ -5,11 +5,11 @@ export const GOOGLE_MAPS_CONFIG = {
   libraries: ['places', 'geometry'] as ('places' | 'geometry')[], // Include geometry for polygon operations
   version: 'quarterly', // Use quarterly version for better stability
   defaultCenter: {
-    lat: 51.5074, // London coordinates as default
-    lng: -0.1278
+    lat: 54.5973, // UK Center (Midlands) to show more of the country
+    lng: -2.0122
   },
-  defaultZoom: 10,
-  searchRadius: 500, // km - increased for initial search to cover all UK
+  defaultZoom: 6, // Zoom 6 shows most of UK - allows players across country to be visible initially
+  searchRadius: 30, // km - default search radius
   mapOptions: {
     disableDefaultUI: false,
     zoomControl: true,
