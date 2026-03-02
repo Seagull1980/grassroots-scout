@@ -1230,9 +1230,61 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     
     setSnackbar({
       open: true,
-      message: 'Click on the map to start drawing your search area. Double-click or press Enter to finish.',
+      message: 'Click on the map to add points. Use the "Complete Drawing" button or double-click when you have 3+ points.',
       severity: 'success'
     });
+  };
+
+  const handleUndoLastPoint = () => {
+    if (drawingPath.length === 0) return;
+    
+    const newPath = drawingPath.slice(0, -1);
+    setDrawingPath(newPath);
+    drawingPathRef.current = newPath;
+    
+    // Remove last marker
+    if (drawingListeners.length > 0) {
+      const lastListener = drawingListeners[drawingListeners.length - 1];
+      if ('setMap' in lastListener && typeof lastListener.setMap === 'function') {
+        lastListener.setMap(null);
+      }
+      setDrawingListeners(prev => prev.slice(0, -1));
+    }
+    
+    // Update polyline
+    if (drawingPolylineRef.current) {
+      drawingPolylineRef.current.setMap(null);
+    }
+    
+    if (newPath.length > 1) {
+      const polyline = new google.maps.Polyline({
+        path: newPath,
+        strokeColor: '#2196F3',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+        map: map
+      });
+      setDrawingPolyline(polyline);
+      drawingPolylineRef.current = polyline;
+    }
+    
+    setSnackbar({
+      open: true,
+      message: `Point removed. ${newPath.length} point${newPath.length !== 1 ? 's' : ''} remaining.`,
+      severity: 'success'
+    });
+  };
+
+  const handleCompleteDrawing = () => {
+    if (drawingPath.length < 3) {
+      setSnackbar({
+        open: true,
+        message: `Need at least 3 points to complete the area. You have ${drawingPath.length}.`,
+        severity: 'error'
+      });
+      return;
+    }
+    completePolygon(drawingPath);
   };
 
   const handleClearDrawing = () => {
@@ -1990,12 +2042,12 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 </Box>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="textSecondary">
+                <Typography variant="body2" color="textSecondary" sx={{ fontWeight: drawingState.isActive ? 600 : 400 }}>
                   {drawingState.isActive 
-                    ? 'Click on the map to start drawing a search area. Double-click to finish.'
+                    ? '📍 Drawing active - see instructions above map'
                     : drawingState.mode === 'edit'
-                    ? 'Edit mode: Drag the corners to adjust your search area'
-                    : 'Click on the map to search different areas or draw a custom search area'
+                    ? '✏️ Edit mode: Drag corners to adjust your search area'
+                    : '💡 Click map to search, or use "Draw Area" to create a custom region'
                   }
                 </Typography>
               </Grid>
@@ -2021,6 +2073,85 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
             >
               {renderMarkers()}
             </Map>
+
+            {/* Drawing Instructions - Floating Panel */}
+            {isDrawingMode && (
+              <Paper
+                elevation={6}
+                sx={{
+                  position: 'absolute',
+                  top: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 10,
+                  p: 2,
+                  minWidth: 320,
+                  maxWidth: 500,
+                  backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                  border: '2px solid #2196F3'
+                }}
+              >
+                <Box display="flex" flexDirection="column" gap={1.5}>
+                  <Box display="flex" alignItems="center" justifyContent="space-between">
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <DrawIcon color="primary" />
+                      Drawing Mode
+                    </Typography>
+                    <Chip 
+                      label={`${drawingPath.length} point${drawingPath.length !== 1 ? 's' : ''}`}
+                      color={drawingPath.length >= 3 ? 'success' : 'warning'}
+                      size="small"
+                    />
+                  </Box>
+
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>How to draw:</strong>
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.5 } }}>
+                    <li><Typography variant="body2">Click on the map to add points</Typography></li>
+                    <li><Typography variant="body2">Add at least 3 points to create an area</Typography></li>
+                    <li><Typography variant="body2">Use buttons below to complete or undo</Typography></li>
+                  </Box>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="small"
+                      onClick={handleCompleteDrawing}
+                      disabled={drawingPath.length < 3}
+                      startIcon={<SaveIcon />}
+                    >
+                      Complete Drawing
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      size="small"
+                      onClick={handleUndoLastPoint}
+                      disabled={drawingPath.length === 0}
+                    >
+                      Undo Last Point
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      onClick={handleClearDrawing}
+                      startIcon={<ClearIcon />}
+                    >
+                      Cancel
+                    </Button>
+                  </Stack>
+
+                  {drawingPath.length < 3 && (
+                    <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
+                      ⚠️ Need {3 - drawingPath.length} more point{3 - drawingPath.length !== 1 ? 's' : ''} to complete the area
+                    </Typography>
+                  )}
+                </Box>
+              </Paper>
+            )}
           </Box>
         </Paper>
 
