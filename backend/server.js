@@ -2162,7 +2162,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       ...row,
       preferredLeagues,
       positions,
-      locationData: row.locationAddress ? {
+      locationData: row.locationAddress && row.locationLatitude && row.locationLongitude ? {
         address: row.locationAddress,
         latitude: row.locationLatitude,
         longitude: row.locationLongitude,
@@ -2171,7 +2171,16 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
     };
     });
 
-    console.log(`Returning ${availability.length} player availability records for user role: ${req.user.role}`);
+    const withLocation = availability.filter(a => a.locationData !== null).length;
+    const withoutLocation = availability.length - withLocation;
+    console.log(`[Player Availability] User: ${req.user.email} (${req.user.role}), Returning: ${availability.length} records, With location: ${withLocation}, Without location: ${withoutLocation}`);
+    
+    // Debug: Log first record's location data if available
+    if (availability.length > 0) {
+      const sample = availability[0];
+      console.log(`[Player Availability] Sample record: title="${sample.title}", hasLocationData=${sample.locationData ? 'YES' : 'NO'}, address="${sample.locationData?.address || 'N/A'}"`);
+    }
+    
     res.json({ availability });
   } catch (error) {
     console.error('Get player availability error:', error);
