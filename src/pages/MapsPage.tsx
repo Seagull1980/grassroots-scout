@@ -8,7 +8,6 @@ import {
   Paper
 } from '@mui/material';
 import { Map as MapIcon } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
 import MapSearch from '../components/MapSearch';
 import PageHeader from '../components/PageHeader';
 
@@ -27,9 +26,7 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 };
 
 const MapsPage: React.FC = () => {
-  const { user } = useAuth();
-  // Coaches default to Available Players tab (index 1), others default to Team Vacancies (index 0)
-  const [tabValue, setTabValue] = useState(user?.role === 'Coach' ? 1 : 0);
+  const [tabValue, setTabValue] = useState(0);
   const [shouldRenderMaps, setShouldRenderMaps] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
