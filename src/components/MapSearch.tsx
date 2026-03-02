@@ -119,6 +119,12 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const [searchRadius, setSearchRadius] = useState(GOOGLE_MAPS_CONFIG.searchRadius);
   const [results, setResults] = useState<MapSearchResult[]>([]);
   const [playerAvailabilityCount, setPlayerAvailabilityCount] = useState(0);
+  const [filterStats, setFilterStats] = useState({ 
+    filteredByLeague: 0, 
+    filteredByAge: 0, 
+    filteredByDistance: 0,
+    noLocation: 0
+  });
   const [selectedResult, setSelectedResult] = useState<MapSearchResult | null>(null);
   const [, setLoading] = useState(false);
   const [map, setMap] = useState<google.maps.Map>();
@@ -936,34 +942,55 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
           const availability = await getPlayerAvailability();
           setPlayerAvailabilityCount(Array.isArray(availability) ? availability.length : 0);
           
+          // Track filtering reasons
+          let filteredByLeague = 0;
+          let filteredByAge = 0;
+          let filteredByDistance = 0;
+          let noLocation = 0;
+          
           if (!availability || !Array.isArray(availability)) {
             console.warn('Player availability is not an array:', availability);
             setPlayerAvailabilityCount(0);
           } else {
             availability.forEach((player) => {
-              if (player.locationData) {
-                // Apply filters
-                if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
-                  return;
-                }
-                if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
-                  return;
-                }
-                
-                const distance = calculateDistance(
-                  center,
-                  { lat: player.locationData.latitude, lng: player.locationData.longitude }
-                );
-                if (distance <= radius) {
-                  searchResults.push({
-                    item: player,
-                    distance,
-                    type: 'availability'
-                  });
-                }
+              if (!player.locationData) {
+                noLocation++;
+                return;
+              }
+              
+              // Apply filters and track reasons
+              if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
+                filteredByLeague++;
+                return;
+              }
+              if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
+                filteredByAge++;
+                return;
+              }
+              
+              const distance = calculateDistance(
+                center,
+                { lat: player.locationData.latitude, lng: player.locationData.longitude }
+              );
+              if (distance <= radius) {
+                searchResults.push({
+                  item: player,
+                  distance,
+                  type: 'availability'
+                });
+              } else {
+                filteredByDistance++;
               }
             });
           }
+          
+          // Update filter statistics
+          setFilterStats({
+            filteredByLeague,
+            filteredByAge,
+            filteredByDistance,
+            noLocation
+          });
         } catch (error) {
           console.error('Error fetching player availability:', error);
           setPlayerAvailabilityCount(0);
@@ -1784,9 +1811,24 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 )}
 
                 {(searchType === 'availability' || searchType === 'both') && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                    Players loaded: {playerAvailabilityCount} • In current results: {results.filter(result => result.type === 'availability').length}
-                  </Typography>
+                  <Box sx={{ ml: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Players loaded: {playerAvailabilityCount} • In current results: {results.filter(result => result.type === 'availability').length}
+                    </Typography>
+                    {playerAvailabilityCount > 0 && results.filter(r => r.type === 'availability').length === 0 && (
+                      <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
+                        Filtered out: {filterStats.filteredByDistance} too far away
+                        {filterStats.filteredByLeague > 0 && ` • ${filterStats.filteredByLeague} by league`}
+                        {filterStats.filteredByAge > 0 && ` • ${filterStats.filteredByAge} by age`}
+                        {filterStats.noLocation > 0 && ` • ${filterStats.noLocation} no location`}
+                        {filterStats.filteredByDistance > 0 && (
+                          <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
+                            📍 Search center: {mapCenter.lat.toFixed(4)}, {mapCenter.lng.toFixed(4)} • Radius: {searchRadius}km
+                          </Box>
+                        )}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
               </Box>
             </Grid>
