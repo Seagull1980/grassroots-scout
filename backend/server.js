@@ -2116,16 +2116,21 @@ app.post('/api/children/link-to-existing', [
 // Get authenticated player's own availability
 app.get('/api/player-availability', authenticateToken, async (req, res) => {
   try {
-    // Allow Player role and Admin role (for testing)
-    if (req.user.role !== 'Player' && req.user.role !== 'Admin') {
-      return res.status(403).json({ error: 'Only players can access player availability' });
+    // Allow Coach, Player, and Admin roles to view available players
+    if (req.user.role !== 'Coach' && req.user.role !== 'Player' && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Unauthorized to access player availability' });
     }
+
+    // If user is a Player, return only their own records; Coaches see all records
+    const userQuery = req.user.role === 'Player' 
+      ? 'WHERE postedBy = ? AND status != \'inactive\''
+      : 'WHERE status != \'inactive\'';
 
     const availabilityResult = await db.query(
       `SELECT * FROM player_availability 
-       WHERE postedBy = ? AND status != 'inactive'
+       ${userQuery}
        ORDER BY createdAt DESC`,
-      [req.user.userId]
+      req.user.role === 'Player' ? [req.user.userId] : []
     );
 
     const availability = (availabilityResult.rows || []).map(row => {
