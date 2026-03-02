@@ -116,6 +116,16 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     }
     return GOOGLE_MAPS_CONFIG.defaultZoom;
   });
+  const [hadSavedMapPositionOnLoad] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SAVED_MAP_POSITION_KEY);
+      if (!saved) return false;
+      const parsed = JSON.parse(saved);
+      return typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number';
+    } catch {
+      return false;
+    }
+  });
   const [searchRadius, setSearchRadius] = useState(GOOGLE_MAPS_CONFIG.searchRadius);
   const [results, setResults] = useState<MapSearchResult[]>([]);
   const [playerAvailabilityCount, setPlayerAvailabilityCount] = useState(0);
@@ -1012,6 +1022,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         !selectedLeague &&
         !selectedAgeGroup &&
         availabilityInRadius === 0 &&
+        !hadSavedMapPositionOnLoad &&
         !hasAutoRecenteredRef.current &&
         (center.lat !== GOOGLE_MAPS_CONFIG.defaultCenter.lat || center.lng !== GOOGLE_MAPS_CONFIG.defaultCenter.lng)
       ) {
