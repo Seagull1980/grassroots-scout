@@ -8,6 +8,7 @@ import {
   Paper
 } from '@mui/material';
 import { Map as MapIcon } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 import MapSearch from '../components/MapSearch';
 import PageHeader from '../components/PageHeader';
 
@@ -26,7 +27,15 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
 };
 
 const MapsPage: React.FC = () => {
+  const { user } = useAuth();
   const [tabValue, setTabValue] = useState(0);
+
+  // Set tab to Available Players for coaches
+  useEffect(() => {
+    if (user?.role === 'Coach') {
+      setTabValue(1);
+    }
+  }, [user?.role]);
   const [shouldRenderMaps, setShouldRenderMaps] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
