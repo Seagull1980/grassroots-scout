@@ -8,7 +8,7 @@ export const GOOGLE_MAPS_CONFIG = {
     lat: 54.5973, // UK Center (Midlands) to show more of the country
     lng: -2.0122
   },
-  defaultZoom: 6, // Zoom 6 shows most of UK - allows players across country to be visible initially
+  defaultZoom: 10,
   searchRadius: 30, // km - default search radius
   mapOptions: {
     disableDefaultUI: false,

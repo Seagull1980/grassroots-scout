@@ -118,6 +118,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   });
   const [searchRadius, setSearchRadius] = useState(GOOGLE_MAPS_CONFIG.searchRadius);
   const [results, setResults] = useState<MapSearchResult[]>([]);
+  const [playerAvailabilityCount, setPlayerAvailabilityCount] = useState(0);
   const [selectedResult, setSelectedResult] = useState<MapSearchResult | null>(null);
   const [, setLoading] = useState(false);
   const [map, setMap] = useState<google.maps.Map>();
@@ -144,6 +145,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   const drawingStateActiveRef = useRef(drawingState.isActive);
   const mapOverlayRef = useRef<google.maps.OverlayView | null>(null);
   const lastMapClickRef = useRef<number>(0);
+  const hasAutoRecenteredRef = useRef(false);
   
   // Store cleanup functions to ensure they're always called
   const eventCleanupFunctionsRef = useRef<Array<() => void>>([]);
@@ -167,6 +169,10 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   useEffect(() => {
     drawingStateActiveRef.current = drawingState.isActive;
   }, [drawingState.isActive]);
+
+  useEffect(() => {
+    hasAutoRecenteredRef.current = false;
+  }, [searchType]);
   
   // Saved regions functionality
   const [savedRegions, setSavedRegions] = useState<SavedSearchRegion[]>([]);
@@ -928,43 +934,66 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       if (searchType === 'availability' || searchType === 'both') {
         try {
           const availability = await getPlayerAvailability();
-          console.log(`MapSearch: Received ${availability ? availability.length : 0} players from API`);
+          setPlayerAvailabilityCount(Array.isArray(availability) ? availability.length : 0);
           
           if (!availability || !Array.isArray(availability)) {
             console.warn('Player availability is not an array:', availability);
-            return;
+            setPlayerAvailabilityCount(0);
+          } else {
+            availability.forEach((player) => {
+              if (player.locationData) {
+                // Apply filters
+                if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
+                  return;
+                }
+                if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
+                  return;
+                }
+                
+                const distance = calculateDistance(
+                  center,
+                  { lat: player.locationData.latitude, lng: player.locationData.longitude }
+                );
+                if (distance <= radius) {
+                  searchResults.push({
+                    item: player,
+                    distance,
+                    type: 'availability'
+                  });
+                }
+              }
+            });
           }
-          
-          availability.forEach((player) => {
-            if (player.locationData) {
-              // Apply filters
-              if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) {
-                return;
-              }
-              if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) {
-                return;
-              }
-              
-              const distance = calculateDistance(
-                center,
-                { lat: player.locationData.latitude, lng: player.locationData.longitude }
-              );
-              if (distance <= radius) {
-                searchResults.push({
-                  item: player,
-                  distance,
-                  type: 'availability'
-                });
-              }
-            }
-          });
         } catch (error) {
           console.error('Error fetching player availability:', error);
+          setPlayerAvailabilityCount(0);
         }
       }
 
       // Sort results by distance
       searchResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+      // If user has a saved location far from available players, auto-recenter once
+      const availabilityInRadius = searchResults.filter(result => result.type === 'availability').length;
+      if (
+        searchType === 'availability' &&
+        !selectedLeague &&
+        !selectedAgeGroup &&
+        availabilityInRadius === 0 &&
+        !hasAutoRecenteredRef.current &&
+        (center.lat !== GOOGLE_MAPS_CONFIG.defaultCenter.lat || center.lng !== GOOGLE_MAPS_CONFIG.defaultCenter.lng)
+      ) {
+        hasAutoRecenteredRef.current = true;
+        setMapCenter(GOOGLE_MAPS_CONFIG.defaultCenter);
+        setMapZoom(GOOGLE_MAPS_CONFIG.defaultZoom);
+        setSnackbar({
+          open: true,
+          message: 'No players found near your last map location. Recentered to default area.',
+          severity: 'success'
+        });
+        return;
+      }
+
       setResults(searchResults);
     } catch (error) {
       console.error('❌ Error searching area:', error);
@@ -1005,35 +1034,36 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       if (searchType === 'availability' || searchType === 'both') {
         try {
           const availability = await getPlayerAvailability();
-          console.log(`MapSearch: Received ${availability ? availability.length : 0} players for drawn area search`);
+          setPlayerAvailabilityCount(Array.isArray(availability) ? availability.length : 0);
           
           if (!availability || !Array.isArray(availability)) {
             console.warn('Player availability is not an array:', availability);
-            return;
-          }
-          
-          availability.forEach((player) => {
-            if (player.locationData) {
-              // Apply filters
-              if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) return;
-              if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) return;
-              
-              const point = new google.maps.LatLng(
-                player.locationData.latitude,
-                player.locationData.longitude
-              );
-              
-              if (google.maps.geometry.poly.containsLocation(point, polygon)) {
-                searchResults.push({
-                  item: player,
-                  distance: 0,
-                  type: 'availability'
-                });
+            setPlayerAvailabilityCount(0);
+          } else {
+            availability.forEach((player) => {
+              if (player.locationData) {
+                // Apply filters
+                if (selectedLeague && !player.preferredLeagues.includes(selectedLeague)) return;
+                if (selectedAgeGroup && player.ageGroup !== selectedAgeGroup) return;
+                
+                const point = new google.maps.LatLng(
+                  player.locationData.latitude,
+                  player.locationData.longitude
+                );
+                
+                if (google.maps.geometry.poly.containsLocation(point, polygon)) {
+                  searchResults.push({
+                    item: player,
+                    distance: 0,
+                    type: 'availability'
+                  });
+                }
               }
-            }
-          });
+            });
+          }
         } catch (error) {
           console.error('Error fetching player availability for drawn area:', error);
+          setPlayerAvailabilityCount(0);
         }
       }
 
@@ -1751,6 +1781,12 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                       </Stack>
                     )}
                   </>
+                )}
+
+                {(searchType === 'availability' || searchType === 'both') && (
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                    Players loaded: {playerAvailabilityCount} • In current results: {results.filter(result => result.type === 'availability').length}
+                  </Typography>
                 )}
               </Box>
             </Grid>
