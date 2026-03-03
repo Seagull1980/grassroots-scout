@@ -2457,7 +2457,7 @@ app.get('/api/child-player-availability', authenticateToken, async (req, res) =>
       }
       
       try {
-        positions = row.positions ? JSON.parse(row.positions) : [];
+        positions = row.position ? JSON.parse(row.position) : [];
         if (!Array.isArray(positions)) positions = [];
       } catch (e) {
         positions = [];
@@ -2734,7 +2734,7 @@ app.get('/api/public/child-player-availability', async (req, res) => {
       }
       
       try {
-        positions = row.positions ? JSON.parse(row.positions) : [];
+        positions = row.position ? JSON.parse(row.position) : [];
         if (!Array.isArray(positions)) positions = [];
       } catch (e) {
         positions = [];
@@ -7524,7 +7524,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
           }
           
           try {
-            positions = row.positions ? JSON.parse(row.positions) : [];
+            positions = row.position ? JSON.parse(row.position) : [];
             if (!Array.isArray(positions)) positions = [];
           } catch (e) {
             positions = [];
