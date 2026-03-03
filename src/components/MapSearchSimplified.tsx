@@ -39,6 +39,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const drawingPathRef = useRef<google.maps.LatLng[]>([]);
   const isDrawingRef = useRef(false); // Use ref to track drawing state
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
   const [searchRadius, setSearchRadius] = useState(10); // km
   const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingPointCount, setDrawingPointCount] = useState(0);
   const [filteredResults, setFilteredResults] = useState<any[]>([]);
 
   // Initialize Google Maps
@@ -101,6 +103,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         
         const latLng = event.latLng;
         drawingPathRef.current.push(latLng);
+        setDrawingPointCount(drawingPathRef.current.length); // Update state to trigger re-render
         
         // Update polyline
         if (polylineRef.current) {
@@ -209,6 +212,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const bounds = new window.google.maps.LatLngBounds();
     let hasValidMarkers = false;
 
+    // Create info window if it doesn't exist
+    if (!infoWindowRef.current && window.google?.maps?.InfoWindow) {
+      infoWindowRef.current = new window.google.maps.InfoWindow();
+    }
+
     // Create new markers
     displayResults.forEach(result => {
       const position = getResultPosition(result);
@@ -218,7 +226,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       const marker = new window.google.maps.Marker({
         position,
         map: mapInstanceRef.current as google.maps.Map,
-        title: result.teamName || result.fullName || result.name || 'Location',
+        title: result.teamName || result.title || result.fullName || result.name || 'Location',
         icon: result.itemType === 'player' 
           ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
           : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
@@ -226,8 +234,37 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         visible: true
       });
 
+      // Create info window content
+      const createInfoContent = (item: any) => {
+        const title = item.teamName || item.title || item.fullName || item.name || 'Location';
+        const type = item.itemType === 'player' ? 'Player' : 'Team';
+        const ageGroup = item.ageGroup ? `<br><strong>Age:</strong> ${item.ageGroup}` : '';
+        const position = item.position ? `<br><strong>Position:</strong> ${Array.isArray(item.position) ? JSON.parse(item.position).join(', ') : item.position}` : '';
+        const preferredPosition = item.preferredPosition ? `<br><strong>Position:</strong> ${item.preferredPosition}` : '';
+        const league = item.league || item.preferredLeagues ? `<br><strong>League:</strong> ${item.league || item.preferredLeagues}` : '';
+        const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
+        
+        return `
+          <div style="padding: 8px; min-width: 200px;">
+            <h3 style="margin: 0 0 8px 0; color: #1976d2; font-size: 16px;">${title}</h3>
+            <p style="margin: 4px 0; color: #666; font-size: 14px;">
+              <strong>Type:</strong> ${type}
+              ${ageGroup}
+              ${position}
+              ${preferredPosition}
+              ${league}
+              ${location}
+            </p>
+          </div>
+        `;
+      };
+
       marker.addListener('click', () => {
         setSelectedItem(result);
+        if (infoWindowRef.current && mapInstanceRef.current) {
+          infoWindowRef.current.setContent(createInfoContent(result));
+          infoWindowRef.current.open(mapInstanceRef.current, marker);
+        }
       });
 
       markersRef.current.push(marker);
@@ -296,8 +333,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const handleStartDrawing = () => {
     setIsDrawing(true);
     drawingPathRef.current = [];
+    setDrawingPointCount(0);
     if (polylineRef.current) polylineRef.current.setMap(null);
     polylineRef.current = null;
+    // Close info window when starting to draw
+    if (infoWindowRef.current) infoWindowRef.current.close();
   };
 
   const handleFinishDrawing = () => {
@@ -322,6 +362,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const handleClearDrawing = () => {
     setIsDrawing(false);
     drawingPathRef.current = [];
+    setDrawingPointCount(0);
     if (polylineRef.current) {
       polylineRef.current.setMap(null);
       polylineRef.current = null;
@@ -420,14 +461,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               {isDrawing ? 'Cancel Drawing' : 'Draw Area'}
             </Button>
 
-            {isDrawing && drawingPathRef.current.length > 0 && (
+            {isDrawing && drawingPointCount > 0 && (
               <Button
                 onClick={handleFinishDrawing}
                 variant="contained"
                 size="small"
                 color="success"
               >
-                Done ({drawingPathRef.current.length} points)
+                Finish Drawing ({drawingPointCount} points)
               </Button>
             )}
             
