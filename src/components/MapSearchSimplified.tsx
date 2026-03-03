@@ -80,6 +80,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     'Right Winger', 'Left Winger', 'Winger', 'Striker', 'Defender', 'Midfielder', 'Attacker'
   ];
 
+  // Position hierarchy mapping - generic positions to specific positions
+  const positionHierarchy: { [key: string]: string[] } = {
+    'defender': ['right-back', 'left-back', 'centre-back', 'center-back', 'full-back', 'wing-back', 'right back', 'left back', 'centre back', 'center back', 'defender'],
+    'midfielder': ['defensive midfielder', 'central midfielder', 'attacking midfielder', 'midfielder'],
+    'attacker': ['striker', 'right winger', 'left winger', 'winger', 'forward', 'attacker']
+  };
+
   // Initialize Google Maps
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -433,12 +440,31 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         }
 
         // Check if any of the result's positions match any selected positions
-        return selectedPositions.some(selectedPos => 
-          resultPositions.some(resultPos => 
-            resultPos.toLowerCase().includes(selectedPos.toLowerCase()) ||
-            selectedPos.toLowerCase().includes(resultPos.toLowerCase())
-          )
-        );
+        // Support hierarchical matching (e.g., "Defender" matches "Left-back")
+        return selectedPositions.some(selectedPos => {
+          const selectedLower = selectedPos.toLowerCase();
+          
+          // Check for specific hierarchy matches
+          const hierarchyMatches = positionHierarchy[selectedLower];
+          
+          return resultPositions.some(resultPos => {
+            const resultLower = resultPos.toLowerCase();
+            
+            // Direct match
+            if (resultLower.includes(selectedLower) || selectedLower.includes(resultLower)) {
+              return true;
+            }
+            
+            // Hierarchical match - if selected position is generic, check if result is a specific variant
+            if (hierarchyMatches) {
+              return hierarchyMatches.some(specificPos => 
+                resultLower.includes(specificPos) || specificPos.includes(resultLower)
+              );
+            }
+            
+            return false;
+          });
+        });
       });
     }
 
