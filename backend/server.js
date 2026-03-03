@@ -2149,13 +2149,14 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       }
       
       try {
-        positions = row.positions ? JSON.parse(row.positions) : [];
+        // Database column is 'position' (singular), not 'positions'
+        positions = row.position ? JSON.parse(row.position) : [];
         if (!Array.isArray(positions)) {
-          positions = [row.positions];
+          positions = [row.position];
         }
       } catch (e) {
         // If parsing fails, treat as string array
-        positions = row.positions ? [row.positions] : [];
+        positions = row.position ? [row.position] : [];
       }
       
       const locationAddress =

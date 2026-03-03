@@ -312,9 +312,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const title = item.teamName || item.title || item.fullName || item.name || 'Location';
         const type = item.itemType === 'player' ? 'Player' : 'Team';
         const ageGroup = item.ageGroup ? `<br><strong>Age:</strong> ${item.ageGroup}` : '';
-        const position = item.position ? `<br><strong>Position:</strong> ${Array.isArray(item.position) ? JSON.parse(item.position).join(', ') : item.position}` : '';
-        const preferredPosition = item.preferredPosition ? `<br><strong>Position:</strong> ${item.preferredPosition}` : '';
-        const league = item.league || item.preferredLeagues ? `<br><strong>League:</strong> ${item.league || item.preferredLeagues}` : '';
+        
+        // Use positions array from backend
+        let positionStr = '';
+        if (item.positions && Array.isArray(item.positions) && item.positions.length > 0) {
+          positionStr = `<br><strong>Position:</strong> ${item.positions.join(', ')}`;
+        } else if (item.preferredPosition) {
+          positionStr = `<br><strong>Position:</strong> ${item.preferredPosition}`;
+        }
+        
+        const league = item.league || (item.preferredLeagues && Array.isArray(item.preferredLeagues) ? item.preferredLeagues.join(', ') : '') || '';
+        const leagueStr = league ? `<br><strong>League:</strong> ${league}` : '';
         const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
         
         return `
@@ -323,9 +331,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             <p style="margin: 4px 0; color: #666; font-size: 14px;">
               <strong>Type:</strong> ${type}
               ${ageGroup}
-              ${position}
-              ${preferredPosition}
-              ${league}
+              ${positionStr}
+              ${leagueStr}
               ${location}
             </p>
           </div>
@@ -417,17 +424,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     // Filter by positions
     if (selectedPositions.length > 0) {
       filtered = filtered.filter(result => {
-        let resultPositions: string[] = [];
+        // Use positions array from backend API response
+        let resultPositions: string[] = result.positions || [];
         
-        // Parse position field
-        if (result.position) {
+        // Fallback to parsing if needed
+        if (resultPositions.length === 0 && result.position) {
           if (typeof result.position === 'string') {
             try {
-              // Try to parse as JSON array
               const parsed = JSON.parse(result.position);
               resultPositions = Array.isArray(parsed) ? parsed : [result.position];
             } catch {
-              // Not JSON, treat as single position
               resultPositions = [result.position];
             }
           } else if (Array.isArray(result.position)) {
@@ -435,8 +441,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           }
         }
         
-        if (result.preferredPosition) {
-          resultPositions.push(result.preferredPosition);
+        if (result.preferredPosition && resultPositions.length === 0) {
+          resultPositions = [result.preferredPosition];
         }
 
         // Check if any of the result's positions match any selected positions
@@ -822,9 +828,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableHead>
             <TableBody>
               {filteredResults.map((result, index) => {
-                // Parse position properly
+                // Use positions array from backend
                 let positionDisplay = 'N/A';
-                if (result.position) {
+                if (result.positions && Array.isArray(result.positions) && result.positions.length > 0) {
+                  positionDisplay = result.positions.join(', ');
+                } else if (result.preferredPosition) {
+                  positionDisplay = result.preferredPosition;
+                } else if (result.position) {
+                  // Fallback: try to parse raw position field
                   if (typeof result.position === 'string') {
                     try {
                       const parsed = JSON.parse(result.position);
@@ -835,11 +846,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                   } else if (Array.isArray(result.position)) {
                     positionDisplay = result.position.join(', ');
                   }
-                } else if (result.preferredPosition) {
-                  positionDisplay = result.preferredPosition;
                 }
 
-                // Parse age group
+                // Age group should be available directly
                 const ageGroupDisplay = result.ageGroup || 'N/A';
                 
                 return (
