@@ -8283,36 +8283,61 @@ app.post('/api/teams', authenticateToken, [
 // Get teams for the authenticated user
 app.get('/api/teams', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'Coach') {
-      return res.status(403).json({ error: 'Only coaches can view teams' });
+    if (req.user.role !== 'Coach' && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only coaches and admins can view teams' });
     }
 
-    const teams = await db.query(`
-      SELECT 
-        t.id,
-        t.teamname as "teamName",
-        t.clubname as "clubName",
-        t.agegroup as "ageGroup",
-        t.league,
-        t.teamgender as "teamGender",
-        t.location,
-        t.locationdata as "locationData",
-        t.contactemail as "contactEmail",
-        t.website,
-        t.socialmedia as "socialMedia",
-        t.teambio as "teamBio",
-        t.traininglocation as "trainingLocation",
-        t.homepitchlocation as "homePitchLocation",
-        t.honours as "honours",
-        t.createdat as "createdAt",
-        t.updatedat as "updatedAt",
-        tm.role as "userRole",
-        tm.permissions
-      FROM teams t
-      JOIN team_members tm ON t.id = tm.teamId
-      WHERE tm.userId = ?
-      ORDER BY t.createdAt DESC
-    `, [req.user.userId]);
+    const teams = req.user.role === 'Admin'
+      ? await db.query(`
+        SELECT 
+          t.id,
+          t.teamname as "teamName",
+          t.clubname as "clubName",
+          t.agegroup as "ageGroup",
+          t.league,
+          t.teamgender as "teamGender",
+          t.location,
+          t.locationdata as "locationData",
+          t.contactemail as "contactEmail",
+          t.website,
+          t.socialmedia as "socialMedia",
+          t.teambio as "teamBio",
+          t.traininglocation as "trainingLocation",
+          t.homepitchlocation as "homePitchLocation",
+          t.honours as "honours",
+          t.createdat as "createdAt",
+          t.updatedat as "updatedAt",
+          'Admin' as "userRole",
+          '{}' as permissions
+        FROM teams t
+        ORDER BY t.createdAt DESC
+      `)
+      : await db.query(`
+        SELECT 
+          t.id,
+          t.teamname as "teamName",
+          t.clubname as "clubName",
+          t.agegroup as "ageGroup",
+          t.league,
+          t.teamgender as "teamGender",
+          t.location,
+          t.locationdata as "locationData",
+          t.contactemail as "contactEmail",
+          t.website,
+          t.socialmedia as "socialMedia",
+          t.teambio as "teamBio",
+          t.traininglocation as "trainingLocation",
+          t.homepitchlocation as "homePitchLocation",
+          t.honours as "honours",
+          t.createdat as "createdAt",
+          t.updatedat as "updatedAt",
+          tm.role as "userRole",
+          tm.permissions
+        FROM teams t
+        JOIN team_members tm ON t.id = tm.teamId
+        WHERE tm.userId = ?
+        ORDER BY t.createdAt DESC
+      `, [req.user.userId]);
 
     const teamsList = (teams.rows || teams || []).map(team => {
       try {
