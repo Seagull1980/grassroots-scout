@@ -37,6 +37,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const circleRef = useRef<google.maps.Circle | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const drawingPathRef = useRef<google.maps.LatLng[]>([]);
+  const isDrawingRef = useRef(false); // Use ref to track drawing state
+  const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,34 +70,59 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     mapInstanceRef.current = map;
 
-    // Handle map clicks for drawing
-    map.addListener('click', (event: google.maps.MapMouseEvent) => {
-      if (!isDrawing || !event.latLng) return;
-      
-      const latLng = event.latLng;
-      drawingPathRef.current.push(latLng);
-      
-      // Update polyline
-      if (polylineRef.current) {
-        polylineRef.current.setPath(drawingPathRef.current);
-      } else {
-        polylineRef.current = new window.google.maps.Polyline({
-          path: drawingPathRef.current,
-          geodesic: true,
-          strokeColor: '#2196F3',
-          strokeOpacity: 0.7,
-          strokeWeight: 2,
-          map: map
-        });
-      }
-    });
-
     return () => {
       // Cleanup
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
       if (circleRef.current) circleRef.current.setMap(null);
       if (polylineRef.current) polylineRef.current.setMap(null);
+      if (mapClickListenerRef.current) {
+        window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
+      }
+    };
+  }, []);
+
+  // Setup map click listener for drawing
+  useEffect(() => {
+    isDrawingRef.current = isDrawing;
+
+    if (!mapInstanceRef.current || !window.google?.maps?.event) return;
+
+    // Remove old listener if exists
+    if (mapClickListenerRef.current) {
+      window.google.maps.event.removeListener(mapClickListenerRef.current);
+      mapClickListenerRef.current = null;
+    }
+
+    if (isDrawing) {
+      // Add click listener for drawing
+      mapClickListenerRef.current = mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
+        if (!event.latLng) return;
+        
+        const latLng = event.latLng;
+        drawingPathRef.current.push(latLng);
+        
+        // Update polyline
+        if (polylineRef.current) {
+          polylineRef.current.setPath(drawingPathRef.current);
+        } else {
+          polylineRef.current = new window.google.maps.Polyline({
+            path: drawingPathRef.current,
+            geodesic: true,
+            strokeColor: '#2196F3',
+            strokeOpacity: 0.7,
+            strokeWeight: 2,
+            map: mapInstanceRef.current
+          });
+        }
+      });
+    }
+
+    return () => {
+      if (mapClickListenerRef.current) {
+        window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
+        mapClickListenerRef.current = null;
+      }
     };
   }, [isDrawing]);
 
@@ -115,7 +142,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           endpoints.push(
             fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/teams`, {
               headers: { Authorization: `Bearer ${token}` }
-            }).then(r => r.json()).then(data => ({ type: 'vacancy', items: data }))
+            }).then(async r => {
+              if (!r.ok) throw new Error(`Teams endpoint failed: ${r.status}`);
+              const data = await r.json();
+              return { type: 'vacancy', items: Array.isArray(data) ? data : data.data || [] };
+            })
           );
         }
 
@@ -123,7 +154,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           endpoints.push(
             fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/player-availability?sort=recent`, {
               headers: { Authorization: `Bearer ${token}` }
-            }).then(r => r.json()).then(data => ({ type: 'player', items: data.data || [] }))
+            }).then(async r => {
+              if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);
+              const data = await r.json();
+              return { type: 'player', items: Array.isArray(data) ? data : data.data || [] };
+            })
           );
         }
 
@@ -133,10 +168,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         responses.forEach(response => {
           const items = Array.isArray(response.items) ? response.items : [];
           items.forEach(item => {
-            // Check for location data
+            // Check for location data - be permissive and accept any location field
             const hasLocation = item.locationData || 
-              (item.trainingLocationData && searchType !== 'players') ||
-              (item.matchLocationData && searchType !== 'players');
+              item.trainingLocationData || 
+              item.matchLocationData;
             
             if (hasLocation) {
               allResults.push({
@@ -150,7 +185,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         setResults(allResults);
         
       } catch (err) {
-        setError('Failed to load map data');
+        console.error('Map data fetch error:', err);
+        setError('Failed to load map data. Please try again.');
       } finally {
         setIsLoading(false);
       }
