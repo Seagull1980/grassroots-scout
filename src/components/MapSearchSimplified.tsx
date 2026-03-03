@@ -12,7 +12,13 @@ import {
   CardContent,
   IconButton,
   Divider,
-  Slider
+  Slider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
@@ -50,6 +56,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPointCount, setDrawingPointCount] = useState(0);
   const [filteredResults, setFilteredResults] = useState<any[]>([]);
+  const [hasActiveFilter, setHasActiveFilter] = useState(false);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -202,8 +209,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.Marker) return;
 
-    // Use filtered results if available, otherwise use all results
-    const displayResults = filteredResults.length > 0 ? filteredResults : results;
+    // Only show markers if there's an active filter (radius or drawing)
+    const displayResults = hasActiveFilter ? filteredResults : [];
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
@@ -283,7 +290,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         }
       });
     }
-  }, [results, filteredResults, isDrawing]);
+  }, [results, filteredResults, isDrawing, hasActiveFilter]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -304,6 +311,26 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       mapInstanceRef.current.setCenter(UK_CENTER);
       mapInstanceRef.current.setZoom(6);
     }
+    // Clear all filters and search areas
+    handleClearAll();
+  };
+
+  const handleClearAll = () => {
+    setUserLocation(null);
+    setFilteredResults([]);
+    setHasActiveFilter(false);
+    setIsDrawing(false);
+    drawingPathRef.current = [];
+    setDrawingPointCount(0);
+    
+    if (circleRef.current) {
+      circleRef.current.setMap(null);
+      circleRef.current = null;
+    }
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+      polylineRef.current = null;
+    }
   };
 
   const handleUseMyLocation = () => {
@@ -320,6 +347,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             mapInstanceRef.current.setCenter(location);
             mapInstanceRef.current.setZoom(12);
           }
+          
+          // Automatically apply initial radius filter
+          const filtered = results.filter(result => {
+            const pos = getResultPosition(result);
+            if (!pos) return false;
+            const distance = calculateDistance(location, pos);
+            return distance <= searchRadius;
+          });
+          setFilteredResults(filtered);
+          setHasActiveFilter(true);
         },
         (_error) => {
           setError('Could not get your location. Please check permissions.');
@@ -356,6 +393,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         } as any);
       });
       setFilteredResults(filtered);
+      setHasActiveFilter(true);
     }
   };
 
@@ -368,6 +406,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       polylineRef.current = null;
     }
     setFilteredResults([]);
+    setHasActiveFilter(false);
   };
 
   const handleRadiusChange = (newRadius: number) => {
@@ -400,6 +439,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         return distance <= newRadius;
       });
       setFilteredResults(filtered);
+      setHasActiveFilter(true);
     }
   };
 
@@ -435,8 +475,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <Chip
               icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
-              label={`${filteredResults.length > 0 ? filteredResults.length : results.length} items`}
-              color="primary"
+              label={hasActiveFilter ? `${filteredResults.length} in search area` : `${results.length} total`}
+              color={hasActiveFilter ? 'success' : 'default'}
               variant="outlined"
             />
             
@@ -469,6 +509,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 color="success"
               >
                 Finish Drawing ({drawingPointCount} points)
+              </Button>
+            )}
+            
+            {hasActiveFilter && !isDrawing && (
+              <Button
+                startIcon={<ClearIcon />}
+                onClick={handleClearAll}
+                variant="outlined"
+                size="small"
+                color="warning"
+              >
+                Clear Search
               </Button>
             )}
             
@@ -577,13 +629,72 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         </Card>
       )}
 
-      {/* Results Summary */}
-      {results.length > 0 && (
-        <Paper sx={{ mt: 2, p: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {results.length} {searchType === 'vacancies' ? 'team locations' : searchType === 'players' ? 'player locations' : 'locations'} on the map
-          </Typography>
-        </Paper>
+      {/* No Filter Warning */}
+      {!hasActiveFilter && results.length > 0 && (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          Please select a search area (use "My Location" for radius search or "Draw Area" to outline a region) to view {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} on the map.
+        </Alert>
+      )}
+
+      {/* Results Table */}
+      {hasActiveFilter && filteredResults.length > 0 && (
+        <TableContainer component={Paper} sx={{ mt: 2 }}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'primary.main' }}>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Name</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Age Group</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Position</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Location</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>League</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredResults.map((result, index) => {
+                const position = result.position 
+                  ? (Array.isArray(result.position) ? JSON.parse(result.position).join(', ') : result.position)
+                  : result.preferredPosition || 'N/A';
+                
+                return (
+                  <TableRow 
+                    key={index}
+                    hover
+                    onClick={() => {
+                      setSelectedItem(result);
+                      const pos = getResultPosition(result);
+                      if (pos && mapInstanceRef.current) {
+                        mapInstanceRef.current.setCenter(pos);
+                        mapInstanceRef.current.setZoom(13);
+                      }
+                    }}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>{result.teamName || result.title || result.fullName || result.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={result.itemType === 'player' ? 'Player' : 'Team'} 
+                        color={result.itemType === 'player' ? 'primary' : 'secondary'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{result.ageGroup || 'N/A'}</TableCell>
+                    <TableCell>{position}</TableCell>
+                    <TableCell>{result.location || 'N/A'}</TableCell>
+                    <TableCell>{result.league || result.preferredLeagues || 'N/A'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* No Results Message */}
+      {hasActiveFilter && filteredResults.length === 0 && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          No {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the selected search area. Try expanding your search radius or drawing a larger area.
+        </Alert>
       )}
     </Box>
   );
