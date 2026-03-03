@@ -476,6 +476,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   };
 
   const selectAllResults = () => {
+    if (!Array.isArray(results)) return;
     const allIds = new Set(results.map((result, index) => `${result.type}_${index}`));
     setSelectedResults(allIds);
   };
@@ -486,6 +487,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   };
 
   const getSelectedResultsData = () => {
+    if (!Array.isArray(results)) return [];
     return results.filter((result, index) => 
       selectedResults.has(`${result.type}_${index}`)
     );
