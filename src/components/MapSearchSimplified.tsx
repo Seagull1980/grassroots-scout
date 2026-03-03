@@ -51,7 +51,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const drawingPathRef = useRef<google.maps.LatLng[]>([]);
   const isDrawingRef = useRef(false); // Use ref to track drawing state
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);`n  const locationMarkerRef = useRef<google.maps.Marker | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +65,40 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  // Load saved location from localStorage on mount
+  useEffect(() => {
+    const savedLocation = localStorage.getItem('mapSearchLocation');
+    const savedRadius = localStorage.getItem('mapSearchRadius');
+    
+    if (savedLocation) {
+      try {
+        const location = JSON.parse(savedLocation);
+        setUserLocation(location);
+      } catch (e) {
+        console.error('Failed to parse saved location:', e);
+      }
+    }
+    
+    if (savedRadius) {
+      const radius = parseInt(savedRadius, 10);
+      if (!isNaN(radius) && radius > 0 && radius <= 50) {
+        setSearchRadius(radius);
+      }
+    }
+  }, []);
+
+  // Save location to localStorage when it changes
+  useEffect(() => {
+    if (userLocation) {
+      localStorage.setItem('mapSearchLocation', JSON.stringify(userLocation));
+    }
+  }, [userLocation]);
+
+  // Save radius to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('mapSearchRadius', searchRadius.toString());
+  }, [searchRadius]);
+
 
   // Filter options
   const ageGroups = [
@@ -113,12 +147,69 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
       if (circleRef.current) circleRef.current.setMap(null);
-      if (polylineRef.current) polylineRef.current.setMap(null);
-      if (mapClickListenerRef.current) {
+      if (polylineRef.current) polylineRef.current.setMap(null);`n      if (locationMarkerRef.current) locationMarkerRef.current.setMap(null);`n      if (mapClickListenerRef.current) {
         window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
       }
     };
-  }, []);
+  
+  // Update location marker when user location changes
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.google?.maps?.Marker || !userLocation) return;
+
+    // Remove old marker if exists
+    if (locationMarkerRef.current) {
+      locationMarkerRef.current.setMap(null);
+    }
+
+    // Create draggable location marker
+    const marker = new window.google.maps.Marker({
+      position: userLocation,
+      map: mapInstanceRef.current,
+      title: 'Search Center (drag to move)',
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: '#4CAF50',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+      },
+      draggable: true,
+      zIndex: 1000
+    });
+
+    // Handle marker drag
+    marker.addListener('dragend', (event: google.maps.MapMouseEvent) => {
+      if (event.latLng) {
+        const newLocation = {
+          lat: event.latLng.lat(),
+          lng: event.latLng.lng()
+        };
+        setUserLocation(newLocation);
+        
+        // Re-apply radius filter with new location
+        if (hasActiveFilter && !isDrawing) {
+          const filtered = results.filter(result => {
+            const pos = getResultPosition(result);
+            if (!pos) return false;
+            const distance = calculateDistance(newLocation, pos);
+            return distance <= searchRadius;
+          });
+          const finalFiltered = applyAdditionalFilters(filtered);
+          setFilteredResults(finalFiltered);
+        }
+      }
+    });
+
+    locationMarkerRef.current = marker;
+
+    return () => {
+      if (locationMarkerRef.current) {
+        locationMarkerRef.current.setMap(null);
+      }
+    };
+  }, [userLocation, hasActiveFilter, isDrawing, searchRadius, results]);
+}, []);
 
   // Setup map click listener for drawing
   useEffect(() => {
@@ -398,7 +489,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setSelectedAgeGroup('');
     setSelectedPositions([]);
     
-    if (circleRef.current) {
+    localStorage.removeItem('mapSearchLocation');`n    if (circleRef.current) {
       circleRef.current.setMap(null);
       circleRef.current = null;
     }
@@ -510,7 +601,31 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     } else {
       setError('Geolocation is not supported by your browser.');
     }
+  
+  const handleSetCustomLocation = () => {
+    if (mapInstanceRef.current) {
+      const center = mapInstanceRef.current.getCenter();
+      if (center) {
+        const location = {
+          lat: center.lat(),
+          lng: center.lng()
+        };
+        setUserLocation(location);
+        
+        // Apply radius filter with new location
+        const filtered = results.filter(result => {
+          const pos = getResultPosition(result);
+          if (!pos) return false;
+          const distance = calculateDistance(location, pos);
+          return distance <= searchRadius;
+        });
+        const finalFiltered = applyAdditionalFilters(filtered);
+        setFilteredResults(finalFiltered);
+        setHasActiveFilter(true);
+      }
+    }
   };
+};
 
   const handleStartDrawing = () => {
     setIsDrawing(true);
@@ -635,8 +750,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               variant={userLocation ? 'contained' : 'outlined'}
               size="small"
             >
-              Use My Location
+              
+            <Button
+              startIcon={<LocationIcon />}
+              onClick={handleSetCustomLocation}
+              variant="outlined"
+              size="small"
+            >
+              Set Map Center
             </Button>
+
 
             <Button
               startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
