@@ -157,7 +157,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             }).then(async r => {
               if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);
               const data = await r.json();
-              return { type: 'player', items: Array.isArray(data) ? data : data.data || [] };
+              return { type: 'player', items: data.availability || [] };
             })
           );
         }
