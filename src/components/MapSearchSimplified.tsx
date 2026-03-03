@@ -11,7 +11,8 @@ import {
   Card,
   CardContent,
   IconButton,
-  Divider
+  Divider,
+  Slider
 } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
@@ -19,7 +20,9 @@ import {
   ZoomOut as ZoomOutIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
-  Groups as GroupsIcon
+  Groups as GroupsIcon,
+  Brush as BrushIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
@@ -31,11 +34,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const circleRef = useRef<google.maps.Circle | null>(null);
+  const polylineRef = useRef<google.maps.Polyline | null>(null);
+  const drawingPathRef = useRef<google.maps.LatLng[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
+  const [searchRadius, setSearchRadius] = useState(10); // km
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [filteredResults, setFilteredResults] = useState<any[]>([]);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -53,16 +63,41 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       mapTypeControl: true,
       streetViewControl: true,
       fullscreenControl: true,
+      clickableIcons: false
     });
 
     mapInstanceRef.current = map;
+
+    // Handle map clicks for drawing
+    map.addListener('click', (event: google.maps.MapMouseEvent) => {
+      if (!isDrawing || !event.latLng) return;
+      
+      const latLng = event.latLng;
+      drawingPathRef.current.push(latLng);
+      
+      // Update polyline
+      if (polylineRef.current) {
+        polylineRef.current.setPath(drawingPathRef.current);
+      } else {
+        polylineRef.current = new window.google.maps.Polyline({
+          path: drawingPathRef.current,
+          geodesic: true,
+          strokeColor: '#2196F3',
+          strokeOpacity: 0.7,
+          strokeWeight: 2,
+          map: map
+        });
+      }
+    });
 
     return () => {
       // Cleanup
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
+      if (circleRef.current) circleRef.current.setMap(null);
+      if (polylineRef.current) polylineRef.current.setMap(null);
     };
-  }, []);
+  }, [isDrawing]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -128,6 +163,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.Marker) return;
 
+    // Use filtered results if available, otherwise use all results
+    const displayResults = filteredResults.length > 0 ? filteredResults : results;
+
     // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
@@ -136,27 +174,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     let hasValidMarkers = false;
 
     // Create new markers
-    results.forEach(result => {
-      let position: google.maps.LatLngLiteral | null = null;
-
-      // Get position from various possible location fields
-      if (result.locationData) {
-        position = {
-          lat: result.locationData.latitude,
-          lng: result.locationData.longitude
-        };
-      } else if (result.trainingLocationData) {
-        position = {
-          lat: result.trainingLocationData.latitude,
-          lng: result.trainingLocationData.longitude
-        };
-      } else if (result.matchLocationData) {
-        position = {
-          lat: result.matchLocationData.latitude,
-          lng: result.matchLocationData.longitude
-        };
-      }
-
+    displayResults.forEach(result => {
+      const position = getResultPosition(result);
+      
       if (!position || !isFinite(position.lat) || !isFinite(position.lng)) return;
 
       const marker = new window.google.maps.Marker({
@@ -179,8 +199,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       hasValidMarkers = true;
     });
 
-    // Fit bounds if we have markers
-    if (hasValidMarkers && mapInstanceRef.current) {
+    // Fit bounds if we have markers and not in drawing mode
+    if (hasValidMarkers && mapInstanceRef.current && !isDrawing) {
       mapInstanceRef.current.fitBounds(bounds);
       
       // Prevent too much zoom
@@ -190,7 +210,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         }
       });
     }
-  }, [results]);
+  }, [results, filteredResults, isDrawing]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -213,30 +233,199 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
   };
 
+  const handleUseMyLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(location);
+          
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setCenter(location);
+            mapInstanceRef.current.setZoom(12);
+          }
+        },
+        (_error) => {
+          setError('Could not get your location. Please check permissions.');
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const handleStartDrawing = () => {
+    setIsDrawing(true);
+    drawingPathRef.current = [];
+    if (polylineRef.current) polylineRef.current.setMap(null);
+    polylineRef.current = null;
+  };
+
+  const handleFinishDrawing = () => {
+    setIsDrawing(false);
+    // Filter results based on drawn polygon
+    if (drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
+      const polygon = drawingPathRef.current;
+      const filtered = results.filter(result => {
+        const position = getResultPosition(result);
+        if (!position) return false;
+        const latLng = new window.google.maps.LatLng(position.lat, position.lng);
+        return window.google.maps.geometry.poly.containsLocation(latLng, { 
+          getAt: (i: number) => polygon[i],
+          length: polygon.length,
+          getLength: () => polygon.length
+        } as any);
+      });
+      setFilteredResults(filtered);
+    }
+  };
+
+  const handleClearDrawing = () => {
+    setIsDrawing(false);
+    drawingPathRef.current = [];
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+      polylineRef.current = null;
+    }
+    setFilteredResults([]);
+  };
+
+  const handleRadiusChange = (newRadius: number) => {
+    setSearchRadius(newRadius);
+    
+    // Update circle on map
+    if (userLocation && mapInstanceRef.current) {
+      if (circleRef.current) {
+        circleRef.current.setRadius(newRadius * 1000); // Convert km to meters
+      } else {
+        circleRef.current = new window.google.maps.Circle({
+          center: userLocation,
+          radius: newRadius * 1000,
+          fillColor: '#2196F3',
+          fillOpacity: 0.1,
+          strokeColor: '#2196F3',
+          strokeOpacity: 0.5,
+          strokeWeight: 2,
+          map: mapInstanceRef.current
+        });
+      }
+    }
+    
+    // Filter results by distance
+    if (userLocation) {
+      const filtered = results.filter(result => {
+        const position = getResultPosition(result);
+        if (!position) return false;
+        const distance = calculateDistance(userLocation, position);
+        return distance <= newRadius;
+      });
+      setFilteredResults(filtered);
+    }
+  };
+
+  const calculateDistance = (from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral): number => {
+    const R = 6371; // Radius of earth in km
+    const dLat = (to.lat - from.lat) * Math.PI / 180;
+    const dLng = (to.lng - from.lng) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(from.lat * Math.PI / 180) * Math.cos(to.lat * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const getResultPosition = (result: any): google.maps.LatLngLiteral | null => {
+    if (result.locationData) {
+      return { lat: result.locationData.latitude, lng: result.locationData.longitude };
+    } else if (result.trainingLocationData) {
+      return { lat: result.trainingLocationData.latitude, lng: result.trainingLocationData.longitude };
+    } else if (result.matchLocationData) {
+      return { lat: result.matchLocationData.latitude, lng: result.matchLocationData.longitude };
+    }
+    return null;
+  };
+
   return (
     <Box>
       {/* Control Panel */}
       <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <Chip
-            icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
-            label={`${results.length} ${searchType === 'vacancies' ? 'Teams' : searchType === 'players' ? 'Players' : 'Results'}`}
-            color="primary"
-            variant="outlined"
-          />
-          
-          <Divider orientation="vertical" flexItem />
-          
-          <Button
-            startIcon={<MyLocationIcon />}
-            onClick={handleRecenter}
-            variant="outlined"
-            size="small"
-          >
-            Reset View
-          </Button>
+        <Stack spacing={2}>
+          {/* Top Row */}
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <Chip
+              icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
+              label={`${filteredResults.length > 0 ? filteredResults.length : results.length} items`}
+              color="primary"
+              variant="outlined"
+            />
+            
+            <Divider orientation="vertical" flexItem />
+            
+            <Button
+              startIcon={<MyLocationIcon />}
+              onClick={handleUseMyLocation}
+              variant={userLocation ? 'contained' : 'outlined'}
+              size="small"
+            >
+              Use My Location
+            </Button>
 
-          {isLoading && <CircularProgress size={24} />}
+            <Button
+              startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
+              onClick={isDrawing ? handleClearDrawing : handleStartDrawing}
+              variant={isDrawing ? 'contained' : 'outlined'}
+              size="small"
+              color={isDrawing ? 'error' : 'primary'}
+            >
+              {isDrawing ? 'Cancel Drawing' : 'Draw Area'}
+            </Button>
+
+            {isDrawing && drawingPathRef.current.length > 0 && (
+              <Button
+                onClick={handleFinishDrawing}
+                variant="contained"
+                size="small"
+                color="success"
+              >
+                Done ({drawingPathRef.current.length} points)
+              </Button>
+            )}
+            
+            <Button
+              onClick={handleRecenter}
+              variant="outlined"
+              size="small"
+            >
+              Reset View
+            </Button>
+
+            {isLoading && <CircularProgress size={24} />}
+          </Stack>
+
+          {/* Radius Control */}
+          {userLocation && !isDrawing && (
+            <Box sx={{ px: 1 }}>
+              <Typography variant="body2" gutterBottom>
+                Search Radius: {searchRadius} km
+              </Typography>
+              <Slider
+                value={searchRadius}
+                onChange={(_, newValue) => handleRadiusChange(newValue as number)}
+                min={1}
+                max={50}
+                marks={[
+                  { value: 1, label: '1km' },
+                  { value: 25, label: '25km' },
+                  { value: 50, label: '50km' }
+                ]}
+                step={1}
+              />
+            </Box>
+          )}
         </Stack>
       </Paper>
 
