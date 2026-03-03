@@ -126,22 +126,27 @@ export const Map: React.FC<MapProps> = ({
   onMapLoad,
   style = { height: '400px', width: '100%' }
 }) => {
+  console.log('Map component rendering', { center, zoom, hasOnMapLoad: !!onMapLoad });
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map>();
 
   const initMap = useCallback(() => {
+    console.log('initMap callback called', { refCurrent: !!ref.current, mapExists: !!map, center, zoom });
     if (ref.current && !map) {
+      console.log('Creating new Google Map instance...');
       const newMap = new google.maps.Map(ref.current, {
         center,
         zoom,
         ...GOOGLE_MAPS_CONFIG.mapOptions
       });
+      console.log('Map instance created, calling onMapLoad:', { newMap, onMapLoad });
       setMap(newMap);
       onMapLoad?.(newMap);
     }
   }, [center, zoom, map, onMapLoad]);
 
   React.useEffect(() => {
+    console.log('Map useEffect running - calling initMap');
     initMap();
   }, [initMap]);
 
