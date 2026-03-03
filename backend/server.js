@@ -2158,17 +2158,49 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
         positions = row.positions ? [row.positions] : [];
       }
       
+      const locationAddress =
+        row.locationAddress ??
+        row.locationaddress ??
+        row.location_address ??
+        row.location ??
+        '';
+
+      const latitudeRaw =
+        row.locationLatitude ??
+        row.locationlatitude ??
+        row.location_latitude ??
+        row.latitude;
+
+      const longitudeRaw =
+        row.locationLongitude ??
+        row.locationlongitude ??
+        row.location_longitude ??
+        row.longitude;
+
+      const latitude = latitudeRaw !== undefined && latitudeRaw !== null ? Number(latitudeRaw) : null;
+      const longitude = longitudeRaw !== undefined && longitudeRaw !== null ? Number(longitudeRaw) : null;
+
+      const hasValidCoordinates =
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+
       return {
-      ...row,
-      preferredLeagues,
-      positions,
-      locationData: row.locationAddress && row.locationLatitude && row.locationLongitude ? {
-        address: row.locationAddress,
-        latitude: row.locationLatitude,
-        longitude: row.locationLongitude,
-        placeId: row.locationPlaceId
-      } : null
-    };
+        ...row,
+        preferredLeagues,
+        positions,
+        locationData: hasValidCoordinates
+          ? {
+              address: locationAddress,
+              latitude,
+              longitude,
+              placeId: row.locationPlaceId ?? row.locationplaceid ?? row.location_place_id ?? null
+            }
+          : null
+      };
     });
 
     const withLocation = availability.filter(a => a.locationData !== null).length;
