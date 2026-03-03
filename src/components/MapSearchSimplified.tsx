@@ -948,14 +948,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableHead>
             <TableBody>
               {filteredResults.map((result, index) => {
-                // Debug: Log the first result to see what data we have
-                if (index === 0) {
-                  console.log('First result object:', result);
-                  console.log('ageGroup:', result.ageGroup);
-                  console.log('positions:', result.positions);
-                  console.log('position:', result.position);
-                }
-                
                 // Use positions array from backend
                 let positionDisplay = 'N/A';
                 if (result.positions && Array.isArray(result.positions) && result.positions.length > 0) {
