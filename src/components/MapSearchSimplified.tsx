@@ -49,6 +49,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const markerByKeyRef = useRef<Record<string, google.maps.Marker>>({});
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const circleRef = useRef<google.maps.Circle | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const drawingPathRef = useRef<google.maps.LatLng[]>([]);
@@ -69,6 +71,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
   // Load saved location from localStorage on mount
   useEffect(() => {
     const savedLocation = localStorage.getItem('mapSearchLocation');
@@ -365,6 +368,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
+    markerByKeyRef.current = {};
 
     const bounds = new window.google.maps.LatLngBounds();
     let hasValidMarkers = false;
@@ -375,8 +379,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     // Create new markers
-    displayResults.forEach(result => {
+    displayResults.forEach((result, index) => {
       const position = getResultPosition(result);
+      const resultKey = getResultKey(result);
       
       if (!position || !isFinite(position.lat) || !isFinite(position.lng)) return;
 
@@ -384,6 +389,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         position,
         map: mapInstanceRef.current as google.maps.Map,
         title: result.teamName || result.title || result.fullName || result.name || 'Location',
+        label: {
+          text: String(index + 1),
+          color: '#ffffff',
+          fontWeight: '700'
+        },
         icon: result.itemType === 'player' 
           ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
           : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
@@ -425,6 +435,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       marker.addListener('click', () => {
         setSelectedItem(result);
+        setSelectedResultKey(resultKey);
+        rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (infoWindowRef.current && mapInstanceRef.current) {
           infoWindowRef.current.setContent(createInfoContent(result));
           infoWindowRef.current.open(mapInstanceRef.current, marker);
@@ -432,6 +444,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       });
 
       markersRef.current.push(marker);
+      markerByKeyRef.current[resultKey] = marker;
       bounds.extend(position);
       hasValidMarkers = true;
     });
@@ -722,6 +735,47 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return null;
   };
 
+  const getResultKey = (result: any): string => {
+    const pos = getResultPosition(result);
+    return [
+      result.itemType || 'item',
+      result.id ?? result.availabilityId ?? result.postId ?? result.playerAvailabilityId ?? result.title ?? result.name ?? 'unknown',
+      pos?.lat ?? 'no-lat',
+      pos?.lng ?? 'no-lng'
+    ].join('-');
+  };
+
+  const getMessageRecipient = (result: any): { id: string; name: string } | null => {
+    const candidateValues = [
+      result.parentId,
+      result.parentid,
+      result.postedBy,
+      result.postedby,
+      result.userId,
+      result.userid,
+      result.createdBy,
+      result.createdby,
+      result.playerId,
+      result.playerid
+    ];
+
+    const rawId = candidateValues.find(value => value !== null && value !== undefined && String(value).trim() !== '');
+    if (rawId === undefined) return null;
+
+    const idString = String(rawId);
+    const numericMatch = idString.match(/\d+$/);
+    const normalizedId = numericMatch ? numericMatch[0] : idString;
+
+    if (!normalizedId || normalizedId.toLowerCase() === 'undefined' || normalizedId.toLowerCase() === 'null') {
+      return null;
+    }
+
+    return {
+      id: normalizedId,
+      name: result.parentName || result.fullName || result.name || result.title || 'Player/Guardian'
+    };
+  };
+
   return (
     <Box>
       {/* Control Panel */}
@@ -948,6 +1002,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableHead>
             <TableBody>
               {filteredResults.map((result, index) => {
+                const resultKey = getResultKey(result);
+                const rowNumber = index + 1;
                 // Use positions array from backend
                 let positionDisplay = 'N/A';
                 if (result.positions && Array.isArray(result.positions) && result.positions.length > 0) {
@@ -1003,19 +1059,31 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 
                 return (
                   <TableRow 
-                    key={index}
+                    key={resultKey}
+                    ref={(element) => {
+                      rowRefs.current[resultKey] = element;
+                    }}
                     hover
                     onClick={() => {
                       setSelectedItem(result);
+                      setSelectedResultKey(resultKey);
                       const pos = getResultPosition(result);
                       if (pos && mapInstanceRef.current) {
                         mapInstanceRef.current.setCenter(pos);
                         mapInstanceRef.current.setZoom(13);
                       }
+
+                      const marker = markerByKeyRef.current[resultKey];
+                      if (marker) {
+                        window.google?.maps?.event?.trigger(marker, 'click');
+                      }
                     }}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{
+                      cursor: 'pointer',
+                      bgcolor: selectedResultKey === resultKey ? 'action.selected' : 'inherit'
+                    }}
                   >
-                    <TableCell>{result.teamName || result.title || result.fullName || result.name || 'N/A'}</TableCell>
+                    <TableCell>{rowNumber}. {result.teamName || result.title || result.fullName || result.name || 'N/A'}</TableCell>
                     <TableCell>
                       <Chip 
                         label={result.itemType === 'player' ? 'Player' : 'Team'} 
@@ -1029,27 +1097,33 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     <TableCell>{result.league || result.preferredLeagues || 'N/A'}</TableCell>
                     <TableCell>
                       {result.itemType === 'player' && (
+                        (() => {
+                          const recipient = getMessageRecipient(result);
+                          return (
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<MessageIcon />}
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Navigate to messages with the player/guardian as recipient
-                            const recipientId = result.parentId || result.postedBy || result.userId;
-                            const recipientName = result.parentName || result.fullName || result.name || 'Player';
+                            if (!recipient) return;
                             navigate('/messages', {
                               state: {
-                                recipientId: recipientId,
-                                recipientName: recipientName,
-                                recipientEmail: result.email || ''
+                                recipientId: recipient.id,
+                                recipientName: recipient.name,
+                                recipientEmail: result.email || '',
+                                relatedPlayerAvailabilityId: result.id ? String(result.id) : undefined,
+                                messageType: 'availability_interest',
+                                context: result.title || 'player advert'
                               }
                             });
                           }}
-                          disabled={!result.parentId && !result.postedBy && !result.userId}
+                          disabled={!recipient}
                         >
                           Message
                         </Button>
+                          );
+                        })()
                       )}
                     </TableCell>
                   </TableRow>
