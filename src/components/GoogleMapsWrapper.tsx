@@ -116,7 +116,6 @@ const GoogleMapsWrapper: React.FC<GoogleMapsWrapperProps> = ({ children }) => {
 interface MapProps {
   center: google.maps.LatLngLiteral;
   zoom: number;
-  children?: React.ReactNode;
   onMapLoad?: (map: google.maps.Map) => void;
   style?: React.CSSProperties;
 }
@@ -124,7 +123,6 @@ interface MapProps {
 export const Map: React.FC<MapProps> = ({
   center,
   zoom,
-  children,
   onMapLoad,
   style = { height: '400px', width: '100%' }
 }) => {
@@ -170,15 +168,7 @@ export const Map: React.FC<MapProps> = ({
   }, [map]);
 
   return (
-    <>
-      <Box ref={ref} sx={{ ...style }} />
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(child, { map });
-        }
-        return child;
-      })}
-    </>
+    <Box ref={ref} sx={{ ...style }} />
   );
 };
 

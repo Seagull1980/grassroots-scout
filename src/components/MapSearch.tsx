@@ -2101,9 +2101,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               zoom={mapZoom}
               onMapLoad={handleMapLoad}
               style={{ height: '500px', width: '100%', position: 'relative', zIndex: 1 }}
-            >
-              {renderMarkers()}
-            </Map>
+            />
+            {/* Render markers outside Map to ensure map is initialized first */}
+            {renderMarkers()}
 
             {/* Drawing Instructions - Compact Floating Panel */}
             {isDrawingMode && (
