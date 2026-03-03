@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -34,7 +35,8 @@ import {
   Person as PersonIcon,
   Groups as GroupsIcon,
   Brush as BrushIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  Message as MessageIcon
 } from '@mui/icons-material';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
@@ -43,6 +45,7 @@ interface MapSearchSimplifiedProps {
 }
 
 const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType }) => {
+  const navigate = useNavigate();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -934,12 +937,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: 'primary.main' }}>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Name</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Description</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Age Group</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Position</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Location</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>League</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1031,6 +1035,31 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     <TableCell>{positionDisplay}</TableCell>
                     <TableCell>{result.location || 'N/A'}</TableCell>
                     <TableCell>{result.league || result.preferredLeagues || 'N/A'}</TableCell>
+                    <TableCell>
+                      {result.itemType === 'player' && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<MessageIcon />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Navigate to messages with the player/guardian as recipient
+                            const recipientId = result.parentId || result.postedBy || result.userId;
+                            const recipientName = result.parentName || result.fullName || result.name || 'Player';
+                            navigate('/messages', {
+                              state: {
+                                recipientId: recipientId,
+                                recipientName: recipientName,
+                                recipientEmail: result.email || ''
+                              }
+                            });
+                          }}
+                          disabled={!result.parentId && !result.postedBy && !result.userId}
+                        >
+                          Message
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
