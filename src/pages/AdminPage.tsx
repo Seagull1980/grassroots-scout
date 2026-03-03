@@ -60,6 +60,7 @@ import {
   LockOpen as LockOpenIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
+  Science as ScienceIcon,
 } from '@mui/icons-material';
 import { leaguesAPI, League, adminAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -147,6 +148,11 @@ const AdminPage: React.FC = () => {
   const [openAdminDialog, setOpenAdminDialog] = useState(false);
   const [impersonationLoading, setImpersonationLoading] = useState(false);
   
+  // Test player management state
+  const [testPlayerLoading, setTestPlayerLoading] = useState(false);
+  const [testPlayerMessage, setTestPlayerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [testPlayerCount, setTestPlayerCount] = useState(0);
+  
   console.log('🔍 All hooks declared, user check:', user ? 'exists' : 'null');
 
   // ALL HOOKS INCLUDING useEffect MUST BE DECLARED BEFORE CONDITIONAL RETURNS
@@ -216,6 +222,13 @@ const AdminPage: React.FC = () => {
     };
     fetchClubsAndTeams();
   }, []); // Empty dependency - fetch only once on mount
+
+  // Fetch test player count
+  useEffect(() => {
+    if (user && user.role === 'Admin') {
+      fetchTestPlayerCount();
+    }
+  }, [user]);
 
   // Check user permissions AFTER all hooks are declared
   if (!user) {
@@ -379,6 +392,214 @@ const AdminPage: React.FC = () => {
       setAdminFormData({ email: '', firstName: '', lastName: '', password: '' });
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create admin user');
+    }
+  };
+
+  // Test Player Management Functions
+  const testPlayerData = [
+    {
+      location: { city: 'Birmingham', lat: 52.4862, lng: -1.8904, postcode: 'B1 1AA' },
+      ageGroup: 'U9',
+      positions: ['Goalkeeper'],
+      leagues: ['Birmingham County FA']
+    },
+    {
+      location: { city: 'Coventry', lat: 52.4068, lng: -1.5197, postcode: 'CV1 1AA' },
+      ageGroup: 'U9',
+      positions: ['Centre-back', 'Left-back'],
+      leagues: ['West Midlands Regional League']
+    },
+    {
+      location: { city: 'Leicester', lat: 52.6369, lng: -1.1398, postcode: 'LE1 1AA' },
+      ageGroup: 'U9',
+      positions: ['Striker'],
+      leagues: ['Leicester & District League']
+    },
+    {
+      location: { city: 'Birmingham', lat: 52.4862, lng: -1.8904, postcode: 'B1 1AA' },
+      ageGroup: 'U14',
+      positions: ['Central Midfielder', 'Attacking Midfielder'],
+      leagues: ['Birmingham County FA']
+    },
+    {
+      location: { city: 'Coventry', lat: 52.4068, lng: -1.5197, postcode: 'CV1 1AA' },
+      ageGroup: 'U14',
+      positions: ['Left Wing', 'Right Wing'],
+      leagues: ['West Midlands Regional League']
+    },
+    {
+      location: { city: 'Leicester', lat: 52.6369, lng: -1.1398, postcode: 'LE1 1AA' },
+      ageGroup: 'U14',
+      positions: ['Right-back', 'Centre-back'],
+      leagues: ['Leicester & District League']
+    }
+  ];
+
+  const handleCreateTestPlayers = async () => {
+    setTestPlayerLoading(true);
+    setTestPlayerMessage(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setTestPlayerMessage({ type: 'error', text: 'No authentication token found' });
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const data of testPlayerData) {
+        const payload = {
+          title: `${data.ageGroup} ${data.positions.join('/')} Available - ${data.location.city}`,
+          description: `Test player looking for a team in the ${data.location.city} area. Available for training and matches. This is test data created via Admin panel.`,
+          preferredLeagues: data.leagues,
+          ageGroup: data.ageGroup,
+          positions: data.positions,
+          location: data.location.city,
+          locationData: {
+            address: `${data.location.city}, ${data.location.postcode}`,
+            latitude: data.location.lat,
+            longitude: data.location.lng
+          },
+          contactInfo: 'test@grassrootshub.com',
+          status: 'active'
+        };
+
+        try {
+          const response = await fetch('/api/player-availability', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+            console.error('Failed to create test player:', await response.json());
+          }
+        } catch (error) {
+          failCount++;
+          console.error('Error creating test player:', error);
+        }
+      }
+
+      if (failCount === 0) {
+        setTestPlayerMessage({ 
+          type: 'success', 
+          text: `Successfully created ${successCount} test players with location data` 
+        });
+        // Refresh count
+        await fetchTestPlayerCount();
+      } else {
+        setTestPlayerMessage({ 
+          type: 'error', 
+          text: `Created ${successCount} players, but ${failCount} failed` 
+        });
+      }
+    } catch (error: any) {
+      setTestPlayerMessage({ type: 'error', text: error.message || 'Failed to create test players' });
+    } finally {
+      setTestPlayerLoading(false);
+    }
+  };
+
+  const handleDeleteTestPlayers = async () => {
+    setTestPlayerLoading(true);
+    setTestPlayerMessage(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setTestPlayerMessage({ type: 'error', text: 'No authentication token found' });
+        return;
+      }
+
+      // Fetch all player availability
+      const response = await fetch('/api/player-availability', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch player availability');
+      }
+
+      const data = await response.json();
+      const allPlayers = data.availability || [];
+      
+      // Find test players by description
+      const testPlayers = allPlayers.filter((p: any) => 
+        p.description && p.description.includes('This is test data created via Admin panel')
+      );
+
+      if (testPlayers.length === 0) {
+        setTestPlayerMessage({ type: 'success', text: 'No test players found to delete' });
+        return;
+      }
+
+      let deleteCount = 0;
+      let failCount = 0;
+
+      for (const player of testPlayers) {
+        try {
+          const deleteResponse = await fetch(`/api/player-availability/${player.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (deleteResponse.ok) {
+            deleteCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+          console.error('Error deleting player:', error);
+        }
+      }
+
+      if (failCount === 0) {
+        setTestPlayerMessage({ 
+          type: 'success', 
+          text: `Successfully deleted ${deleteCount} test players` 
+        });
+        setTestPlayerCount(0);
+      } else {
+        setTestPlayerMessage({ 
+          type: 'error', 
+          text: `Deleted ${deleteCount} players, but ${failCount} failed` 
+        });
+      }
+    } catch (error: any) {
+      setTestPlayerMessage({ type: 'error', text: error.message || 'Failed to delete test players' });
+    } finally {
+      setTestPlayerLoading(false);
+    }
+  };
+
+  const fetchTestPlayerCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/player-availability', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const allPlayers = data.availability || [];
+        const testPlayers = allPlayers.filter((p: any) => 
+          p.description && p.description.includes('This is test data created via Admin panel')
+        );
+        setTestPlayerCount(testPlayers.length);
+      }
+    } catch (error) {
+      console.error('Error fetching test player count:', error);
     }
   };
 
@@ -993,6 +1214,92 @@ const AdminPage: React.FC = () => {
                           Test as Parent
                         </Button>
                       </CardActions>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                {/* Test Data Management Section */}
+                <Divider sx={{ my: 4 }} />
+                
+                <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+                  Test Data Management
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  Create or delete test player availability records for testing the Maps page and search functionality.
+                </Typography>
+
+                {testPlayerMessage && (
+                  <Alert 
+                    severity={testPlayerMessage.type} 
+                    sx={{ mb: 3 }}
+                    onClose={() => setTestPlayerMessage(null)}
+                  >
+                    {testPlayerMessage.text}
+                  </Alert>
+                )}
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <ScienceIcon sx={{ mr: 2, color: 'info.main', fontSize: 32 }} />
+                          <Typography variant="h6">Create Test Players</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Creates 6 test player availability records with proper location data in Birmingham, Coventry, and Leicester (3 x U9, 3 x U14).
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                          These test players will appear on the Maps page and can be used to test search, filtering, and mapping features.
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Typography variant="body2" fontWeight="bold">
+                            Current test players: {testPlayerCount}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<AddIcon />}
+                          onClick={handleCreateTestPlayers}
+                          disabled={testPlayerLoading}
+                          fullWidth
+                        >
+                          {testPlayerLoading ? <CircularProgress size={24} /> : 'Create Test Players'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <DeleteIcon sx={{ mr: 2, color: 'error.main', fontSize: 32 }} />
+                          <Typography variant="h6">Delete Test Players</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Removes all test player availability records created via the Admin panel.
+                        </Typography>
+                        <Typography variant="caption" color="warning.main" sx={{ mb: 2, display: 'block' }}>
+                          ⚠️ This only deletes test players created through this panel. Other player records will not be affected.
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Typography variant="body2" fontWeight="bold">
+                            Test players to delete: {testPlayerCount}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={handleDeleteTestPlayers}
+                          disabled={testPlayerLoading || testPlayerCount === 0}
+                          fullWidth
+                        >
+                          {testPlayerLoading ? <CircularProgress size={24} /> : 'Delete Test Players'}
+                        </Button>
+                      </CardContent>
                     </Card>
                   </Grid>
                 </Grid>
