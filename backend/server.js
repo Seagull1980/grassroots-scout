@@ -11,6 +11,7 @@ const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
+// Force Railway redeploy - v2
 const DatabaseUtils = require('./db/database');
 const leagueRequestsRouter = require('./routes/league-requests');
 const emailService = require('./services/emailService');
