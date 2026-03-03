@@ -21,7 +21,12 @@ const Marker: React.FC<MarkerProps> = ({
   const [infoWindow, setInfoWindow] = useState<google.maps.InfoWindow>();
 
   useEffect(() => {
-    if (!map) return;
+    if (!map) {
+      console.warn('Marker: No map provided, skipping marker creation');
+      return;
+    }
+
+    console.log('Marker: Creating marker with map instance:', { position, title, map: map ? 'exists' : 'null' });
 
     let newMarker: google.maps.marker.AdvancedMarkerElement | google.maps.Marker;
 
@@ -52,7 +57,7 @@ const Marker: React.FC<MarkerProps> = ({
           content: pinElement?.element,
         });
 
-        console.log('AdvancedMarkerElement created:', { position, title });
+        console.log('AdvancedMarkerElement created successfully:', { position, title, map: 'bound' });
       } catch (error) {
         console.warn('Failed to create AdvancedMarkerElement, falling back to legacy marker:', error);
         // Fallback to legacy marker
@@ -62,7 +67,7 @@ const Marker: React.FC<MarkerProps> = ({
           title,
           icon
         });
-        console.log('Legacy Marker created:', { position, title });
+        console.log('Legacy Marker created (fallback):', { position, title });
       }
     } else {
       // Fallback to legacy marker if AdvancedMarkerElement not available

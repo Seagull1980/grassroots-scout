@@ -679,6 +679,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   };
 
   const handleMapLoad = useCallback((loadedMap: google.maps.Map) => {
+    console.log('handleMapLoad called - Map instance loaded:', loadedMap ? 'YES' : 'NO', loadedMap);
     setMap(loadedMap);
   }, []);
 
@@ -1512,9 +1513,13 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
   }, [map, handleMapClick]);
 
   const renderMarkers = () => {
-    return results.map((result) => {
+    console.log('renderMarkers called. Map instance:', map ? 'EXISTS' : 'NULL', 'Results count:', results.length, 'Results:', results);
+    
+    const markers = results.map((result) => {
       const item = result.item;
+      
       if (!item.locationData) {
+        console.warn('No locationData for item:', item.id, item.title, 'Full item:', item);
         return null;
       }
 
@@ -1522,6 +1527,15 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         lat: item.locationData.latitude,
         lng: item.locationData.longitude
       };
+      
+      console.log('Creating marker:', {
+        id: item.id,
+        title: item.title,
+        type: result.type,
+        lat: position.lat,
+        lng: position.lng,
+        hasValidCoords: typeof position.lat === 'number' && typeof position.lng === 'number'
+      });
 
       // Simple colored icon for testing
       const icon = result.type === 'vacancy' 
@@ -1542,6 +1556,9 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         />
       );
     });
+    
+    console.log(`renderMarkers returning ${markers.length} marker components, map=${map ? 'set' : 'null'}`);
+    return markers;
   };
 
   const renderSelectedItemDialog = () => {
