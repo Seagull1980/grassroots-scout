@@ -21,7 +21,7 @@ interface TabPanelProps {
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
   return (
     <div hidden={value !== index}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ p: 1.5 }}>{children}</Box>}
     </div>
   );
 };
@@ -134,8 +134,8 @@ const MapsPage: React.FC = () => {
         icon={<MapIcon sx={{ fontSize: 32 }} />}
         maxWidth="xl"
       />
-      <Container ref={containerRef} maxWidth="xl" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
-        <Typography variant="body1" color="textSecondary" paragraph>
+      <Container ref={containerRef} maxWidth="xl" sx={{ py: 1.5, position: 'relative', zIndex: 1 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
           Find teams and players using our interactive map with location-based search. Click anywhere on the map, draw custom search areas, and see results with precise locations and distances.
         </Typography>
 

@@ -1705,10 +1705,10 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
     <GoogleMapsWrapper>
       <Box>
         {/* Search Controls */}
-        <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-          <Grid container spacing={2} alignItems="center">
+        <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
+          <Grid container spacing={1} alignItems="center">
             <Grid item xs={12}>
-              <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Button
                   startIcon={<FilterIcon />}
                   onClick={() => setShowFilters(!showFilters)}
@@ -1952,11 +1952,11 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
 
         {/* Filters Panel */}
         {showFilters && (
-          <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
               Search Filters
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={1.5}>
               <Grid item xs={12} sm={4}>
                 <Autocomplete
                   fullWidth
@@ -2023,11 +2023,11 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
 
         {/* Radius Control (only shown when not using drawn area) */}
         {!useDrawnArea && (
-          <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-            <Grid container spacing={2} alignItems="center">
+          <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
+            <Grid container spacing={1.5} alignItems="center">
               <Grid item xs={12} md={4}>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Typography variant="body2">Search Radius:</Typography>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2" sx={{ minWidth: '90px' }}>Search Radius:</Typography>
                   <Box sx={{ width: 150 }}>
                     <Slider
                       value={searchRadius}
@@ -2041,8 +2041,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 </Box>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Typography variant="body2">Map Zoom:</Typography>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2" sx={{ minWidth: '70px' }}>Map Zoom:</Typography>
                   <Box sx={{ width: 150 }}>
                     <Slider
                       value={mapZoom}
@@ -2055,7 +2055,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 </Box>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="textSecondary" sx={{ fontWeight: drawingState.isActive ? 600 : 400 }}>
+                <Typography variant="caption" color="textSecondary" sx={{ fontWeight: drawingState.isActive ? 600 : 400 }}>
                   {drawingState.isActive 
                     ? '📍 Drawing active - see instructions above map'
                     : drawingState.mode === 'edit'

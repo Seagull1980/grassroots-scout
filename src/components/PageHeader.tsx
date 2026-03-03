@@ -31,13 +31,13 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       sx={{
         background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
         borderRadius: 0,
-        mb: 3,
+        mb: 2,
       }}
     >
       <Container maxWidth={maxWidth}>
         <Box
           sx={{
-            py: 3,
+            py: 2,
             px: 2,
             display: 'flex',
             alignItems: { xs: 'flex-start', sm: 'center' },
