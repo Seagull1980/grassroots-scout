@@ -165,7 +165,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
   }, []);
 
-  // Update draggable search-center marker
+  // Update static search-center marker
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.Marker || !userLocation) return;
 
@@ -176,7 +176,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const marker = new window.google.maps.Marker({
       position: userLocation,
       map: mapInstanceRef.current,
-      title: 'Search Center (drag to move)',
+      title: 'Search Center',
       icon: {
         path: window.google.maps.SymbolPath.CIRCLE,
         scale: 10,
@@ -185,24 +185,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         strokeColor: '#fff',
         strokeWeight: 2
       },
-      draggable: true,
+      draggable: false,
       zIndex: 1000
-    });
-
-    marker.addListener('dragend', (event: google.maps.MapMouseEvent) => {
-      if (!event.latLng) return;
-      const newLocation = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-      setUserLocation(newLocation);
-
-      if (hasActiveFilter && !isDrawing) {
-        const filtered = results.filter(result => {
-          const pos = getResultPosition(result);
-          if (!pos) return false;
-          const distance = calculateDistance(newLocation, pos);
-          return distance <= searchRadius;
-        });
-        setFilteredResults(applyAdditionalFilters(filtered));
-      }
     });
 
     locationMarkerRef.current = marker;
@@ -210,9 +194,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return () => {
       marker.setMap(null);
     };
-  }, [userLocation, hasActiveFilter, isDrawing, searchRadius, results]);
+  }, [userLocation]);
 
-  // Setup map click listener for drawing
+  // Setup map click listener for drawing or setting location
   useEffect(() => {
     isDrawingRef.current = isDrawing;
 
@@ -247,6 +231,28 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           });
         }
       });
+    } else if (!useViewportSearch) {
+      // Add click listener for setting search location
+      mapClickListenerRef.current = mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
+        if (!event.latLng) return;
+        
+        const location = {
+          lat: event.latLng.lat(),
+          lng: event.latLng.lng()
+        };
+        setUserLocation(location);
+        
+        // Apply radius filter with new location
+        const filtered = results.filter(result => {
+          const pos = getResultPosition(result);
+          if (!pos) return false;
+          const distance = calculateDistance(location, pos);
+          return distance <= searchRadius;
+        });
+        const finalFiltered = applyAdditionalFilters(filtered);
+        setFilteredResults(finalFiltered);
+        setHasActiveFilter(true);
+      });
     }
 
     return () => {
@@ -255,7 +261,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapClickListenerRef.current = null;
       }
     };
-  }, [isDrawing]);
+  }, [isDrawing, useViewportSearch, searchRadius, results]);
 
   // Viewport-based filtering: keep search area aligned to current visible map bounds
   useEffect(() => {
@@ -652,30 +658,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
   };
 
-  const handleSetCustomLocation = () => {
-    if (mapInstanceRef.current) {
-      const center = mapInstanceRef.current.getCenter();
-      if (center) {
-        setUseViewportSearch(false);
-        const location = {
-          lat: center.lat(),
-          lng: center.lng()
-        };
-        setUserLocation(location);
-        
-        // Apply radius filter with new location
-        const filtered = results.filter(result => {
-          const pos = getResultPosition(result);
-          if (!pos) return false;
-          const distance = calculateDistance(location, pos);
-          return distance <= searchRadius;
-        });
-        const finalFiltered = applyAdditionalFilters(filtered);
-        setFilteredResults(finalFiltered);
-        setHasActiveFilter(true);
-      }
-    }
-  };
+
 
   const handleStartDrawing = () => {
     setUseViewportSearch(false);
@@ -726,25 +709,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setUseViewportSearch(false);
     setSearchRadius(newRadius);
     
-    // Update circle on map
-    if (userLocation && mapInstanceRef.current) {
-      if (circleRef.current) {
-        circleRef.current.setRadius(newRadius * 1000); // Convert km to meters
-      } else {
-        circleRef.current = new window.google.maps.Circle({
-          center: userLocation,
-          radius: newRadius * 1000,
-          fillColor: '#2196F3',
-          fillOpacity: 0.1,
-          strokeColor: '#2196F3',
-          strokeOpacity: 0.5,
-          strokeWeight: 2,
-          map: mapInstanceRef.current
-        });
-      }
-    }
-    
-    // Filter results by distance
+    // Filter results by distance (no visual circle)
     if (userLocation) {
       const filtered = results.filter(result => {
         const position = getResultPosition(result);
@@ -859,28 +824,24 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </Button>
 
             <Button
-              startIcon={<LocationIcon />}
-              onClick={handleSetCustomLocation}
-              variant="outlined"
-              size="small"
-            >
-              Set Map Center
-            </Button>
-
-            <Button
               onClick={() => {
                 setUseViewportSearch(true);
                 setUserLocation(null);
-                if (circleRef.current) {
-                  circleRef.current.setMap(null);
-                  circleRef.current = null;
-                }
               }}
               variant={useViewportSearch ? 'contained' : 'outlined'}
               size="small"
             >
               Use Visible Map Area
             </Button>
+
+            {!useViewportSearch && !isDrawing && (
+              <Chip
+                size="small"
+                label="Click map to set search center"
+                color="info"
+                icon={<LocationIcon />}
+              />
+            )}
 
 
             <Button
