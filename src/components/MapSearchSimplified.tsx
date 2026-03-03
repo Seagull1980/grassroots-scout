@@ -944,6 +944,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableHead>
             <TableBody>
               {filteredResults.map((result, index) => {
+                // Debug: Log the first result to see what data we have
+                if (index === 0) {
+                  console.log('First result object:', result);
+                  console.log('ageGroup:', result.ageGroup);
+                  console.log('positions:', result.positions);
+                  console.log('position:', result.position);
+                }
+                
                 // Use positions array from backend
                 let positionDisplay = 'N/A';
                 if (result.positions && Array.isArray(result.positions) && result.positions.length > 0) {
@@ -965,7 +973,37 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 }
 
                 // Age group should be available directly
-                const ageGroupDisplay = result.ageGroup || 'N/A';
+                let ageGroupDisplay = result.ageGroup || 'N/A';
+                
+                // Fallback: Extract from title if ageGroup is missing
+                if (ageGroupDisplay === 'N/A' && result.title) {
+                  const ageGroupMatch = result.title.match(/\b(U\d+|Veterans \d+\+|Open Age|Adult)\b/i);
+                  if (ageGroupMatch) {
+                    ageGroupDisplay = ageGroupMatch[1];
+                  }
+                }
+                
+                // Fallback: Extract positions from title if positions array is missing
+                if (positionDisplay === 'N/A' && result.title) {
+                  // Common position keywords
+                  const positionKeywords = [
+                    'Goalkeeper', 'Defender', 'Midfielder', 'Attacker', 'Striker',
+                    'Left Wing', 'Right Wing', 'Left-back', 'Right-back', 'Centre-back',
+                    'Central Midfielder', 'Attacking Midfielder', 'Defensive Midfielder',
+                    'Wing-back', 'Full-back'
+                  ];
+                  
+                  const foundPositions: string[] = [];
+                  positionKeywords.forEach(keyword => {
+                    if (result.title.toLowerCase().includes(keyword.toLowerCase())) {
+                      foundPositions.push(keyword);
+                    }
+                  });
+                  
+                  if (foundPositions.length > 0) {
+                    positionDisplay = foundPositions.join(', ');
+                  }
+                }
                 
                 return (
                   <TableRow 
