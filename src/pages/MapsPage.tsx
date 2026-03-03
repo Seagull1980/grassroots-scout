@@ -10,6 +10,7 @@ import { Map as MapIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import MapSearchSimplified from '../components/MapSearchSimplified';
 import PageHeader from '../components/PageHeader';
+import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -49,31 +50,33 @@ const MapsPage: React.FC = () => {
         icon={<MapIcon sx={{ fontSize: 32 }} />}
         maxWidth="xl"
       />
-      <Container maxWidth="xl" sx={{ py: 2 }}>
-        <Paper elevation={2}>
-          <Tabs
-            value={tabValue}
-            onChange={handleTabChange}
-            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
-          >
-            <Tab label="Team Vacancies" />
-            <Tab label="Available Players" />
-            <Tab label="All Results" />
-          </Tabs>
+      <GoogleMapsWrapper>
+        <Container maxWidth="xl" sx={{ py: 2 }}>
+          <Paper elevation={2}>
+            <Tabs
+              value={tabValue}
+              onChange={handleTabChange}
+              sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+            >
+              <Tab label="Team Vacancies" />
+              <Tab label="Available Players" />
+              <Tab label="All Results" />
+            </Tabs>
 
-          <TabPanel value={tabValue} index={0}>
-            <MapSearchSimplified key="vacancies-tab" searchType="vacancies" />
-          </TabPanel>
+            <TabPanel value={tabValue} index={0}>
+              <MapSearchSimplified key="vacancies-tab" searchType="vacancies" />
+            </TabPanel>
 
-          <TabPanel value={tabValue} index={1}>
-            <MapSearchSimplified key="players-tab" searchType="players" />
-          </TabPanel>
+            <TabPanel value={tabValue} index={1}>
+              <MapSearchSimplified key="players-tab" searchType="players" />
+            </TabPanel>
 
-          <TabPanel value={tabValue} index={2}>
-            <MapSearchSimplified key="both-tab" searchType="both" />
-          </TabPanel>
-        </Paper>
-      </Container>
+            <TabPanel value={tabValue} index={2}>
+              <MapSearchSimplified key="both-tab" searchType="both" />
+            </TabPanel>
+          </Paper>
+        </Container>
+      </GoogleMapsWrapper>
     </Box>
   );
 };

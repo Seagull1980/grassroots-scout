@@ -40,8 +40,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   // Initialize Google Maps
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
+    
+    // Wait for Google Maps API to be available
+    if (!window.google?.maps?.Map) {
+      console.warn('Google Maps API not available yet');
+      return;
+    }
 
-    const map = new google.maps.Map(mapRef.current, {
+    const map = new window.google.maps.Map(mapRef.current, {
       center: UK_CENTER,
       zoom: 6,
       mapTypeControl: true,
@@ -120,13 +126,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   // Render markers when results change
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !window.google?.maps?.Marker) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
-    const bounds = new google.maps.LatLngBounds();
+    const bounds = new window.google.maps.LatLngBounds();
     let hasValidMarkers = false;
 
     // Create new markers
@@ -153,9 +159,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       if (!position || !isFinite(position.lat) || !isFinite(position.lng)) return;
 
-      const marker = new google.maps.Marker({
+      const marker = new window.google.maps.Marker({
         position,
-        map: mapInstanceRef.current,
+        map: mapInstanceRef.current as google.maps.Map,
         title: result.teamName || result.fullName || result.name || 'Location',
         icon: result.itemType === 'player' 
           ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
@@ -178,7 +184,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       mapInstanceRef.current.fitBounds(bounds);
       
       // Prevent too much zoom
-      google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
+      window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
         if (mapInstanceRef.current && mapInstanceRef.current.getZoom()! > 15) {
           mapInstanceRef.current.setZoom(15);
         }
