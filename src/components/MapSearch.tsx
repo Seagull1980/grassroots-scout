@@ -1531,6 +1531,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
       return (
         <Marker
           key={`${result.type}-${item.id}`}
+          map={map}
           position={position}
           icon={icon}
           title={item.title}

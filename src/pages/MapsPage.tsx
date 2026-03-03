@@ -56,7 +56,7 @@ const MapsPage: React.FC = () => {
     };
   }, []);
 
-  // Inject global CSS to keep Maps below navbar and allow navigation clicks
+  // Inject global CSS to keep Maps below navbar while preserving map interactions
   useEffect(() => {
     const styleId = 'maps-z-index-override';
     
@@ -66,28 +66,10 @@ const MapsPage: React.FC = () => {
       existingStyle.remove();
     }
 
-    // Inject CSS that forces Maps elements below navbar AND disables pointer events by default
+    // Inject CSS that keeps Maps elements below the navbar
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      /* Disable pointer events on ALL map elements by default to allow navbar clicks */
-      .gm-style,
-      .gm-style > div,
-      .gm-style iframe,
-      [class*="gm-"],
-      div[style*="position: absolute"][style*="left: 0px"][style*="top: 0px"] {
-        pointer-events: none !important;
-      }
-      
-      /* Re-enable pointer events ONLY when hovering directly over the maps paper */
-      #maps-paper:hover .gm-style,
-      #maps-paper:hover .gm-style > div,
-      #maps-paper:hover .gm-style iframe,
-      #maps-paper:hover [class*="gm-"],
-      #maps-paper:hover div[style*="position: absolute"] {
-        pointer-events: auto !important;
-      }
-      
       /* Force all Google Maps elements below navigation */
       .gm-style,
       .gm-style-iw,
