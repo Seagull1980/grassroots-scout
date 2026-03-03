@@ -18,7 +18,13 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Autocomplete,
+  TextField
 } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
@@ -57,6 +63,22 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [drawingPointCount, setDrawingPointCount] = useState(0);
   const [filteredResults, setFilteredResults] = useState<any[]>([]);
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+
+  // Filter options
+  const ageGroups = [
+    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10',
+    'Under 11', 'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16',
+    'Under 17', 'Under 18', 'Under 19', 'Under 20', 'Under 21',
+    'Adult (18+)', 'Veterans (35+)'
+  ];
+
+  const positions = [
+    'Goalkeeper', 'Right-back', 'Left-back', 'Centre-back', 'Full-back', 'Wing-back',
+    'Defensive Midfielder', 'Central Midfielder', 'Attacking Midfielder',
+    'Right Winger', 'Left Winger', 'Winger', 'Striker', 'Defender', 'Midfielder', 'Attacker'
+  ];
 
   // Initialize Google Maps
   useEffect(() => {
@@ -205,6 +227,43 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     fetchData();
   }, [searchType]);
 
+  // Re-apply filters when age group or position selections change
+  useEffect(() => {
+    if (!hasActiveFilter) return;
+
+    // Get the base filtered results (from radius or drawing)
+    let baseFiltered: any[] = [];
+    
+    if (userLocation && circleRef.current) {
+      // Radius filter is active
+      baseFiltered = results.filter(result => {
+        const pos = getResultPosition(result);
+        if (!pos) return false;
+        const distance = calculateDistance(userLocation, pos);
+        return distance <= searchRadius;
+      });
+    } else if (drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
+      // Drawing filter is active
+      const polygon = drawingPathRef.current;
+      baseFiltered = results.filter(result => {
+        const position = getResultPosition(result);
+        if (!position) return false;
+        const latLng = new window.google.maps.LatLng(position.lat, position.lng);
+        return window.google.maps.geometry.poly.containsLocation(latLng, { 
+          getAt: (i: number) => polygon[i],
+          length: polygon.length,
+          getLength: () => polygon.length
+        } as any);
+      });
+    } else {
+      baseFiltered = filteredResults;
+    }
+
+    // Apply additional filters
+    const finalFiltered = applyAdditionalFilters(baseFiltered);
+    setFilteredResults(finalFiltered);
+  }, [selectedAgeGroup, selectedPositions]);
+
   // Render markers when results change
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.Marker) return;
@@ -322,6 +381,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setIsDrawing(false);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
+    setSelectedAgeGroup('');
+    setSelectedPositions([]);
     
     if (circleRef.current) {
       circleRef.current.setMap(null);
@@ -331,6 +392,57 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       polylineRef.current.setMap(null);
       polylineRef.current = null;
     }
+  };
+
+  // Apply additional filters (age group and position)
+  const applyAdditionalFilters = (results: any[]) => {
+    let filtered = [...results];
+
+    // Filter by age group
+    if (selectedAgeGroup) {
+      filtered = filtered.filter(result => {
+        const ageGroup = result.ageGroup || '';
+        return ageGroup.toLowerCase().includes(selectedAgeGroup.toLowerCase()) ||
+               selectedAgeGroup.toLowerCase().includes(ageGroup.toLowerCase());
+      });
+    }
+
+    // Filter by positions
+    if (selectedPositions.length > 0) {
+      filtered = filtered.filter(result => {
+        let resultPositions: string[] = [];
+        
+        // Parse position field
+        if (result.position) {
+          if (typeof result.position === 'string') {
+            try {
+              // Try to parse as JSON array
+              const parsed = JSON.parse(result.position);
+              resultPositions = Array.isArray(parsed) ? parsed : [result.position];
+            } catch {
+              // Not JSON, treat as single position
+              resultPositions = [result.position];
+            }
+          } else if (Array.isArray(result.position)) {
+            resultPositions = result.position;
+          }
+        }
+        
+        if (result.preferredPosition) {
+          resultPositions.push(result.preferredPosition);
+        }
+
+        // Check if any of the result's positions match any selected positions
+        return selectedPositions.some(selectedPos => 
+          resultPositions.some(resultPos => 
+            resultPos.toLowerCase().includes(selectedPos.toLowerCase()) ||
+            selectedPos.toLowerCase().includes(resultPos.toLowerCase())
+          )
+        );
+      });
+    }
+
+    return filtered;
   };
 
   const handleUseMyLocation = () => {
@@ -355,7 +467,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             const distance = calculateDistance(location, pos);
             return distance <= searchRadius;
           });
-          setFilteredResults(filtered);
+          const finalFiltered = applyAdditionalFilters(filtered);
+          setFilteredResults(finalFiltered);
           setHasActiveFilter(true);
         },
         (_error) => {
@@ -392,7 +505,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           getLength: () => polygon.length
         } as any);
       });
-      setFilteredResults(filtered);
+      const finalFiltered = applyAdditionalFilters(filtered);
+      setFilteredResults(finalFiltered);
       setHasActiveFilter(true);
     }
   };
@@ -438,7 +552,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const distance = calculateDistance(userLocation, position);
         return distance <= newRadius;
       });
-      setFilteredResults(filtered);
+      const finalFiltered = applyAdditionalFilters(filtered);
+      setFilteredResults(finalFiltered);
       setHasActiveFilter(true);
     }
   };
@@ -555,6 +670,35 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               />
             </Box>
           )}
+
+          {/* Age Group and Position Filters */}
+          <Stack direction="row" spacing={2} sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Filter by Age Group</InputLabel>
+              <Select
+                value={selectedAgeGroup}
+                onChange={(e) => setSelectedAgeGroup(e.target.value)}
+                label="Filter by Age Group"
+              >
+                <MenuItem value=""><em>All Age Groups</em></MenuItem>
+                {ageGroups.map((age) => (
+                  <MenuItem key={age} value={age}>{age}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Autocomplete
+              multiple
+              size="small"
+              sx={{ minWidth: 300 }}
+              options={positions}
+              value={selectedPositions}
+              onChange={(_, newValue) => setSelectedPositions(newValue)}
+              renderInput={(params) => (
+                <TextField {...params} label="Filter by Position" placeholder="Select positions" />
+              )}
+            />
+          </Stack>
         </Stack>
       </Paper>
 
@@ -652,9 +796,25 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableHead>
             <TableBody>
               {filteredResults.map((result, index) => {
-                const position = result.position 
-                  ? (Array.isArray(result.position) ? JSON.parse(result.position).join(', ') : result.position)
-                  : result.preferredPosition || 'N/A';
+                // Parse position properly
+                let positionDisplay = 'N/A';
+                if (result.position) {
+                  if (typeof result.position === 'string') {
+                    try {
+                      const parsed = JSON.parse(result.position);
+                      positionDisplay = Array.isArray(parsed) ? parsed.join(', ') : result.position;
+                    } catch {
+                      positionDisplay = result.position;
+                    }
+                  } else if (Array.isArray(result.position)) {
+                    positionDisplay = result.position.join(', ');
+                  }
+                } else if (result.preferredPosition) {
+                  positionDisplay = result.preferredPosition;
+                }
+
+                // Parse age group
+                const ageGroupDisplay = result.ageGroup || 'N/A';
                 
                 return (
                   <TableRow 
@@ -678,8 +838,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{result.ageGroup || 'N/A'}</TableCell>
-                    <TableCell>{position}</TableCell>
+                    <TableCell>{ageGroupDisplay}</TableCell>
+                    <TableCell>{positionDisplay}</TableCell>
                     <TableCell>{result.location || 'N/A'}</TableCell>
                     <TableCell>{result.league || result.preferredLeagues || 'N/A'}</TableCell>
                   </TableRow>
