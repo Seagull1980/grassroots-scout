@@ -56,6 +56,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const drawingPathRef = useRef<google.maps.LatLng[]>([]);
   const isDrawingRef = useRef(false); // Use ref to track drawing state
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const locationMarkerRef = useRef<google.maps.Marker | null>(null);
   
@@ -72,6 +73,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
+  const [useViewportSearch, setUseViewportSearch] = useState(true);
   // Load saved location from localStorage on mount
   useEffect(() => {
     const savedLocation = localStorage.getItem('mapSearchLocation');
@@ -156,6 +158,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       if (locationMarkerRef.current) locationMarkerRef.current.setMap(null);
       if (mapClickListenerRef.current) {
         window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
+      }
+      if (mapIdleListenerRef.current) {
+        window.google?.maps?.event?.removeListener(mapIdleListenerRef.current);
       }
     };
   }, []);
@@ -252,6 +257,38 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
   }, [isDrawing]);
 
+  // Viewport-based filtering: keep search area aligned to current visible map bounds
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.google?.maps?.event || !useViewportSearch) return;
+
+    if (mapIdleListenerRef.current) {
+      window.google.maps.event.removeListener(mapIdleListenerRef.current);
+      mapIdleListenerRef.current = null;
+    }
+
+    mapIdleListenerRef.current = mapInstanceRef.current.addListener('idle', () => {
+      const bounds = mapInstanceRef.current?.getBounds();
+      const inView = filterResultsByBounds(results, bounds);
+      const finalFiltered = applyAdditionalFilters(inView);
+      setFilteredResults(finalFiltered);
+      setHasActiveFilter(true);
+    });
+
+    // Run once immediately when mode turns on/results change
+    const initialBounds = mapInstanceRef.current.getBounds();
+    const inView = filterResultsByBounds(results, initialBounds);
+    const finalFiltered = applyAdditionalFilters(inView);
+    setFilteredResults(finalFiltered);
+    setHasActiveFilter(true);
+
+    return () => {
+      if (mapIdleListenerRef.current) {
+        window.google.maps.event.removeListener(mapIdleListenerRef.current);
+        mapIdleListenerRef.current = null;
+      }
+    };
+  }, [useViewportSearch, results, selectedAgeGroup, selectedPositions]);
+
   // Fetch data based on search type
   useEffect(() => {
     const fetchData = async () => {
@@ -327,8 +364,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     // Get the base filtered results (from radius or drawing)
     let baseFiltered: any[] = [];
-    
-    if (userLocation && circleRef.current) {
+
+    if (useViewportSearch && mapInstanceRef.current?.getBounds()) {
+      baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
+    } else if (userLocation && circleRef.current) {
       // Radius filter is active
       baseFiltered = results.filter(result => {
         const pos = getResultPosition(result);
@@ -356,7 +395,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     // Apply additional filters
     const finalFiltered = applyAdditionalFilters(baseFiltered);
     setFilteredResults(finalFiltered);
-  }, [selectedAgeGroup, selectedPositions]);
+  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius]);
 
   // Render markers when results change
   useEffect(() => {
@@ -450,7 +489,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     });
 
     // Fit bounds if we have markers and not in drawing mode
-    if (hasValidMarkers && mapInstanceRef.current && !isDrawing) {
+    if (hasValidMarkers && mapInstanceRef.current && !isDrawing && !useViewportSearch) {
       mapInstanceRef.current.fitBounds(bounds);
       
       // Prevent too much zoom
@@ -460,7 +499,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         }
       });
     }
-  }, [results, filteredResults, isDrawing, hasActiveFilter]);
+  }, [results, filteredResults, isDrawing, hasActiveFilter, useViewportSearch]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -486,9 +525,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const handleClearAll = () => {
+    setUseViewportSearch(true);
     setUserLocation(null);
     setFilteredResults([]);
     setHasActiveFilter(false);
+    setSelectedResultKey(null);
     setIsDrawing(false);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
@@ -579,6 +620,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          setUseViewportSearch(false);
           const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude
@@ -614,6 +656,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (mapInstanceRef.current) {
       const center = mapInstanceRef.current.getCenter();
       if (center) {
+        setUseViewportSearch(false);
         const location = {
           lat: center.lat(),
           lng: center.lng()
@@ -635,6 +678,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const handleStartDrawing = () => {
+    setUseViewportSearch(false);
     setIsDrawing(true);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
@@ -667,6 +711,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   const handleClearDrawing = () => {
     setIsDrawing(false);
+    setUseViewportSearch(true);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
     if (polylineRef.current) {
@@ -678,6 +723,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const handleRadiusChange = (newRadius: number) => {
+    setUseViewportSearch(false);
     setSearchRadius(newRadius);
     
     // Update circle on map
@@ -733,6 +779,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       return { lat: result.matchLocationData.latitude, lng: result.matchLocationData.longitude };
     }
     return null;
+  };
+
+  const filterResultsByBounds = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
+    if (!bounds || !window.google?.maps?.LatLng) return items;
+
+    return items.filter(result => {
+      const position = getResultPosition(result);
+      if (!position) return false;
+      const latLng = new window.google.maps.LatLng(position.lat, position.lng);
+      return bounds.contains(latLng);
+    });
   };
 
   const getResultKey = (result: any): string => {
@@ -810,6 +867,21 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               Set Map Center
             </Button>
 
+            <Button
+              onClick={() => {
+                setUseViewportSearch(true);
+                setUserLocation(null);
+                if (circleRef.current) {
+                  circleRef.current.setMap(null);
+                  circleRef.current = null;
+                }
+              }}
+              variant={useViewportSearch ? 'contained' : 'outlined'}
+              size="small"
+            >
+              Use Visible Map Area
+            </Button>
+
 
             <Button
               startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
@@ -853,6 +925,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </Button>
 
             {isLoading && <CircularProgress size={24} />}
+          </Stack>
+
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+            <Typography variant="caption" color="text.secondary">
+              Marker key:
+            </Typography>
+            <Chip size="small" label="Blue # = Player advert" sx={{ bgcolor: '#e3f2fd' }} />
+            <Chip size="small" label="Red # = Team vacancy" sx={{ bgcolor: '#ffebee' }} />
+            <Typography variant="caption" color="text.secondary">
+              Click a marker or row to sync both views.
+            </Typography>
           </Stack>
 
           {/* Radius Control */}
