@@ -41,6 +41,42 @@ interface MapSearchSimplifiedProps {
   searchType: 'vacancies' | 'players' | 'both';
 }
 
+const getInitialMapCenter = (): google.maps.LatLngLiteral => {
+  if (typeof window === 'undefined') return UK_CENTER;
+
+  const savedMapCenter = localStorage.getItem('mapCenter');
+  const legacySearchLocation = localStorage.getItem('mapSearchLocation');
+
+  const parseCenter = (value: string | null): google.maps.LatLngLiteral | null => {
+    if (!value) return null;
+    try {
+      const parsed = JSON.parse(value);
+      if (
+        typeof parsed?.lat === 'number' &&
+        typeof parsed?.lng === 'number' &&
+        parsed.lat >= -90 &&
+        parsed.lat <= 90 &&
+        parsed.lng >= -180 &&
+        parsed.lng <= 180
+      ) {
+        return { lat: parsed.lat, lng: parsed.lng };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  return parseCenter(savedMapCenter) ?? parseCenter(legacySearchLocation) ?? UK_CENTER;
+};
+
+const getInitialMapZoom = (): number => {
+  if (typeof window === 'undefined') return 8;
+  const savedMapZoom = localStorage.getItem('mapZoom');
+  const zoom = savedMapZoom ? parseInt(savedMapZoom, 10) : NaN;
+  return !isNaN(zoom) && zoom >= 3 && zoom <= 20 ? zoom : 8;
+};
+
 const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -61,8 +97,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(UK_CENTER);
-  const [mapZoom, setMapZoom] = useState(8);
+  const [mapCenter] = useState<google.maps.LatLngLiteral>(() => getInitialMapCenter());
+  const [mapZoom] = useState(() => getInitialMapZoom());
   const [selectedRecipients, setSelectedRecipients] = useState<Record<string, {
     id: string;
     name: string;
@@ -72,30 +108,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     context: string;
   }>>({});
   
-  // Load saved map position from localStorage on mount
-  useEffect(() => {
-    const savedMapCenter = localStorage.getItem('mapCenter');
-    const savedMapZoom = localStorage.getItem('mapZoom');
-    
-    if (savedMapCenter) {
-      try {
-        const center = JSON.parse(savedMapCenter);
-        setMapCenter(center);
-      } catch (e) {
-        console.error('Failed to parse saved map center:', e);
-      }
-    }
-    
-    if (savedMapZoom) {
-      const zoom = parseInt(savedMapZoom, 10);
-      if (!isNaN(zoom) && zoom >= 3 && zoom <= 20) {
-        setMapZoom(zoom);
-      }
-    } else {
-      setMapZoom(8); // Default zoom
-    }
-  }, []);
-
   // Filter options
   const ageGroups = [
     'U6', 'U7', 'U8', 'U9', 'U10',
@@ -507,12 +519,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.setCenter(UK_CENTER);
-      mapInstanceRef.current.setZoom(10);
-      setMapCenter(UK_CENTER);
-      setMapZoom(10);
+      mapInstanceRef.current.setCenter(mapCenter);
+      mapInstanceRef.current.setZoom(mapZoom);
     }
-    // Clear all filters and search areas
+    // Reset filter selections only
     handleClearAll();
   };
 
@@ -725,7 +735,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <Chip
               icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
-              label={hasActiveFilter ? `${filteredResults.length} in search area` : `${results.length} total`}
+              label={hasActiveFilter ? `${filteredResults.length} in visible map area` : `${results.length} total`}
               color={hasActiveFilter ? 'success' : 'default'}
               variant="outlined"
               size="small"
@@ -761,8 +771,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           </Stack>
 
           {/* Age Group and Position Filters */}
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 180 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+            <FormControl size="small" sx={{ minWidth: { sm: 180 }, width: { xs: '100%', sm: 'auto' } }}>
               <InputLabel>Age Group</InputLabel>
               <Select
                 value={selectedAgeGroup}
@@ -779,7 +789,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             <Autocomplete
               multiple
               size="small"
-              sx={{ minWidth: 250 }}
+              sx={{ minWidth: { sm: 250 }, width: { xs: '100%', sm: 'auto' } }}
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => setSelectedPositions(newValue)}
@@ -798,7 +808,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       )}
 
       {/* Map Container */}
-      <Paper elevation={3} sx={{ position: 'relative', height: '600px', overflow: 'hidden' }}>
+      <Paper elevation={3} sx={{ position: 'relative', height: { xs: '55vh', sm: '600px' }, minHeight: 420, overflow: 'hidden' }}>
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
         
         {/* Floating Zoom Controls */}
@@ -806,12 +816,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           elevation={3}
           sx={{
             position: 'absolute',
-            right: 16,
-            top: 16,
+            right: { xs: 8, sm: 16 },
+            top: { xs: 8, sm: 16 },
             display: 'flex',
             flexDirection: 'column',
             gap: 1,
-            p: 1,
+            p: { xs: 0.5, sm: 1 },
             backgroundColor: 'rgba(255, 255, 255, 0.95)'
           }}
         >
@@ -828,7 +838,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {selectedItem && (
         <Card sx={{ mt: 2 }}>
           <CardContent>
-            <Stack direction="row" spacing={2} alignItems="flex-start">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
               <LocationIcon color="primary" />
               <Box flex={1}>
                 <Typography variant="h6">
@@ -865,7 +875,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* No Filter Warning */}
       {!hasActiveFilter && results.length > 0 && (
         <Alert severity="info" sx={{ mt: 2 }}>
-          Please select a search area (use "My Location" for radius search or "Draw Area" to outline a region) to view {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} on the map.
+          Move or zoom the map to view {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} in the visible area.
         </Alert>
       )}
 
