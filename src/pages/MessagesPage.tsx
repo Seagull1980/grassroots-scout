@@ -25,7 +25,8 @@ import {
   Paper,
   Divider,
   IconButton,
-  CircularProgress
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
   Message as MessageIcon,
@@ -97,6 +98,14 @@ const MessagesPage: React.FC = () => {
     relatedPlayerAvailabilityId?: string;
     messageType?: string;
   } | null>(null);
+  const [newMessageRecipients, setNewMessageRecipients] = useState<Array<{
+    id: string;
+    name: string;
+    context?: string;
+    relatedVacancyId?: string;
+    relatedPlayerAvailabilityId?: string;
+    messageType?: string;
+  }>>([]);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -108,8 +117,19 @@ const MessagesPage: React.FC = () => {
 
   // Handle incoming state from map search
   useEffect(() => {
-    if (location.state && (location.state as any).recipientId) {
-      const state = location.state as any;
+    if (!location.state) return;
+
+    const state = location.state as any;
+
+    if (state.bulkRecipients && Array.isArray(state.bulkRecipients) && state.bulkRecipients.length > 0) {
+      setNewMessageRecipients(state.bulkRecipients);
+      setNewMessageRecipient(null);
+      setNewMessageText(state.context ? `Regarding ${state.context}:\n\n` : '');
+      setNewMessageOpen(true);
+      return;
+    }
+
+    if (state.recipientId) {
       setNewMessageRecipient({
         id: state.recipientId,
         name: state.recipientName || 'User',
@@ -118,6 +138,7 @@ const MessagesPage: React.FC = () => {
         relatedPlayerAvailabilityId: state.relatedPlayerAvailabilityId,
         messageType: state.messageType
       });
+      setNewMessageRecipients([]);
       setNewMessageText(state.context ? `${state.context}\n\n` : '');
       setNewMessageOpen(true);
     }
@@ -292,104 +313,78 @@ const MessagesPage: React.FC = () => {
   };
 
   const handleSendNewMessage = async () => {
-    if (!newMessageRecipient || !newMessageText.trim()) return;
+    const recipients = newMessageRecipients.length > 0
+      ? newMessageRecipients
+      : (newMessageRecipient ? [newMessageRecipient] : []);
+
+    if (!recipients.length || !newMessageText.trim()) return;
 
     try {
       setSending(true);
-      const recipientIdInt = parseInt(newMessageRecipient.id);
-      
-      console.log('Sending message to:', {
-        recipientId: recipientIdInt,
-        originalId: newMessageRecipient.id,
-        recipientName: newMessageRecipient.name,
-        relatedVacancyId: newMessageRecipient.relatedVacancyId,
-        relatedPlayerAvailabilityId: newMessageRecipient.relatedPlayerAvailabilityId,
-        messageType: newMessageRecipient.messageType
-      });
-      
-      const body: any = {
-        recipientId: recipientIdInt,
-        subject: `Message regarding ${newMessageRecipient.context || 'availability'}`,
-        message: newMessageText.trim(),
-        messageType: newMessageRecipient.messageType || 'vacancy_interest'
-      };
+      let successCount = 0;
+      const failedRecipients: string[] = [];
 
-      // Add related IDs if available
-      if (newMessageRecipient.relatedVacancyId) {
-        // Extract numeric ID from strings like "test-1" or just "1"
-        const vacancyIdStr = String(newMessageRecipient.relatedVacancyId);
-        const numericMatch = vacancyIdStr.match(/\d+$/);
-        const vacancyId = numericMatch ? parseInt(numericMatch[0]) : parseInt(vacancyIdStr);
-        
-        if (!isNaN(vacancyId)) {
-          body.relatedVacancyId = vacancyId;
-          console.log('Added relatedVacancyId:', body.relatedVacancyId, 'from:', newMessageRecipient.relatedVacancyId);
+      for (const recipient of recipients) {
+        const recipientIdInt = parseInt(recipient.id, 10);
+        if (isNaN(recipientIdInt)) {
+          failedRecipients.push(recipient.name || recipient.id);
+          continue;
+        }
+
+        const body: any = {
+          recipientId: recipientIdInt,
+          subject: `Message regarding ${recipient.context || 'availability'}`,
+          message: newMessageText.trim(),
+          messageType: recipient.messageType || 'vacancy_interest'
+        };
+
+        if (recipient.relatedVacancyId) {
+          const vacancyIdStr = String(recipient.relatedVacancyId);
+          const numericMatch = vacancyIdStr.match(/\d+$/);
+          const vacancyId = numericMatch ? parseInt(numericMatch[0], 10) : parseInt(vacancyIdStr, 10);
+          if (!isNaN(vacancyId)) {
+            body.relatedVacancyId = vacancyId;
+          }
+        }
+
+        if (recipient.relatedPlayerAvailabilityId) {
+          const availabilityIdStr = String(recipient.relatedPlayerAvailabilityId);
+          const numericMatch = availabilityIdStr.match(/\d+$/);
+          const availabilityId = numericMatch ? parseInt(numericMatch[0], 10) : parseInt(availabilityIdStr, 10);
+          if (!isNaN(availabilityId)) {
+            body.relatedPlayerAvailabilityId = availabilityId;
+          }
+        }
+
+        const response = await fetch(`${API_URL}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+          successCount += 1;
         } else {
-          console.warn('Invalid relatedVacancyId:', newMessageRecipient.relatedVacancyId);
+          failedRecipients.push(recipient.name || recipient.id);
         }
       }
-      if (newMessageRecipient.relatedPlayerAvailabilityId) {
-        // Extract numeric ID from strings like "test-1" or just "1"
-        const availabilityIdStr = String(newMessageRecipient.relatedPlayerAvailabilityId);
-        const numericMatch = availabilityIdStr.match(/\d+$/);
-        const availabilityId = numericMatch ? parseInt(numericMatch[0]) : parseInt(availabilityIdStr);
-        
-        if (!isNaN(availabilityId)) {
-          body.relatedPlayerAvailabilityId = availabilityId;
-          console.log('Added relatedPlayerAvailabilityId:', body.relatedPlayerAvailabilityId, 'from:', newMessageRecipient.relatedPlayerAvailabilityId);
-        } else {
-          console.warn('Invalid relatedPlayerAvailabilityId:', newMessageRecipient.relatedPlayerAvailabilityId);
-        }
-      }
-      
-      const response = await fetch(`${API_URL}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(body)
-      });
 
-      if (response.ok) {
+      if (successCount > 0) {
         setNewMessageText('');
         setNewMessageRecipient(null);
+        setNewMessageRecipients([]);
         setNewMessageOpen(false);
-        // Wait a moment for the database to update, then refresh conversations
         await new Promise(resolve => setTimeout(resolve, 500));
         await loadConversations();
-      } else {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { error: 'Unknown error occurred' };
-        }
-        
-        console.error('Failed to send message:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-          sentBody: body
-        });
-        
-        // Provide user-friendly error messages
-        let errorMessage = 'Failed to send message. ';
-        if (response.status === 401 || response.status === 403) {
-          errorMessage += 'Your session has expired. Please log out and log back in to continue.';
-        } else if (response.status === 404 && errorData.error?.includes('Recipient not found')) {
-          errorMessage += 'The user you are trying to message could not be found. They may have deleted their account.';
-        } else if (response.status === 400 && errorData.errors) {
-          // Show validation errors
-          const validationErrors = errorData.errors.map((e: any) => e.msg).join(', ');
-          errorMessage += validationErrors;
-        } else if (errorData.error) {
-          errorMessage += errorData.error;
-        } else {
-          errorMessage += `Server error (${response.status}). Please try again.`;
-        }
-        
-        alert(errorMessage);
+      }
+
+      if (failedRecipients.length > 0) {
+        alert(`Sent ${successCount} message${successCount === 1 ? '' : 's'}. Failed for: ${failedRecipients.join(', ')}`);
+      } else if (recipients.length > 1) {
+        alert(`Sent ${successCount} individual messages successfully.`);
       }
     } catch (error) {
       console.error('Failed to send new message:', error);
@@ -841,12 +836,20 @@ const MessagesPage: React.FC = () => {
       <Dialog open={newMessageOpen} onClose={() => {
         setNewMessageOpen(false);
         setNewMessageRecipient(null);
+        setNewMessageRecipients([]);
         setNewMessageText('');
       }} maxWidth="sm" fullWidth>
         <DialogTitle>
-          New Message {newMessageRecipient && `to ${newMessageRecipient.name}`}
+          New Message {newMessageRecipients.length > 0
+            ? `to ${newMessageRecipients.length} players`
+            : (newMessageRecipient && `to ${newMessageRecipient.name}`)}
         </DialogTitle>
         <DialogContent>
+          {newMessageRecipients.length > 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              This sends the same message as separate individual chats to each selected player (not a group chat).
+            </Alert>
+          )}
           {/* Message Templates */}
           {newMessageText.length === 0 && (
             <Box sx={{ mb: 2 }}>
@@ -884,13 +887,14 @@ const MessagesPage: React.FC = () => {
           <Button onClick={() => {
             setNewMessageOpen(false);
             setNewMessageRecipient(null);
+            setNewMessageRecipients([]);
             setNewMessageText('');
           }}>Cancel</Button>
           <Button
             onClick={handleSendNewMessage}
             variant="contained"
             startIcon={<SendIcon />}
-            disabled={!newMessageText.trim() || !newMessageRecipient || sending}
+            disabled={!newMessageText.trim() || (newMessageRecipients.length === 0 && !newMessageRecipient) || sending}
           >
             {sending ? 'Sending...' : 'Send'}
           </Button>

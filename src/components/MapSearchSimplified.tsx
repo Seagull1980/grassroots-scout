@@ -5,6 +5,7 @@ import {
   Paper,
   Typography,
   Button,
+  Checkbox,
   Stack,
   Chip,
   CircularProgress,
@@ -38,6 +39,7 @@ import {
   Clear as ClearIcon,
   Message as MessageIcon
 } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
 interface MapSearchSimplifiedProps {
@@ -46,6 +48,7 @@ interface MapSearchSimplifiedProps {
 
 const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -75,6 +78,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [useViewportSearch, setUseViewportSearch] = useState(true);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(UK_CENTER);
   const [mapZoom, setMapZoom] = useState(8);
+  const [selectedRecipients, setSelectedRecipients] = useState<Record<string, {
+    id: string;
+    name: string;
+    relatedVacancyId?: string;
+    relatedPlayerAvailabilityId?: string;
+    messageType: string;
+    context: string;
+  }>>({});
   
   // Load saved location from localStorage on mount
   useEffect(() => {
@@ -446,9 +457,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     markersRef.current = [];
     markerByKeyRef.current = {};
 
-    const bounds = new window.google.maps.LatLngBounds();
-    let hasValidMarkers = false;
-
     // Create info window if it doesn't exist
     if (!infoWindowRef.current && window.google?.maps?.InfoWindow) {
       infoWindowRef.current = new window.google.maps.InfoWindow();
@@ -490,6 +498,29 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const league = item.league || (item.preferredLeagues && Array.isArray(item.preferredLeagues) ? item.preferredLeagues.join(', ') : '') || '';
         const leagueStr = league ? `<br><strong>League:</strong> ${league}` : '';
         const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
+        
+        // Add preferred team gender for players
+        const preferredGenderStr = item.preferredTeamGender && item.itemType === 'player' 
+          ? `<br><strong>Preferred Team:</strong> ${item.preferredTeamGender}` 
+          : '';
+        
+        // Add description/bio text (truncate if too long)
+        const description = item.description || '';
+        const descriptionStr = description 
+          ? `<div style="
+              margin-top: 8px;
+              padding: 8px;
+              background-color: #f9f9f9;
+              border-left: 3px solid ${markerColor};
+              border-radius: 4px;
+              font-size: 13px;
+              color: #555;
+              line-height: 1.4;
+              max-width: 280px;
+            ">
+              ${description.length > 200 ? description.substring(0, 200) + '...' : description}
+            </div>` 
+          : '';
         
         // Check if messaging is available for this item
         const recipient = getMessageRecipient(item);
@@ -561,7 +592,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               ${positionStr}
               ${leagueStr}
               ${location}
+              ${preferredGenderStr}
             </p>
+            ${descriptionStr}
             <p style="
               margin: 8px 0 0 8px; 
               font-size: 12px; 
@@ -616,21 +649,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       markersRef.current.push(marker);
       markerByKeyRef.current[resultKey] = marker;
-      bounds.extend(position);
-      hasValidMarkers = true;
     });
 
-    // Fit bounds if we have markers and not in drawing mode
-    if (hasValidMarkers && mapInstanceRef.current && !isDrawing && !useViewportSearch) {
-      mapInstanceRef.current.fitBounds(bounds);
-      
-      // Prevent too much zoom
-      window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
-        if (mapInstanceRef.current && mapInstanceRef.current.getZoom()! > 15) {
-          mapInstanceRef.current.setZoom(15);
-        }
-      });
-    }
   }, [results, filteredResults, isDrawing, hasActiveFilter, useViewportSearch]);
 
   const handleZoomIn = () => {
@@ -669,6 +689,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setDrawingPointCount(0);
     setSelectedAgeGroup('');
     setSelectedPositions([]);
+    setSelectedRecipients({});
     
     localStorage.removeItem('mapSearchLocation');
     if (circleRef.current) {
@@ -680,6 +701,68 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       polylineRef.current = null;
     }
   };
+
+  useEffect(() => {
+    const visibleKeys = new Set(filteredResults.map(result => getResultKey(result)));
+    setSelectedRecipients(prev => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([key]) => visibleKeys.has(key))
+      );
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [filteredResults]);
+
+  const handleToggleRecipientSelection = (result: any) => {
+    const resultKey = getResultKey(result);
+    const recipient = getMessageRecipient(result);
+    if (!recipient) return;
+
+    const isTeamTarget = result.itemType === 'team';
+
+    setSelectedRecipients(prev => {
+      if (prev[resultKey]) {
+        const { [resultKey]: _removed, ...rest } = prev;
+        return rest;
+      }
+
+      return {
+        ...prev,
+        [resultKey]: {
+          id: recipient.id,
+          name: recipient.name,
+          relatedPlayerAvailabilityId: !isTeamTarget && result.id ? String(result.id) : undefined,
+          relatedVacancyId: isTeamTarget && result.id ? String(result.id) : undefined,
+          messageType: isTeamTarget ? 'vacancy_interest' : 'availability_interest',
+          context: result.title || (isTeamTarget ? 'team advert' : 'player advert')
+        }
+      };
+    });
+  };
+
+  const handleMessageSelected = () => {
+    const recipients = Object.values(selectedRecipients);
+    if (!recipients.length) return;
+
+    const teamCount = recipients.filter(r => r.relatedVacancyId).length;
+
+    navigate('/messages', {
+      state: {
+        bulkRecipients: recipients,
+        context: teamCount > 0 ? 'team adverts' : 'player adverts'
+      }
+    });
+  };
+
+  const isBulkMessagingEnabled = user?.role === 'Coach' || user?.role === 'Player' || user?.role === 'Parent/Guardian';
+  const canBulkMessageResult = (result: any) => {
+    if (!isBulkMessagingEnabled) return false;
+    if (user?.role === 'Coach') return result.itemType === 'player';
+    return result.itemType === 'team';
+  };
+  const hasBulkEligibleResults = filteredResults.some(canBulkMessageResult);
+  const selectedCount = Object.keys(selectedRecipients).length;
+  const selectedTeamCount = Object.values(selectedRecipients).filter(r => r.relatedVacancyId).length;
+  const selectedTypeLabel = selectedTeamCount > 0 ? 'team' : 'player';
 
   // Apply additional filters (age group and position)
   const applyAdditionalFilters = (results: any[]) => {
@@ -1154,10 +1237,42 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       {/* Results Table */}
       {hasActiveFilter && filteredResults.length > 0 && (
+        <>
+          {isBulkMessagingEnabled && hasBulkEligibleResults && (
+            <Paper sx={{ mt: 2, p: 1.5 }}>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+                <Typography variant="body2" color="text.secondary">
+                  {selectedCount} {selectedTypeLabel}{selectedCount === 1 ? '' : 's'} selected
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => setSelectedRecipients({})}
+                    disabled={selectedCount === 0}
+                  >
+                    Clear Selection
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<MessageIcon />}
+                    onClick={handleMessageSelected}
+                    disabled={selectedCount === 0}
+                  >
+                    Message Selected
+                  </Button>
+                </Stack>
+              </Stack>
+            </Paper>
+          )}
         <TableContainer component={Paper} sx={{ mt: 2 }}>
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: 'primary.main' }}>
+                {isBulkMessagingEnabled && hasBulkEligibleResults && (
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Select</TableCell>
+                )}
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Description</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Age Group</TableCell>
@@ -1250,6 +1365,21 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                       bgcolor: selectedResultKey === resultKey ? 'action.selected' : 'inherit'
                     }}
                   >
+                    {isBulkMessagingEnabled && hasBulkEligibleResults && (
+                      <TableCell>
+                        {canBulkMessageResult(result) && (
+                          <Checkbox
+                            size="small"
+                            checked={Boolean(selectedRecipients[resultKey])}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleRecipientSelection(result);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>{rowNumber}. {result.teamName || result.title || result.fullName || result.name || 'N/A'}</TableCell>
                     <TableCell>
                       <Chip 
@@ -1299,6 +1429,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             </TableBody>
           </Table>
         </TableContainer>
+        </>
       )}
 
       {/* No Results Message */}
