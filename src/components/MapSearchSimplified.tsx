@@ -408,7 +408,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   // Re-apply filters when age group or position selections change
   useEffect(() => {
-    if (!hasActiveFilter) return;
+    // Check if we have any filters active (age group or position)
+    const hasAgeOrPositionFilter = selectedAgeGroup !== '' || selectedPositions.length > 0;
 
     // Get the base filtered results (from radius or drawing)
     let baseFiltered: any[] = [];
@@ -436,14 +437,26 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           getLength: () => polygon.length
         } as any);
       });
-    } else {
+    } else if (hasAgeOrPositionFilter) {
+      // If no geographic filter but we have age/position filters, use all results as base
+      baseFiltered = results;
+    } else if (hasActiveFilter) {
+      // Geographic filter is active but no polygon/radius/viewport
       baseFiltered = filteredResults;
+    } else {
+      // No filters active, don't update
+      return;
     }
 
     // Apply additional filters
     const finalFiltered = applyAdditionalFilters(baseFiltered);
     setFilteredResults(finalFiltered);
-  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius]);
+    
+    // Set hasActiveFilter to true if we have any filters
+    if (hasAgeOrPositionFilter || hasActiveFilter) {
+      setHasActiveFilter(true);
+    }
+  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius, hasActiveFilter]);
 
   // Render markers when results change
   useEffect(() => {
