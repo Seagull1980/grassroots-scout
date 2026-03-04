@@ -397,8 +397,9 @@ const AdminPage: React.FC = () => {
 
   // Test Player Management Functions
   const testPlayerData = [
+    // U9 Players (6 total)
     {
-      location: { city: 'Tamworth', lat: 52.6336, lng: -1.6910, postcode: 'B79 7ND' },
+      location: { city: 'Dosthill, Tamworth', lat: 52.6250, lng: -1.6880, postcode: 'B77 1LB' },
       ageGroup: 'U9',
       positions: ['Goalkeeper'],
       leagues: ['Birmingham County FA', 'Staffordshire FA']
@@ -410,27 +411,115 @@ const AdminPage: React.FC = () => {
       leagues: ['Birmingham County FA', 'Warwickshire FA']
     },
     {
-      location: { city: 'Tamworth', lat: 52.6360, lng: -1.6850, postcode: 'B79 8AE' },
+      location: { city: 'Two Gates, Tamworth', lat: 52.6420, lng: -1.6790, postcode: 'B77 1DB' },
       ageGroup: 'U9',
       positions: ['Striker'],
       leagues: ['Birmingham County FA', 'Staffordshire FA']
     },
     {
-      location: { city: 'Atherstone', lat: 52.5800, lng: -1.5420, postcode: 'CV9 2LB' },
+      location: { city: 'Mancetter, Atherstone', lat: 52.5820, lng: -1.5380, postcode: 'CV9 1NE' },
+      ageGroup: 'U9',
+      positions: ['Right Winger'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    {
+      location: { city: 'Wilnecote, Tamworth', lat: 52.6180, lng: -1.6550, postcode: 'B77 5ES' },
+      ageGroup: 'U9',
+      positions: ['Central Midfielder'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Baddesley Ensor', lat: 52.5650, lng: -1.5280, postcode: 'CV9 2BY' },
+      ageGroup: 'U9',
+      positions: ['Defender'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    
+    // U14 Players (6 total)
+    {
+      location: { city: 'Glascote, Tamworth', lat: 52.6280, lng: -1.6820, postcode: 'B77 2AF' },
       ageGroup: 'U14',
       positions: ['Central Midfielder', 'Attacking Midfielder'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Atherstone', lat: 52.5800, lng: -1.5420, postcode: 'CV9 2LB' },
+      ageGroup: 'U14',
+      positions: ['Left Winger', 'Right Winger'],
       leagues: ['Birmingham County FA', 'Warwickshire FA']
     },
     {
       location: { city: 'Tamworth', lat: 52.6300, lng: -1.6950, postcode: 'B79 7JU' },
       ageGroup: 'U14',
-      positions: ['Left Winger', 'Right Winger'],
+      positions: ['Right-back', 'Centre-back'],
       leagues: ['Birmingham County FA', 'Staffordshire FA']
     },
     {
-      location: { city: 'Atherstone', lat: 52.5750, lng: -1.5500, postcode: 'CV9 1HA' },
+      location: { city: 'Grendon, Atherstone', lat: 52.5580, lng: -1.5190, postcode: 'CV9 2QU' },
       ageGroup: 'U14',
-      positions: ['Right-back', 'Centre-back'],
+      positions: ['Goalkeeper'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    {
+      location: { city: 'Belgrave, Tamworth', lat: 52.6380, lng: -1.6920, postcode: 'B77 2NQ' },
+      ageGroup: 'U14',
+      positions: ['Striker'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Baxterley, Atherstone', lat: 52.5480, lng: -1.5620, postcode: 'CV9 2LE' },
+      ageGroup: 'U14',
+      positions: ['Defensive Midfielder'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    
+    // Other Age Groups (8 more players)
+    {
+      location: { city: 'Dosthill, Tamworth', lat: 52.6260, lng: -1.6900, postcode: 'B77 1LH' },
+      ageGroup: 'U7',
+      positions: ['Midfielder'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Atherstone', lat: 52.5760, lng: -1.5480, postcode: 'CV9 1BS' },
+      ageGroup: 'U8',
+      positions: ['Striker', 'Winger'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    {
+      location: { city: 'Wilnecote, Tamworth', lat: 52.6200, lng: -1.6580, postcode: 'B77 5PB' },
+      ageGroup: 'U10',
+      positions: ['Centre-back'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Mancetter, Atherstone', lat: 52.5840, lng: -1.5400, postcode: 'CV9 1NP' },
+      ageGroup: 'U11',
+      positions: ['Left-back', 'Right-back'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    {
+      location: { city: 'Two Gates, Tamworth', lat: 52.6440, lng: -1.6810, postcode: 'B77 1DH' },
+      ageGroup: 'U12',
+      positions: ['Attacking Midfielder'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Baddesley Ensor', lat: 52.5670, lng: -1.5300, postcode: 'CV9 2BZ' },
+      ageGroup: 'U13',
+      positions: ['Goalkeeper'],
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
+    },
+    {
+      location: { city: 'Glascote, Tamworth', lat: 52.6290, lng: -1.6840, postcode: 'B77 2AP' },
+      ageGroup: 'U15',
+      positions: ['Striker'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
+    },
+    {
+      location: { city: 'Grendon, Atherstone', lat: 52.5600, lng: -1.5210, postcode: 'CV9 2QW' },
+      ageGroup: 'U16',
+      positions: ['Central Midfielder', 'Winger'],
       leagues: ['Birmingham County FA', 'Warwickshire FA']
     }
   ];
@@ -1247,7 +1336,7 @@ const AdminPage: React.FC = () => {
                           <Typography variant="h6">Create Test Players</Typography>
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Creates 6 test player availability records with proper location data in Tamworth and Atherstone (3 x U9, 3 x U14).
+                          Creates 20 test player availability records with proper location data across Tamworth, Atherstone and surrounding villages (6 x U9, 6 x U14, 8 x other ages U7-U16).
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
                           These test players will appear on the Maps page and can be used to test search, filtering, and mapping features.
