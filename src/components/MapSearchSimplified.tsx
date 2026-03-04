@@ -74,7 +74,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
   const [useViewportSearch, setUseViewportSearch] = useState(true);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(UK_CENTER);
-  const [mapZoom, setMapZoom] = useState(10);
+  const [mapZoom, setMapZoom] = useState(8);
   
   // Load saved location from localStorage on mount
   useEffect(() => {
@@ -113,6 +113,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       if (!isNaN(zoom) && zoom >= 3 && zoom <= 20) {
         setMapZoom(zoom);
       }
+    } else {
+      setMapZoom(8); // Default zoom out 2 levels
     }
   }, []);
 
@@ -128,6 +130,34 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     localStorage.setItem('mapSearchRadius', searchRadius.toString());
   }, [searchRadius]);
 
+  // Draw search radius circle on map
+  useEffect(() => {
+    if (!mapInstanceRef.current || !userLocation || isDrawing) {
+      if (circleRef.current) {
+        circleRef.current.setMap(null);
+        circleRef.current = null;
+      }
+      return;
+    }
+
+    // Remove old circle if exists
+    if (circleRef.current) {
+      circleRef.current.setMap(null);
+    }
+
+    // Create new circle
+    circleRef.current = new window.google.maps.Circle({
+      center: userLocation,
+      radius: searchRadius * 1000, // Convert km to meters
+      map: mapInstanceRef.current,
+      fillColor: '#2196F3',
+      fillOpacity: 0.15,
+      strokeColor: '#1976D2',
+      strokeOpacity: 0.6,
+      strokeWeight: 2,
+      clickable: false
+    });
+  }, [userLocation, searchRadius, isDrawing]);
 
   // Filter options
   const ageGroups = [

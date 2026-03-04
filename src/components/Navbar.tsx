@@ -36,13 +36,11 @@ import {
   People,
   CheckCircle,
   EmojiEvents,
-  Schedule,
   Assessment,
   Info,
   Message,
   SwapHoriz,
   Business,
-  FitnessCenter,
   Analytics,
   MoreHoriz,
   ManageAccounts,
@@ -193,7 +191,6 @@ const Navbar: React.FC = () => {
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
       { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
       { path: '/invitations', label: 'Team Invitations', icon: <MailOutline />, badge: pendingInvitationsCount },
-      { path: '/training-sessions', label: 'Training Sessions', icon: <FitnessCenter /> },
       { path: '/team-profile', label: 'Team Profile', icon: <Business /> },
       { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
@@ -202,7 +199,6 @@ const Navbar: React.FC = () => {
       { path: '/child-player-availability', label: 'Parent View', icon: <ChildCare /> },
       { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
-    ...(user && (user.role === 'Coach' || user.role === 'Player') ? [{ path: '/training-invitations', label: 'Training Invites', icon: <Schedule /> }] : []),
     { path: '/performance-analytics', label: 'Performance Analytics', icon: <Analytics /> },
     ...(user?.role === 'Admin' ? [
       { path: '/analytics/real-time', label: 'Real-time Analytics', icon: <Analytics /> },
