@@ -398,40 +398,40 @@ const AdminPage: React.FC = () => {
   // Test Player Management Functions
   const testPlayerData = [
     {
-      location: { city: 'Birmingham', lat: 52.4862, lng: -1.8904, postcode: 'B1 1AA' },
+      location: { city: 'Tamworth', lat: 52.6336, lng: -1.6910, postcode: 'B79 7ND' },
       ageGroup: 'U9',
       positions: ['Goalkeeper'],
-      leagues: ['Birmingham County FA']
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
     },
     {
-      location: { city: 'Coventry', lat: 52.4068, lng: -1.5197, postcode: 'CV1 1AA' },
+      location: { city: 'Atherstone', lat: 52.5778, lng: -1.5464, postcode: 'CV9 1EJ' },
       ageGroup: 'U9',
       positions: ['Centre-back', 'Left-back'],
-      leagues: ['West Midlands Regional League']
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
     },
     {
-      location: { city: 'Leicester', lat: 52.6369, lng: -1.1398, postcode: 'LE1 1AA' },
+      location: { city: 'Tamworth', lat: 52.6360, lng: -1.6850, postcode: 'B79 8AE' },
       ageGroup: 'U9',
       positions: ['Striker'],
-      leagues: ['Leicester & District League']
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
     },
     {
-      location: { city: 'Birmingham', lat: 52.4862, lng: -1.8904, postcode: 'B1 1AA' },
+      location: { city: 'Atherstone', lat: 52.5800, lng: -1.5420, postcode: 'CV9 2LB' },
       ageGroup: 'U14',
       positions: ['Central Midfielder', 'Attacking Midfielder'],
-      leagues: ['Birmingham County FA']
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
     },
     {
-      location: { city: 'Coventry', lat: 52.4068, lng: -1.5197, postcode: 'CV1 1AA' },
+      location: { city: 'Tamworth', lat: 52.6300, lng: -1.6950, postcode: 'B79 7JU' },
       ageGroup: 'U14',
-      positions: ['Left Wing', 'Right Wing'],
-      leagues: ['West Midlands Regional League']
+      positions: ['Left Winger', 'Right Winger'],
+      leagues: ['Birmingham County FA', 'Staffordshire FA']
     },
     {
-      location: { city: 'Leicester', lat: 52.6369, lng: -1.1398, postcode: 'LE1 1AA' },
+      location: { city: 'Atherstone', lat: 52.5750, lng: -1.5500, postcode: 'CV9 1HA' },
       ageGroup: 'U14',
       positions: ['Right-back', 'Centre-back'],
-      leagues: ['Leicester & District League']
+      leagues: ['Birmingham County FA', 'Warwickshire FA']
     }
   ];
 
@@ -1247,7 +1247,7 @@ const AdminPage: React.FC = () => {
                           <Typography variant="h6">Create Test Players</Typography>
                         </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                          Creates 6 test player availability records with proper location data in Birmingham, Coventry, and Leicester (3 x U9, 3 x U14).
+                          Creates 6 test player availability records with proper location data in Tamworth and Atherstone (3 x U9, 3 x U14).
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
                           These test players will appear on the Maps page and can be used to test search, filtering, and mapping features.
