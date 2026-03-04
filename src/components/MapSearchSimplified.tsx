@@ -58,7 +58,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const locationMarkerRef = useRef<google.maps.Marker | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +154,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       markersRef.current = [];
       if (circleRef.current) circleRef.current.setMap(null);
       if (polylineRef.current) polylineRef.current.setMap(null);
-      if (locationMarkerRef.current) locationMarkerRef.current.setMap(null);
       if (mapClickListenerRef.current) {
         window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
       }
@@ -165,36 +163,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
   }, []);
 
-  // Update static search-center marker
-  useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps?.Marker || !userLocation) return;
 
-    if (locationMarkerRef.current) {
-      locationMarkerRef.current.setMap(null);
-    }
-
-    const marker = new window.google.maps.Marker({
-      position: userLocation,
-      map: mapInstanceRef.current,
-      title: 'Search Center',
-      icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#4CAF50',
-        fillOpacity: 1,
-        strokeColor: '#fff',
-        strokeWeight: 2
-      },
-      draggable: false,
-      zIndex: 1000
-    });
-
-    locationMarkerRef.current = marker;
-
-    return () => {
-      marker.setMap(null);
-    };
-  }, [userLocation]);
 
   // Setup map click listener for drawing or setting location
   useEffect(() => {
@@ -801,18 +770,19 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   return (
     <Box>
       {/* Control Panel */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-        <Stack spacing={2}>
-          {/* Top Row */}
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+      <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
+        <Stack spacing={1}>
+          {/* Top Controls Row */}
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <Chip
               icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
               label={hasActiveFilter ? `${filteredResults.length} in search area` : `${results.length} total`}
               color={hasActiveFilter ? 'success' : 'default'}
               variant="outlined"
+              size="small"
             />
             
-            <Divider orientation="vertical" flexItem />
+            <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
             
             <Button
               startIcon={<MyLocationIcon />}
@@ -820,7 +790,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               variant={userLocation ? 'contained' : 'outlined'}
               size="small"
             >
-              Use My Location
+              My Location
             </Button>
 
             <Button
@@ -831,18 +801,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               variant={useViewportSearch ? 'contained' : 'outlined'}
               size="small"
             >
-              Use Visible Map Area
+              Visible Area
             </Button>
 
             {!useViewportSearch && !isDrawing && (
               <Chip
                 size="small"
-                label="Click map to set search center"
+                label="Click map to set center"
                 color="info"
-                icon={<LocationIcon />}
+                variant="outlined"
               />
             )}
-
 
             <Button
               startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
@@ -851,7 +820,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               size="small"
               color={isDrawing ? 'error' : 'primary'}
             >
-              {isDrawing ? 'Cancel Drawing' : 'Draw Area'}
+              {isDrawing ? 'Cancel' : 'Draw'}
             </Button>
 
             {isDrawing && drawingPointCount > 0 && (
@@ -861,19 +830,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 size="small"
                 color="success"
               >
-                Finish Drawing ({drawingPointCount} points)
+                Finish ({drawingPointCount})
               </Button>
             )}
             
             {hasActiveFilter && !isDrawing && (
               <Button
-                startIcon={<ClearIcon />}
+                size="small"
                 onClick={handleClearAll}
                 variant="outlined"
-                size="small"
                 color="warning"
               >
-                Clear Search
+                Clear
               </Button>
             )}
             
@@ -882,27 +850,23 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               variant="outlined"
               size="small"
             >
-              Reset View
+              Reset
             </Button>
 
-            {isLoading && <CircularProgress size={24} />}
+            {isLoading && <CircularProgress size={20} />}
           </Stack>
 
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <Typography variant="caption" color="text.secondary">
-              Marker key:
-            </Typography>
-            <Chip size="small" label="Blue # = Player advert" sx={{ bgcolor: '#e3f2fd' }} />
-            <Chip size="small" label="Red # = Team vacancy" sx={{ bgcolor: '#ffebee' }} />
-            <Typography variant="caption" color="text.secondary">
-              Click a marker or row to sync both views.
+          {/* Legend */}
+          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+              Blue # = Player | Red # = Team | Click marker/row to sync
             </Typography>
           </Stack>
 
           {/* Radius Control */}
           {userLocation && !isDrawing && (
-            <Box sx={{ px: 1 }}>
-              <Typography variant="body2" gutterBottom>
+            <Box sx={{ px: 1, mt: 1 }}>
+              <Typography variant="caption" gutterBottom sx={{ display: 'block', mb: 0.5 }}>
                 Search Radius: {searchRadius} km
               </Typography>
               <Slider
@@ -921,13 +885,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           )}
 
           {/* Age Group and Position Filters */}
-          <Stack direction="row" spacing={2} sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Filter by Age Group</InputLabel>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Age Group</InputLabel>
               <Select
                 value={selectedAgeGroup}
                 onChange={(e) => setSelectedAgeGroup(e.target.value)}
-                label="Filter by Age Group"
+                label="Age Group"
               >
                 <MenuItem value=""><em>All Age Groups</em></MenuItem>
                 {ageGroups.map((age) => (
@@ -939,12 +903,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             <Autocomplete
               multiple
               size="small"
-              sx={{ minWidth: 300 }}
+              sx={{ minWidth: 250 }}
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => setSelectedPositions(newValue)}
               renderInput={(params) => (
-                <TextField {...params} label="Filter by Position" placeholder="Select positions" />
+                <TextField {...params} label="Position" placeholder="Select positions" />
               )}
             />
           </Stack>
