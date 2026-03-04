@@ -73,10 +73,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
   const [useViewportSearch, setUseViewportSearch] = useState(true);
+  const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(UK_CENTER);
+  const [mapZoom, setMapZoom] = useState(10);
+  
   // Load saved location from localStorage on mount
   useEffect(() => {
     const savedLocation = localStorage.getItem('mapSearchLocation');
     const savedRadius = localStorage.getItem('mapSearchRadius');
+    const savedMapCenter = localStorage.getItem('mapCenter');
+    const savedMapZoom = localStorage.getItem('mapZoom');
     
     if (savedLocation) {
       try {
@@ -91,6 +96,22 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       const radius = parseInt(savedRadius, 10);
       if (!isNaN(radius) && radius > 0 && radius <= 50) {
         setSearchRadius(radius);
+      }
+    }
+    
+    if (savedMapCenter) {
+      try {
+        const center = JSON.parse(savedMapCenter);
+        setMapCenter(center);
+      } catch (e) {
+        console.error('Failed to parse saved map center:', e);
+      }
+    }
+    
+    if (savedMapZoom) {
+      const zoom = parseInt(savedMapZoom, 10);
+      if (!isNaN(zoom) && zoom >= 3 && zoom <= 20) {
+        setMapZoom(zoom);
       }
     }
   }, []);
@@ -139,8 +160,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     const map = new window.google.maps.Map(mapRef.current, {
-      center: UK_CENTER,
-      zoom: 6,
+      center: mapCenter,
+      zoom: mapZoom,
       mapTypeControl: true,
       streetViewControl: true,
       fullscreenControl: true,
@@ -148,6 +169,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     });
 
     mapInstanceRef.current = map;
+    
+    // Save map position when user moves or zooms
+    map.addListener('idle', () => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      if (center && zoom) {
+        const newCenter = { lat: center.lat(), lng: center.lng() };
+        localStorage.setItem('mapCenter', JSON.stringify(newCenter));
+        localStorage.setItem('mapZoom', zoom.toString());
+      }
+    });
 
     return () => {
       markersRef.current.forEach(marker => marker.setMap(null));
@@ -433,6 +465,35 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const leagueStr = league ? `<br><strong>League:</strong> ${league}` : '';
         const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
         
+        // Check if messaging is available for this item
+        const recipient = getMessageRecipient(item);
+        const messageButton = recipient && type === 'Player' ? `
+          <button 
+            id="map-message-btn-${getResultKey(item)}"
+            style="
+              margin-top: 8px;
+              padding: 6px 12px;
+              background-color: #1976d2;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 13px;
+              font-weight: 500;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            "
+            onmouseover="this.style.backgroundColor='#1565c0'"
+            onmouseout="this.style.backgroundColor='#1976d2'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+            </svg>
+            Message
+          </button>
+        ` : '';
+        
         return `
           <div style="padding: 8px; min-width: 200px;">
             <h3 style="margin: 0 0 8px 0; color: #1976d2; font-size: 16px;">${title}</h3>
@@ -443,6 +504,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               ${leagueStr}
               ${location}
             </p>
+            ${messageButton}
           </div>
         `;
       };
@@ -454,6 +516,24 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         if (infoWindowRef.current && mapInstanceRef.current) {
           infoWindowRef.current.setContent(createInfoContent(result));
           infoWindowRef.current.open(mapInstanceRef.current, marker);
+          
+          // Add event listener for message button when info window is ready
+          window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
+            const messageBtn = document.getElementById(`map-message-btn-${resultKey}`);
+            if (messageBtn) {
+              messageBtn.addEventListener('click', () => {
+                const recipient = getMessageRecipient(result);
+                if (recipient) {
+                  navigate('/messages', { 
+                    state: { 
+                      recipientId: recipient.id,
+                      recipientName: recipient.name
+                    } 
+                  });
+                }
+              });
+            }
+          });
         }
       });
 
@@ -493,7 +573,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.setCenter(UK_CENTER);
-      mapInstanceRef.current.setZoom(6);
+      mapInstanceRef.current.setZoom(10);
+      setMapCenter(UK_CENTER);
+      setMapZoom(10);
     }
     // Clear all filters and search areas
     handleClearAll();
