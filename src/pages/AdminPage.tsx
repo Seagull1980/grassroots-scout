@@ -153,6 +153,11 @@ const AdminPage: React.FC = () => {
   const [testPlayerMessage, setTestPlayerMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [testPlayerCount, setTestPlayerCount] = useState(0);
   
+  // Test team vacancy management state
+  const [testTeamLoading, setTestTeamLoading] = useState(false);
+  const [testTeamMessage, setTestTeamMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [testTeamCount, setTestTeamCount] = useState(0);
+  
   console.log('🔍 All hooks declared, user check:', user ? 'exists' : 'null');
 
   // ALL HOOKS INCLUDING useEffect MUST BE DECLARED BEFORE CONDITIONAL RETURNS
@@ -227,6 +232,7 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     if (user && user.role === 'Admin') {
       fetchTestPlayerCount();
+      fetchTestTeamCount();
     }
   }, [user]);
 
@@ -689,6 +695,96 @@ const AdminPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching test player count:', error);
+    }
+  };
+
+  // Test team vacancy management functions
+  const handleCreateTestTeams = async () => {
+    setTestTeamLoading(true);
+    setTestTeamMessage(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setTestTeamMessage({ type: 'error', text: 'No authentication token found' });
+        return;
+      }
+
+      const response = await fetch('/api/admin/test-team-vacancies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create test team vacancies');
+      }
+
+      const data = await response.json();
+      setTestTeamMessage({ 
+        type: 'success', 
+        text: `Successfully created ${data.vacancies?.length || 0} test team vacancies` 
+      });
+      await fetchTestTeamCount();
+    } catch (error: any) {
+      setTestTeamMessage({ type: 'error', text: error.message || 'Failed to create test team vacancies' });
+    } finally {
+      setTestTeamLoading(false);
+    }
+  };
+
+  const handleDeleteTestTeams = async () => {
+    setTestTeamLoading(true);
+    setTestTeamMessage(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setTestTeamMessage({ type: 'error', text: 'No authentication token found' });
+        return;
+      }
+
+      const response = await fetch('/api/admin/test-team-vacancies', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete test team vacancies');
+      }
+
+      const data = await response.json();
+      setTestTeamMessage({ 
+        type: 'success', 
+        text: data.message || `Successfully deleted ${data.count || 0} test team vacancies` 
+      });
+      setTestTeamCount(0);
+    } catch (error: any) {
+      setTestTeamMessage({ type: 'error', text: error.message || 'Failed to delete test team vacancies' });
+    } finally {
+      setTestTeamLoading(false);
+    }
+  };
+
+  const fetchTestTeamCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/admin/test-team-vacancies/count', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTestTeamCount(data.count || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching test team count:', error);
     }
   };
 
@@ -1387,6 +1483,92 @@ const AdminPage: React.FC = () => {
                           fullWidth
                         >
                           {testPlayerLoading ? <CircularProgress size={24} /> : 'Delete Test Players'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                {/* Team Vacancies Section */}
+                <Divider sx={{ my: 4 }} />
+                
+                <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+                  Test Team Vacancies
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  Create or delete test team vacancy records for testing team recruitment features.
+                </Typography>
+
+                {testTeamMessage && (
+                  <Alert 
+                    severity={testTeamMessage.type} 
+                    sx={{ mb: 3 }}
+                    onClose={() => setTestTeamMessage(null)}
+                  >
+                    {testTeamMessage.text}
+                  </Alert>
+                )}
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <ScienceIcon sx={{ mr: 2, color: 'info.main', fontSize: 32 }} />
+                          <Typography variant="h6">Create Test Team Vacancies</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Creates 8 test team vacancy records across the Midlands region (U9, U11, U14, U16 - 2 per age group).
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                          These test vacancies will appear in search results and can be used to test team recruitment and search features. Includes match recording and pathway to senior features.
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Typography variant="body2" fontWeight="bold">
+                            Current test team vacancies: {testTeamCount}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<AddIcon />}
+                          onClick={handleCreateTestTeams}
+                          disabled={testTeamLoading}
+                          fullWidth
+                        >
+                          {testTeamLoading ? <CircularProgress size={24} /> : 'Create Test Team Vacancies'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Card>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <DeleteIcon sx={{ mr: 2, color: 'error.main', fontSize: 32 }} />
+                          <Typography variant="h6">Delete Test Team Vacancies</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Removes all test team vacancy records created via the Admin panel.
+                        </Typography>
+                        <Typography variant="caption" color="warning.main" sx={{ mb: 2, display: 'block' }}>
+                          ⚠️ This only deletes test team vacancies created through this panel. Other team records will not be affected.
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                          <Typography variant="body2" fontWeight="bold">
+                            Test team vacancies to delete: {testTeamCount}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={handleDeleteTestTeams}
+                          disabled={testTeamLoading || testTeamCount === 0}
+                          fullWidth
+                        >
+                          {testTeamLoading ? <CircularProgress size={24} /> : 'Delete Test Team Vacancies'}
                         </Button>
                       </CardContent>
                     </Card>

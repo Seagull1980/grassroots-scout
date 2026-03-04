@@ -9528,6 +9528,163 @@ function getDefaultPermissions(role) {
   return permissionMap[role] || permissionMap['Assistant Coach'];
 }
 
+// ============================================================================
+// TEST DATA MANAGEMENT API ENDPOINTS (Admin only)
+// ============================================================================
+
+// Create test team vacancies
+app.post('/api/admin/test-team-vacancies', authenticateToken, async (req, res) => {
+  try {
+    // Check admin permissions
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const midlandsLocations = [
+      { city: 'Birmingham', lat: 52.4862, lng: -1.8904, postcode: 'B1 1AA' },
+      { city: 'Coventry', lat: 52.4068, lng: -1.5197, postcode: 'CV1 1AA' },
+      { city: 'Leicester', lat: 52.6369, lng: -1.1398, postcode: 'LE1 1AA' },
+      { city: 'Nottingham', lat: 52.9548, lng: -1.1581, postcode: 'NG1 1AA' },
+      { city: 'Derby', lat: 52.9225, lng: -1.4746, postcode: 'DE1 1AA' },
+      { city: 'Wolverhampton', lat: 52.5867, lng: -2.1286, postcode: 'WV1 1AA' }
+    ];
+
+    const positions = [
+      'Goalkeeper', 'Centre-back', 'Left-back', 'Right-back',
+      'Defensive Midfielder', 'Central Midfielder', 'Attacking Midfielder',
+      'Left Wing', 'Right Wing', 'Striker', 'Centre Forward'
+    ];
+
+    const teamNames = [
+      'United FC', 'City FC', 'Rangers FC', 'Rovers FC',
+      'Athletic FC', 'Town FC', 'Wanderers FC', 'Borough FC',
+      'County FC', 'Vale FC', 'Albion FC', 'Hotspur FC'
+    ];
+
+    // Fetch active leagues
+    const leaguesResult = await db.query('SELECT id, name, region FROM leagues WHERE isActive = true OR isActive = 1 ORDER BY name LIMIT 10');
+    const leagues = leaguesResult.rows || [];
+
+    if (leagues.length === 0) {
+      return res.status(400).json({ error: 'No active leagues found' });
+    }
+
+    const selectedLeagues = leagues.slice(0, 3);
+    const ageGroups = ['U9', 'U11', 'U14', 'U16'];
+    const createdVacancies = [];
+
+    // Create 2 vacancies per age group (8 total)
+    for (const ageGroup of ageGroups) {
+      for (let i = 0; i < 2; i++) {
+        const location = midlandsLocations[(ageGroups.indexOf(ageGroup) * 2 + i) % midlandsLocations.length];
+        const teamName = teamNames[Math.floor(Math.random() * teamNames.length)];
+        const position = positions[Math.floor(Math.random() * positions.length)];
+        const league = selectedLeagues[Math.floor(Math.random() * selectedLeagues.length)];
+        
+        const hasMatchRecording = Math.random() > 0.5;
+        const hasPathwayToSenior = Math.random() > 0.6;
+
+        const title = `${location.city} ${teamName} - ${ageGroup} ${position} Wanted`;
+        const description = `${location.city} ${teamName} are looking for a talented ${position} to join our ${ageGroup} team. We compete in ${league.name} and train twice a week with matches on weekends. Great coaching, friendly environment, and a focus on player development.${hasMatchRecording ? ' We record all matches for performance review.' : ''}${hasPathwayToSenior ? ' Clear pathway to senior team.' : ''} This is test data created via Admin panel.`;
+
+        const result = await db.query(
+          `INSERT INTO team_vacancies (
+            title, description, league, ageGroup, position,
+            location, locationLatitude, locationLongitude, locationAddress,
+            contactInfo, postedBy, hasMatchRecording, hasPathwayToSenior,
+            status, createdAt
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+          [
+            title, description, league.name, ageGroup, position,
+            location.city, location.lat, location.lng,
+            `${location.city}, ${location.postcode}`,
+            'test@grassrootshub.com', req.user.userId,
+            hasMatchRecording ? 1 : 0, hasPathwayToSenior ? 1 : 0,
+            'active'
+          ]
+        );
+
+        createdVacancies.push({
+          id: result.lastID || result.insertId,
+          title,
+          ageGroup,
+          position,
+          league: league.name,
+          location: location.city
+        });
+      }
+    }
+
+    res.json({
+      message: `Successfully created ${createdVacancies.length} test team vacancies`,
+      vacancies: createdVacancies
+    });
+  } catch (error) {
+    console.error('Error creating test team vacancies:', error);
+    res.status(500).json({ error: 'Failed to create test team vacancies' });
+  }
+});
+
+// Delete test team vacancies
+app.delete('/api/admin/test-team-vacancies', authenticateToken, async (req, res) => {
+  try {
+    // Check admin permissions
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Find all test team vacancies
+    const testVacancies = await db.query(
+      `SELECT id, title FROM team_vacancies WHERE description LIKE ?`,
+      ['%This is test data created via Admin panel%']
+    );
+
+    const vacancies = testVacancies.rows || [];
+
+    if (vacancies.length === 0) {
+      return res.json({ message: 'No test team vacancies found to delete', count: 0 });
+    }
+
+    // Delete all test vacancies
+    await db.query(
+      `DELETE FROM team_vacancies WHERE description LIKE ?`,
+      ['%This is test data created via Admin panel%']
+    );
+
+    res.json({
+      message: `Successfully deleted ${vacancies.length} test team vacancies`,
+      count: vacancies.length
+    });
+  } catch (error) {
+    console.error('Error deleting test team vacancies:', error);
+    res.status(500).json({ error: 'Failed to delete test team vacancies' });
+  }
+});
+
+// Get count of test team vacancies
+app.get('/api/admin/test-team-vacancies/count', authenticateToken, async (req, res) => {
+  try {
+    // Check admin permissions
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await db.query(
+      `SELECT COUNT(*) as count FROM team_vacancies WHERE description LIKE ?`,
+      ['%This is test data created via Admin panel%']
+    );
+
+    const count = result.rows ? result.rows[0].count : result[0].count;    
+    res.json({ count: count || 0 });
+  } catch (error) {
+    console.error('Error counting test team vacancies:', error);
+    res.status(500).json({ count: 0 });
+  }
+});
+
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
