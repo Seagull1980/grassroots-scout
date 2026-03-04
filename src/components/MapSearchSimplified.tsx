@@ -1052,7 +1052,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       {/* Map Container */}
       <Paper elevation={3} sx={{ position: 'relative', height: '600px', overflow: 'hidden' }}>
-        <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+        <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
         
         {/* Floating Zoom Controls */}
         <Paper

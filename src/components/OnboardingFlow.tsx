@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/accessible-name, jsx-a11y/select-has-associated-label */
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -800,9 +799,12 @@ export const OnboardingFlow: React.FC = () => {
               }}
             />
             <FormControl fullWidth>
-              <InputLabel>Team Gender</InputLabel>
+              <InputLabel id="team-gender-label">Team Gender</InputLabel>
               <Select
+                labelId="team-gender-label"
+                id="team-gender-select"
                 value={teamData.teamGender}
+                label="Team Gender"
                 onChange={(e) => setTeamData({ ...teamData, teamGender: e.target.value })}
               >
                 {TEAM_GENDER_OPTIONS.map(option => (
