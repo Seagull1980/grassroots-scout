@@ -123,6 +123,24 @@ node delete-test-team-vacancies.cjs 10,11,12,13,14,15,16,17
 
 ## Development Workflow
 
+### Via Admin Panel (Recommended for quick testing)
+
+1. **Access Admin Panel**: Login as admin and go to `/admin`
+
+2. **Navigate to Testing Tab**: Click on "User Testing (Impersonation)" tab
+
+3. **Create Test Data**: Scroll to "Test Data Management" section
+   - Click **"Create Test Players"** to add 20 player availability records
+   - Click **"Create Test Team Vacancies"** to add 8 team vacancy records  
+
+4. **Test Features**: Use the test data to develop and test search, filtering, and matching features
+
+5. **Clean Up**: In the same section:
+   - Click **"Delete Test Players"** to remove all test player records
+   - Click **"Delete Test Team Vacancies"** to remove all test team records
+
+### Via Command Line Scripts
+
 1. **Setup Test Data**: Run both create scripts to populate your database with test data
    ```bash
    node create-test-player-adverts.cjs
