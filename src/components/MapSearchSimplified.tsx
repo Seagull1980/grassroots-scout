@@ -32,8 +32,6 @@ import {
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Groups as GroupsIcon,
-  Brush as BrushIcon,
-  Clear as ClearIcon,
   Message as MessageIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,11 +49,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const markersRef = useRef<google.maps.Marker[]>([]);
   const markerByKeyRef = useRef<Record<string, google.maps.Marker>>({});
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
-  const circleRef = useRef<google.maps.Circle | null>(null);
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
-  const drawingPathRef = useRef<google.maps.LatLng[]>([]);
-  const isDrawingRef = useRef(false); // Use ref to track drawing state
-  const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   
@@ -63,8 +56,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingPointCount, setDrawingPointCount] = useState(0);
   const [filteredResults, setFilteredResults] = useState<any[]>([]);
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
@@ -160,67 +151,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return () => {
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
-      if (circleRef.current) circleRef.current.setMap(null);
-      if (polylineRef.current) polylineRef.current.setMap(null);
-      if (mapClickListenerRef.current) {
-        window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
-      }
       if (mapIdleListenerRef.current) {
         window.google?.maps?.event?.removeListener(mapIdleListenerRef.current);
       }
     };
   }, []);
 
-
-
-  // Setup map click listener for drawing or setting location
-  useEffect(() => {
-    isDrawingRef.current = isDrawing;
-
-    if (!mapInstanceRef.current || !window.google?.maps?.event) return;
-
-    // Remove old listener if exists
-    if (mapClickListenerRef.current) {
-      window.google.maps.event.removeListener(mapClickListenerRef.current);
-      mapClickListenerRef.current = null;
-    }
-
-    if (isDrawing) {
-      // Add click listener for drawing
-      mapClickListenerRef.current = mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
-        if (!event.latLng) return;
-        
-        const latLng = event.latLng;
-        drawingPathRef.current.push(latLng);
-        setDrawingPointCount(drawingPathRef.current.length); // Update state to trigger re-render
-        
-        // Update polyline
-        if (polylineRef.current) {
-          polylineRef.current.setPath(drawingPathRef.current);
-        } else {
-          polylineRef.current = new window.google.maps.Polyline({
-            path: drawingPathRef.current,
-            geodesic: true,
-            strokeColor: '#2196F3',
-            strokeOpacity: 0.7,
-            strokeWeight: 2,
-            map: mapInstanceRef.current
-          });
-        }
-      });
-    }
-
-    return () => {
-      if (mapClickListenerRef.current) {
-        window.google?.maps?.event?.removeListener(mapClickListenerRef.current);
-        mapClickListenerRef.current = null;
-      }
-    };
-  }, [isDrawing, results]);
-
   // Viewport-based filtering: keep search area aligned to current visible map bounds
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps?.event || isDrawing) return;
+    if (!mapInstanceRef.current || !window.google?.maps?.event) return;
 
     if (mapIdleListenerRef.current) {
       window.google.maps.event.removeListener(mapIdleListenerRef.current);
@@ -248,7 +187,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapIdleListenerRef.current = null;
       }
     };
-  }, [isDrawing, results, selectedAgeGroup, selectedPositions]);
+  }, [results, selectedAgeGroup, selectedPositions]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -321,25 +260,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   // Re-apply filters when age group or position selections change
   useEffect(() => {
-    // Get the base filtered results (from viewport or drawing)
+    // Get the base filtered results (viewport)
     let baseFiltered: any[] = [];
     let shouldActivate = false;
 
-    if (isDrawing && drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
-      // Drawing filter is active
-      const polygon = drawingPathRef.current;
-      baseFiltered = results.filter(result => {
-        const position = getResultPosition(result);
-        if (!position) return false;
-        const latLng = new window.google.maps.LatLng(position.lat, position.lng);
-        return window.google.maps.geometry.poly.containsLocation(latLng, { 
-          getAt: (i: number) => polygon[i],
-          length: polygon.length,
-          getLength: () => polygon.length
-        } as any);
-      });
-      shouldActivate = true;
-    } else if (mapInstanceRef.current?.getBounds()) {
+    if (mapInstanceRef.current?.getBounds()) {
       // Default viewport search
       baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
       shouldActivate = true;
@@ -356,7 +281,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (shouldActivate) {
       setHasActiveFilter(true);
     }
-  }, [selectedAgeGroup, selectedPositions, isDrawing, results]);
+  }, [selectedAgeGroup, selectedPositions, results]);
 
   // Render markers when results change
   useEffect(() => {
@@ -564,7 +489,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       markerByKeyRef.current[resultKey] = marker;
     });
 
-  }, [results, filteredResults, isDrawing, hasActiveFilter]);
+  }, [results, filteredResults, hasActiveFilter]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -728,47 +653,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return filtered;
   };
 
-  const handleStartDrawing = () => {
-    setIsDrawing(true);
-    drawingPathRef.current = [];
-    setDrawingPointCount(0);
-    if (polylineRef.current) polylineRef.current.setMap(null);
-    polylineRef.current = null;
-    // Close info window when starting to draw
-    if (infoWindowRef.current) infoWindowRef.current.close();
-  };
-
-  const handleFinishDrawing = () => {
-    setIsDrawing(false);
-    // Filter results based on drawn polygon
-    if (drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
-      const polygon = drawingPathRef.current;
-      const filtered = results.filter(result => {
-        const position = getResultPosition(result);
-        if (!position) return false;
-        const latLng = new window.google.maps.LatLng(position.lat, position.lng);
-        return window.google.maps.geometry.poly.containsLocation(latLng, { 
-          getAt: (i: number) => polygon[i],
-          length: polygon.length,
-          getLength: () => polygon.length
-        } as any);
-      });
-      const finalFiltered = applyAdditionalFilters(filtered);
-      setFilteredResults(finalFiltered);
-      setHasActiveFilter(true);
-    }
-  };
-
-  const handleClearDrawing = () => {
-    setIsDrawing(false);
-    drawingPathRef.current = [];
-    setDrawingPointCount(0);
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
-  };
-
   const getResultPosition = (result: any): google.maps.LatLngLiteral | null => {
     if (result.locationData) {
       return { lat: result.locationData.latitude, lng: result.locationData.longitude };
@@ -846,27 +730,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               variant="outlined"
               size="small"
             />
-            
-            <Button
-              startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
-              onClick={isDrawing ? handleClearDrawing : handleStartDrawing}
-              variant={isDrawing ? 'contained' : 'outlined'}
-              size="small"
-              color={isDrawing ? 'error' : 'primary'}
-            >
-              {isDrawing ? 'Cancel' : 'Draw'}
-            </Button>
-
-            {isDrawing && drawingPointCount > 0 && (
-              <Button
-                onClick={handleFinishDrawing}
-                variant="contained"
-                size="small"
-                color="success"
-              >
-                Finish ({drawingPointCount})
-              </Button>
-            )}
             
             {(selectedAgeGroup || selectedPositions.length > 0) && (
               <Button
