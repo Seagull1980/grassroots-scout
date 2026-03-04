@@ -61,6 +61,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const isRadiusChangeRef = useRef(false); // Track if we're changing radius to prevent auto-zoom
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -283,6 +284,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           lng: event.latLng.lng()
         };
         setUserLocation(location);
+        
+        // Center the map on the clicked location
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.panTo(location);
+        }
         
         // Apply radius filter with new location
         const filtered = results.filter(result => {
@@ -668,9 +674,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   }, [results, filteredResults, isDrawing, hasActiveFilter, useViewportSearch]);
 
-  // Auto-fit map bounds to show filtered results
+  // Auto-fit map bounds to show filtered results (but not during radius changes)
   useEffect(() => {
-    if (!mapInstanceRef.current || !hasActiveFilter || filteredResults.length === 0 || useViewportSearch) return;
+    if (!mapInstanceRef.current || !hasActiveFilter || filteredResults.length === 0 || useViewportSearch || isRadiusChangeRef.current) return;
 
     const bounds = new window.google.maps.LatLngBounds();
     let hasValidBounds = false;
@@ -965,6 +971,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setUseViewportSearch(false);
     setSearchRadius(newRadius);
     
+    // Set flag to prevent auto-fit during radius change
+    isRadiusChangeRef.current = true;
+    
     // Filter results by distance (no visual circle)
     if (userLocation) {
       const filtered = results.filter(result => {
@@ -977,6 +986,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       setFilteredResults(finalFiltered);
       setHasActiveFilter(true);
     }
+    
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isRadiusChangeRef.current = false;
+    }, 100);
   };
 
   const calculateDistance = (from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral): number => {
