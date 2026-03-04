@@ -13,8 +13,6 @@ import {
   Card,
   CardContent,
   IconButton,
-  Divider,
-  Slider,
   Table,
   TableBody,
   TableCell,
@@ -29,7 +27,6 @@ import {
   TextField
 } from '@mui/material';
 import {
-  MyLocation as MyLocationIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   LocationOn as LocationIcon,
@@ -61,14 +58,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const mapClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const isRadiusChangeRef = useRef(false); // Track if we're changing radius to prevent auto-zoom
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
-  const [searchRadius, setSearchRadius] = useState(10); // km
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPointCount, setDrawingPointCount] = useState(0);
   const [filteredResults, setFilteredResults] = useState<any[]>([]);
@@ -76,7 +70,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
-  const [useViewportSearch, setUseViewportSearch] = useState(true);
   const [mapCenter, setMapCenter] = useState<google.maps.LatLngLiteral>(UK_CENTER);
   const [mapZoom, setMapZoom] = useState(8);
   const [selectedRecipients, setSelectedRecipients] = useState<Record<string, {
@@ -88,28 +81,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     context: string;
   }>>({});
   
-  // Load saved location from localStorage on mount
+  // Load saved map position from localStorage on mount
   useEffect(() => {
-    const savedLocation = localStorage.getItem('mapSearchLocation');
-    const savedRadius = localStorage.getItem('mapSearchRadius');
     const savedMapCenter = localStorage.getItem('mapCenter');
     const savedMapZoom = localStorage.getItem('mapZoom');
-    
-    if (savedLocation) {
-      try {
-        const location = JSON.parse(savedLocation);
-        setUserLocation(location);
-      } catch (e) {
-        console.error('Failed to parse saved location:', e);
-      }
-    }
-    
-    if (savedRadius) {
-      const radius = parseInt(savedRadius, 10);
-      if (!isNaN(radius) && radius > 0 && radius <= 50) {
-        setSearchRadius(radius);
-      }
-    }
     
     if (savedMapCenter) {
       try {
@@ -126,50 +101,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         setMapZoom(zoom);
       }
     } else {
-      setMapZoom(8); // Default zoom out 2 levels
+      setMapZoom(8); // Default zoom
     }
   }, []);
-
-  // Save location to localStorage when it changes
-  useEffect(() => {
-    if (userLocation) {
-      localStorage.setItem('mapSearchLocation', JSON.stringify(userLocation));
-    }
-  }, [userLocation]);
-
-  // Save radius to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('mapSearchRadius', searchRadius.toString());
-  }, [searchRadius]);
-
-  // Draw search radius circle on map
-  useEffect(() => {
-    if (!mapInstanceRef.current || !userLocation || isDrawing) {
-      if (circleRef.current) {
-        circleRef.current.setMap(null);
-        circleRef.current = null;
-      }
-      return;
-    }
-
-    // Remove old circle if exists
-    if (circleRef.current) {
-      circleRef.current.setMap(null);
-    }
-
-    // Create new circle
-    circleRef.current = new window.google.maps.Circle({
-      center: userLocation,
-      radius: searchRadius * 1000, // Convert km to meters
-      map: mapInstanceRef.current,
-      fillColor: '#2196F3',
-      fillOpacity: 0.15,
-      strokeColor: '#1976D2',
-      strokeOpacity: 0.6,
-      strokeWeight: 2,
-      clickable: false
-    });
-  }, [userLocation, searchRadius, isDrawing]);
 
   // Filter options
   const ageGroups = [
@@ -274,33 +208,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           });
         }
       });
-    } else if (!useViewportSearch) {
-      // Add click listener for setting search location
-      mapClickListenerRef.current = mapInstanceRef.current.addListener('click', (event: google.maps.MapMouseEvent) => {
-        if (!event.latLng) return;
-        
-        const location = {
-          lat: event.latLng.lat(),
-          lng: event.latLng.lng()
-        };
-        setUserLocation(location);
-        
-        // Center the map on the clicked location
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.panTo(location);
-        }
-        
-        // Apply radius filter with new location
-        const filtered = results.filter(result => {
-          const pos = getResultPosition(result);
-          if (!pos) return false;
-          const distance = calculateDistance(location, pos);
-          return distance <= searchRadius;
-        });
-        const finalFiltered = applyAdditionalFilters(filtered);
-        setFilteredResults(finalFiltered);
-        setHasActiveFilter(true);
-      });
     }
 
     return () => {
@@ -309,11 +216,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapClickListenerRef.current = null;
       }
     };
-  }, [isDrawing, useViewportSearch, searchRadius, results]);
+  }, [isDrawing, results]);
 
   // Viewport-based filtering: keep search area aligned to current visible map bounds
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps?.event || !useViewportSearch) return;
+    if (!mapInstanceRef.current || !window.google?.maps?.event || isDrawing) return;
 
     if (mapIdleListenerRef.current) {
       window.google.maps.event.removeListener(mapIdleListenerRef.current);
@@ -341,7 +248,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapIdleListenerRef.current = null;
       }
     };
-  }, [useViewportSearch, results, selectedAgeGroup, selectedPositions]);
+  }, [isDrawing, results, selectedAgeGroup, selectedPositions]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -414,26 +321,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   // Re-apply filters when age group or position selections change
   useEffect(() => {
-    // Check if we have any filters active (age group or position)
-    const hasAgeOrPositionFilter = selectedAgeGroup !== '' || selectedPositions.length > 0;
-
-    // Get the base filtered results (from radius or drawing)
+    // Get the base filtered results (from viewport or drawing)
     let baseFiltered: any[] = [];
     let shouldActivate = false;
 
-    if (useViewportSearch && mapInstanceRef.current?.getBounds()) {
-      baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
-      shouldActivate = true;
-    } else if (userLocation && circleRef.current) {
-      // Radius filter is active
-      baseFiltered = results.filter(result => {
-        const pos = getResultPosition(result);
-        if (!pos) return false;
-        const distance = calculateDistance(userLocation, pos);
-        return distance <= searchRadius;
-      });
-      shouldActivate = true;
-    } else if (drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
+    if (isDrawing && drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
       // Drawing filter is active
       const polygon = drawingPathRef.current;
       baseFiltered = results.filter(result => {
@@ -447,12 +339,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         } as any);
       });
       shouldActivate = true;
-    } else if (hasAgeOrPositionFilter) {
-      // If no geographic filter but we have age/position filters, use all results as base
-      baseFiltered = results;
+    } else if (mapInstanceRef.current?.getBounds()) {
+      // Default viewport search
+      baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
       shouldActivate = true;
     } else {
-      // No filters active, don't update
+      // No map bounds yet, don't update
       return;
     }
 
@@ -464,7 +356,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (shouldActivate) {
       setHasActiveFilter(true);
     }
-  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius]);
+  }, [selectedAgeGroup, selectedPositions, isDrawing, results]);
 
   // Render markers when results change
   useEffect(() => {
@@ -672,36 +564,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       markerByKeyRef.current[resultKey] = marker;
     });
 
-  }, [results, filteredResults, isDrawing, hasActiveFilter, useViewportSearch]);
-
-  // Auto-fit map bounds to show filtered results (but not during radius changes)
-  useEffect(() => {
-    if (!mapInstanceRef.current || !hasActiveFilter || filteredResults.length === 0 || useViewportSearch || isRadiusChangeRef.current) return;
-
-    const bounds = new window.google.maps.LatLngBounds();
-    let hasValidBounds = false;
-
-    filteredResults.forEach(result => {
-      const pos = getResultPosition(result);
-      if (pos) {
-        bounds.extend(new window.google.maps.LatLng(pos.lat, pos.lng));
-        hasValidBounds = true;
-      }
-    });
-
-    if (hasValidBounds) {
-      mapInstanceRef.current.fitBounds(bounds);
-      // Adjust zoom after fitBounds to avoid being too close
-      setTimeout(() => {
-        if (mapInstanceRef.current) {
-          const currentZoom = mapInstanceRef.current.getZoom();
-          if (currentZoom && currentZoom > 15) {
-            mapInstanceRef.current.setZoom(15); // Max zoom to avoid being too close
-          }
-        }
-      }, 100);
-    }
-  }, [filteredResults, hasActiveFilter, useViewportSearch]);
+  }, [results, filteredResults, isDrawing, hasActiveFilter]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -729,27 +592,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const handleClearAll = () => {
-    setUseViewportSearch(true);
-    setUserLocation(null);
-    setFilteredResults([]);
-    setHasActiveFilter(false);
-    setSelectedResultKey(null);
-    setIsDrawing(false);
-    drawingPathRef.current = [];
-    setDrawingPointCount(0);
     setSelectedAgeGroup('');
     setSelectedPositions([]);
-    setSelectedRecipients({});
-    
-    localStorage.removeItem('mapSearchLocation');
-    if (circleRef.current) {
-      circleRef.current.setMap(null);
-      circleRef.current = null;
-    }
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
   };
 
   useEffect(() => {
@@ -884,46 +728,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return filtered;
   };
 
-  const handleUseMyLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUseViewportSearch(false);
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserLocation(location);
-          
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.setCenter(location);
-            mapInstanceRef.current.setZoom(12);
-          }
-          
-          // Automatically apply initial radius filter
-          const filtered = results.filter(result => {
-            const pos = getResultPosition(result);
-            if (!pos) return false;
-            const distance = calculateDistance(location, pos);
-            return distance <= searchRadius;
-          });
-          const finalFiltered = applyAdditionalFilters(filtered);
-          setFilteredResults(finalFiltered);
-          setHasActiveFilter(true);
-        },
-        (_error) => {
-          setError('Could not get your location. Please check permissions.');
-        }
-      );
-    } else {
-      setError('Geolocation is not supported by your browser.');
-    }
-  };
-
-
-
   const handleStartDrawing = () => {
-    setUseViewportSearch(false);
     setIsDrawing(true);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
@@ -956,53 +761,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   const handleClearDrawing = () => {
     setIsDrawing(false);
-    setUseViewportSearch(true);
     drawingPathRef.current = [];
     setDrawingPointCount(0);
     if (polylineRef.current) {
       polylineRef.current.setMap(null);
       polylineRef.current = null;
     }
-    setFilteredResults([]);
-    setHasActiveFilter(false);
-  };
-
-  const handleRadiusChange = (newRadius: number) => {
-    setUseViewportSearch(false);
-    setSearchRadius(newRadius);
-    
-    // Set flag to prevent auto-fit during radius change
-    isRadiusChangeRef.current = true;
-    
-    // Filter results by distance (no visual circle)
-    if (userLocation) {
-      const filtered = results.filter(result => {
-        const position = getResultPosition(result);
-        if (!position) return false;
-        const distance = calculateDistance(userLocation, position);
-        return distance <= newRadius;
-      });
-      const finalFiltered = applyAdditionalFilters(filtered);
-      setFilteredResults(finalFiltered);
-      setHasActiveFilter(true);
-    }
-    
-    // Reset flag after a short delay
-    setTimeout(() => {
-      isRadiusChangeRef.current = false;
-    }, 100);
-  };
-
-  const calculateDistance = (from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral): number => {
-    const R = 6371; // Radius of earth in km
-    const dLat = (to.lat - from.lat) * Math.PI / 180;
-    const dLng = (to.lng - from.lng) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(from.lat * Math.PI / 180) * Math.cos(to.lat * Math.PI / 180) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
   };
 
   const getResultPosition = (result: any): google.maps.LatLngLiteral | null => {
@@ -1083,37 +847,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               size="small"
             />
             
-            <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
-            
-            <Button
-              startIcon={<MyLocationIcon />}
-              onClick={handleUseMyLocation}
-              variant={userLocation ? 'contained' : 'outlined'}
-              size="small"
-            >
-              My Location
-            </Button>
-
-            <Button
-              onClick={() => {
-                setUseViewportSearch(true);
-                setUserLocation(null);
-              }}
-              variant={useViewportSearch ? 'contained' : 'outlined'}
-              size="small"
-            >
-              Visible Area
-            </Button>
-
-            {!useViewportSearch && !isDrawing && (
-              <Chip
-                size="small"
-                label="Click map to set center"
-                color="info"
-                variant="outlined"
-              />
-            )}
-
             <Button
               startIcon={isDrawing ? <ClearIcon /> : <BrushIcon />}
               onClick={isDrawing ? handleClearDrawing : handleStartDrawing}
@@ -1135,14 +868,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               </Button>
             )}
             
-            {hasActiveFilter && !isDrawing && (
+            {(selectedAgeGroup || selectedPositions.length > 0) && (
               <Button
                 size="small"
                 onClick={handleClearAll}
                 variant="outlined"
                 color="warning"
               >
-                Clear
+                Clear Filters
               </Button>
             )}
             
@@ -1160,30 +893,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           {/* Legend */}
           <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Blue = Player | Red = Team | Click marker to view details and highlight in table
+              Blue = Player | Red = Team | Move/zoom map to change search area | Click marker for details
             </Typography>
           </Stack>
-
-          {/* Radius Control */}
-          {userLocation && !isDrawing && (
-            <Box sx={{ px: 1, mt: 1 }}>
-              <Typography variant="caption" gutterBottom sx={{ display: 'block', mb: 0.5 }}>
-                Search Radius: {searchRadius} km
-              </Typography>
-              <Slider
-                value={searchRadius}
-                onChange={(_, newValue) => handleRadiusChange(newValue as number)}
-                min={1}
-                max={50}
-                marks={[
-                  { value: 1, label: '1km' },
-                  { value: 25, label: '25km' },
-                  { value: 50, label: '50km' }
-                ]}
-                step={1}
-              />
-            </Box>
-          )}
 
           {/* Age Group and Position Filters */}
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
