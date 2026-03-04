@@ -172,9 +172,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   // Filter options
   const ageGroups = [
-    'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10',
-    'Under 11', 'Under 12', 'Under 13', 'Under 14', 'Under 15', 'Under 16',
-    'Under 17', 'Under 18', 'Under 19', 'Under 20', 'Under 21',
+    'U6', 'U7', 'U8', 'U9', 'U10',
+    'U11', 'U12', 'U13', 'U14', 'U15', 'U16',
+    'U17', 'U18', 'U19', 'U20', 'U21',
     'Adult (18+)', 'Veterans (35+)'
   ];
 
@@ -413,9 +413,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     // Get the base filtered results (from radius or drawing)
     let baseFiltered: any[] = [];
+    let shouldActivate = false;
 
     if (useViewportSearch && mapInstanceRef.current?.getBounds()) {
       baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
+      shouldActivate = true;
     } else if (userLocation && circleRef.current) {
       // Radius filter is active
       baseFiltered = results.filter(result => {
@@ -424,6 +426,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const distance = calculateDistance(userLocation, pos);
         return distance <= searchRadius;
       });
+      shouldActivate = true;
     } else if (drawingPathRef.current.length >= 3 && window.google?.maps?.geometry?.poly) {
       // Drawing filter is active
       const polygon = drawingPathRef.current;
@@ -437,12 +440,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           getLength: () => polygon.length
         } as any);
       });
+      shouldActivate = true;
     } else if (hasAgeOrPositionFilter) {
       // If no geographic filter but we have age/position filters, use all results as base
       baseFiltered = results;
-    } else if (hasActiveFilter) {
-      // Geographic filter is active but no polygon/radius/viewport
-      baseFiltered = filteredResults;
+      shouldActivate = true;
     } else {
       // No filters active, don't update
       return;
@@ -453,10 +455,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     setFilteredResults(finalFiltered);
     
     // Set hasActiveFilter to true if we have any filters
-    if (hasAgeOrPositionFilter || hasActiveFilter) {
+    if (shouldActivate) {
       setHasActiveFilter(true);
     }
-  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius, hasActiveFilter]);
+  }, [selectedAgeGroup, selectedPositions, useViewportSearch, results, userLocation, searchRadius]);
 
   // Render markers when results change
   useEffect(() => {
@@ -666,6 +668,35 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   }, [results, filteredResults, isDrawing, hasActiveFilter, useViewportSearch]);
 
+  // Auto-fit map bounds to show filtered results
+  useEffect(() => {
+    if (!mapInstanceRef.current || !hasActiveFilter || filteredResults.length === 0 || useViewportSearch) return;
+
+    const bounds = new window.google.maps.LatLngBounds();
+    let hasValidBounds = false;
+
+    filteredResults.forEach(result => {
+      const pos = getResultPosition(result);
+      if (pos) {
+        bounds.extend(new window.google.maps.LatLng(pos.lat, pos.lng));
+        hasValidBounds = true;
+      }
+    });
+
+    if (hasValidBounds) {
+      mapInstanceRef.current.fitBounds(bounds);
+      // Adjust zoom after fitBounds to avoid being too close
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          const currentZoom = mapInstanceRef.current.getZoom();
+          if (currentZoom && currentZoom > 15) {
+            mapInstanceRef.current.setZoom(15); // Max zoom to avoid being too close
+          }
+        }
+      }, 100);
+    }
+  }, [filteredResults, hasActiveFilter, useViewportSearch]);
+
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom() || 6;
@@ -815,7 +846,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         }
 
         // Check if any of the result's positions match any selected positions
-        // Support hierarchical matching (e.g., "Defender" matches "Left-back")
         return selectedPositions.some(selectedPos => {
           const selectedLower = selectedPos.toLowerCase();
           
@@ -825,16 +855,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           return resultPositions.some(resultPos => {
             const resultLower = resultPos.toLowerCase();
             
-            // Direct match
+            // Direct match (including partial matches)
             if (resultLower.includes(selectedLower) || selectedLower.includes(resultLower)) {
               return true;
             }
             
-            // Hierarchical match - if selected position is generic, check if result is a specific variant
+            // Hierarchical match - if selected position is generic (e.g., "Midfielder"),
+            // check if result is a specific variant (e.g., "Central Midfielder")
             if (hierarchyMatches) {
-              return hierarchyMatches.some(specificPos => 
-                resultLower.includes(specificPos) || specificPos.includes(resultLower)
-              );
+              return hierarchyMatches.some(specificPos => {
+                const specificLower = specificPos.toLowerCase();
+                return resultLower.includes(specificLower) || specificLower.includes(resultLower);
+              });
             }
             
             return false;
