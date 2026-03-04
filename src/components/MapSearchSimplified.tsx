@@ -435,11 +435,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         position,
         map: mapInstanceRef.current as google.maps.Map,
         title: result.teamName || result.title || result.fullName || result.name || 'Location',
-        label: {
-          text: String(index + 1),
-          color: '#ffffff',
-          fontWeight: '700'
-        },
         icon: result.itemType === 'player' 
           ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
           : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
@@ -448,9 +443,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       });
 
       // Create info window content
-      const createInfoContent = (item: any) => {
+      const createInfoContent = (item: any, markerIndex: number) => {
         const title = item.teamName || item.title || item.fullName || item.name || 'Location';
         const type = item.itemType === 'player' ? 'Player' : 'Team';
+        const markerColor = item.itemType === 'player' ? '#2196f3' : '#f44336';
         const ageGroup = item.ageGroup ? `<br><strong>Age:</strong> ${item.ageGroup}` : '';
         
         // Use positions array from backend
@@ -495,14 +491,54 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         ` : '';
         
         return `
-          <div style="padding: 8px; min-width: 200px;">
-            <h3 style="margin: 0 0 8px 0; color: #1976d2; font-size: 16px;">${title}</h3>
-            <p style="margin: 4px 0; color: #666; font-size: 14px;">
+          <div 
+            id="map-info-content-${getResultKey(item)}"
+            style="
+              padding: 8px; 
+              min-width: 220px;
+              cursor: pointer;
+            "
+            onmouseover="this.style.backgroundColor='#f5f5f5'"
+            onmouseout="this.style.backgroundColor='transparent'"
+          >
+            <div style="
+              display: flex; 
+              align-items: center; 
+              gap: 8px; 
+              margin-bottom: 8px;
+              padding-bottom: 8px;
+              border-bottom: 2px solid ${markerColor};
+            ">
+              <div style="
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background-color: ${markerColor};
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                font-size: 14px;
+              ">
+                ${markerIndex}
+              </div>
+              <h3 style="margin: 0; color: #1976d2; font-size: 16px; flex: 1;">${title}</h3>
+            </div>
+            <p style="margin: 4px 0 4px 8px; color: #666; font-size: 14px;">
               <strong>Type:</strong> ${type}
               ${ageGroup}
               ${positionStr}
               ${leagueStr}
               ${location}
+            </p>
+            <p style="
+              margin: 8px 0 0 8px; 
+              font-size: 12px; 
+              color: #999;
+              font-style: italic;
+            ">
+              Click to view in table below
             </p>
             ${messageButton}
           </div>
@@ -514,14 +550,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         setSelectedResultKey(resultKey);
         rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (infoWindowRef.current && mapInstanceRef.current) {
-          infoWindowRef.current.setContent(createInfoContent(result));
+          infoWindowRef.current.setContent(createInfoContent(result, index + 1));
           infoWindowRef.current.open(mapInstanceRef.current, marker);
           
-          // Add event listener for message button when info window is ready
+          // Add event listeners when info window is ready
           window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
+            // Message button handler
             const messageBtn = document.getElementById(`map-message-btn-${resultKey}`);
             if (messageBtn) {
-              messageBtn.addEventListener('click', () => {
+              messageBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const recipient = getMessageRecipient(result);
                 if (recipient) {
                   navigate('/messages', { 
@@ -531,6 +569,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     } 
                   });
                 }
+              });
+            }
+            
+            // Info window content click handler to highlight table row
+            const infoContent = document.getElementById(`map-info-content-${resultKey}`);
+            if (infoContent) {
+              infoContent.addEventListener('click', () => {
+                setSelectedResultKey(resultKey);
+                rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               });
             }
           });
@@ -941,7 +988,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           {/* Legend */}
           <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Blue # = Player | Red # = Team | Click marker/row to sync
+              Blue = Player | Red = Team | Click marker to view details and highlight in table
             </Typography>
           </Stack>
 
