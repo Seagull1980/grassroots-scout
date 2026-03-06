@@ -17,7 +17,9 @@ import {
   SpeedDialIcon,
   Skeleton,
   Paper,
-  Divider
+  Divider,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -29,7 +31,11 @@ import {
   Dashboard as DashboardIcon,
   AdminPanelSettings as AdminIcon,
   Flag as FlagIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
+  TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,6 +45,7 @@ import SocialShare from '../components/SocialShare';
 import PageHeader from '../components/PageHeader';
 import CoachOnboardingChecklist from '../components/CoachOnboardingChecklist';
 import VacancyStatusWidget from '../components/VacancyStatusWidget';
+import NotificationCenter from '../components/NotificationCenter';
 
 interface BookmarkData {
   id: number;
@@ -68,6 +75,8 @@ const DashboardPage: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [profileCompletion, setProfileCompletion] = useState(0);
 
   const vacancyUpdates = recentActivity.filter((activity) => activity.type === 'vacancy').length;
   const playerUpdates = recentActivity.filter((activity) => activity.type === 'player_availability').length;
@@ -76,7 +85,21 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     loadDashboardData();
     trackPageView();
+    calculateProfileCompletion();
   }, []);
+
+  const calculateProfileCompletion = () => {
+    if (!user) return;
+    let completion = 0;
+    const fields = [
+      user.firstName,
+      user.lastName,
+      user.email
+    ];
+    completion = (fields.filter(f => f).length / fields.length) * 100;
+    setProfileCompletion(Math.round(completion));
+    localStorage.setItem('profile_completion', completion.toString());
+  };
 
   const trackPageView = async () => {
     try {
@@ -176,6 +199,50 @@ const DashboardPage: React.FC = () => {
     return `${timeGreeting}, ${name}!`;
   };
 
+  const getContextualSubtitle = () => {
+    // Context-aware subtitle based on user state
+    if (profileCompletion < 50) {
+      return `Complete your profile (${profileCompletion}%) to get better matches and opportunities!`;
+    }
+    
+    if (totalUpdates > 0) {
+      return `You have ${totalUpdates} new update${totalUpdates > 1 ? 's' : ''} in your network. Check them out below!`;
+    }
+    
+    const lastLogin = localStorage.getItem('last_login');
+    if (lastLogin) {
+      const daysSince = Math.floor((Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSince > 7) {
+        return `Welcome back! It's been ${daysSince} days. Here's what you missed.`;
+      }
+    }
+    
+    if (user?.role === 'Coach') {
+      return 'Manage your team, post vacancies, and find talented players.';
+    } else if (user?.role === 'Player' || user?.role === 'Parent/Guardian') {
+      return 'Explore opportunities and connect with teams looking for players like you.';
+    }
+    
+    return 'Welcome to your grassroots football dashboard.';
+  };
+
+  const handleQuickSearch = () => {
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+    } else {
+      navigate('/search');
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
+    if (!status) return 'default';
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('active') || statusLower.includes('open')) return 'success';
+    if (statusLower.includes('pending') || statusLower.includes('bookmarked')) return 'warning';
+    if (statusLower.includes('expired') || statusLower.includes('closed')) return 'error';
+    return 'default';
+  };
+
   const renderActivityItem = (activity: RecentActivity) => (
     <Card key={activity.id} sx={{ mb: 2 }}>
       <CardContent sx={{ py: 2 }}>
@@ -192,7 +259,13 @@ const DashboardPage: React.FC = () => {
                 <Chip
                   label={activity.status}
                   size="small"
+                  color={getStatusColor(activity.status) as any}
                   variant="outlined"
+                  icon={
+                    getStatusColor(activity.status) === 'success' ? <CheckCircleIcon /> :
+                    getStatusColor(activity.status) === 'error' ? <ErrorIcon /> :
+                    getStatusColor(activity.status) === 'warning' ? <WarningIcon /> : undefined
+                  }
                 />
               )}
             </Box>
@@ -254,12 +327,77 @@ const DashboardPage: React.FC = () => {
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
-      <PageHeader
-        title={getWelcomeMessage()}
-        subtitle="Welcome to your grassroots football dashboard. Here's what's happening in your network."
-        icon={<DashboardIcon sx={{ fontSize: 32 }} />}
-      />
+      <Box sx={{ position: 'relative' }}>
+        <PageHeader
+          title={getWelcomeMessage()}
+          subtitle={getContextualSubtitle()}
+          icon={<DashboardIcon sx={{ fontSize: 32 }} />}
+        />
+        {/* Notification Center - Positioned absolutely in header */}
+        <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1000 }}>
+          <NotificationCenter />
+        </Box>
+      </Box>
       <Container maxWidth="lg" sx={{ py: 3 }}>
+        {/* Quick Search Bar */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            placeholder="Quick search teams, players, or opportunities..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleQuickSearch()}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleQuickSearch}
+                  >
+                    Search
+                  </Button>
+                </InputAdornment>
+              )
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'background.paper'
+              }
+            }}
+          />
+        </Paper>
+
+        {/* Profile Completion Alert */}
+        {profileCompletion < 80 && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => navigate('/profile')}
+              >
+                Complete
+              </Button>
+            }
+            icon={<TrendingUpIcon />}
+          >
+            <Typography variant="body2">
+              <strong>Boost your visibility!</strong> Your profile is {profileCompletion}% complete.
+              {profileCompletion < 50
+                ? ' Add more details to attract better opportunities.'
+                : ' Just a few more fields to go!'}
+            </Typography>
+          </Alert>
+        )}
+
         {/* Welcome Section with Impersonation Alert */}
         <Box sx={{ mb: 4 }}>
         {isImpersonating && (
@@ -422,19 +560,52 @@ const DashboardPage: React.FC = () => {
               ) : recentActivity.length > 0 ? (
                 recentActivity.slice(0, 3).map(renderActivityItem)
               ) : (
-                <Box sx={{ textAlign: 'center', py: 3 }}>
-                  <Typography color="text.secondary">
-                    {user?.role === 'Coach'
-                      ? 'No current activity. Removed or expired items are hidden.'
-                      : 'No recent activity. Start exploring to see updates here!'}
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    onClick={() => navigate('/search')}
-                    sx={{ mt: 2 }}
+                <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
+                  <Avatar
+                    sx={{
+                      width: 80,
+                      height: 80,
+                      bgcolor: 'primary.light',
+                      color: 'primary.main',
+                      mx: 'auto',
+                      mb: 2
+                    }}
                   >
-                    Explore Now
-                  </Button>
+                    <BookmarkIcon sx={{ fontSize: 40 }} />
+                  </Avatar>
+                  <Typography variant="h6" gutterBottom>
+                    {user?.role === 'Coach'
+                      ? 'No Activity Yet'
+                      : 'Start Your Journey'}
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+                    {user?.role === 'Coach'
+                      ? 'Post your first team vacancy or search for talented players to get started. Your activity will appear here.'
+                      : 'Explore teams and opportunities. Bookmark items you like and they\'ll show up here for quick access!'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <Button
+                      variant="contained"
+                      onClick={() => navigate(user?.role === 'Coach' ? '/post-advert' : '/search')}
+                      startIcon={user?.role === 'Coach' ? <GroupIcon /> : <SearchIcon />}
+                    >
+                      {user?.role === 'Coach' ? 'Post Vacancy' : 'Find Teams'}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => navigate('/search')}
+                      startIcon={<SearchIcon />}
+                    >
+                      Explore
+                    </Button>
+                  </Box>
+                  {profileCompletion < 80 && (
+                    <Alert severity="info" sx={{ mt: 2, textAlign: 'left' }}>
+                      <Typography variant="body2">
+                        <strong>Tip:</strong> Complete your profile to get personalized recommendations!
+                      </Typography>
+                    </Alert>
+                  )}
                 </Box>
               )}
             </CardContent>
