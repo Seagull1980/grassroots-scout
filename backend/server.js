@@ -2151,14 +2151,14 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       }
       
       try {
-        // Database column is 'position' (singular), not 'positions'
-        positions = row.position ? JSON.parse(row.position) : [];
+        // Database column is 'positions' (plural), stored as JSON string array
+        positions = row.positions ? JSON.parse(row.positions) : [];
         if (!Array.isArray(positions)) {
-          positions = [row.position];
+          positions = [row.positions];
         }
       } catch (e) {
         // If parsing fails, treat as string array
-        positions = row.position ? [row.position] : [];
+        positions = row.positions ? [row.positions] : [];
       }
       
       const locationAddress =
@@ -2458,7 +2458,7 @@ app.get('/api/child-player-availability', authenticateToken, async (req, res) =>
       }
       
       try {
-        positions = row.position ? JSON.parse(row.position) : [];
+        positions = row.positions ? JSON.parse(row.positions) : [];
         if (!Array.isArray(positions)) positions = [];
       } catch (e) {
         positions = [];
@@ -2734,7 +2734,7 @@ app.get('/api/public/child-player-availability', async (req, res) => {
       }
       
       try {
-        positions = row.position ? JSON.parse(row.position) : [];
+        positions = row.positions ? JSON.parse(row.positions) : [];
         if (!Array.isArray(positions)) positions = [];
       } catch (e) {
         positions = [];
@@ -7932,7 +7932,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
           }
           
           try {
-            positions = row.position ? JSON.parse(row.position) : [];
+            positions = row.positions ? JSON.parse(row.positions) : [];
             if (!Array.isArray(positions)) positions = [];
           } catch (e) {
             positions = [];
