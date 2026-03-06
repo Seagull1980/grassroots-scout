@@ -833,9 +833,24 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (selectedPositions.length > 0) {
       filtered = filtered.filter(result => {
         // Use positions array from backend API response
-        let resultPositions: string[] = result.positions || [];
+        let resultPositions: string[] = [];
         
-        // Fallback to parsing if needed
+        // If positions exists, use it
+        if (result.positions) {
+          // If positions is a string (JSON), parse it
+          if (typeof result.positions === 'string') {
+            try {
+              const parsed = JSON.parse(result.positions);
+              resultPositions = Array.isArray(parsed) ? parsed : [result.positions];
+            } catch {
+              resultPositions = [result.positions];
+            }
+          } else if (Array.isArray(result.positions)) {
+            resultPositions = result.positions;
+          }
+        }
+        
+        // Fallback to position (singular) if needed
         if (resultPositions.length === 0 && result.position) {
           if (typeof result.position === 'string') {
             try {
@@ -849,8 +864,24 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           }
         }
         
+        // Fallback to preferredPosition if needed
         if (result.preferredPosition && resultPositions.length === 0) {
           resultPositions = [result.preferredPosition];
+        }
+
+        // Debug log for first record with positions
+        if (resultPositions.length > 0 && result.title) {
+          console.debug('Position filter debug:', {
+            title: result.title,
+            resultPositions,
+            selectedPositions,
+            match: selectedPositions.some(sp => 
+              resultPositions.some(rp => 
+                rp.toLowerCase().includes(sp.toLowerCase()) || 
+                sp.toLowerCase().includes(rp.toLowerCase())
+              )
+            )
+          });
         }
 
         // Check if any of the result's positions match any selected positions
