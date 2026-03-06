@@ -26,7 +26,6 @@ import {
   TextField,
   FormControlLabel,
   Switch,
-  Tooltip,
   Divider
 } from '@mui/material';
 import {
@@ -1009,8 +1008,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             <FormControlLabel
               control={<Switch checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} size="small" />}
               label="Heatmap"
-              sx={{ ml: 'auto' }}
             />
+
+            <Button
+              onClick={handleMyLocation}
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<MyLocationIcon />}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              My Location
+            </Button>
 
             {(selectedAgeGroup || selectedPositions.length > 0) && (
               <Button
@@ -1127,36 +1136,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* Map Container */}
       <Paper elevation={3} sx={{ position: 'relative', height: { xs: '55vh', sm: '600px' }, minHeight: 420, overflow: 'hidden' }}>
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
-        
-        {/* My Location Button - Positioned on LEFT to avoid Google Maps controls */}
-        <Tooltip title="Go to my location" placement="right">
-          <Button
-            onClick={handleMyLocation}
-            variant="contained"
-            color="primary"
-            size="small"
-            startIcon={<MyLocationIcon />}
-            sx={{
-              position: 'absolute',
-              left: { xs: 10, sm: 16 },
-              top: { xs: 10, sm: 16 },
-              zIndex: 1000,
-              boxShadow: 3,
-              bgcolor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'primary.dark',
-                boxShadow: 4
-              },
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 2,
-              py: 0.75
-            }}
-          >
-            My Location
-          </Button>
-        </Tooltip>
       </Paper>
 
       {/* Selected Item Details */}
