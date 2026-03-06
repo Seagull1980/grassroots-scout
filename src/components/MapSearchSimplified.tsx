@@ -751,15 +751,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
   };
 
-  const handleRecenter = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setCenter(mapCenter);
-      mapInstanceRef.current.setZoom(mapZoom);
-    }
-    // Reset filter selections only
-    handleClearAll();
-  };
-
   const handleClearAll = () => {
     setSelectedAgeGroup('');
     setSelectedPositions([]);
@@ -1018,14 +1009,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 Clear Filters
               </Button>
             )}
-            
-            <Button
-              onClick={handleRecenter}
-              variant="outlined"
-              size="small"
-            >
-              Reset
-            </Button>
 
             {isLoading && <CircularProgress size={20} />}
           </Stack>
@@ -1167,7 +1150,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       <Paper elevation={3} sx={{ position: 'relative', height: { xs: '55vh', sm: '600px' }, minHeight: 420, overflow: 'hidden' }}>
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
         
-        {/* Floating Zoom Controls */}
+        {/* Floating Map Controls */}
         <Paper
           elevation={3}
           sx={{
@@ -1178,17 +1161,22 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             flexDirection: 'column',
             gap: 1,
             p: { xs: 0.5, sm: 1 },
-            backgroundColor: 'rgba(255, 255, 255, 0.95)'
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            zIndex: 1000
           }}
         >
-          <IconButton onClick={handleZoomIn} size="small" sx={{ bgcolor: 'background.paper' }}>
-            <ZoomInIcon />
-          </IconButton>
-          <IconButton onClick={handleZoomOut} size="small" sx={{ bgcolor: 'background.paper' }}>
-            <ZoomOutIcon />
-          </IconButton>
-          <Tooltip title="My Location">
-            <IconButton onClick={handleMyLocation} size="small" sx={{ bgcolor: 'background.paper' }}>
+          <Tooltip title="Zoom In" placement="left">
+            <IconButton onClick={handleZoomIn} size="small" sx={{ bgcolor: 'background.paper' }}>
+              <ZoomInIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Zoom Out" placement="left">
+            <IconButton onClick={handleZoomOut} size="small" sx={{ bgcolor: 'background.paper' }}>
+              <ZoomOutIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="My Location" placement="left">
+            <IconButton onClick={handleMyLocation} size="small" sx={{ bgcolor: 'background.paper', color: 'primary.main' }}>
               <MyLocationIcon />
             </IconButton>
           </Tooltip>
