@@ -25,7 +25,6 @@ import {
   MenuItem,
   Autocomplete,
   TextField,
-  Slider,
   FormControlLabel,
   Switch,
   Tooltip,
@@ -34,6 +33,7 @@ import {
 import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
+  MyLocation as MyLocationIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Groups as GroupsIcon,
@@ -128,7 +128,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const radiusCircleRef = useRef<google.maps.Circle | null>(null);
   const heatmapRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
   const mapOpenTrackedRef = useRef(false);
   
@@ -141,11 +140,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortMode>('relevance');
-  const [radiusKm, setRadiusKm] = useState<number>(() => {
-    const raw = localStorage.getItem('mapSearchRadiusKm');
-    const parsed = raw ? parseInt(raw, 10) : NaN;
-    return !isNaN(parsed) && parsed >= 5 && parsed <= 100 ? parsed : 25;
-  });
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [savedSearches, setSavedSearches] = useState<SavedMapSearch[]>(() => {
     try {
@@ -195,14 +189,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sharedRadius = parseInt(params.get('radiusKm') || '', 10);
     const sharedAgeGroup = params.get('ageGroup') || '';
     const sharedPositions = params.get('positions') || '';
     const sharedSort = params.get('sortBy') as SortMode | null;
 
-    if (!isNaN(sharedRadius) && sharedRadius >= 5 && sharedRadius <= 100) {
-      setRadiusKm(sharedRadius);
-    }
     if (sharedAgeGroup) {
       setSelectedAgeGroup(sharedAgeGroup);
     }
@@ -293,7 +283,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       searchType,
       center: getMapCenter(),
       zoom: mapInstanceRef.current?.getZoom() || mapZoom,
-      radiusKm,
+      radiusKm: 25,
       ageGroup: selectedAgeGroup,
       positions: selectedPositions,
       sortBy,
@@ -317,7 +307,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (!match || match.searchType !== searchType || !mapInstanceRef.current) return;
     mapInstanceRef.current.setCenter(match.center);
     mapInstanceRef.current.setZoom(match.zoom);
-    setRadiusKm(match.radiusKm);
     setSelectedAgeGroup(match.ageGroup);
     setSelectedPositions(match.positions || []);
     setSortBy(match.sortBy || 'relevance');
@@ -335,7 +324,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     url.searchParams.set('mapLat', center.lat.toFixed(5));
     url.searchParams.set('mapLng', center.lng.toFixed(5));
     url.searchParams.set('mapZoom', String(mapInstanceRef.current?.getZoom() || mapZoom));
-    url.searchParams.set('radiusKm', String(radiusKm));
     url.searchParams.set('ageGroup', selectedAgeGroup || '');
     url.searchParams.set('positions', selectedPositions.join('|'));
     url.searchParams.set('sortBy', sortBy);
@@ -468,7 +456,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapIdleListenerRef.current = null;
       }
     };
-  }, [results, selectedAgeGroup, selectedPositions, radiusKm, sortBy]);
+  }, [results, selectedAgeGroup, selectedPositions, sortBy]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -562,35 +550,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (shouldActivate) {
       setHasActiveFilter(true);
     }
-  }, [selectedAgeGroup, selectedPositions, results, radiusKm, sortBy]);
-
-  useEffect(() => {
-    localStorage.setItem('mapSearchRadiusKm', String(radiusKm));
-
-    const map = mapInstanceRef.current;
-    if (!map || !window.google?.maps?.Circle) return;
-
-    const center = map.getCenter();
-    if (!center) return;
-
-    const circleCenter = { lat: center.lat(), lng: center.lng() };
-    if (!radiusCircleRef.current) {
-      radiusCircleRef.current = new window.google.maps.Circle({
-        map,
-        center: circleCenter,
-        radius: radiusKm * 1000,
-        fillColor: '#1976d2',
-        fillOpacity: 0.08,
-        strokeColor: '#1976d2',
-        strokeWeight: 2,
-        clickable: false
-      });
-    } else {
-      radiusCircleRef.current.setCenter(circleCenter);
-      radiusCircleRef.current.setRadius(radiusKm * 1000);
-      radiusCircleRef.current.setMap(map);
-    }
-  }, [radiusKm, filteredResults.length]);
+  }, [selectedAgeGroup, selectedPositions, results, sortBy]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -885,6 +845,35 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
   };
 
+  const handleMyLocation = () => {
+    if (!mapInstanceRef.current) return;
+    
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          mapInstanceRef.current?.setCenter(userLocation);
+          mapInstanceRef.current?.setZoom(12);
+          
+          analyticsTracking.track('map_my_location_used', {
+            category: 'Map',
+            action: 'use_my_location',
+            searchType
+          });
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setError('Unable to get your location. Please check your browser permissions.');
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser.');
+    }
+  };
+
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.setCenter(mapCenter);
@@ -1063,20 +1052,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const filterResultsByMapArea = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
-    const inBounds = filterResultsByBounds(items, bounds);
-    const center = getMapCenter();
-    if (!window.google?.maps?.geometry?.spherical?.computeDistanceBetween || !window.google?.maps?.LatLng) {
-      return inBounds;
-    }
-
-    return inBounds.filter(result => {
-      const position = getResultPosition(result);
-      if (!position) return false;
-      const from = new window.google.maps.LatLng(center.lat, center.lng);
-      const to = new window.google.maps.LatLng(position.lat, position.lng);
-      const distanceMeters = window.google.maps.geometry.spherical.computeDistanceBetween(from, to);
-      return distanceMeters <= radiusKm * 1000;
-    });
+    return filterResultsByBounds(items, bounds);
   };
 
   const getResultKey = (result: any): string => {
@@ -1155,13 +1131,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               size="small"
             />
 
-            <Chip
-              label={`Radius ${radiusKm} km`}
-              color="primary"
-              variant="outlined"
-              size="small"
-            />
-            
             {(selectedAgeGroup || selectedPositions.length > 0) && (
               <Button
                 size="small"
@@ -1205,7 +1174,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           {/* Legend */}
           <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Blue = Player | Red = Team | Circle = search radius | Toggle heatmap for density view
+              Blue = Player | Red = Team | Pan/zoom to search different areas | Toggle heatmap for density view
             </Typography>
           </Stack>
 
@@ -1265,22 +1234,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               label="Heatmap"
             />
           </Stack>
-
-          <Box sx={{ px: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              Search radius: {radiusKm} km
-            </Typography>
-            <Slider
-              min={5}
-              max={100}
-              step={5}
-              marks
-              value={radiusKm}
-              onChange={(_, value) => setRadiusKm(value as number)}
-              valueLabelDisplay="auto"
-              size="small"
-            />
-          </Box>
 
           {/* Age Group and Position Filters */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -1397,6 +1350,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           <IconButton onClick={handleZoomOut} size="small" sx={{ bgcolor: 'background.paper' }}>
             <ZoomOutIcon />
           </IconButton>
+          <Tooltip title="My Location">
+            <IconButton onClick={handleMyLocation} size="small" sx={{ bgcolor: 'background.paper' }}>
+              <MyLocationIcon />
+            </IconButton>
+          </Tooltip>
         </Paper>
       </Paper>
 
@@ -1679,7 +1637,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* No Results Message */}
       {hasActiveFilter && filteredResults.length === 0 && (
         <Alert severity="warning" sx={{ mt: 2 }}>
-          No {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the selected search area. Try expanding your search radius or drawing a larger area.
+          No {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.
         </Alert>
       )}
     </Box>
