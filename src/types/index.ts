@@ -263,15 +263,18 @@ export interface Message {
   recipientId: string;
   subject: string;
   message: string;
-  messageType: 'general' | 'vacancy_interest' | 'player_inquiry' | 'training_invitation' | 'match_update' | 'system';
+  messageType: 'general' | 'vacancy_interest' | 'player_inquiry' | 'training_invitation' | 'match_update' | 'availability_interest' | 'system';
   relatedVacancyId?: string;
   relatedPlayerAvailabilityId?: string;
   relatedMatchId?: string;
   isRead: boolean;
+  isDeleted?: boolean;
+  deletedReason?: string;
   createdAt: string;
   updatedAt: string;
   senderName?: string;
   recipientName?: string;
+  reportCount?: number; // P1: Added for moderation
 }
 
 export interface Conversation {
@@ -293,6 +296,42 @@ export interface ConversationParticipant {
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
   lastReadAt?: string;
+}
+
+// P1: User privacy settings for messaging
+export interface UserPrivacySettings {
+  id?: string;
+  userId?: string;
+  allowsMessagesFromCoaches: boolean;
+  allowsMessagesFromPlayers: boolean;
+  allowsMessagesFromParents: boolean;
+  useAnonymousName: boolean;
+  anonymousDisplayName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// P1: Message report data
+export interface MessageReport {
+  id: string;
+  messageId: string;
+  reporterId: string;
+  reason: string;
+  details?: string;
+  status: 'open' | 'investigating' | 'resolved' | 'dismissed';
+  moderatorNotes?: string;
+  resolutionAction?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+// P1: User block record
+export interface UserBlock {
+  id?: string;
+  blockerId: string;
+  blockedUserId: string;
+  reason?: string;
+  createdAt?: string;
 }
 
 export type MatchProgressStage = 

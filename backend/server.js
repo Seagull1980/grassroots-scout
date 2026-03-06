@@ -2683,10 +2683,9 @@ app.get('/api/public/child-player-availability', async (req, res) => {
     const { league, ageGroup, position, location } = req.query;
     
     let query = `
-      SELECT cpa.*, c."firstName", c."lastName", c."dateOfBirth", u.email as "parentEmail"
+      SELECT cpa.*, c."firstName", c."lastName", c."dateOfBirth"
       FROM child_player_availability cpa 
       JOIN children c ON cpa."childId" = c.id 
-      JOIN users u ON cpa."parentId" = u.id
       WHERE cpa.status = $1 AND c."isActive" = $2
     `;
     const params = ['active', true];
@@ -3865,7 +3864,8 @@ app.post('/api/messages', authenticateToken, [
   body('message').isLength({ min: 1, max: 2000 }).withMessage('Message is required (max 2000 characters)'),
   body('conversationId').optional().isString().withMessage('Valid conversation ID required'),
   body('recipientId').optional().isInt().withMessage('Valid recipient ID required'),
-  body('messageType').optional().isIn(['general', 'vacancy_interest', 'player_inquiry', 'training_invitation', 'match_update', 'system']).withMessage('Valid message type required')
+  body('messageType').optional().isIn(['general', 'vacancy_interest', 'player_inquiry', 'training_invitation', 'match_update', 'availability_interest', 'system']).withMessage('Valid message type required'),
+  body('relatedPlayerAvailabilityId').optional().isInt().withMessage('Valid availability ID required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -3874,7 +3874,7 @@ app.post('/api/messages', authenticateToken, [
     }
 
     const senderId = req.user.userId;
-    const { message, conversationId, recipientId, messageType = 'general', subject } = req.body;
+    const { message, conversationId, recipientId, messageType = 'general', subject, relatedPlayerAvailabilityId } = req.body;
     
     let actualRecipientId = recipientId;
     
@@ -3888,11 +3888,41 @@ app.post('/api/messages', authenticateToken, [
       return res.status(400).json({ error: 'Recipient ID is required' });
     }
 
+    // P0 SAFEGUARD: Check if recipient is blocked by sender
+    const blockCheck = await db.query(
+      'SELECT id FROM user_blocks WHERE blockerId = ? AND blockedUserId = ?',
+      [actualRecipientId, senderId]
+    );
+    if (blockCheck.rows && blockCheck.rows.length > 0) {
+      return res.status(403).json({ error: 'You have blocked this user' });
+    }
+
+    // P0 SAFEGUARD: If this is a child player availability, ensure sender is parent
+    if (relatedPlayerAvailabilityId) {
+      const childAvailCheck = await db.query(
+        `SELECT cpa."parentId", c."isActive"
+         FROM child_player_availability cpa
+         JOIN children c ON cpa."childId" = c.id
+         WHERE cpa.id = ?`,
+        [relatedPlayerAvailabilityId]
+      );
+      
+      if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
+        const { parentId } = childAvailCheck.rows[0];
+        // Only the registered parent can message about this child
+        if (senderId != parentId) {
+          return res.status(403).json({ 
+            error: 'Only the registered parent/guardian can message about this child availability' 
+          });
+        }
+      }
+    }
+
     // Insert the message
     const result = await db.query(
-      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, isRead)
-       VALUES (?, ?, ?, ?, ?, false)`,
-      [senderId, actualRecipientId, subject || 'Message', message, messageType]
+      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, relatedPlayerAvailabilityId, isRead)
+       VALUES (?, ?, ?, ?, ?, ?, false)`,
+      [senderId, actualRecipientId, subject || 'Message', message, messageType, relatedPlayerAvailabilityId || null]
     );
 
     res.status(201).json({
@@ -9688,6 +9718,241 @@ app.get('/api/admin/test-team-vacancies/count', authenticateToken, async (req, r
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
+});
+
+// =====================================================
+// P0 & P1: MESSAGE SAFETY & USER PROTECTION ENDPOINTS
+// =====================================================
+
+// P1: User-level blocking (allow users to block each other)
+app.post('/api/users/:targetUserId/block', authenticateToken, [
+  body('reason').optional().isString().trim()
+], async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+    const blockerId = req.user.userId;
+    const { reason } = req.body;
+
+    if (parseInt(blockerId) === parseInt(targetUserId)) {
+      return res.status(400).json({ error: 'You cannot block yourself' });
+    }
+
+    // Check if target exists
+    const targetCheck = await db.query('SELECT id FROM users WHERE id = ?', [targetUserId]);
+    if (!targetCheck.rows || targetCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Insert or ignore duplicate
+    await db.query(
+      `INSERT INTO user_blocks (blockerId, blockedUserId, reason)
+       VALUES (?, ?, ?)
+       ON CONFLICT(blockerId, blockedUserId) DO NOTHING`,
+      [blockerId, targetUserId, reason || null]
+    );
+
+    // Log moderation event
+    await db.query(
+      `INSERT INTO message_moderation_events (action, actorId, actorRole, reason)
+       VALUES (?, ?, ?, ?)`,
+      ['user_blocked', blockerId, req.user.role, reason || 'User initiated block']
+    );
+
+    res.json({ success: true, message: 'User blocked successfully' });
+  } catch (error) {
+    console.error('Block user error:', error);
+    res.status(500).json({ error: 'Failed to block user' });
+  }
+});
+
+// P1: Unblock user
+app.post('/api/users/:targetUserId/unblock', authenticateToken, async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+    const blockerId = req.user.userId;
+
+    const result = await db.query(
+      'DELETE FROM user_blocks WHERE blockerId = ? AND blockedUserId = ?',
+      [blockerId, targetUserId]
+    );
+
+    // Log moderation event
+    await db.query(
+      `INSERT INTO message_moderation_events (action, actorId, actorRole)
+       VALUES (?, ?, ?)`,
+      ['user_unblocked', blockerId, req.user.role]
+    );
+
+    res.json({ success: true, message: 'User unblocked successfully' });
+  } catch (error) {
+    console.error('Unblock user error:', error);
+    res.status(500).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// P1: Get blocked users list
+app.get('/api/users/blocked-list', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const blockedUsers = await db.query(
+      `SELECT ub.blockedUserId, u.firstName, u.lastName, u.email, u.role, ub.reason, ub.createdAt
+       FROM user_blocks ub
+       JOIN users u ON ub.blockedUserId = u.id
+       WHERE ub.blockerId = ?
+       ORDER BY ub.createdAt DESC`,
+      [userId]
+    );
+
+    res.json({ blockedUsers: blockedUsers.rows || [] });
+  } catch (error) {
+    console.error('Get blocked list error:', error);
+    res.status(500).json({ error: 'Failed to fetch blocked users' });
+  }
+});
+
+// P1: Report a message
+app.post('/api/messages/:messageId/report', authenticateToken, [
+  body('reason').notEmpty().withMessage('Reason is required'),
+  body('details').optional().isString().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { messageId } = req.params;
+    const reporterId = req.user.userId;
+    const { reason, details } = req.body;
+
+    // Check if message exists
+    const messageCheck = await db.query('SELECT id FROM messages WHERE id = ?', [messageId]);
+    if (!messageCheck.rows || messageCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Prevent duplicate reports by same user
+    const existingReport = await db.query(
+      'SELECT id FROM message_reports WHERE messageId = ? AND reporterId = ?',
+      [messageId, reporterId]
+    );
+
+    if (existingReport.rows && existingReport.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already reported this message' });
+    }
+
+    // Insert report
+    const result = await db.query(
+      `INSERT INTO message_reports (messageId, reporterId, reason, details, status)
+       VALUES (?, ?, ?, ?, 'open')`,
+      [messageId, reporterId, reason, details || null]
+    );
+
+    // Log moderation event
+    await db.query(
+      `INSERT INTO message_moderation_events (messageId, action, actorId, actorRole, reason)
+       VALUES (?, ?, ?, ?, ?)`,
+      [messageId, 'message_reported', reporterId, req.user.role, reason]
+    );
+
+    res.status(201).json({ success: true, reportId: result.lastID });
+  } catch (error) {
+    console.error('Report message error:', error);
+    res.status(500).json({ error: 'Failed to report message' });
+  }
+});
+
+// P1: Get user privacy settings
+app.get('/api/users/privacy-settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    let settings = await db.query(
+      'SELECT * FROM user_privacy_settings WHERE userId = ?',
+      [userId]
+    );
+
+    // Create default settings if none exist
+    if (!settings.rows || settings.rows.length === 0) {
+      await db.query(
+        `INSERT INTO user_privacy_settings (userId, allowsMessagesFromCoaches, allowsMessagesFromPlayers, allowsMessagesFromParents, useAnonymousName)
+         VALUES (?, TRUE, TRUE, TRUE, FALSE)`,
+        [userId]
+      );
+
+      settings = await db.query(
+        'SELECT * FROM user_privacy_settings WHERE userId = ?',
+        [userId]
+      );
+    }
+
+    res.json({ settings: settings.rows[0] });
+  } catch (error) {
+    console.error('Get privacy settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch privacy settings' });
+  }
+});
+
+// P1: Update user privacy settings
+app.put('/api/users/privacy-settings', authenticateToken, [
+  body('allowsMessagesFromCoaches').optional().isBoolean(),
+  body('allowsMessagesFromPlayers').optional().isBoolean(),
+  body('allowsMessagesFromParents').optional().isBoolean(),
+  body('useAnonymousName').optional().isBoolean(),
+  body('anonymousDisplayName').optional().isString().trim().isLength({ max: 100 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const userId = req.user.userId;
+    const { allowsMessagesFromCoaches, allowsMessagesFromPlayers, allowsMessagesFromParents, useAnonymousName, anonymousDisplayName } = req.body;
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+
+    if (allowsMessagesFromCoaches !== undefined) {
+      updates.push('allowsMessagesFromCoaches = ?');
+      values.push(allowsMessagesFromCoaches);
+    }
+    if (allowsMessagesFromPlayers !== undefined) {
+      updates.push('allowsMessagesFromPlayers = ?');
+      values.push(allowsMessagesFromPlayers);
+    }
+    if (allowsMessagesFromParents !== undefined) {
+      updates.push('allowsMessagesFromParents = ?');
+      values.push(allowsMessagesFromParents);
+    }
+    if (useAnonymousName !== undefined) {
+      updates.push('useAnonymousName = ?');
+      values.push(useAnonymousName);
+    }
+    if (anonymousDisplayName !== undefined) {
+      updates.push('anonymousDisplayName = ?');
+      values.push(anonymousDisplayName);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No settings to update' });
+    }
+
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    values.push(userId);
+
+    await db.query(
+      `UPDATE user_privacy_settings SET ${updates.join(', ')} WHERE userId = ?`,
+      values
+    );
+
+    res.json({ success: true, message: 'Privacy settings updated' });
+  } catch (error) {
+    console.error('Update privacy settings error:', error);
+    res.status(500).json({ error: 'Failed to update privacy settings' });
+  }
 });
 
 // Export the app for use in other servers (like railway-server.js)

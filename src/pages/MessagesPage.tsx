@@ -26,7 +26,12 @@ import {
   Divider,
   IconButton,
   CircularProgress,
-  Alert
+  Alert,
+  Menu,
+  MenuItem,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from '@mui/material';
 import {
   Message as MessageIcon,
@@ -37,7 +42,9 @@ import {
   CheckCircle as CheckCircleIcon,
   Pending as PendingIcon,
   Close as CloseIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Flag as FlagIcon,
+  Block as BlockIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Conversation, MatchProgress, MatchProgressStage } from '../types';
@@ -107,6 +114,15 @@ const MessagesPage: React.FC = () => {
     messageType?: string;
   }>>([]);
   const [sending, setSending] = useState(false);
+  
+  // P1: Report & Block UI state
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [blockMenuAnchor, setBlockMenuAnchor] = useState<null | HTMLElement>(null);
+  const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -394,6 +410,80 @@ const MessagesPage: React.FC = () => {
     }
   };
 
+  // P1: Handler for reporting a message
+  const handleReportMessage = async (messageId: string) => {
+    setReportMessageId(messageId);
+    setReportReason('');
+    setReportDetails('');
+    setReportOpen(true);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!reportMessageId || !reportReason.trim()) {
+      alert('Please select a reason for reporting');
+      return;
+    }
+
+    try {
+      setReporting(true);
+      const response = await fetch(`${API_URL}/messages/${reportMessageId}/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          reason: reportReason,
+          details: reportDetails || undefined
+        })
+      });
+
+      if (response.ok) {
+        setReportOpen(false);
+        setReportMessageId(null);
+        setReportReason('');
+        setReportDetails('');
+        alert('Thank you for reporting this message. Our moderation team will review it shortly.');
+      } else {
+        const error = await response.json();
+        alert(`Failed to report message: ${error.error || 'Please try again'}`);
+      }
+    } catch (error) {
+      console.error('Report error:', error);
+      alert('Failed to report message. Please try again.');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  // P1: Handler for blocking a user
+  const handleBlockUser = async (targetUserId: string, reason?: string) => {
+    if (!targetUserId) return;
+
+    try {
+      const response = await fetch(`${API_URL}/users/${targetUserId}/block`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ reason: reason || undefined })
+      });
+
+      if (response.ok) {
+        setBlockMenuAnchor(null);
+        setBlockTargetUserId(null);
+        alert('User blocked successfully. You will not receive messages from this user.');
+      } else {
+        const error = await response.json();
+        alert(`Failed to block user: ${error.error || 'Please try again'}`);
+      }
+    } catch (error) {
+      console.error('Block error:', error);
+      alert('Failed to block user. Please try again.');
+    }
+  };
+
   const getStageIcon = (stage: MatchProgressStage) => {
     switch (stage) {
       case 'initial_interest': return <MessageIcon />;
@@ -594,13 +684,26 @@ const MessagesPage: React.FC = () => {
                     <Typography variant="h6">
                       Conversation with {selectedConversation.participants.find(p => p.userId !== user?.id)?.firstName}
                     </Typography>
-                    <Button
-                      startIcon={<ReplyIcon />}
-                      onClick={() => setReplyOpen(true)}
-                      variant="contained"
-                    >
-                      Reply
-                    </Button>
+                    <Box display="flex" gap={1}>
+                      <Button
+                        startIcon={<ReplyIcon />}
+                        onClick={() => setReplyOpen(true)}
+                        variant="contained"
+                      >
+                        Reply
+                      </Button>
+                      {/* P1: Block button */}
+                      <IconButton
+                        onClick={(e) => {
+                          const otherParticipant = selectedConversation.participants.find(p => p.userId !== user?.id);
+                          setBlockTargetUserId(otherParticipant?.userId || null);
+                          setBlockMenuAnchor(e.currentTarget);
+                        }}
+                        title="Block this user"
+                      >
+                        <BlockIcon />
+                      </IconButton>
+                    </Box>
                   </Box>
 
                   {/* Status and Quick Actions */}
@@ -671,15 +774,32 @@ const MessagesPage: React.FC = () => {
                               mb: 2,
                               ml: isFromMe ? 4 : 0,
                               mr: isFromMe ? 0 : 4,
-                              bgcolor: isFromMe ? 'primary.light' : 'grey.100'
+                              bgcolor: isFromMe ? 'primary.light' : 'grey.100',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: 1
                             }}
                           >
-                            <Typography variant="body1" gutterBottom>
-                              {message.message}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {isFromMe ? 'You' : message.senderName} • {formatDistanceToNow(new Date(message.createdAt))}
-                            </Typography>
+                            <Box flex={1}>
+                              <Typography variant="body1" gutterBottom>
+                                {message.message}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {isFromMe ? 'You' : message.senderName} • {formatDistanceToNow(new Date(message.createdAt))}
+                              </Typography>
+                            </Box>
+                            {/* P1: Report button for messages I received */}
+                            {!isFromMe && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleReportMessage(message.id)}
+                                title="Report this message"
+                                sx={{ mt: -1 }}
+                              >
+                                <FlagIcon fontSize="small" />
+                              </IconButton>
+                            )}
                           </Paper>
                         );
                       })}
@@ -900,6 +1020,95 @@ const MessagesPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* P1: Report Message Dialog */}
+      <Dialog open={reportOpen} onClose={() => setReportOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Report Message</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2, mt: 2 }}>
+            This message will be reviewed by our moderation team. Thank you for helping keep our community safe.
+          </Alert>
+          
+          <Typography variant="body2" sx={{ mb: 2, fontWeight: 600 }}>
+            Why are you reporting this message?
+          </Typography>
+          
+          <RadioGroup
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            sx={{ mb: 2 }}
+          >
+            <FormControlLabel
+              value="harassment"
+              control={<Radio />}
+              label="Harassment or bullying"
+            />
+            <FormControlLabel
+              value="inappropriate"
+              control={<Radio />}
+              label="Inappropriate content"
+            />
+            <FormControlLabel
+              value="spam"
+              control={<Radio />}
+              label="Spam or unwanted solicitation"
+            />
+            <FormControlLabel
+              value="safety"
+              control={<Radio />}
+              label="Safety concern"
+            />
+            <FormControlLabel
+              value="other"
+              control={<Radio />}
+              label="Other"
+            />
+          </RadioGroup>
+
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Additional details (optional)"
+            value={reportDetails}
+            onChange={(e) => setReportDetails(e.target.value)}
+            placeholder="Provide any additional context..."
+            size="small"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleSubmitReport}
+            variant="contained"
+            color="error"
+            disabled={!reportReason || reporting}
+          >
+            {reporting ? 'Submitting...' : 'Submit Report'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* P1: Block User Menu */}
+      <Menu
+        anchorEl={blockMenuAnchor}
+        open={!!blockMenuAnchor}
+        onClose={() => {
+          setBlockMenuAnchor(null);
+          setBlockTargetUserId(null);
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (blockTargetUserId) {
+              handleBlockUser(blockTargetUserId, 'User initiated block');
+            }
+          }}
+        >
+          <BlockIcon sx={{ mr: 1 }} /> Block User
+        </MenuItem>
+      </Menu>
+
       </Container>
     </Box>
   );

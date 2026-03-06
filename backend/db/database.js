@@ -749,16 +749,77 @@ class Database {
         recipientId INTEGER NOT NULL,
         subject VARCHAR NOT NULL,
         message TEXT NOT NULL,
-        messageType VARCHAR DEFAULT 'general' CHECK(messageType IN ('general', 'vacancy_interest', 'player_inquiry', 'system')),
+        messageType VARCHAR DEFAULT 'general' CHECK(messageType IN ('general', 'vacancy_interest', 'player_inquiry', 'training_invitation', 'match_update', 'availability_interest', 'system')),
         relatedVacancyId INTEGER,
         relatedPlayerAvailabilityId INTEGER,
         isRead BOOLEAN DEFAULT FALSE,
         readAt TIMESTAMP,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        isDeleted BOOLEAN DEFAULT FALSE,
+        deletedReason VARCHAR,
         FOREIGN KEY (senderId) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (relatedVacancyId) REFERENCES team_vacancies (id) ON DELETE SET NULL,
         FOREIGN KEY (relatedPlayerAvailabilityId) REFERENCES player_availability (id) ON DELETE SET NULL
+      )`,
+      
+      // User-level blocking for more granular control
+      `CREATE TABLE IF NOT EXISTS user_blocks (
+        id SERIAL PRIMARY KEY,
+        blockerId INTEGER NOT NULL,
+        blockedUserId INTEGER NOT NULL,
+        reason VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(blockerId, blockedUserId),
+        FOREIGN KEY (blockerId) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (blockedUserId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+      
+      // Message reports and moderation audit trail
+      `CREATE TABLE IF NOT EXISTS message_reports (
+        id SERIAL PRIMARY KEY,
+        messageId INTEGER NOT NULL,
+        reporterId INTEGER NOT NULL,
+        reason VARCHAR NOT NULL,
+        details TEXT,
+        status VARCHAR DEFAULT 'open' CHECK(status IN ('open', 'investigating', 'resolved', 'dismissed')),
+        moderatorNotes VARCHAR,
+        resolutionAction VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolvedAt TIMESTAMP,
+        FOREIGN KEY (messageId) REFERENCES messages (id) ON DELETE CASCADE,
+        FOREIGN KEY (reporterId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+      
+      // Audit trail for moderation events
+      `CREATE TABLE IF NOT EXISTS message_moderation_events (
+        id SERIAL PRIMARY KEY,
+        messageId INTEGER,
+        conversationId VARCHAR,
+        action VARCHAR NOT NULL,
+        actorId INTEGER,
+        actorRole VARCHAR,
+        reason VARCHAR,
+        previousState VARCHAR,
+        newState VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (messageId) REFERENCES messages (id) ON DELETE SET NULL,
+        FOREIGN KEY (actorId) REFERENCES users (id) ON DELETE SET NULL
+      )`,
+      
+      // User privacy settings for messaging
+      `CREATE TABLE IF NOT EXISTS user_privacy_settings (
+        id SERIAL PRIMARY KEY,
+        userId INTEGER NOT NULL UNIQUE,
+        allowsMessagesFromCoaches BOOLEAN DEFAULT TRUE,
+        allowsMessagesFromPlayers BOOLEAN DEFAULT TRUE,
+        allowsMessagesFromParents BOOLEAN DEFAULT TRUE,
+        useAnonymousName BOOLEAN DEFAULT FALSE,
+        anonymousDisplayName VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
       )`,
 
       `CREATE TABLE IF NOT EXISTS training_invitations (
