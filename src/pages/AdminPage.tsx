@@ -61,6 +61,7 @@ import {
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
   Science as ScienceIcon,
+  Flag as FlagIcon,
 } from '@mui/icons-material';
 import { leaguesAPI, League, adminAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -1117,6 +1118,35 @@ const AdminPage: React.FC = () => {
                     </Typography>
                   </Box>
                   <DashboardIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} lg={3}>
+            <Card 
+              sx={{ 
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/moderation')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Moderation
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Review Reports & Alerts
+                    </Typography>
+                  </Box>
+                  <FlagIcon sx={{ fontSize: 40, opacity: 0.8 }} />
                 </Box>
               </CardContent>
             </Card>

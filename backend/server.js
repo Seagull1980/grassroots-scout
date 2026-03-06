@@ -15,6 +15,7 @@ require('dotenv').config();
 const DatabaseUtils = require('./db/database');
 const leagueRequestsRouter = require('./routes/league-requests');
 const emailService = require('./services/emailService');
+const { messageLimiter, validateMessageContent } = require('./middleware/security');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -3860,7 +3861,7 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
 });
 
 // Send message in conversation
-app.post('/api/messages', authenticateToken, [
+app.post('/api/messages', authenticateToken, messageLimiter, [
   body('message').isLength({ min: 1, max: 2000 }).withMessage('Message is required (max 2000 characters)'),
   body('conversationId').optional().isString().withMessage('Valid conversation ID required'),
   body('recipientId').optional().isInt().withMessage('Valid recipient ID required'),
@@ -3898,6 +3899,7 @@ app.post('/api/messages', authenticateToken, [
     }
 
     // P0 SAFEGUARD: If this is a child player availability, ensure sender is parent
+    let isChildContext = false;
     if (relatedPlayerAvailabilityId) {
       const childAvailCheck = await db.query(
         `SELECT cpa."parentId", c."isActive"
@@ -3909,6 +3911,7 @@ app.post('/api/messages', authenticateToken, [
       
       if (childAvailCheck.rows && childAvailCheck.rows.length > 0) {
         const { parentId } = childAvailCheck.rows[0];
+        isChildContext = true;
         // Only the registered parent can message about this child
         if (senderId != parentId) {
           return res.status(403).json({ 
@@ -3918,6 +3921,12 @@ app.post('/api/messages', authenticateToken, [
       }
     }
 
+    // P2: Content safety validation
+    const contentValidation = validateMessageContent(message, isChildContext);
+    if (!contentValidation.safe) {
+      return res.status(400).json({ error: contentValidation.violation });
+    }
+
     // Insert the message
     const result = await db.query(
       `INSERT INTO messages (senderId, recipientId, subject, message, messageType, relatedPlayerAvailabilityId, isRead)
@@ -3925,10 +3934,38 @@ app.post('/api/messages', authenticateToken, [
       [senderId, actualRecipientId, subject || 'Message', message, messageType, relatedPlayerAvailabilityId || null]
     );
 
+    const messageId = result.lastID;
+
+    // P3: Scan message against keyword alert rules
+    try {
+      const rulesResult = await db.query(
+        'SELECT id, keyword, severity FROM keyword_alert_rules WHERE enabled = true'
+      );
+
+      if (rulesResult.rows && rulesResult.rows.length > 0) {
+        const messageLower = message.toLowerCase();
+        const matchedRules = rulesResult.rows.filter(rule => 
+          messageLower.includes(rule.keyword.toLowerCase())
+        );
+
+        // Create alerts for matched rules
+        for (const rule of matchedRules) {
+          await db.query(
+            `INSERT INTO message_alerts (messageId, ruleId, severity, status)
+             VALUES (?, ?, ?, 'open')`,
+            [messageId, rule.id, rule.severity]
+          );
+        }
+      }
+    } catch (alertError) {
+      console.warn('Error processing keyword alerts:', alertError);
+      // Don't fail the message send if keyword scanning fails
+    }
+
     res.status(201).json({
       success: true,
       message: 'Message sent successfully',
-      messageId: result.lastID
+      messageId: messageId
     });
   } catch (error) {
     console.error('Send message error:', error);
@@ -3991,6 +4028,347 @@ app.get('/api/match-progress', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Get match progress error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// =====================================================
+// P2: MESSAGE SOFT DELETE & ADMIN MODERATION
+// =====================================================
+
+// P2: Delete message (soft delete - mark as deleted)
+app.delete('/api/messages/:messageId', authenticateToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user.userId;
+
+    // Check if message exists and belongs to sender
+    const messageCheck = await db.query(
+      'SELECT senderId FROM messages WHERE id = ?',
+      [messageId]
+    );
+
+    if (!messageCheck.rows || messageCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (messageCheck.rows[0].senderId !== userId) {
+      return res.status(403).json({ error: 'You can only delete your own messages' });
+    }
+
+    // Soft delete: mark as deleted
+    await db.query(
+      `UPDATE messages SET isDeleted = true, deletedReason = ? WHERE id = ?`,
+      ['User deleted', messageId]
+    );
+
+    // Log moderation event
+    await db.query(
+      `INSERT INTO message_moderation_events (messageId, action, actorId, actorRole, reason)
+       VALUES (?, ?, ?, ?, ?)`,
+      [messageId, 'message_deleted', userId, req.user.role, 'User-initiated deletion']
+    );
+
+    res.json({ success: true, message: 'Message deleted' });
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
+// P2: Admin - Get message reports (moderation queue)
+app.get('/api/admin/message-reports', authenticateToken, async (req, res) => {
+  try {
+    // Check admin role
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { status = 'open', limit = 50, offset = 0 } = req.query;
+
+    // Get reports with message context
+    const reportsQuery = `
+      SELECT 
+        mr.id, mr.messageId, mr.reporterId, mr.reason, mr.details, 
+        mr.status, mr.moderatorNotes, mr.resolutionAction, mr.createdAt, mr.updatedAt, mr.resolvedAt,
+        m.senderId, m.message, m.createdAt as messageCreatedAt,
+        u_reporter.firstName as reporterName, u_reporter.email as reporterEmail,
+        u_sender.firstName as senderName, u_sender.email as senderEmail
+      FROM message_reports mr
+      JOIN messages m ON mr.messageId = m.id
+      JOIN users u_reporter ON mr.reporterId = u_reporter.id
+      JOIN users u_sender ON m.senderId = u_sender.id
+      WHERE mr.status = ?
+      ORDER BY mr.createdAt DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const reportsResult = await db.query(
+      reportsQuery,
+      [status, parseInt(limit), parseInt(offset)]
+    );
+
+    // Get total count
+    const countResult = await db.query(
+      'SELECT COUNT(*) as count FROM message_reports WHERE status = ?',
+      [status]
+    );
+
+    res.json({
+      reports: reportsResult.rows || [],
+      total: countResult.rows[0]?.count || 0,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('Get message reports error:', error);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+// P2: Admin - Update report status and add moderator notes
+app.put('/api/admin/message-reports/:reportId', authenticateToken, [
+  body('status').optional().isIn(['open', 'investigating', 'resolved', 'dismissed']),
+  body('moderatorNotes').optional().isString().trim(),
+  body('resolutionAction').optional().isString().trim()
+], async (req, res) => {
+  try {
+    // Check admin role
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { reportId } = req.params;
+    const { status, moderatorNotes, resolutionAction } = req.body;
+
+    // Check if report exists
+    const reportCheck = await db.query('SELECT id FROM message_reports WHERE id = ?', [reportId]);
+    if (!reportCheck.rows || reportCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    // Update report
+    const updateFields = [];
+    const updateValues = [];
+
+    if (status) {
+      updateFields.push('status = ?');
+      updateValues.push(status);
+    }
+    if (moderatorNotes !== undefined) {
+      updateFields.push('moderatorNotes = ?');
+      updateValues.push(moderatorNotes);
+    }
+    if (resolutionAction !== undefined) {
+      updateFields.push('resolutionAction = ?');
+      updateValues.push(resolutionAction);
+    }
+    if (status === 'resolved' || status === 'dismissed') {
+      updateFields.push('resolvedAt = CURRENT_TIMESTAMP');
+    }
+
+    updateFields.push('updatedAt = CURRENT_TIMESTAMP');
+    updateValues.push(reportId);
+
+    await db.query(
+      `UPDATE message_reports SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    // Log moderation event
+    await db.query(
+      `INSERT INTO message_moderation_events (action, actorId, actorRole, reason)
+       VALUES (?, ?, ?, ?)`,
+      ['report_updated', req.user.userId, req.user.role, `Status: ${status || 'N/A'}`]
+    );
+
+    res.json({ success: true, message: 'Report updated' });
+  } catch (error) {
+    console.error('Update message report error:', error);
+    res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+// =====================================================
+// P3: AUTOMATED KEYWORD ALERT RULES
+// =====================================================
+
+// P3: Admin - Get all keyword alert rules
+app.get('/api/admin/keyword-rules', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const rulesResult = await db.query(
+      'SELECT * FROM keyword_alert_rules ORDER BY severity DESC, keyword ASC'
+    );
+
+    res.json({ rules: rulesResult.rows || [] });
+  } catch (error) {
+    console.error('Get keyword rules error:', error);
+    res.status(500).json({ error: 'Failed to fetch rules' });
+  }
+});
+
+// P3: Admin - Create new keyword alert rule
+app.post('/api/admin/keyword-rules', authenticateToken, [
+  body('keyword').notEmpty().isLength({ min: 2, max: 100 }).trim(),
+  body('severity').optional().isIn(['low', 'medium', 'high']),
+  body('description').optional().isString().trim(),
+  body('enabled').optional().isBoolean()
+], async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { keyword, severity = 'medium', description, enabled = true } = req.body;
+
+    // Check if keyword already exists
+    const existingCheck = await db.query(
+      'SELECT id FROM keyword_alert_rules WHERE keyword = ?',
+      [keyword]
+    );
+    if (existingCheck.rows && existingCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Keyword rule already exists' });
+    }
+
+    const result = await db.query(
+      `INSERT INTO keyword_alert_rules (keyword, severity, description, enabled)
+       VALUES (?, ?, ?, ?)`,
+      [keyword, severity, description || null, enabled]
+    );
+
+    res.status(201).json({ success: true, ruleId: result.lastID });
+  } catch (error) {
+    console.error('Create keyword rule error:', error);
+    res.status(500).json({ error: 'Failed to create rule' });
+  }
+});
+
+// P3: Admin - Update keyword alert rule
+app.put('/api/admin/keyword-rules/:ruleId', authenticateToken, [
+  body('severity').optional().isIn(['low', 'medium', 'high']),
+  body('enabled').optional().isBoolean(),
+  body('description').optional().isString().trim()
+], async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { ruleId } = req.params;
+    const { severity, enabled, description } = req.body;
+
+    const updates = [];
+    const values = [];
+
+    if (severity) {
+      updates.push('severity = ?');
+      values.push(severity);
+    }
+    if (enabled !== undefined) {
+      updates.push('enabled = ?');
+      values.push(enabled);
+    }
+    if (description !== undefined) {
+      updates.push('description = ?');
+      values.push(description);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    values.push(ruleId);
+
+    await db.query(
+      `UPDATE keyword_alert_rules SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update keyword rule error:', error);
+    res.status(500).json({ error: 'Failed to update rule' });
+  }
+});
+
+// P3: Admin - Delete keyword alert rule
+app.delete('/api/admin/keyword-rules/:ruleId', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { ruleId } = req.params;
+
+    await db.query('DELETE FROM keyword_alert_rules WHERE id = ?', [ruleId]);
+
+    res.json({ success: true, message: 'Rule deleted' });
+  } catch (error) {
+    console.error('Delete keyword rule error:', error);
+    res.status(500).json({ error: 'Failed to delete rule' });
+  }
+});
+
+// P3: Get message alerts (admin)
+app.get('/api/admin/message-alerts', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!adminCheck.rows || adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { status = 'open', limit = 50, offset = 0 } = req.query;
+
+    const alertsResult = await db.query(
+      `SELECT ma.*, m.senderId, m.message, kar.keyword, kar.severity as ruleSeverity,
+              u.firstName, u.lastName, u.email
+       FROM message_alerts ma
+       JOIN messages m ON ma.messageId = m.id
+       JOIN keyword_alert_rules kar ON ma.ruleId = kar.id
+       JOIN users u ON m.senderId = u.id 
+       WHERE ma.status = ?
+       ORDER BY ma.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [status, parseInt(limit), parseInt(offset)]
+    );
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) as count FROM message_alerts WHERE status = ?',
+      [status]
+    );
+
+    res.json({
+      alerts: alertsResult.rows || [],
+      total: countResult.rows[0]?.count || 0
+    });
+  } catch (error) {
+    console.error('Get message alerts error:', error);
+    res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
 

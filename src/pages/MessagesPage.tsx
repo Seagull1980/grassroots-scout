@@ -123,11 +123,14 @@ const MessagesPage: React.FC = () => {
   const [reporting, setReporting] = useState(false);
   const [blockMenuAnchor, setBlockMenuAnchor] = useState<null | HTMLElement>(null);
   const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
+  const [userPrivacySettings, setUserPrivacySettings] = useState<any>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       loadConversations();
       loadMatchProgress();
+      loadPrivacySettings();
     }
   }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
@@ -191,6 +194,23 @@ const MessagesPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load match progress:', error);
+    }
+  };
+
+  // P2: Load user privacy settings for anonymous name display
+  const loadPrivacySettings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/users/privacy-settings`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserPrivacySettings(data.settings);
+      }
+    } catch (error) {
+      console.error('Failed to load privacy settings:', error);
     }
   };
 
@@ -484,6 +504,47 @@ const MessagesPage: React.FC = () => {
     }
   };
 
+  // P2: Handler for deleting own message
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!window.confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeletingMessageId(messageId);
+      const response = await fetch(`${API_URL}/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (response.ok) {
+        // Refresh conversation messages
+        if (selectedConversation) {
+          await loadConversationMessages(selectedConversation.id);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Failed to delete message: ${error.error || 'Please try again'}`);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete message. Please try again.');
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
+  // P2: Helper function to get display name (respecting anonymity)
+  const getDisplayName = (firstName: string, lastName: string, isCurrentUser: boolean) => {
+    if (isCurrentUser) return 'You';
+    if (userPrivacySettings?.useAnonymousName && userPrivacySettings?.anonymousDisplayName) {
+      return userPrivacySettings.anonymousDisplayName;
+    }
+    return `${firstName} ${lastName}`;
+  };
+
   const getStageIcon = (stage: MatchProgressStage) => {
     switch (stage) {
       case 'initial_interest': return <MessageIcon />;
@@ -766,6 +827,7 @@ const MessagesPage: React.FC = () => {
                     <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
                       {messages.map((message) => {
                         const isFromMe = message.senderId === user?.id;
+                        const isDeleted = (message as any).isDeleted;
                         return (
                           <Paper
                             key={message.id}
@@ -774,32 +836,48 @@ const MessagesPage: React.FC = () => {
                               mb: 2,
                               ml: isFromMe ? 4 : 0,
                               mr: isFromMe ? 0 : 4,
-                              bgcolor: isFromMe ? 'primary.light' : 'grey.100',
+                              bgcolor: isFromMe ? 'primary.light' : (isDeleted ? 'action.disabled' : 'grey.100'),
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'flex-start',
-                              gap: 1
+                              gap: 1,
+                              opacity: isDeleted ? 0.6 : 1
                             }}
                           >
                             <Box flex={1}>
-                              <Typography variant="body1" gutterBottom>
-                                {message.message}
+                              <Typography variant="body1" gutterBottom sx={{ fontStyle: isDeleted ? 'italic' : 'normal' }}>
+                                {isDeleted ? '[Message deleted]' : message.message}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {isFromMe ? 'You' : message.senderName} • {formatDistanceToNow(new Date(message.createdAt))}
+                                {getDisplayName(message.senderName?.split(' ')[0] || '', message.senderName?.split(' ')[1] || '', isFromMe)} • {formatDistanceToNow(new Date(message.createdAt))}
                               </Typography>
                             </Box>
-                            {/* P1: Report button for messages I received */}
-                            {!isFromMe && (
-                              <IconButton
-                                size="small"
-                                onClick={() => handleReportMessage(message.id)}
-                                title="Report this message"
-                                sx={{ mt: -1 }}
-                              >
-                                <FlagIcon fontSize="small" />
-                              </IconButton>
-                            )}
+                            {/* P1 & P2: Report/Delete buttons */}
+                            <Box display="flex" gap={0.5}>
+                              {/* P2: Delete button for own messages */}
+                              {isFromMe && !isDeleted && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteMessage(message.id)}
+                                  disabled={deletingMessageId === message.id}
+                                  title="Delete this message"
+                                  sx={{ mt: -1 }}
+                                >
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              )}
+                              {/* P1: Report button for messages I received */}
+                              {!isFromMe && !isDeleted && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleReportMessage(message.id)}
+                                  title="Report this message"
+                                  sx={{ mt: -1 }}
+                                >
+                                  <FlagIcon fontSize="small" />
+                                </IconButton>
+                              )}
+                            </Box>
                           </Paper>
                         );
                       })}

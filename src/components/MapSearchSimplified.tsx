@@ -24,7 +24,12 @@ import {
   Select,
   MenuItem,
   Autocomplete,
-  TextField
+  TextField,
+  Slider,
+  FormControlLabel,
+  Switch,
+  Tooltip,
+  Divider
 } from '@mui/material';
 import {
   ZoomIn as ZoomInIcon,
@@ -32,10 +37,30 @@ import {
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Groups as GroupsIcon,
-  Message as MessageIcon
+  Message as MessageIcon,
+  Save as SaveIcon,
+  Share as ShareIcon,
+  Download as DownloadIcon,
+  AutoAwesome as RecommendIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { analyticsTracking } from '../services/analyticsTracking';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
+
+type SortMode = 'relevance' | 'distance' | 'age' | 'recent';
+
+interface SavedMapSearch {
+  id: string;
+  name: string;
+  searchType: 'vacancies' | 'players' | 'both';
+  center: google.maps.LatLngLiteral;
+  zoom: number;
+  radiusKm: number;
+  ageGroup: string;
+  positions: string[];
+  sortBy: SortMode;
+  createdAt: string;
+}
 
 interface MapSearchSimplifiedProps {
   searchType: 'vacancies' | 'players' | 'both';
@@ -77,6 +102,22 @@ const getInitialMapZoom = (): number => {
   return !isNaN(zoom) && zoom >= 3 && zoom <= 20 ? zoom : 8;
 };
 
+const getRecentStatus = (createdAt?: string): 'New' | 'Active' | 'Open' => {
+  if (!createdAt) return 'Open';
+  const createdTime = new Date(createdAt).getTime();
+  if (!isFinite(createdTime)) return 'Open';
+  const ageMs = Date.now() - createdTime;
+  if (ageMs <= 7 * 24 * 60 * 60 * 1000) return 'New';
+  if (ageMs <= 30 * 24 * 60 * 60 * 1000) return 'Active';
+  return 'Open';
+};
+
+const getItemDateValue = (item: any): number => {
+  const source = item.updatedAt || item.createdAt || item.datePosted || item.postedAt;
+  const parsed = source ? new Date(source).getTime() : NaN;
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -87,6 +128,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const radiusCircleRef = useRef<google.maps.Circle | null>(null);
+  const heatmapRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
+  const mapOpenTrackedRef = useRef(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +140,26 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<SortMode>('relevance');
+  const [radiusKm, setRadiusKm] = useState<number>(() => {
+    const raw = localStorage.getItem('mapSearchRadiusKm');
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return !isNaN(parsed) && parsed >= 5 && parsed <= 100 ? parsed : 25;
+  });
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [savedSearches, setSavedSearches] = useState<SavedMapSearch[]>(() => {
+    try {
+      const raw = localStorage.getItem('savedMapSearches');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<string>('');
+  const [savedSearchName, setSavedSearchName] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => localStorage.getItem('mapOnboardingDismissed') !== 'true');
+  const [clusteredHiddenCount, setClusteredHiddenCount] = useState(0);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
   const [mapCenter] = useState<google.maps.LatLngLiteral>(() => getInitialMapCenter());
   const [mapZoom] = useState(() => getInitialMapZoom());
@@ -129,6 +193,191 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     'attacker': ['striker', 'right winger', 'left winger', 'winger', 'forward', 'attacker']
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedRadius = parseInt(params.get('radiusKm') || '', 10);
+    const sharedAgeGroup = params.get('ageGroup') || '';
+    const sharedPositions = params.get('positions') || '';
+    const sharedSort = params.get('sortBy') as SortMode | null;
+
+    if (!isNaN(sharedRadius) && sharedRadius >= 5 && sharedRadius <= 100) {
+      setRadiusKm(sharedRadius);
+    }
+    if (sharedAgeGroup) {
+      setSelectedAgeGroup(sharedAgeGroup);
+    }
+    if (sharedPositions) {
+      setSelectedPositions(sharedPositions.split('|').filter(Boolean));
+    }
+    if (sharedSort && ['relevance', 'distance', 'age', 'recent'].includes(sharedSort)) {
+      setSortBy(sharedSort);
+    }
+  }, []);
+
+  const getMapCenter = (): google.maps.LatLngLiteral => {
+    const center = mapInstanceRef.current?.getCenter();
+    if (!center) return mapCenter;
+    return { lat: center.lat(), lng: center.lng() };
+  };
+
+  const toDistanceKm = (origin: google.maps.LatLngLiteral, destination: google.maps.LatLngLiteral): number | null => {
+    if (!window.google?.maps?.geometry?.spherical?.computeDistanceBetween || !window.google?.maps?.LatLng) {
+      return null;
+    }
+    const from = new window.google.maps.LatLng(origin.lat, origin.lng);
+    const to = new window.google.maps.LatLng(destination.lat, destination.lng);
+    const meters = window.google.maps.geometry.spherical.computeDistanceBetween(from, to);
+    return meters / 1000;
+  };
+
+  const resolveResultPosition = (result: any): google.maps.LatLngLiteral | null => {
+    if (result.locationData) {
+      return { lat: result.locationData.latitude, lng: result.locationData.longitude };
+    }
+    if (result.trainingLocationData) {
+      return { lat: result.trainingLocationData.latitude, lng: result.trainingLocationData.longitude };
+    }
+    if (result.matchLocationData) {
+      return { lat: result.matchLocationData.latitude, lng: result.matchLocationData.longitude };
+    }
+    return null;
+  };
+
+  const getDistanceText = (result: any): string => {
+    const pos = resolveResultPosition(result);
+    if (!pos) return 'N/A';
+    const distance = toDistanceKm(getMapCenter(), pos);
+    if (distance === null) return 'N/A';
+    return `${distance.toFixed(1)} km`;
+  };
+
+  const sortResults = (items: any[]): any[] => {
+    const cloned = [...items];
+    if (sortBy === 'relevance') return cloned;
+
+    if (sortBy === 'recent') {
+      return cloned.sort((a, b) => getItemDateValue(b) - getItemDateValue(a));
+    }
+
+    if (sortBy === 'age') {
+      return cloned.sort((a, b) => (a.ageGroup || '').localeCompare(b.ageGroup || ''));
+    }
+
+    if (sortBy === 'distance') {
+      const center = getMapCenter();
+      return cloned.sort((a, b) => {
+        const aPos = resolveResultPosition(a);
+        const bPos = resolveResultPosition(b);
+        if (!aPos && !bPos) return 0;
+        if (!aPos) return 1;
+        if (!bPos) return -1;
+        const aDistance = toDistanceKm(center, aPos) ?? Number.MAX_SAFE_INTEGER;
+        const bDistance = toDistanceKm(center, bPos) ?? Number.MAX_SAFE_INTEGER;
+        return aDistance - bDistance;
+      });
+    }
+
+    return cloned;
+  };
+
+  const saveSearchesToStorage = (nextSearches: SavedMapSearch[]) => {
+    setSavedSearches(nextSearches);
+    localStorage.setItem('savedMapSearches', JSON.stringify(nextSearches));
+  };
+
+  const handleSaveSearch = () => {
+    const name = savedSearchName.trim() || `Search ${new Date().toLocaleDateString()}`;
+    const payload: SavedMapSearch = {
+      id: `${Date.now()}`,
+      name,
+      searchType,
+      center: getMapCenter(),
+      zoom: mapInstanceRef.current?.getZoom() || mapZoom,
+      radiusKm,
+      ageGroup: selectedAgeGroup,
+      positions: selectedPositions,
+      sortBy,
+      createdAt: new Date().toISOString()
+    };
+    const next = [payload, ...savedSearches].slice(0, 20);
+    saveSearchesToStorage(next);
+    setSelectedSavedSearchId(payload.id);
+    setSavedSearchName('');
+    analyticsTracking.track('map_search_saved', {
+      category: 'Map',
+      action: 'save_search',
+      label: payload.name,
+      searchType
+    });
+  };
+
+  const applySavedSearch = (searchId: string) => {
+    setSelectedSavedSearchId(searchId);
+    const match = savedSearches.find(item => item.id === searchId);
+    if (!match || match.searchType !== searchType || !mapInstanceRef.current) return;
+    mapInstanceRef.current.setCenter(match.center);
+    mapInstanceRef.current.setZoom(match.zoom);
+    setRadiusKm(match.radiusKm);
+    setSelectedAgeGroup(match.ageGroup);
+    setSelectedPositions(match.positions || []);
+    setSortBy(match.sortBy || 'relevance');
+    analyticsTracking.track('map_search_loaded', {
+      category: 'Map',
+      action: 'load_search',
+      label: match.name,
+      searchType
+    });
+  };
+
+  const handleShareSearch = async () => {
+    const center = getMapCenter();
+    const url = new URL(window.location.href);
+    url.searchParams.set('mapLat', center.lat.toFixed(5));
+    url.searchParams.set('mapLng', center.lng.toFixed(5));
+    url.searchParams.set('mapZoom', String(mapInstanceRef.current?.getZoom() || mapZoom));
+    url.searchParams.set('radiusKm', String(radiusKm));
+    url.searchParams.set('ageGroup', selectedAgeGroup || '');
+    url.searchParams.set('positions', selectedPositions.join('|'));
+    url.searchParams.set('sortBy', sortBy);
+    await navigator.clipboard.writeText(url.toString());
+    analyticsTracking.track('map_search_shared', {
+      category: 'Map',
+      action: 'share_search',
+      searchType
+    });
+  };
+
+  const handleExportResults = () => {
+    if (!filteredResults.length) return;
+    const rows = filteredResults.map(result => ({
+      name: result.teamName || result.title || result.fullName || result.name || '',
+      type: result.itemType === 'player' ? 'Player' : 'Team',
+      ageGroup: result.ageGroup || '',
+      position: Array.isArray(result.positions) ? result.positions.join('; ') : (result.preferredPosition || result.position || ''),
+      location: result.location || '',
+      league: result.league || (Array.isArray(result.preferredLeagues) ? result.preferredLeagues.join('; ') : result.preferredLeagues || ''),
+      distance: getDistanceText(result),
+      status: getRecentStatus(result.createdAt)
+    }));
+    const headers = Object.keys(rows[0]);
+    const csvBody = rows
+      .map(row => headers.map(header => `"${String((row as any)[header] ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const csv = `${headers.join(',')}\n${csvBody}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `map-results-${searchType}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    analyticsTracking.track('map_results_exported', {
+      category: 'Map',
+      action: 'export_results',
+      value: rows.length,
+      searchType
+    });
+  };
+
   // Initialize Google Maps
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -148,6 +397,26 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     });
 
     mapInstanceRef.current = map;
+
+    const params = new URLSearchParams(window.location.search);
+    const lat = parseFloat(params.get('mapLat') || '');
+    const lng = parseFloat(params.get('mapLng') || '');
+    const zoomParam = parseInt(params.get('mapZoom') || '', 10);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      map.setCenter({ lat, lng });
+    }
+    if (!isNaN(zoomParam)) {
+      map.setZoom(zoomParam);
+    }
+
+    if (!mapOpenTrackedRef.current) {
+      analyticsTracking.track('map_opened', {
+        category: 'Map',
+        action: 'open_map',
+        label: searchType
+      });
+      mapOpenTrackedRef.current = true;
+    }
     
     // Save map position when user moves or zooms
     map.addListener('idle', () => {
@@ -180,16 +449,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     mapIdleListenerRef.current = mapInstanceRef.current.addListener('idle', () => {
       const bounds = mapInstanceRef.current?.getBounds();
-      const inView = filterResultsByBounds(results, bounds);
-      const finalFiltered = applyAdditionalFilters(inView);
+      const inView = filterResultsByMapArea(results, bounds);
+      const finalFiltered = sortResults(applyAdditionalFilters(inView));
       setFilteredResults(finalFiltered);
       setHasActiveFilter(true);
     });
 
     // Run once immediately when mode turns on/results change
     const initialBounds = mapInstanceRef.current.getBounds();
-    const inView = filterResultsByBounds(results, initialBounds);
-    const finalFiltered = applyAdditionalFilters(inView);
+    const inView = filterResultsByMapArea(results, initialBounds);
+    const finalFiltered = sortResults(applyAdditionalFilters(inView));
     setFilteredResults(finalFiltered);
     setHasActiveFilter(true);
 
@@ -199,7 +468,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapIdleListenerRef.current = null;
       }
     };
-  }, [results, selectedAgeGroup, selectedPositions]);
+  }, [results, selectedAgeGroup, selectedPositions, radiusKm, sortBy]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -278,7 +547,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     if (mapInstanceRef.current?.getBounds()) {
       // Default viewport search
-      baseFiltered = filterResultsByBounds(results, mapInstanceRef.current.getBounds());
+      baseFiltered = filterResultsByMapArea(results, mapInstanceRef.current.getBounds());
       shouldActivate = true;
     } else {
       // No map bounds yet, don't update
@@ -286,14 +555,72 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     // Apply additional filters
-    const finalFiltered = applyAdditionalFilters(baseFiltered);
+    const finalFiltered = sortResults(applyAdditionalFilters(baseFiltered));
     setFilteredResults(finalFiltered);
     
     // Set hasActiveFilter to true if we have any filters
     if (shouldActivate) {
       setHasActiveFilter(true);
     }
-  }, [selectedAgeGroup, selectedPositions, results]);
+  }, [selectedAgeGroup, selectedPositions, results, radiusKm, sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('mapSearchRadiusKm', String(radiusKm));
+
+    const map = mapInstanceRef.current;
+    if (!map || !window.google?.maps?.Circle) return;
+
+    const center = map.getCenter();
+    if (!center) return;
+
+    const circleCenter = { lat: center.lat(), lng: center.lng() };
+    if (!radiusCircleRef.current) {
+      radiusCircleRef.current = new window.google.maps.Circle({
+        map,
+        center: circleCenter,
+        radius: radiusKm * 1000,
+        fillColor: '#1976d2',
+        fillOpacity: 0.08,
+        strokeColor: '#1976d2',
+        strokeWeight: 2,
+        clickable: false
+      });
+    } else {
+      radiusCircleRef.current.setCenter(circleCenter);
+      radiusCircleRef.current.setRadius(radiusKm * 1000);
+      radiusCircleRef.current.setMap(map);
+    }
+  }, [radiusKm, filteredResults.length]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!showHeatmap) {
+      if (heatmapRef.current) {
+        heatmapRef.current.setMap(null);
+      }
+      return;
+    }
+
+    if (!window.google?.maps?.visualization?.HeatmapLayer || !window.google?.maps?.LatLng) return;
+
+    const heatmapData = filteredResults
+      .map(item => getResultPosition(item))
+      .filter((pos): pos is google.maps.LatLngLiteral => Boolean(pos))
+      .map(pos => new window.google.maps.LatLng(pos.lat, pos.lng));
+
+    if (!heatmapRef.current) {
+      heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
+        data: heatmapData,
+        radius: 22,
+        opacity: 0.55
+      });
+    } else {
+      heatmapRef.current.setData(heatmapData);
+    }
+    heatmapRef.current.setMap(map);
+  }, [showHeatmap, filteredResults]);
 
   // Render markers when results change
   useEffect(() => {
@@ -301,6 +628,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     // Only show markers if there's an active filter (radius or drawing)
     const displayResults = hasActiveFilter ? filteredResults : [];
+    const currentZoom = mapInstanceRef.current.getZoom() || 8;
+    const isClusteredMode = currentZoom < 9 && displayResults.length > 120;
+    const markerResults = isClusteredMode ? displayResults.slice(0, 120) : displayResults;
+    setClusteredHiddenCount(isClusteredMode ? Math.max(0, displayResults.length - markerResults.length) : 0);
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.setMap(null));
@@ -313,7 +644,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     // Create new markers
-    displayResults.forEach((result, index) => {
+    markerResults.forEach((result, index) => {
       const position = getResultPosition(result);
       const resultKey = getResultKey(result);
       
@@ -323,9 +654,19 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         position,
         map: mapInstanceRef.current as google.maps.Map,
         title: result.teamName || result.title || result.fullName || result.name || 'Location',
-        icon: result.itemType === 'player' 
-          ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-          : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: result.itemType === 'player' ? '#1e88e5' : '#d32f2f',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 8
+        },
+        label: {
+          text: String(index + 1),
+          color: '#ffffff',
+          fontWeight: '700'
+        },
         optimized: false,
         visible: true
       });
@@ -348,6 +689,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const league = item.league || (item.preferredLeagues && Array.isArray(item.preferredLeagues) ? item.preferredLeagues.join(', ') : '') || '';
         const leagueStr = league ? `<br><strong>League:</strong> ${league}` : '';
         const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
+        const distance = getDistanceText(item);
+        const distanceStr = distance !== 'N/A' ? `<br><strong>Distance:</strong> ${distance}` : '';
+        const status = getRecentStatus(item.createdAt);
+        const statusColor = status === 'New' ? '#2e7d32' : status === 'Active' ? '#0288d1' : '#6d6d6d';
         
         // Add preferred team gender for players
         const preferredGenderStr = item.preferredTeamGender && item.itemType === 'player' 
@@ -442,8 +787,19 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               ${positionStr}
               ${leagueStr}
               ${location}
+              ${distanceStr}
               ${preferredGenderStr}
             </p>
+            <div style="margin-left: 8px; margin-top: 6px;">
+              <span style="
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 9999px;
+                font-size: 12px;
+                background-color: ${statusColor};
+                color: white;
+              ">${status}</span>
+            </div>
             ${descriptionStr}
             <p style="
               margin: 8px 0 0 8px; 
@@ -459,6 +815,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       };
 
       marker.addListener('click', () => {
+        analyticsTracking.track('map_marker_clicked', {
+          category: 'Map',
+          action: 'marker_click',
+          label: result.itemType || 'item',
+          searchType
+        });
         setSelectedItem(result);
         setSelectedResultKey(resultKey);
         rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -475,6 +837,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 e.stopPropagation();
                 const recipient = getMessageRecipient(result);
                 if (recipient) {
+                  analyticsTracking.track('map_message_clicked', {
+                    category: 'Map',
+                    action: 'message_from_result',
+                    label: 'info_window',
+                    searchType
+                  });
                   navigate('/messages', { 
                     state: { 
                       recipientId: recipient.id,
@@ -529,6 +897,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const handleClearAll = () => {
     setSelectedAgeGroup('');
     setSelectedPositions([]);
+    setSortBy('relevance');
   };
 
   useEffect(() => {
@@ -574,6 +943,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     const teamCount = recipients.filter(r => r.relatedVacancyId).length;
 
+    analyticsTracking.track('map_message_clicked', {
+      category: 'Map',
+      action: 'message_from_result',
+      label: 'bulk',
+      value: recipients.length,
+      searchType
+    });
+
     navigate('/messages', {
       state: {
         bulkRecipients: recipients,
@@ -592,6 +969,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const selectedCount = Object.keys(selectedRecipients).length;
   const selectedTeamCount = Object.values(selectedRecipients).filter(r => r.relatedVacancyId).length;
   const selectedTypeLabel = selectedTeamCount > 0 ? 'team' : 'player';
+  const recommendations = sortResults(results)
+    .filter(item => {
+      if (searchType === 'players') return item.itemType === 'player';
+      if (searchType === 'vacancies') return item.itemType === 'vacancy' || item.itemType === 'team';
+      return true;
+    })
+    .slice(0, 3);
 
   // Apply additional filters (age group and position)
   const applyAdditionalFilters = (results: any[]) => {
@@ -664,14 +1048,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const getResultPosition = (result: any): google.maps.LatLngLiteral | null => {
-    if (result.locationData) {
-      return { lat: result.locationData.latitude, lng: result.locationData.longitude };
-    } else if (result.trainingLocationData) {
-      return { lat: result.trainingLocationData.latitude, lng: result.trainingLocationData.longitude };
-    } else if (result.matchLocationData) {
-      return { lat: result.matchLocationData.latitude, lng: result.matchLocationData.longitude };
-    }
-    return null;
+    return resolveResultPosition(result);
   };
 
   const filterResultsByBounds = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
@@ -682,6 +1059,23 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       if (!position) return false;
       const latLng = new window.google.maps.LatLng(position.lat, position.lng);
       return bounds.contains(latLng);
+    });
+  };
+
+  const filterResultsByMapArea = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
+    const inBounds = filterResultsByBounds(items, bounds);
+    const center = getMapCenter();
+    if (!window.google?.maps?.geometry?.spherical?.computeDistanceBetween || !window.google?.maps?.LatLng) {
+      return inBounds;
+    }
+
+    return inBounds.filter(result => {
+      const position = getResultPosition(result);
+      if (!position) return false;
+      const from = new window.google.maps.LatLng(center.lat, center.lng);
+      const to = new window.google.maps.LatLng(position.lat, position.lng);
+      const distanceMeters = window.google.maps.geometry.spherical.computeDistanceBetween(from, to);
+      return distanceMeters <= radiusKm * 1000;
     });
   };
 
@@ -731,12 +1125,39 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* Control Panel */}
       <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
         <Stack spacing={1}>
+          {showOnboarding && (
+            <Alert
+              severity="info"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    setShowOnboarding(false);
+                    localStorage.setItem('mapOnboardingDismissed', 'true');
+                  }}
+                >
+                  Dismiss
+                </Button>
+              }
+            >
+              Drag the map, zoom to your area, and use filters. Results update by visible area and radius.
+            </Alert>
+          )}
+
           {/* Top Controls Row */}
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <Chip
               icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
-              label={hasActiveFilter ? `${filteredResults.length} in visible map area` : `${results.length} total`}
+              label={hasActiveFilter ? `${filteredResults.length} in map area` : `${results.length} total`}
               color={hasActiveFilter ? 'success' : 'default'}
+              variant="outlined"
+              size="small"
+            />
+
+            <Chip
+              label={`Radius ${radiusKm} km`}
+              color="primary"
               variant="outlined"
               size="small"
             />
@@ -760,15 +1181,106 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               Reset
             </Button>
 
+            <Tooltip title="Save current map, filters, radius and sort">
+              <Button size="small" startIcon={<SaveIcon />} variant="outlined" onClick={handleSaveSearch}>
+                Save Search
+              </Button>
+            </Tooltip>
+
+            <Tooltip title="Copy shareable search link">
+              <Button size="small" startIcon={<ShareIcon />} variant="outlined" onClick={handleShareSearch}>
+                Share
+              </Button>
+            </Tooltip>
+
+            <Tooltip title="Export visible results to CSV">
+              <Button size="small" startIcon={<DownloadIcon />} variant="outlined" onClick={handleExportResults}>
+                Export
+              </Button>
+            </Tooltip>
+
             {isLoading && <CircularProgress size={20} />}
           </Stack>
 
           {/* Legend */}
           <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Blue = Player | Red = Team | Move/zoom map to change search area | Click marker for details
+              Blue = Player | Red = Team | Circle = search radius | Toggle heatmap for density view
             </Typography>
           </Stack>
+
+          {clusteredHiddenCount > 0 && (
+            <Alert severity="info" sx={{ py: 0 }}>
+              Showing a clustered view. Zoom in to reveal {clusteredHiddenCount} additional markers.
+            </Alert>
+          )}
+
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
+            <TextField
+              size="small"
+              label="Saved search name"
+              value={savedSearchName}
+              onChange={(e) => setSavedSearchName(e.target.value)}
+              sx={{ minWidth: { md: 220 } }}
+            />
+            <FormControl size="small" sx={{ minWidth: { md: 260 } }}>
+              <InputLabel>Load Saved Search</InputLabel>
+              <Select
+                value={selectedSavedSearchId}
+                label="Load Saved Search"
+                onChange={(e) => applySavedSearch(String(e.target.value))}
+              >
+                <MenuItem value=""><em>Select saved search</em></MenuItem>
+                {savedSearches
+                  .filter(item => item.searchType === searchType)
+                  .map(item => (
+                    <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: { md: 170 } }}>
+              <InputLabel>Sort Results</InputLabel>
+              <Select
+                value={sortBy}
+                label="Sort Results"
+                onChange={(e) => {
+                  const next = e.target.value as SortMode;
+                  setSortBy(next);
+                  analyticsTracking.track('map_sort_changed', {
+                    category: 'Map',
+                    action: 'sort_change',
+                    label: next,
+                    searchType
+                  });
+                }}
+              >
+                <MenuItem value="relevance">Relevance</MenuItem>
+                <MenuItem value="distance">Distance</MenuItem>
+                <MenuItem value="age">Age Group</MenuItem>
+                <MenuItem value="recent">Most Recent</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControlLabel
+              control={<Switch checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} size="small" />}
+              label="Heatmap"
+            />
+          </Stack>
+
+          <Box sx={{ px: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Search radius: {radiusKm} km
+            </Typography>
+            <Slider
+              min={5}
+              max={100}
+              step={5}
+              marks
+              value={radiusKm}
+              onChange={(_, value) => setRadiusKm(value as number)}
+              valueLabelDisplay="auto"
+              size="small"
+            />
+          </Box>
 
           {/* Age Group and Position Filters */}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -776,7 +1288,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               <InputLabel>Age Group</InputLabel>
               <Select
                 value={selectedAgeGroup}
-                onChange={(e) => setSelectedAgeGroup(e.target.value)}
+                onChange={(e) => {
+                  setSelectedAgeGroup(e.target.value);
+                  analyticsTracking.track('map_filter_applied', {
+                    category: 'Map',
+                    action: 'age_filter',
+                    label: e.target.value || 'all',
+                    searchType
+                  });
+                }}
                 label="Age Group"
               >
                 <MenuItem value=""><em>All Age Groups</em></MenuItem>
@@ -792,13 +1312,59 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               sx={{ minWidth: { sm: 250 }, width: { xs: '100%', sm: 'auto' } }}
               options={positions}
               value={selectedPositions}
-              onChange={(_, newValue) => setSelectedPositions(newValue)}
+              onChange={(_, newValue) => {
+                setSelectedPositions(newValue);
+                analyticsTracking.track('map_filter_applied', {
+                  category: 'Map',
+                  action: 'position_filter',
+                  label: newValue.join(',') || 'all',
+                  searchType
+                });
+              }}
               renderInput={(params) => (
                 <TextField {...params} label="Position" placeholder="Select positions" />
               )}
             />
           </Stack>
         </Stack>
+      </Paper>
+
+      <Paper sx={{ p: 1.5, mb: 1 }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <RecommendIcon color="primary" />
+          <Typography variant="subtitle2">Recommended nearby</Typography>
+        </Stack>
+        <Divider sx={{ my: 1 }} />
+        {recommendations.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">No recommendations available yet.</Typography>
+        ) : (
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+            {recommendations.map((rec) => {
+              const key = getResultKey(rec);
+              return (
+                <Paper key={key} variant="outlined" sx={{ p: 1, flex: 1 }}>
+                  <Typography variant="body2" fontWeight={600}>{rec.teamName || rec.title || rec.fullName || rec.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">{rec.itemType === 'player' ? 'Player' : 'Team'} • {getDistanceText(rec)}</Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        const pos = getResultPosition(rec);
+                        if (pos && mapInstanceRef.current) {
+                          mapInstanceRef.current.setCenter(pos);
+                          mapInstanceRef.current.setZoom(12);
+                        }
+                        setSelectedResultKey(key);
+                      }}
+                    >
+                      Focus
+                    </Button>
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Stack>
+        )}
       </Paper>
 
       {error && (
@@ -849,6 +1415,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     Age Group: {selectedItem.ageGroup}
                   </Typography>
                 )}
+                <Typography variant="body2" color="text.secondary">
+                  Distance: {getDistanceText(selectedItem)}
+                </Typography>
                 {selectedItem.preferredPosition && (
                   <Typography variant="body2" color="text.secondary">
                     Position: {selectedItem.preferredPosition}
@@ -859,6 +1428,20 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     League: {selectedItem.league}
                   </Typography>
                 )}
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <Chip
+                    size="small"
+                    color={getRecentStatus(selectedItem.createdAt) === 'New' ? 'success' : getRecentStatus(selectedItem.createdAt) === 'Active' ? 'info' : 'default'}
+                    label={getRecentStatus(selectedItem.createdAt)}
+                  />
+                  {(selectedItem.coachingLevel || selectedItem.coachingQualification) && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`Coach: ${selectedItem.coachingLevel || selectedItem.coachingQualification}`}
+                    />
+                  )}
+                </Stack>
               </Box>
               <Button
                 variant="outlined"
@@ -923,6 +1506,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Position</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Location</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>League</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Distance</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -1036,6 +1621,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     <TableCell>{positionDisplay}</TableCell>
                     <TableCell>{result.location || 'N/A'}</TableCell>
                     <TableCell>{result.league || result.preferredLeagues || 'N/A'}</TableCell>
+                    <TableCell>{getDistanceText(result)}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={getRecentStatus(result.createdAt)}
+                        size="small"
+                        color={getRecentStatus(result.createdAt) === 'New' ? 'success' : getRecentStatus(result.createdAt) === 'Active' ? 'info' : 'default'}
+                        variant={getRecentStatus(result.createdAt) === 'Open' ? 'outlined' : 'filled'}
+                      />
+                    </TableCell>
                     <TableCell>
                       {result.itemType === 'player' && (
                         (() => {
@@ -1048,6 +1642,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!recipient) return;
+                            analyticsTracking.track('map_message_clicked', {
+                              category: 'Map',
+                              action: 'message_from_result',
+                              label: 'single',
+                              searchType
+                            });
                             navigate('/messages', {
                               state: {
                                 recipientId: recipient.id,

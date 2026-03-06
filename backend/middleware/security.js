@@ -41,6 +41,87 @@ const profileLimiter = createRateLimiter(
   'Too many profile update attempts, please try again later'
 );
 
+// P2: Messaging rate limiter (50 messages per hour, 10 per minute burst)
+const messageLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // max requests per hour
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
+  message: { error: 'Too many messages sent. Please try again later.' },
+  keyGenerator: (req) => {
+    // Rate limit by user ID if authenticated, otherwise by IP
+    return req.user?.userId ? `user:${req.user.userId}` : req.ip;
+  },
+  handler: (req, res) => {
+    console.warn(`⚠️  Message rate limit exceeded for ${req.user?.userId ? `user ${req.user.userId}` : `IP ${req.ip}`}`);
+    res.status(429).json({ error: 'Too many messages sent. Please try again later.' });
+  }
+});
+
+// P2: Content safety validation - patterns for personal contact info
+const contentSafetyPatterns = {
+  email: /[\w\.-]+@[\w\.-]+\.\w+/,
+  phone: /(?:\+?\d{1,3}\s?)?(?:\(\d{1,4}\)|\d{1,4})[- ]?\d{1,4}[- ]?\d{1,9}/,
+  whatsapp: /\b(?:whatsapp|whatsapp me|text me|dm me|message me)\b/i,
+  telegram: /\b(?:telegram|@\w+)\b/i,
+  instagram: /\b(?:instagram|@\w+|instagram\.com|insta)\b/i,
+  facebook: /\b(?:facebook|fb\.com|facebook\.com)\b/i,
+  socialMedia: /\b(?:snapchat|twitter|discord|tiktok)\b/i,
+  externalMeeting: /\b(?:meet outside|meet me outside|meet in person|offline)\b/i,
+  contact: /(?:call me|text me|ring me|contact me|reach me|find me|call on)\s+(?:\+?\d+|[\w\.-]+@[\w\.-]+)/i
+};
+
+/**
+ * Validate message content for safety (no personal contact info, etc)
+ * Returns { safe: boolean, violation: string | null }
+ */
+const validateMessageContent = (message, isChildContext = false) => {
+  if (!message || typeof message !== 'string') {
+    return { safe: true, violation: null };
+  }
+
+  const lowerMessage = message.toLowerCase();
+
+  // Strict enforcement for child-related messages
+  if (isChildContext) {
+    // Check for contact info - stricter rules for children
+    if (contentSafetyPatterns.email.test(message)) {
+      return { 
+        safe: false, 
+        violation: 'Email addresses cannot be shared in child-related messages. Please use internal messaging only.' 
+      };
+    }
+    if (contentSafetyPatterns.phone.test(message)) {
+      return { 
+        safe: false, 
+        violation: 'Phone numbers cannot be shared in child-related messages. Please use internal messaging only.' 
+      };
+    }
+    if (contentSafetyPatterns.externalMeeting.test(message)) {
+      return { 
+        safe: false, 
+        violation: 'Private meetings outside The Grassroots Scout cannot be arranged for minors. Coordinate through your coach.' 
+      };
+    }
+    if (contentSafetyPatterns.contact.test(message)) {
+      return { 
+        safe: false, 
+        violation: 'Direct contact information cannot be shared in child-related messages.' 
+      };
+    }
+  } else {
+    // Looser validation for general messages
+    if (contentSafetyPatterns.whatsapp.test(lowerMessage) && contentSafetyPatterns.phone.test(message)) {
+      return { 
+        safe: false, 
+        violation: 'Please do not share personal contact details. Use internal messaging with The Grassroots Scout.' 
+      };
+    }
+  }
+
+  return { safe: true, violation: null };
+};
+
 // Security headers middleware with enhanced CSP
 const securityHeaders = helmet({
   contentSecurityPolicy: {
@@ -219,6 +300,7 @@ module.exports = {
   generalLimiter,
   authLimiter,
   profileLimiter,
+  messageLimiter,
   securityHeaders,
   csrfProtection,
   sanitizeRequest,
@@ -226,5 +308,6 @@ module.exports = {
   validatePhone,
   sanitizeString,
   validatePasswordStrength,
+  validateMessageContent,
   auditLogger
 };

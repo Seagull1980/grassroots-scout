@@ -2,7 +2,7 @@
 export const GOOGLE_MAPS_CONFIG = {
   // You'll need to replace this with your actual Google Maps API key
   apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY',
-  libraries: ['places', 'geometry'] as ('places' | 'geometry')[], // Include geometry for polygon operations
+  libraries: ['places', 'geometry', 'visualization'] as ('places' | 'geometry' | 'visualization')[], // Include geometry for radius ops and visualization for heatmaps
   version: 'quarterly', // Use quarterly version for better stability
   defaultCenter: {
     lat: 54.5973, // UK Center (Midlands) to show more of the country

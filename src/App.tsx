@@ -47,6 +47,7 @@ import { LazyComponents } from './utils/lazyLoading';
 import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
 import AdminClubsPage from './pages/AdminClubsPage';
 import AdminTeamsPage from './pages/AdminTeamsPage';
+import AdminModerationDashboard from './pages/AdminModerationDashboard';
 
 // Heavy features - lazy loaded
 const {
@@ -347,6 +348,11 @@ const AppRoutes = () => {
         <Route path="/admin/flagged-content" element={
           <ProtectedRoute>
             <FlaggedContent />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/moderation" element={
+          <ProtectedRoute>
+            <AdminModerationDashboard />
           </ProtectedRoute>
         } />
         {/* <Route path="/trial-management" element={

@@ -821,6 +821,30 @@ class Database {
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
       )`,
+      
+      // P2: Keyword alert rules for automated moderation
+      `CREATE TABLE IF NOT EXISTS keyword_alert_rules (
+        id SERIAL PRIMARY KEY,
+        keyword VARCHAR NOT NULL UNIQUE,
+        severity VARCHAR DEFAULT 'medium' CHECK(severity IN ('low', 'medium', 'high')),
+        enabled BOOLEAN DEFAULT TRUE,
+        description VARCHAR,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      
+      // P2: Message alerts from matched keywords
+      `CREATE TABLE IF NOT EXISTS message_alerts (
+        id SERIAL PRIMARY KEY,
+        messageId INTEGER NOT NULL,
+        ruleId INTEGER NOT NULL,
+        severity VARCHAR,
+        status VARCHAR DEFAULT 'open' CHECK(status IN ('open', 'reviewed', 'dismissed')),
+        reviewedAt TIMESTAMP,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (messageId) REFERENCES messages (id) ON DELETE CASCADE,
+        FOREIGN KEY (ruleId) REFERENCES keyword_alert_rules (id) ON DELETE CASCADE
+      )`,
 
       `CREATE TABLE IF NOT EXISTS training_invitations (
         id SERIAL PRIMARY KEY,
