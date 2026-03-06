@@ -38,9 +38,6 @@ import {
   Person as PersonIcon,
   Groups as GroupsIcon,
   Message as MessageIcon,
-  Save as SaveIcon,
-  Share as ShareIcon,
-  Download as DownloadIcon,
   AutoAwesome as RecommendIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -48,19 +45,6 @@ import { analyticsTracking } from '../services/analyticsTracking';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
 type SortMode = 'relevance' | 'distance' | 'age' | 'recent';
-
-interface SavedMapSearch {
-  id: string;
-  name: string;
-  searchType: 'vacancies' | 'players' | 'both';
-  center: google.maps.LatLngLiteral;
-  zoom: number;
-  radiusKm: number;
-  ageGroup: string;
-  positions: string[];
-  sortBy: SortMode;
-  createdAt: string;
-}
 
 interface MapSearchSimplifiedProps {
   searchType: 'vacancies' | 'players' | 'both';
@@ -141,17 +125,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortMode>('relevance');
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [savedSearches, setSavedSearches] = useState<SavedMapSearch[]>(() => {
-    try {
-      const raw = localStorage.getItem('savedMapSearches');
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
-  const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<string>('');
-  const [savedSearchName, setSavedSearchName] = useState('');
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => localStorage.getItem('mapOnboardingDismissed') !== 'true');
   const [clusteredHiddenCount, setClusteredHiddenCount] = useState(0);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
@@ -268,102 +241,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     return cloned;
-  };
-
-  const saveSearchesToStorage = (nextSearches: SavedMapSearch[]) => {
-    setSavedSearches(nextSearches);
-    localStorage.setItem('savedMapSearches', JSON.stringify(nextSearches));
-  };
-
-  const handleSaveSearch = () => {
-    const name = savedSearchName.trim() || `Search ${new Date().toLocaleDateString()}`;
-    const payload: SavedMapSearch = {
-      id: `${Date.now()}`,
-      name,
-      searchType,
-      center: getMapCenter(),
-      zoom: mapInstanceRef.current?.getZoom() || mapZoom,
-      radiusKm: 25,
-      ageGroup: selectedAgeGroup,
-      positions: selectedPositions,
-      sortBy,
-      createdAt: new Date().toISOString()
-    };
-    const next = [payload, ...savedSearches].slice(0, 20);
-    saveSearchesToStorage(next);
-    setSelectedSavedSearchId(payload.id);
-    setSavedSearchName('');
-    analyticsTracking.track('map_search_saved', {
-      category: 'Map',
-      action: 'save_search',
-      label: payload.name,
-      searchType
-    });
-  };
-
-  const applySavedSearch = (searchId: string) => {
-    setSelectedSavedSearchId(searchId);
-    const match = savedSearches.find(item => item.id === searchId);
-    if (!match || match.searchType !== searchType || !mapInstanceRef.current) return;
-    mapInstanceRef.current.setCenter(match.center);
-    mapInstanceRef.current.setZoom(match.zoom);
-    setSelectedAgeGroup(match.ageGroup);
-    setSelectedPositions(match.positions || []);
-    setSortBy(match.sortBy || 'relevance');
-    analyticsTracking.track('map_search_loaded', {
-      category: 'Map',
-      action: 'load_search',
-      label: match.name,
-      searchType
-    });
-  };
-
-  const handleShareSearch = async () => {
-    const center = getMapCenter();
-    const url = new URL(window.location.href);
-    url.searchParams.set('mapLat', center.lat.toFixed(5));
-    url.searchParams.set('mapLng', center.lng.toFixed(5));
-    url.searchParams.set('mapZoom', String(mapInstanceRef.current?.getZoom() || mapZoom));
-    url.searchParams.set('ageGroup', selectedAgeGroup || '');
-    url.searchParams.set('positions', selectedPositions.join('|'));
-    url.searchParams.set('sortBy', sortBy);
-    await navigator.clipboard.writeText(url.toString());
-    analyticsTracking.track('map_search_shared', {
-      category: 'Map',
-      action: 'share_search',
-      searchType
-    });
-  };
-
-  const handleExportResults = () => {
-    if (!filteredResults.length) return;
-    const rows = filteredResults.map(result => ({
-      name: result.teamName || result.title || result.fullName || result.name || '',
-      type: result.itemType === 'player' ? 'Player' : 'Team',
-      ageGroup: result.ageGroup || '',
-      position: Array.isArray(result.positions) ? result.positions.join('; ') : (result.preferredPosition || result.position || ''),
-      location: result.location || '',
-      league: result.league || (Array.isArray(result.preferredLeagues) ? result.preferredLeagues.join('; ') : result.preferredLeagues || ''),
-      distance: getDistanceText(result),
-      status: getRecentStatus(result.createdAt)
-    }));
-    const headers = Object.keys(rows[0]);
-    const csvBody = rows
-      .map(row => headers.map(header => `"${String((row as any)[header] ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const csv = `${headers.join(',')}\n${csvBody}`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `map-results-${searchType}-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    analyticsTracking.track('map_results_exported', {
-      category: 'Map',
-      action: 'export_results',
-      value: rows.length,
-      searchType
-    });
   };
 
   // Initialize Google Maps
@@ -1150,24 +1027,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               Reset
             </Button>
 
-            <Tooltip title="Save current map, filters, radius and sort">
-              <Button size="small" startIcon={<SaveIcon />} variant="outlined" onClick={handleSaveSearch}>
-                Save Search
-              </Button>
-            </Tooltip>
-
-            <Tooltip title="Copy shareable search link">
-              <Button size="small" startIcon={<ShareIcon />} variant="outlined" onClick={handleShareSearch}>
-                Share
-              </Button>
-            </Tooltip>
-
-            <Tooltip title="Export visible results to CSV">
-              <Button size="small" startIcon={<DownloadIcon />} variant="outlined" onClick={handleExportResults}>
-                Export
-              </Button>
-            </Tooltip>
-
             {isLoading && <CircularProgress size={20} />}
           </Stack>
 
@@ -1185,28 +1044,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           )}
 
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
-            <TextField
-              size="small"
-              label="Saved search name"
-              value={savedSearchName}
-              onChange={(e) => setSavedSearchName(e.target.value)}
-              sx={{ minWidth: { md: 220 } }}
-            />
-            <FormControl size="small" sx={{ minWidth: { md: 260 } }}>
-              <InputLabel>Load Saved Search</InputLabel>
-              <Select
-                value={selectedSavedSearchId}
-                label="Load Saved Search"
-                onChange={(e) => applySavedSearch(String(e.target.value))}
-              >
-                <MenuItem value=""><em>Select saved search</em></MenuItem>
-                {savedSearches
-                  .filter(item => item.searchType === searchType)
-                  .map(item => (
-                    <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
-                  ))}
-              </Select>
-            </FormControl>
             <FormControl size="small" sx={{ minWidth: { md: 170 } }}>
               <InputLabel>Sort Results</InputLabel>
               <Select
