@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -134,6 +134,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     messageType: string;
     context: string;
   }>>({});
+  const [, startTransition] = useTransition();
   
   // Filter options
   const ageGroups = [
@@ -469,31 +470,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     fetchData();
   }, [searchType]);
-
-  // Re-apply filters when age group or position selections change
-  useEffect(() => {
-    // Get the base filtered results (viewport)
-    let baseFiltered: any[] = [];
-    let shouldActivate = false;
-
-    if (mapInstanceRef.current?.getBounds()) {
-      // Default viewport search
-      baseFiltered = filterResultsByMapArea(results, mapInstanceRef.current.getBounds());
-      shouldActivate = true;
-    } else {
-      // No map bounds yet, don't update
-      return;
-    }
-
-    // Apply additional filters
-    const finalFiltered = sortResults(applyAdditionalFilters(baseFiltered));
-    setFilteredResults(finalFiltered);
-    
-    // Set hasActiveFilter to true if we have any filters
-    if (shouldActivate) {
-      setHasActiveFilter(true);
-    }
-  }, [selectedAgeGroup, selectedPositions, results, sortBy]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -1072,11 +1048,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               <Select
                 value={selectedAgeGroup}
                 onChange={(e) => {
-                  setSelectedAgeGroup(e.target.value);
+                  const ageValue = e.target.value;
+                  startTransition(() => {
+                    setSelectedAgeGroup(ageValue);
+                  });
                   analyticsTracking.track('map_filter_applied', {
                     category: 'Map',
                     action: 'age_filter',
-                    label: e.target.value || 'all',
+                    label: ageValue || 'all',
                     searchType
                   });
                 }}
@@ -1096,7 +1075,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => {
-                setSelectedPositions(newValue);
+                startTransition(() => {
+                  setSelectedPositions(newValue);
+                });
                 analyticsTracking.track('map_filter_applied', {
                   category: 'Map',
                   action: 'position_filter',
