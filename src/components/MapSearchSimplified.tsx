@@ -156,6 +156,76 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     'attacker': ['striker', 'right winger', 'left winger', 'winger', 'forward', 'attacker']
   };
 
+  const normalizeText = (value: unknown): string => String(value ?? '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+  const normalizeAgeGroup = (value: unknown): string => {
+    const raw = String(value ?? '').toLowerCase().trim();
+    if (!raw) return '';
+
+    const underMatch = raw.match(/(?:u|under)\s*[-]?\s*(\d{1,2})/i);
+    if (underMatch) return `u${underMatch[1]}`;
+
+    if (raw.includes('adult')) return 'adult';
+    if (raw.includes('veteran')) return 'veterans';
+
+    return normalizeText(raw);
+  };
+
+  const positionAliases: Record<string, string[]> = {
+    goalkeeper: ['goalkeeper', 'gk', 'goalie', 'keeper'],
+    defender: ['defender', 'centreback', 'centerback', 'cb', 'fullback', 'wingback', 'rightback', 'leftback'],
+    midfielder: ['midfielder', 'cm', 'cdm', 'cam'],
+    attacker: ['attacker', 'forward', 'striker', 'st', 'winger', 'rw', 'lw']
+  };
+
+  const parsePositions = (result: any): string[] => {
+    if (Array.isArray(result.positions)) return result.positions.filter(Boolean);
+
+    if (typeof result.positions === 'string' && result.positions.trim()) {
+      try {
+        const parsed = JSON.parse(result.positions);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+        return [result.positions];
+      } catch {
+        return [result.positions];
+      }
+    }
+
+    if (Array.isArray(result.position)) return result.position.filter(Boolean);
+
+    if (typeof result.position === 'string' && result.position.trim()) {
+      try {
+        const parsed = JSON.parse(result.position);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+        return [result.position];
+      } catch {
+        return [result.position];
+      }
+    }
+
+    if (result.preferredPosition) return [result.preferredPosition];
+    return [];
+  };
+
+  const positionMatches = (selectedPos: string, resultPos: string): boolean => {
+    const selectedNorm = normalizeText(selectedPos);
+    const resultNorm = normalizeText(resultPos);
+
+    if (!selectedNorm || !resultNorm) return false;
+    if (selectedNorm.includes(resultNorm) || resultNorm.includes(selectedNorm)) return true;
+
+    const hierarchyMatches = positionHierarchy[selectedPos.toLowerCase()] || [];
+    const hierarchyNormalized = hierarchyMatches.map(normalizeText);
+    if (hierarchyNormalized.some(pos => resultNorm.includes(pos) || pos.includes(resultNorm))) return true;
+
+    const aliasSet = new Set<string>([
+      selectedNorm,
+      ...(positionAliases[selectedNorm] || []).map(normalizeText)
+    ]);
+
+    return Array.from(aliasSet).some(alias => resultNorm.includes(alias) || alias.includes(resultNorm));
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedAgeGroup = params.get('ageGroup') || '';
@@ -300,7 +370,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   }, []);
 
   // Viewport-based filtering: keep search area aligned to current visible map bounds
-    console.log('📍 Viewport filtering effect triggered', { selectedAgeGroup, selectedPositions });
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.event) return;
 
@@ -402,7 +471,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   }, [searchType]);
 
   // Re-apply filters when age group or position selections change
-    console.log('🔄 Filter re-apply effect triggered', { selectedAgeGroup, selectedPositions, totalResults: results.length });
   useEffect(() => {
     // Get the base filtered results (viewport)
     let baseFiltered: any[] = [];
@@ -822,114 +890,29 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const applyAdditionalFilters = (results: any[]) => {
     let filtered = [...results];
 
-    // Debug: Log what we're starting with
-    if (selectedAgeGroup || selectedPositions.length > 0) {
-      console.log('🔍 FILTER START', {
-        totalResults: results.length,
-        selectedAgeGroup,
-        selectedPositions,
-        sampleResult: results[0] ? {
-          title: results[0].title,
-          ageGroup: results[0].ageGroup,
-          positions: results[0].positions,
-          itemType: results[0].itemType
-        } : 'No results'
-      });
-    }
-
     // Filter by age group
     if (selectedAgeGroup) {
-      const beforeCount = filtered.length;
+      const selectedAgeNormalized = normalizeAgeGroup(selectedAgeGroup);
       filtered = filtered.filter(result => {
-        const ageGroup = result.ageGroup || '';
-        const matches = ageGroup.toLowerCase().includes(selectedAgeGroup.toLowerCase()) ||
-               selectedAgeGroup.toLowerCase().includes(ageGroup.toLowerCase());
-        if (!matches && result.title) {
-          console.log(`  Age filter NO MATCH: "${ageGroup}" vs "${selectedAgeGroup}"`, result.title);
-        }
-        return matches;
+        const ageNormalized = normalizeAgeGroup(result.ageGroup || result.playerAgeGroup || result.teamAgeGroup || '');
+        if (!ageNormalized) return false;
+        if (ageNormalized === selectedAgeNormalized) return true;
+        return ageNormalized.includes(selectedAgeNormalized) || selectedAgeNormalized.includes(ageNormalized);
       });
-      console.log(`📋 Age filter: ${beforeCount} → ${filtered.length} results`);
     }
 
     // Filter by positions
     if (selectedPositions.length > 0) {
-      const beforeCount = filtered.length;
       filtered = filtered.filter(result => {
-        // Use positions array from backend API response
-        let resultPositions: string[] = [];
-        
-        // If positions exists, use it
-        if (result.positions) {
-          // If positions is a string (JSON), parse it
-          if (typeof result.positions === 'string') {
-            try {
-              const parsed = JSON.parse(result.positions);
-              resultPositions = Array.isArray(parsed) ? parsed : [result.positions];
-            } catch {
-              resultPositions = [result.positions];
-            }
-          } else if (Array.isArray(result.positions)) {
-            resultPositions = result.positions;
-          }
-        }
-        
-        // Fallback to position (singular) if needed
-        if (resultPositions.length === 0 && result.position) {
-          if (typeof result.position === 'string') {
-            try {
-              const parsed = JSON.parse(result.position);
-              resultPositions = Array.isArray(parsed) ? parsed : [result.position];
-            } catch {
-              resultPositions = [result.position];
-            }
-          } else if (Array.isArray(result.position)) {
-            resultPositions = result.position;
-          }
-        }
-        
-        // Fallback to preferredPosition if needed
-        if (result.preferredPosition && resultPositions.length === 0) {
-          resultPositions = [result.preferredPosition];
-        }
+        const resultPositions = parsePositions(result);
+        if (resultPositions.length === 0) return false;
 
-        const matches = selectedPositions.some(selectedPos => {
-          const selectedLower = selectedPos.toLowerCase();
-          
-          // Check for specific hierarchy matches
-          const hierarchyMatches = positionHierarchy[selectedLower];
-          
-          return resultPositions.some(resultPos => {
-            const resultLower = resultPos.toLowerCase();
-            
-            // Direct match (including partial matches)
-            if (resultLower.includes(selectedLower) || selectedLower.includes(resultLower)) {
-              return true;
-            }
-            
-            // Hierarchical match - if selected position is generic (e.g., "Midfielder"),
-            // check if result is a specific variant (e.g., "Central Midfielder")
-            if (hierarchyMatches) {
-              return hierarchyMatches.some(specificPos => {
-                const specificLower = specificPos.toLowerCase();
-                return resultLower.includes(specificLower) || specificLower.includes(resultLower);
-              });
-            }
-            
-            return false;
-          });
-        });
-
-        if (!matches && result.title) {
-          console.log(`  Position filter NO MATCH: [${resultPositions.join(', ')}] vs [${selectedPositions.join(', ')}]`, result.title);
-        }
-
-        return matches;
+        return selectedPositions.some(selectedPos =>
+          resultPositions.some(resultPos => positionMatches(selectedPos, resultPos))
+        );
       });
-      console.log(`🎯 Position filter: ${beforeCount} → ${filtered.length} results`);
     }
 
-    console.log('✅ Filter ended with', filtered.length, 'results');
     return filtered;
   };
 
@@ -1089,9 +1072,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               <Select
                 value={selectedAgeGroup}
                 onChange={(e) => {
-                  const newValue = e.target.value;
-                  console.log('🔥 Age Group changed to:', newValue);
-                  setSelectedAgeGroup(newValue);
+                  setSelectedAgeGroup(e.target.value);
                   analyticsTracking.track('map_filter_applied', {
                     category: 'Map',
                     action: 'age_filter',
@@ -1115,7 +1096,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => {
-                console.log('🔥 Positions changed to:', newValue);
                 setSelectedPositions(newValue);
                 analyticsTracking.track('map_filter_applied', {
                   category: 'Map',
