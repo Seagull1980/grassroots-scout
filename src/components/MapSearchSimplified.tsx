@@ -820,17 +820,39 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const applyAdditionalFilters = (results: any[]) => {
     let filtered = [...results];
 
+    // Debug: Log what we're starting with
+    if (selectedAgeGroup || selectedPositions.length > 0) {
+      console.log('🔍 FILTER START', {
+        totalResults: results.length,
+        selectedAgeGroup,
+        selectedPositions,
+        sampleResult: results[0] ? {
+          title: results[0].title,
+          ageGroup: results[0].ageGroup,
+          positions: results[0].positions,
+          itemType: results[0].itemType
+        } : 'No results'
+      });
+    }
+
     // Filter by age group
     if (selectedAgeGroup) {
+      const beforeCount = filtered.length;
       filtered = filtered.filter(result => {
         const ageGroup = result.ageGroup || '';
-        return ageGroup.toLowerCase().includes(selectedAgeGroup.toLowerCase()) ||
+        const matches = ageGroup.toLowerCase().includes(selectedAgeGroup.toLowerCase()) ||
                selectedAgeGroup.toLowerCase().includes(ageGroup.toLowerCase());
+        if (!matches && result.title) {
+          console.log(`  Age filter NO MATCH: "${ageGroup}" vs "${selectedAgeGroup}"`, result.title);
+        }
+        return matches;
       });
+      console.log(`📋 Age filter: ${beforeCount} → ${filtered.length} results`);
     }
 
     // Filter by positions
     if (selectedPositions.length > 0) {
+      const beforeCount = filtered.length;
       filtered = filtered.filter(result => {
         // Use positions array from backend API response
         let resultPositions: string[] = [];
@@ -869,23 +891,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           resultPositions = [result.preferredPosition];
         }
 
-        // Debug log for first record with positions
-        if (resultPositions.length > 0 && result.title) {
-          console.debug('Position filter debug:', {
-            title: result.title,
-            resultPositions,
-            selectedPositions,
-            match: selectedPositions.some(sp => 
-              resultPositions.some(rp => 
-                rp.toLowerCase().includes(sp.toLowerCase()) || 
-                sp.toLowerCase().includes(rp.toLowerCase())
-              )
-            )
-          });
-        }
-
-        // Check if any of the result's positions match any selected positions
-        return selectedPositions.some(selectedPos => {
+        const matches = selectedPositions.some(selectedPos => {
           const selectedLower = selectedPos.toLowerCase();
           
           // Check for specific hierarchy matches
@@ -911,9 +917,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             return false;
           });
         });
+
+        if (!matches && result.title) {
+          console.log(`  Position filter NO MATCH: [${resultPositions.join(', ')}] vs [${selectedPositions.join(', ')}]`, result.title);
+        }
+
+        return matches;
       });
+      console.log(`🎯 Position filter: ${beforeCount} → ${filtered.length} results`);
     }
 
+    console.log('✅ Filter ended with', filtered.length, 'results');
     return filtered;
   };
 
