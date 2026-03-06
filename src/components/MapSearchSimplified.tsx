@@ -300,6 +300,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   }, []);
 
   // Viewport-based filtering: keep search area aligned to current visible map bounds
+    console.log('📍 Viewport filtering effect triggered', { selectedAgeGroup, selectedPositions });
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps?.event) return;
 
@@ -401,6 +402,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   }, [searchType]);
 
   // Re-apply filters when age group or position selections change
+    console.log('🔄 Filter re-apply effect triggered', { selectedAgeGroup, selectedPositions, totalResults: results.length });
   useEffect(() => {
     // Get the base filtered results (viewport)
     let baseFiltered: any[] = [];
@@ -1087,7 +1089,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               <Select
                 value={selectedAgeGroup}
                 onChange={(e) => {
-                  setSelectedAgeGroup(e.target.value);
+                  const newValue = e.target.value;
+                  console.log('🔥 Age Group changed to:', newValue);
+                  setSelectedAgeGroup(newValue);
                   analyticsTracking.track('map_filter_applied', {
                     category: 'Map',
                     action: 'age_filter',
@@ -1111,6 +1115,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => {
+                console.log('🔥 Positions changed to:', newValue);
                 setSelectedPositions(newValue);
                 analyticsTracking.track('map_filter_applied', {
                   category: 'Map',
