@@ -12,7 +12,6 @@ import {
   Alert,
   Card,
   CardContent,
-  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -31,8 +30,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  ZoomIn as ZoomInIcon,
-  ZoomOut as ZoomOutIcon,
   MyLocation as MyLocationIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
@@ -708,20 +705,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   }, [results, filteredResults, hasActiveFilter]);
 
-  const handleZoomIn = () => {
-    if (mapInstanceRef.current) {
-      const currentZoom = mapInstanceRef.current.getZoom() || 6;
-      mapInstanceRef.current.setZoom(currentZoom + 1);
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (mapInstanceRef.current) {
-      const currentZoom = mapInstanceRef.current.getZoom() || 6;
-      mapInstanceRef.current.setZoom(currentZoom - 1);
-    }
-  };
-
   const handleMyLocation = () => {
     if (!mapInstanceRef.current) return;
     
@@ -968,7 +951,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     <Box>
       {/* Control Panel */}
       <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
-        <Stack spacing={1}>
+        <Stack spacing={1.5}>
           {showOnboarding && (
             <Alert
               severity="info"
@@ -981,57 +964,30 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     localStorage.setItem('mapOnboardingDismissed', 'true');
                   }}
                 >
-                  Dismiss
+                  Got it
                 </Button>
               }
+              sx={{ py: 0.5 }}
             >
-              Drag the map, zoom to your area, and use filters. Results update by visible area and radius.
+              Pan/zoom the map to search different areas. Use filters below to refine results.
             </Alert>
           )}
 
-          {/* Top Controls Row */}
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          {/* Compact Top Row: Results, Filters, Actions */}
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
             <Chip
               icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
-              label={hasActiveFilter ? `${filteredResults.length} in map area` : `${results.length} total`}
-              color={hasActiveFilter ? 'success' : 'default'}
+              label={`${filteredResults.length} result${filteredResults.length !== 1 ? 's' : ''}`}
+              color="primary"
               variant="outlined"
               size="small"
             />
-
-            {(selectedAgeGroup || selectedPositions.length > 0) && (
-              <Button
-                size="small"
-                onClick={handleClearAll}
-                variant="outlined"
-                color="warning"
-              >
-                Clear Filters
-              </Button>
-            )}
-
-            {isLoading && <CircularProgress size={20} />}
-          </Stack>
-
-          {/* Legend */}
-          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Blue = Player | Red = Team | Pan/zoom to search different areas | Toggle heatmap for density view
-            </Typography>
-          </Stack>
-
-          {clusteredHiddenCount > 0 && (
-            <Alert severity="info" sx={{ py: 0 }}>
-              Showing a clustered view. Zoom in to reveal {clusteredHiddenCount} additional markers.
-            </Alert>
-          )}
-
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: { md: 170 } }}>
-              <InputLabel>Sort Results</InputLabel>
+            
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Sort</InputLabel>
               <Select
                 value={sortBy}
-                label="Sort Results"
+                label="Sort"
                 onChange={(e) => {
                   const next = e.target.value as SortMode;
                   setSortBy(next);
@@ -1049,15 +1005,30 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 <MenuItem value="recent">Most Recent</MenuItem>
               </Select>
             </FormControl>
+
             <FormControlLabel
               control={<Switch checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} size="small" />}
               label="Heatmap"
+              sx={{ ml: 'auto' }}
             />
+
+            {(selectedAgeGroup || selectedPositions.length > 0) && (
+              <Button
+                size="small"
+                onClick={handleClearAll}
+                variant="text"
+                color="warning"
+              >
+                Clear
+              </Button>
+            )}
+
+            {isLoading && <CircularProgress size={20} />}
           </Stack>
 
-          {/* Age Group and Position Filters */}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-            <FormControl size="small" sx={{ minWidth: { sm: 180 }, width: { xs: '100%', sm: 'auto' } }}>
+          {/* Filters Row */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+            <FormControl size="small" sx={{ minWidth: { sm: 150 }, width: { xs: '100%', sm: 'auto' } }}>
               <InputLabel>Age Group</InputLabel>
               <Select
                 value={selectedAgeGroup}
@@ -1072,7 +1043,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 }}
                 label="Age Group"
               >
-                <MenuItem value=""><em>All Age Groups</em></MenuItem>
+                <MenuItem value=""><em>All Ages</em></MenuItem>
                 {ageGroups.map((age) => (
                   <MenuItem key={age} value={age}>{age}</MenuItem>
                 ))}
@@ -1082,7 +1053,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             <Autocomplete
               multiple
               size="small"
-              sx={{ minWidth: { sm: 250 }, width: { xs: '100%', sm: 'auto' } }}
+              sx={{ minWidth: { sm: 200 }, flex: 1, width: { xs: '100%', sm: 'auto' } }}
               options={positions}
               value={selectedPositions}
               onChange={(_, newValue) => {
@@ -1095,50 +1066,57 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 });
               }}
               renderInput={(params) => (
-                <TextField {...params} label="Position" placeholder="Select positions" />
+                <TextField {...params} label="Position" placeholder="Any position" />
               )}
             />
           </Stack>
+
+          {clusteredHiddenCount > 0 && (
+            <Alert severity="info" sx={{ py: 0.5 }}>
+              Zoom in to reveal {clusteredHiddenCount} more result{clusteredHiddenCount !== 1 ? 's' : ''}.
+            </Alert>
+          )}
         </Stack>
       </Paper>
 
-      <Paper sx={{ p: 1.5, mb: 1 }}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-          <RecommendIcon color="primary" />
-          <Typography variant="subtitle2">Recommended nearby</Typography>
-        </Stack>
-        <Divider sx={{ my: 1 }} />
-        {recommendations.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No recommendations available yet.</Typography>
-        ) : (
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+      {/* Recommended Section - More Compact */}
+      {recommendations.length > 0 && (
+        <Paper sx={{ p: 1, mb: 1 }}>
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+            <RecommendIcon color="primary" fontSize="small" />
+            <Typography variant="body2" fontWeight={600}>Top Matches</Typography>
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.5} divider={<Divider orientation="vertical" flexItem />}>
             {recommendations.map((rec) => {
               const key = getResultKey(rec);
               return (
-                <Paper key={key} variant="outlined" sx={{ p: 1, flex: 1 }}>
-                  <Typography variant="body2" fontWeight={600}>{rec.teamName || rec.title || rec.fullName || rec.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">{rec.itemType === 'player' ? 'Player' : 'Team'} • {getDistanceText(rec)}</Typography>
-                  <Box sx={{ mt: 1 }}>
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        const pos = getResultPosition(rec);
-                        if (pos && mapInstanceRef.current) {
-                          mapInstanceRef.current.setCenter(pos);
-                          mapInstanceRef.current.setZoom(12);
-                        }
-                        setSelectedResultKey(key);
-                      }}
-                    >
-                      Focus
-                    </Button>
-                  </Box>
-                </Paper>
+                <Box key={key} sx={{ flex: 1, p: 0.5 }}>
+                  <Typography variant="body2" noWrap fontWeight={500}>
+                    {rec.teamName || rec.title || rec.fullName || rec.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {rec.itemType === 'player' ? 'Player' : 'Team'} • {getDistanceText(rec)}
+                  </Typography>
+                  <Button
+                    size="small"
+                    sx={{ mt: 0.5, py: 0, px: 1, minHeight: 24 }}
+                    onClick={() => {
+                      const pos = getResultPosition(rec);
+                      if (pos && mapInstanceRef.current) {
+                        mapInstanceRef.current.setCenter(pos);
+                        mapInstanceRef.current.setZoom(12);
+                      }
+                      setSelectedResultKey(key);
+                    }}
+                  >
+                    View
+                  </Button>
+                </Box>
               );
             })}
           </Stack>
-        )}
-      </Paper>
+        </Paper>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -1150,37 +1128,35 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       <Paper elevation={3} sx={{ position: 'relative', height: { xs: '55vh', sm: '600px' }, minHeight: 420, overflow: 'hidden' }}>
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
         
-        {/* Floating Map Controls */}
-        <Paper
-          elevation={3}
-          sx={{
-            position: 'absolute',
-            right: { xs: 8, sm: 16 },
-            top: { xs: 8, sm: 16 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-            p: { xs: 0.5, sm: 1 },
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            zIndex: 1000
-          }}
-        >
-          <Tooltip title="Zoom In" placement="left">
-            <IconButton onClick={handleZoomIn} size="small" sx={{ bgcolor: 'background.paper' }}>
-              <ZoomInIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Zoom Out" placement="left">
-            <IconButton onClick={handleZoomOut} size="small" sx={{ bgcolor: 'background.paper' }}>
-              <ZoomOutIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="My Location" placement="left">
-            <IconButton onClick={handleMyLocation} size="small" sx={{ bgcolor: 'background.paper', color: 'primary.main' }}>
-              <MyLocationIcon />
-            </IconButton>
-          </Tooltip>
-        </Paper>
+        {/* My Location Button - Positioned on LEFT to avoid Google Maps controls */}
+        <Tooltip title="Go to my location" placement="right">
+          <Button
+            onClick={handleMyLocation}
+            variant="contained"
+            color="primary"
+            size="small"
+            startIcon={<MyLocationIcon />}
+            sx={{
+              position: 'absolute',
+              left: { xs: 10, sm: 16 },
+              top: { xs: 10, sm: 16 },
+              zIndex: 1000,
+              boxShadow: 3,
+              bgcolor: 'primary.main',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'primary.dark',
+                boxShadow: 4
+              },
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 2,
+              py: 0.75
+            }}
+          >
+            My Location
+          </Button>
+        </Tooltip>
       </Paper>
 
       {/* Selected Item Details */}
