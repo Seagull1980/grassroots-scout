@@ -737,7 +737,7 @@ app.post('/api/analytics/track', async (req, res) => {
 // Register endpoint
 app.post('/api/auth/register', [
   body('email').isEmail().withMessage('Valid email is required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('firstName').notEmpty().withMessage('First name is required'),
   body('lastName').notEmpty().withMessage('Last name is required'),
   body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required'),

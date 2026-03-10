@@ -51,14 +51,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Check for stored user session
     const initializeAuth = async () => {
-      console.log('[AuthContext] Initializing authentication...');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Initializing authentication...');
       
       // Check storage availability and set warning if needed
       const warning = storage.getStorageWarning();
       setStorageWarning(warning);
       
       const token = storage.getItem('token');
-      console.log('[AuthContext] Token found:', token ? 'Yes' : 'No');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Token found:', token ? 'Yes' : 'No');
       
       if (token) {
         try {
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const storedUserStr = storage.getItem('user');
           if (storedUserStr) {
             const storedUser = JSON.parse(storedUserStr);
-            console.log('[AuthContext] User restored from storage:', storedUser.email);
+            if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] User restored from storage:', storedUser.email);
             setUser(storedUser);
           } else {
             console.warn('[AuthContext] Token exists but no user data found');
@@ -78,10 +78,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           storage.removeItem('user');
         }
       } else {
-        console.log('[AuthContext] No existing session found');
+        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] No existing session found');
       }
-      
-      console.log('[AuthContext] Initialization complete');
+
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Initialization complete');
       setIsLoading(false);
     };
 
@@ -89,16 +89,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    console.log('[AuthContext] Login attempt for:', email);
+    if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login attempt for:', email);
     setIsLoading(true);
     setLoginError(null);
     try {
-      console.log('[AuthContext] Calling authAPI.login...');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Calling authAPI.login...');
       const response = await authAPI.login(email, password);
-      console.log('[AuthContext] Login API response received:', response);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login API response received:', response);
       
       if (response.user && response.token) {
-        console.log('[AuthContext] Login successful, user found:', response.user.email);
+        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login successful, user found:', response.user.email);
         const user = response.user as User;
         setUser(user);
         storage.setItem('token', response.token);
@@ -133,18 +133,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           storage.removeItem(`new_user_${user.id}`);
         }
         
-        console.log('[AuthContext] Login successful');
+        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login successful');
         return true;
       }
-      console.warn('[AuthContext] Login failed - invalid response');
+      if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Login failed - invalid response');
       setLoginError('Invalid email or password. Please check your credentials and try again.');
       return false;
     } catch (error: unknown) {
       console.error('[AuthContext] Login error caught:', error);
-      console.error('[AuthContext] Error type:', typeof error);
+      if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Error type:', typeof error);
       if (error && typeof error === 'object' && 'response' in error) {
-        console.error('[AuthContext] Error status:', (error as any).response?.status);
-        console.error('[AuthContext] Error data:', (error as any).response?.data);
+        if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Error status:', (error as any).response?.status);
+        if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Error data:', (error as any).response?.data);
       }
       
       // Handle email verification requirement
@@ -154,10 +154,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw { ...error, requiresVerification: true };
       }
       
-      console.log('[AuthContext] About to return false for login failure');
-      console.log('[AuthContext] Login failed due to error, returning false');
-      // Add visual indicator that would show in LoginPage
-      console.log('[AuthContext] VISUAL INDICATOR: AuthContext returning false');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] About to return false for login failure');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login failed due to error, returning false');
+      // Add visual indicator that would show in LoginPage (dev only)
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] VISUAL INDICATOR: AuthContext returning false');
       setLoginError('Invalid email or password. Please check your credentials and try again.');
       return false;
     } finally {
@@ -181,9 +181,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         registerData.dateOfBirth = userData.dateOfBirth;
       }
       
-      console.log('[AuthContext] Sending registration data:', registerData);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Sending registration data:', registerData);
       const response = await authAPI.register(registerData);
-      console.log('[AuthContext] Registration successful:', response);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Registration successful:', response);
       
       // Registration successful - log the user in directly (email verification disabled)
       if (response.user && response.token) {
@@ -196,10 +196,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return true;
     } catch (error: unknown) {
       console.error('[AuthContext] Registration error:', error);
-      console.error('[AuthContext] Error object:', error);
+      if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Error object:', error);
       if (error && typeof error === 'object' && 'response' in error) {
-        console.error('[AuthContext] Response status:', (error as any).response?.status);
-        console.error('[AuthContext] Response data:', (error as any).response?.data);
+        if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Response status:', (error as any).response?.status);
+        if (process.env.NODE_ENV !== 'production') console.error('[AuthContext] Response data:', (error as any).response?.data);
       }
       
       // Handle age restriction errors
@@ -209,7 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Throw other API errors so the component can display the specific message
-      console.log('[AuthContext] Throwing error for component to handle:', error);
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Throwing error for component to handle:', error);
       throw error;
     } finally {
       setIsLoading(false);

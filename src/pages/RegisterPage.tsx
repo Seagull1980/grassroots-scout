@@ -28,6 +28,7 @@ import {
 import { Visibility, VisibilityOff, CheckCircle, Cancel, Info, Person, Badge, MailOutline, Lock, CalendarToday, Group } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { PASSWORD_MIN_LENGTH, passwordRegex, getPasswordStrength, calculateAge } from '../utils/validation';
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,38 +48,9 @@ const RegisterPage: React.FC = () => {
   const [ageWarning, setAgeWarning] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    
-    return age;
-  };
-
-  const getPasswordStrength = (password: string) => {
-    let strength = 0;
-    const checks = {
-      length: password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number: /\d/.test(password),
-      special: /[@$!%*?&]/.test(password),
-    };
-    
-    if (checks.length) strength += 20;
-    if (checks.uppercase) strength += 20;
-    if (checks.lowercase) strength += 20;
-    if (checks.number) strength += 20;
-    if (checks.special) strength += 20;
-    
-    return { strength, checks };
-  };
+  // Using shared validation utilities: `calculateAge`, `getPasswordStrength`, and constants
 
   const getRoleGuidance = (role: string) => {
     switch (role) {
@@ -100,6 +72,7 @@ const RegisterPage: React.FC = () => {
       [name]: value,
     });
     setAgeWarning('');
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
     
     if (name === 'password') {
       setPasswordTouched(true);
@@ -134,10 +107,20 @@ const RegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
 
     // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.role) {
-      setError('Please fill in all fields');
+    const missingFields: Record<string, string> = {};
+    if (!formData.firstName) missingFields.firstName = 'First name is required';
+    if (!formData.lastName) missingFields.lastName = 'Last name is required';
+    if (!formData.email) missingFields.email = 'Email is required';
+    if (!formData.password) missingFields.password = 'Password is required';
+    if (!formData.role) missingFields.role = 'Please select a role';
+    if (Object.keys(missingFields).length) {
+      setFieldErrors(missingFields);
+      const first = Object.keys(missingFields)[0];
+      const el = document.getElementById(first);
+      if (el) (el as HTMLElement).focus();
       return;
     }
 
@@ -148,24 +131,30 @@ const RegisterPage: React.FC = () => {
 
     // Check if Player role requires date of birth
     if (formData.role === 'Player' && !formData.dateOfBirth) {
-      setError('Date of birth is required for player registration');
+      setFieldErrors({ dateOfBirth: 'Date of birth is required for player registration' });
+      const el = document.getElementById('dateOfBirth');
+      if (el) (el as HTMLElement).focus();
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      const el = document.getElementById('confirmPassword');
+      if (el) (el as HTMLElement).focus();
+      return;
+    }
+    if (formData.password.length < PASSWORD_MIN_LENGTH) {
+      setFieldErrors({ password: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long` });
+      const el = document.getElementById('password');
+      if (el) (el as HTMLElement).focus();
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      return;
-    }
-
-    // Check password complexity
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    // Check password complexity using shared regex
     if (!passwordRegex.test(formData.password)) {
-      setError('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+      setFieldErrors({ password: 'Password must contain uppercase, lowercase, number and special character' });
+      const el = document.getElementById('password');
+      if (el) (el as HTMLElement).focus();
       return;
     }
 
@@ -202,46 +191,40 @@ const RegisterPage: React.FC = () => {
       await register(registrationData);
       navigate('/dashboard');
     } catch (error: any) {
-      
-      // Force display of error for debugging
-      let errorMessage = 'Registration failed. Please try again.';
-      
-      // Try to extract error message from various possible locations
+      // Prefer structured API errors when possible and map to fields
+      let general = 'Registration failed. Please try again.';
+      const newFieldErrors: Record<string, string> = {};
+
       if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
-        errorMessage = error.response.data.errors
-          .map((err: any) => {
-            // Handle objects with code and message properties
-            if (typeof err === 'object' && err !== null) {
-              return err.msg || err.message || (err.code && err.message ? `${err.code}: ${err.message}` : JSON.stringify(err));
-            }
-            return String(err);
-          })
-          .join('. ');
+        error.response.data.errors.forEach((err: any) => {
+          if (err.param) {
+            newFieldErrors[err.param] = err.msg || err.message || String(err);
+          } else {
+            general = (err.msg || err.message || String(err) || general);
+          }
+        });
       } else if (error?.response?.data?.error) {
-        // Handle error being an object with code/message
-        const errorData = error.response.data.error;
-        if (typeof errorData === 'object' && errorData !== null && 'message' in errorData) {
-          errorMessage = errorData.code ? `${errorData.code}: ${errorData.message}` : errorData.message;
-        } else {
-          errorMessage = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+        const errData = error.response.data.error;
+        if (typeof errData === 'object' && errData !== null) {
+          if (errData.message) general = errData.message;
+          if (errData.field) newFieldErrors[errData.field] = errData.message || String(errData);
+        } else if (typeof errData === 'string') {
+          general = errData;
         }
       } else if (error?.response?.data) {
-        // Handle data being an object with code/message
-        const responseData = error.response.data;
-        if (typeof responseData === 'object' && responseData !== null && 'message' in responseData) {
-          errorMessage = responseData.code ? `${responseData.code}: ${responseData.message}` : responseData.message;
-        } else {
-          errorMessage = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
-        }
+        const rd = error.response.data;
+        if (rd.message) general = rd.message;
       } else if (error?.message) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        // Fallback for any other object error
-        errorMessage = JSON.stringify(error);
+        general = error.message;
       }
-      
-      // Final safety check: ensure errorMessage is always a string
-      setError(typeof errorMessage === 'string' ? errorMessage : String(errorMessage));
+
+      if (Object.keys(newFieldErrors).length) {
+        setFieldErrors(newFieldErrors);
+        const first = Object.keys(newFieldErrors)[0];
+        const el = document.getElementById(first);
+        if (el) (el as HTMLElement).focus();
+      }
+      setError(general);
     }
   };
 
@@ -289,6 +272,8 @@ const RegisterPage: React.FC = () => {
                       </InputAdornment>
                     )
                   }}
+                error={!!fieldErrors.firstName}
+                helperText={fieldErrors.firstName}
               />
               <TextField
                 margin="normal"
@@ -307,6 +292,8 @@ const RegisterPage: React.FC = () => {
                       </InputAdornment>
                     )
                   }}
+                error={!!fieldErrors.lastName}
+                helperText={fieldErrors.lastName}
               />
             </Box>
             <TextField
@@ -326,8 +313,10 @@ const RegisterPage: React.FC = () => {
                   </InputAdornment>
                 )
               }}
+              error={!!fieldErrors.email}
+              helperText={fieldErrors.email}
             />
-            <FormControl fullWidth margin="normal" required>
+            <FormControl fullWidth margin="normal" required error={!!fieldErrors.role}>
               <InputLabel id="role-label">I am a</InputLabel>
               <Select
                 labelId="role-label"
@@ -347,9 +336,13 @@ const RegisterPage: React.FC = () => {
                 }
               >
                 <MenuItem value="Coach">Coach</MenuItem>
-                <MenuItem value="Player">Player</MenuItem>
+                {/* Disable Player option if DOB indicates under 16 */}
+                <MenuItem value="Player" disabled={!!formData.dateOfBirth && calculateAge(formData.dateOfBirth) < 16}>Player</MenuItem>
                 <MenuItem value="Parent/Guardian">Parent/Guardian</MenuItem>
               </Select>
+              {fieldErrors.role && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>{fieldErrors.role}</Typography>
+              )}
             </FormControl>
             
             {formData.role && (
@@ -383,6 +376,8 @@ const RegisterPage: React.FC = () => {
                   inputProps={{
                     max: new Date().toISOString().split('T')[0], // Prevent future dates
                   }}
+                  error={!!fieldErrors.dateOfBirth}
+                  helperText={fieldErrors.dateOfBirth}
                 />
                 {ageWarning && (
                   <Alert severity="warning" sx={{ mt: 1 }}>
@@ -421,6 +416,8 @@ const RegisterPage: React.FC = () => {
                   </InputAdornment>
                 ),
               }}
+              error={!!fieldErrors.password}
+              helperText={fieldErrors.password}
             />
             
             {passwordTouched && formData.password && (() => {
@@ -526,6 +523,8 @@ const RegisterPage: React.FC = () => {
                   </InputAdornment>
                 ),
               }}
+              error={!!fieldErrors.confirmPassword}
+              helperText={fieldErrors.confirmPassword}
             />
             <FormControlLabel
               control={
