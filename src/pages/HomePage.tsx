@@ -78,7 +78,7 @@ const HomePage: React.FC = () => {
       title: 'Alert System',
       description: 'Set up alerts and get notified when new opportunities match your criteria.',
       action: 'Set Alerts',
-      path: user ? '/dashboard' : '/register',
+      path: user ? '/maps' : '/register',
     },
   ];
 
@@ -190,7 +190,7 @@ const HomePage: React.FC = () => {
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/maps')}
                 sx={{ 
                   px: 6, 
                   py: 2, 
@@ -198,7 +198,7 @@ const HomePage: React.FC = () => {
                   boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
                 }}
               >
-                Go to Dashboard
+                Open Maps
               </Button>
               <Button
                 variant="outlined"

@@ -187,7 +187,7 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register(registrationData);
-      navigate('/dashboard');
+      navigate('/maps');
     } catch (error: any) {
       let general = 'Registration failed. Please try again.';
       const newFieldErrors: Record<string, string> = {};

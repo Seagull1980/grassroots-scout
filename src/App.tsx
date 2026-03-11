@@ -1,9 +1,9 @@
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useParams, useNavigate, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LoadingSpinner as AppLoadingSpinner } from './components/LoadingComponents';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import theme from './theme/theme';
 import Navbar from './components/Navbar';
@@ -106,13 +106,18 @@ const MapsNavigationHandler = () => {
 };
 
 const AppRoutes = () => {
+  const AuthLandingRoute = () => {
+    const { user } = useAuth();
+    return user ? <Navigate to="/maps" replace /> : <HomePage />;
+  };
+
   return (
     <>
       <MapsNavigationHandler />
       <Suspense fallback={<LoadingSpinner />}>
         <ErrorBoundary>
           <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<AuthLandingRoute />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/login" element={
           <ProtectedRoute requireAuth={false}>

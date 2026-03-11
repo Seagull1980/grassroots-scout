@@ -58,9 +58,9 @@ const LoginPage: React.FC = () => {
       const success = await login(formData.email, formData.password);
       console.log('[LoginPage] Login method returned, success =', success);
       if (success) {
-        console.log('[LoginPage] Login successful, navigating to dashboard');
+        console.log('[LoginPage] Login successful, navigating to maps');
         setTimeout(() => {
-          navigate('/dashboard', { replace: true });
+          navigate('/maps', { replace: true });
         }, 100);
       } else {
         // Always show error for failed login

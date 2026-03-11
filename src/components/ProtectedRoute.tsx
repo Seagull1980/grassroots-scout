@@ -86,15 +86,15 @@ const ProtectedRoute = ({
 
     // Redirect from beta-access-denied if user now has access
     if (isBetaAccessDeniedPage && hasBetaAccess) {
-      console.log('[ProtectedRoute] Redirecting to dashboard - beta access granted');
-      return <Navigate to="/dashboard" replace />;
+      console.log('[ProtectedRoute] Redirecting to maps - beta access granted');
+      return <Navigate to="/maps" replace />;
     }
   }
 
-  // If user is logged in but trying to access login/register pages, redirect to dashboard
+  // If user is logged in but trying to access login/register pages, redirect to maps
   if (!requireAuth && user && (location.pathname === '/login' || location.pathname === '/register')) {
-    console.log('[ProtectedRoute] Redirecting to dashboard - user already logged in');
-    return <Navigate to="/dashboard" replace />;
+    console.log('[ProtectedRoute] Redirecting to maps - user already logged in');
+    return <Navigate to="/maps" replace />;
   }
 
   console.log('[ProtectedRoute] Rendering protected content');
