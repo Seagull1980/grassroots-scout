@@ -479,6 +479,32 @@ const SearchPage: React.FC = () => {
     return `${Math.round(score)}%`;
   };
 
+  const getVacancyTrustSignal = (vacancy: TeamVacancy): { label: string; color: 'success' | 'warning' | 'default' } => {
+    const detailScore = (vacancy.description?.length || 0) >= 180 ? 2 : (vacancy.description?.length || 0) >= 90 ? 1 : 0;
+    const featureScore = (vacancy.hasMatchRecording ? 1 : 0) + (vacancy.hasPathwayToSenior ? 1 : 0);
+    const freshnessDays = Math.floor((Date.now() - new Date(vacancy.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    const freshnessScore = freshnessDays <= 7 ? 1 : 0;
+    const total = detailScore + featureScore + freshnessScore;
+
+    if (total >= 4) return { label: 'Trust: Strong', color: 'success' };
+    if (total >= 2) return { label: 'Trust: Good', color: 'warning' };
+    return { label: 'Trust: Basic', color: 'default' };
+  };
+
+  const getPlayerTrustSignal = (player: PlayerAvailability): { label: string; color: 'success' | 'warning' | 'default' } => {
+    const detailScore = (player.description?.length || 0) >= 150 ? 2 : (player.description?.length || 0) >= 70 ? 1 : 0;
+    const flexibilityScore = Array.isArray(player.positions) && player.positions.length > 1 ? 1 : 0;
+    const freshnessDays = player.createdAt
+      ? Math.floor((Date.now() - new Date(player.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+      : 99;
+    const freshnessScore = freshnessDays <= 7 ? 1 : 0;
+    const total = detailScore + flexibilityScore + freshnessScore;
+
+    if (total >= 4) return { label: 'Trust: Strong', color: 'success' };
+    if (total >= 2) return { label: 'Trust: Good', color: 'warning' };
+    return { label: 'Trust: Basic', color: 'default' };
+  };
+
   // Comparison mode handlers
   const toggleItemSelection = (itemId: number) => {
     const newSelection = new Set(selectedItemIds);
@@ -2680,6 +2706,12 @@ const SearchPage: React.FC = () => {
                                   variant="outlined"
                                   icon={<span>⭐</span>}
                                 />
+                                <Chip
+                                  label={getVacancyTrustSignal(item as TeamVacancy).label}
+                                  size="small"
+                                  color={getVacancyTrustSignal(item as TeamVacancy).color}
+                                  variant="outlined"
+                                />
                                 {getExpirationBadge((item as TeamVacancy).createdAt)?.text && (
                                   <Chip 
                                     label={getExpirationBadge((item as TeamVacancy).createdAt)?.text}
@@ -2766,6 +2798,12 @@ const SearchPage: React.FC = () => {
                                   color="success"
                                   variant="outlined"
                                   icon={<span>⭐</span>}
+                                />
+                                <Chip
+                                  label={getPlayerTrustSignal(item as PlayerAvailability).label}
+                                  size="small"
+                                  color={getPlayerTrustSignal(item as PlayerAvailability).color}
+                                  variant="outlined"
                                 />
                                 {getExpirationBadge((item as PlayerAvailability).createdAt)?.text && (
                                   <Chip 
