@@ -4,8 +4,8 @@
   "description": "Connect football players with grassroots teams",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1976d2",
-  "theme_color": "#1976d2",
+  "background_color": "#0066FF",
+  "theme_color": "#0066FF",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
@@ -17,8 +17,8 @@
     },
     {
       "src": "/logo.jpg",
-      "sizes": "192x192 512x512",
-      "type": "image/png",
+      "sizes": "192x192",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ],

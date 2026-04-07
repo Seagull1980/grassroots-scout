@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import {
   Container,
   Paper,
@@ -240,6 +241,11 @@ const RegisterPage: React.FC = () => {
 
   return (
     <Container component="main" maxWidth="sm">
+      <Helmet>
+        <title>Create Account | The Grassroots Scout</title>
+        <meta name="description" content="Join The Grassroots Scout for free. Register as a coach, player, or parent to connect with grassroots football opportunities across the UK." />
+        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/register" />
+      </Helmet>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
         <Paper elevation={3} sx={{ p: 3, width: '100%' }}>
           <Typography component="h1" variant="h4" align="center" gutterBottom>

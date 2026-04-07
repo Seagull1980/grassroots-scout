@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -360,6 +361,13 @@ const Forum: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
+      <Helmet>
+        <title>Community Forum | The Grassroots Scout</title>
+        <meta name="description" content="Join the grassroots football community forum. Share advice, ask questions, and connect with coaches, players, and parents across the UK." />
+        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/forum" />
+        <meta property="og:title" content="Community Forum | The Grassroots Scout" />
+        <meta property="og:url" content="https://www.thegrassrootshub.co.uk/forum" />
+      </Helmet>
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
           Community Forum

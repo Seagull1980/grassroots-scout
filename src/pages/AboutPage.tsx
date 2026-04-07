@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import {
   Box,
   Container,
@@ -43,6 +44,13 @@ const AboutPage: React.FC = () => {
   };
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Helmet>
+        <title>About Us | The Grassroots Scout</title>
+        <meta name="description" content="Learn about The Grassroots Scout — the platform built to connect grassroots football players with local teams across the UK." />
+        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/about" />
+        <meta property="og:title" content="About Us | The Grassroots Scout" />
+        <meta property="og:url" content="https://www.thegrassrootshub.co.uk/about" />
+      </Helmet>
       <Box sx={{ textAlign: 'center', mb: 6 }}>
         <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
           {aboutContent.title}

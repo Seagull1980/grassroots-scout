@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import {
   Container,
   Paper,
@@ -73,6 +74,11 @@ const LoginPage: React.FC = () => {
 
   return (
     <Container component="main" maxWidth="sm">
+      <Helmet>
+        <title>Sign In | The Grassroots Scout</title>
+        <meta name="description" content="Sign in to The Grassroots Scout to browse team vacancies, manage your player profile, and connect with grassroots football clubs." />
+        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/login" />
+      </Helmet>
       <Box
         sx={{
           display: 'flex',

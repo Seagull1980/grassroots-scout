@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import {
   Container,
   Typography,
@@ -85,6 +86,14 @@ const HomePage: React.FC = () => {
 
   return (
     <>
+      <Helmet>
+        <title>The Grassroots Scout - Find Grassroots Football Teams &amp; Players</title>
+        <meta name="description" content="Connect with grassroots football teams and players across the UK. Browse team vacancies, post your availability, and find your perfect match today." />
+        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/" />
+        <meta property="og:title" content="The Grassroots Scout - Find Grassroots Football Teams &amp; Players" />
+        <meta property="og:description" content="Connect with grassroots football teams and players across the UK." />
+        <meta property="og:url" content="https://www.thegrassrootshub.co.uk/" />
+      </Helmet>
     <Container maxWidth="lg">
       {/* Hero Section */}
       <Box 

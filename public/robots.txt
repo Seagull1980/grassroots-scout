@@ -1,0 +1,40 @@
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /search
+Allow: /forum
+Allow: /register
+Allow: /login
+
+# Keep authenticated/private pages out of the index
+Disallow: /dashboard
+Disallow: /start
+Disallow: /profile
+Disallow: /messages
+Disallow: /admin
+Disallow: /post-advert
+Disallow: /post-vacancy
+Disallow: /post-availability
+Disallow: /edit-advert
+Disallow: /my-adverts
+Disallow: /my-applications
+Disallow: /coach-applications
+Disallow: /alert-preferences
+Disallow: /calendar
+Disallow: /maps
+Disallow: /team-management
+Disallow: /team-roster
+Disallow: /invitations
+Disallow: /training-sessions
+Disallow: /training-invitations
+Disallow: /children
+Disallow: /child-player-availability
+Disallow: /family-relationships
+Disallow: /match-completions
+Disallow: /my-feedback
+Disallow: /performance-analytics
+Disallow: /analytics
+Disallow: /recommendations
+Disallow: /club-dashboard
+
+Sitemap: https://www.thegrassrootshub.co.uk/sitemap.xml

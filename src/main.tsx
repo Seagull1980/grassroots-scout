@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import './index.css'
 import { unregisterServiceWorker } from './utils/pwa';
@@ -39,7 +40,9 @@ window.addEventListener('unhandledrejection', (event) => {
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
-    <App />
+    <HelmetProvider>
+      <App />
+    </HelmetProvider>
   );
 } else {
   console.error('Root element not found');
