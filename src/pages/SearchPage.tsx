@@ -41,6 +41,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Drawer,
+  Stack,
   Link,
   Switch,
   Divider,
@@ -145,6 +147,42 @@ interface AdActivity {
   lastContactedAt?: string;
 }
 
+interface SearchFiltersState {
+  league: string;
+  ageGroup: string;
+  position: string;
+  region: string;
+  location: string;
+  search: string;
+  teamGender: string;
+  experienceLevel: string;
+  travelDistance: number;
+  trainingFrequency: string;
+  availability: string[];
+  coachingLicense: string;
+  hasMatchRecording: boolean;
+  hasPathwayToSenior: boolean;
+  playingTimePolicy: string[];
+}
+
+const defaultFilters: SearchFiltersState = {
+  league: '',
+  ageGroup: '',
+  position: '',
+  region: '',
+  location: '',
+  search: '',
+  teamGender: '',
+  experienceLevel: '',
+  travelDistance: 25,
+  trainingFrequency: '',
+  availability: [],
+  coachingLicense: '',
+  hasMatchRecording: false,
+  hasPathwayToSenior: false,
+  playingTimePolicy: [],
+};
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
 
@@ -170,24 +208,9 @@ const SearchPage: React.FC = () => {
   // const { isMobile } = useResponsive();
   const { cardSpacing } = useResponsiveSpacing();
   const [tabValue, setTabValue] = useState(0);
-  const [filters, setFilters] = useState({
-    league: '',
-    ageGroup: '',
-    position: '',
-    region: '',
-    location: '',
-    search: '',
-    teamGender: '',
-    // Advanced filters
-    experienceLevel: '',
-    travelDistance: 25, // kilometers
-    trainingFrequency: '',
-    availability: [] as string[],
-    coachingLicense: '',
-    hasMatchRecording: false,
-    hasPathwayToSenior: false,
-    playingTimePolicy: [] as string[],
-  });
+  const [filters, setFilters] = useState<SearchFiltersState>(defaultFilters);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileDraftFilters, setMobileDraftFilters] = useState<SearchFiltersState>(defaultFilters);
   const [sortBy, setSortBy] = useState('relevance');
 
   // Comparison mode state
@@ -665,6 +688,18 @@ const SearchPage: React.FC = () => {
     return chips;
   }, [filters]);
 
+  const hasMobilePendingChanges = useMemo(
+    () => JSON.stringify(mobileDraftFilters) !== JSON.stringify(filters),
+    [mobileDraftFilters, filters]
+  );
+
+  const mobilePendingFieldCount = useMemo(() => {
+    const keys = Object.keys(filters) as Array<keyof SearchFiltersState>;
+    return keys.reduce((count, key) => {
+      return JSON.stringify(mobileDraftFilters[key]) !== JSON.stringify(filters[key]) ? count + 1 : count;
+    }, 0);
+  }, [filters, mobileDraftFilters]);
+
   const handleContact = (vacancy: TeamVacancy) => {
     setSelectedVacancy(vacancy);
     setContactDialogOpen(true);
@@ -719,24 +754,23 @@ const SearchPage: React.FC = () => {
   // };
 
   const clearFilters = () => {
-    setFilters({
-      league: '',
-      ageGroup: '',
-      position: '',
-      region: '',
-      location: '',
-      search: '',
-      teamGender: '',
-      experienceLevel: '',
-      travelDistance: 25,
-      trainingFrequency: '',
-      availability: [],
-      coachingLicense: '',
-      hasMatchRecording: false,
-      hasPathwayToSenior: false,
-      playingTimePolicy: [],
-    });
+    setFilters(defaultFilters);
     setPage(1);
+  };
+
+  const openMobileFilters = () => {
+    setMobileDraftFilters(filters);
+    setMobileFiltersOpen(true);
+  };
+
+  const applyMobileFilters = () => {
+    setFilters(mobileDraftFilters);
+    setPage(1);
+    setMobileFiltersOpen(false);
+  };
+
+  const clearMobileDraftFilters = () => {
+    setMobileDraftFilters(defaultFilters);
   };
 
   const fetchVacancies = async () => {
@@ -1403,8 +1437,52 @@ const SearchPage: React.FC = () => {
         </Tabs>
       </Box>
 
+      {isMobile && (
+        <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+          <Stack spacing={1.5}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Filters
+              </Typography>
+              <Chip
+                label={activeFiltersCount > 0 ? `${activeFiltersCount} active` : 'No filters'}
+                color={activeFiltersCount > 0 ? 'primary' : 'default'}
+                size="small"
+                variant="outlined"
+              />
+            </Box>
+            {activeFilterChips.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 0.5 }}>
+                {activeFilterChips.slice(0, 6).map((chip) => (
+                  <Chip
+                    key={`mobile-${chip.key}`}
+                    label={chip.label}
+                    size="small"
+                    variant="outlined"
+                    onDelete={chip.onDelete}
+                    sx={{ flexShrink: 0 }}
+                  />
+                ))}
+              </Box>
+            )}
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={
+                <Badge color="error" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
+                  <FilterList />
+                </Badge>
+              }
+              onClick={openMobileFilters}
+            >
+              Open Filters
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+
       {/* Search and Filters */}
-      <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
+      <Paper elevation={2} sx={{ p: 3, mb: 4, display: { xs: 'none', sm: 'block' } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
           <Box>
             <Typography variant="h6">
@@ -2124,6 +2202,181 @@ const SearchPage: React.FC = () => {
         )}
       </Paper>
 
+      <Drawer
+        anchor="bottom"
+        open={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '86vh',
+          },
+        }}
+      >
+        <Box sx={{ p: 2, pb: 11, overflowY: 'auto' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Filter Results
+            </Typography>
+            {hasMobilePendingChanges && (
+              <Chip
+                size="small"
+                color="warning"
+                label={`${mobilePendingFieldCount} unsaved`}
+                variant="filled"
+              />
+            )}
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Adjust filters, then tap Apply to refresh results.
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Search"
+                value={mobileDraftFilters.search}
+                onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder={`Search ${tabLabel.toLowerCase()}...`}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>League</InputLabel>
+                <Select
+                  value={mobileDraftFilters.league}
+                  label="League"
+                  onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, league: e.target.value }))}
+                >
+                  <MenuItem value="">All Leagues</MenuItem>
+                  {leagues.map((league) => (
+                    <MenuItem key={`mobile-league-${league.id}`} value={league.name}>
+                      {league.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth>
+                <InputLabel>Age Group</InputLabel>
+                <Select
+                  value={mobileDraftFilters.ageGroup}
+                  label="Age Group"
+                  onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, ageGroup: e.target.value }))}
+                >
+                  <MenuItem value="">All Ages</MenuItem>
+                  {ageGroups.map((age) => (
+                    <MenuItem key={`mobile-age-${age}`} value={age}>
+                      {age}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth>
+                <InputLabel>Position</InputLabel>
+                <Select
+                  value={mobileDraftFilters.position}
+                  label="Position"
+                  onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, position: e.target.value }))}
+                >
+                  <MenuItem value="">All Positions</MenuItem>
+                  {positions.map((position) => (
+                    <MenuItem key={`mobile-position-${position}`} value={position}>
+                      {position}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth>
+                <InputLabel>Region</InputLabel>
+                <Select
+                  value={mobileDraftFilters.region}
+                  label="Region"
+                  onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, region: e.target.value }))}
+                >
+                  <MenuItem value="">All Regions</MenuItem>
+                  {UK_REGIONS.map((region) => (
+                    <MenuItem key={`mobile-region-${region}`} value={region}>
+                      {region}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Location"
+                value={mobileDraftFilters.location}
+                onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, location: e.target.value }))}
+                placeholder="City or area"
+              />
+            </Grid>
+            {tabValue === 0 && (
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Team Type</InputLabel>
+                  <Select
+                    value={mobileDraftFilters.teamGender}
+                    label="Team Type"
+                    onChange={(e) => setMobileDraftFilters((prev) => ({ ...prev, teamGender: e.target.value }))}
+                  >
+                    <MenuItem value="">All Teams</MenuItem>
+                    {teamGenders.map((gender) => (
+                      <MenuItem key={`mobile-team-${gender}`} value={gender}>
+                        {gender} Team
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={sortBy}
+                  label="Sort By"
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  {sortOptions.map((option) => (
+                    <MenuItem key={`mobile-sort-${option.value}`} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </Box>
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            px: 2,
+            py: 1.5,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+          }}
+        >
+          <Stack direction="row" spacing={1.5}>
+            <Button fullWidth variant="text" startIcon={<Clear />} onClick={clearMobileDraftFilters}>
+              Clear
+            </Button>
+            <Button fullWidth variant="contained" onClick={applyMobileFilters} disabled={!hasMobilePendingChanges}>
+              Apply Filters
+            </Button>
+          </Stack>
+        </Box>
+      </Drawer>
+
       {/* Map Search Suggestion */}
       <Paper elevation={1} sx={{ p: 2, mb: 3, backgroundColor: 'primary.50', border: '1px solid', borderColor: 'primary.200' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2271,6 +2524,40 @@ const SearchPage: React.FC = () => {
                           </Typography>
                           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                             {ad.location}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+
+              {closeMatches.length > 0 && (
+                <Box sx={{ mt: 4, textAlign: 'left' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="subtitle2">
+                      Almost matching — {closeMatches.length} close result{closeMatches.length > 1 ? 's' : ''}
+                    </Typography>
+                    <Chip label="Relax filters to see these" size="small" color="warning" variant="outlined" />
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    These {tabValue === 0 ? 'teams' : 'players'} match most of your criteria but not all. Try clearing one or two filters to include them.
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {closeMatches.map(({ item, matchCount }) => (
+                      <Grid item xs={12} md={6} key={`close-empty-${item.id}`}>
+                        <Paper variant="outlined" sx={{ p: 2, borderColor: 'warning.light' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {tabValue === 0 ? (item as TeamVacancy).title : (item as PlayerAvailability).playerName}
+                            </Typography>
+                            <Chip label={`${matchCount} criteria`} size="small" color="warning" variant="filled" sx={{ ml: 1 }} />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {tabValue === 0 ? (item as TeamVacancy).position : (item as PlayerAvailability).position}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                            {(item as any).location}
                           </Typography>
                         </Paper>
                       </Grid>

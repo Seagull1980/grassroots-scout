@@ -31,7 +31,9 @@ import {
   MenuItem,
   RadioGroup,
   FormControlLabel,
-  Radio
+  Radio,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import {
   Message as MessageIcon,
@@ -89,6 +91,8 @@ const MessagesPage: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [tabValue, setTabValue] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -669,6 +673,44 @@ const MessagesPage: React.FC = () => {
     }
   };
 
+  const daysSince = (dateValue?: string) => {
+    if (!dateValue) return 0;
+    const parsed = new Date(dateValue).getTime();
+    if (Number.isNaN(parsed)) return 0;
+    return Math.floor((Date.now() - parsed) / (1000 * 60 * 60 * 24));
+  };
+
+  const stalledThreadTemplates = useMemo(() => {
+    if (user?.role === 'Coach') {
+      return [
+        {
+          label: 'Quick Follow-up',
+          text: 'Hi, just checking in on this. Are you still interested? If yes, I can suggest two trial slots this week.',
+        },
+        {
+          label: 'Availability Nudge',
+          text: 'No pressure, just keeping this moving. Could you share your availability for the next 7 days?',
+        },
+      ];
+    }
+
+    return [
+      {
+        label: 'Still Interested',
+        text: 'Hi, I am still interested in this opportunity. Could we confirm the next step and timing?',
+      },
+      {
+        label: 'Trial Confirmation',
+        text: 'Thanks for your message. I am available this week for a trial and can adapt to your preferred time.',
+      },
+    ];
+  }, [user?.role]);
+
+  const insertStalledTemplate = (text: string) => {
+    setReplyMessage(text);
+    setReplyOpen(true);
+  };
+
   if (loading) {
     return (
       <Container maxWidth="lg">
@@ -882,6 +924,27 @@ const MessagesPage: React.FC = () => {
                           ID: {selectedConversation.relatedVacancyId || selectedConversation.relatedPlayerAvailabilityId || 'Not specified'}
                         </Typography>
                       </Box>
+                    )}
+
+                    {selectedConversation.unreadCount > 0 && daysSince(selectedConversation.updatedAt) >= 2 && (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          This thread is cooling off. Send a short follow-up to prevent drop-off.
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {stalledThreadTemplates.map((template) => (
+                            <Button
+                              key={`stalled-${template.label}`}
+                              size={isMobile ? 'small' : 'medium'}
+                              variant="outlined"
+                              onClick={() => insertStalledTemplate(template.text)}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              {template.label}
+                            </Button>
+                          ))}
+                        </Box>
+                      </Alert>
                     )}
                   </Paper>
                   

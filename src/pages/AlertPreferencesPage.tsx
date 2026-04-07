@@ -15,14 +15,22 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Slider
+  Slider,
+  Card,
+  CardContent,
+  Stack,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   Notifications as NotificationsIcon,
   Email as EmailIcon,
   LocationOn as LocationIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  SportsSoccer as SoccerIcon,
+  Person as PersonIcon,
+  EmojiEvents as TrialIcon,
+  Summarize as DigestIcon,
+  FlashOn as InstantIcon,
 } from '@mui/icons-material';
 import api, { leaguesAPI } from '../services/api';
 
@@ -176,6 +184,7 @@ const AlertPreferencesPage: React.FC = () => {
             </Box>
           </AccordionSummary>
           <AccordionDetails>
+            {/* Master toggle */}
             <FormGroup>
               <FormControlLabel
                 control={
@@ -185,71 +194,114 @@ const AlertPreferencesPage: React.FC = () => {
                     color="primary"
                   />
                 }
-                label="Enable email notifications"
+                label={
+                  <Box>
+                    <Typography variant="body1">Enable email notifications</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Master switch — turn this off to stop all emails from The Grassroots Scout.
+                    </Typography>
+                  </Box>
+                }
               />
-              
-              <Box sx={{ ml: 4, mt: 1 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.newVacancyAlerts}
-                      onChange={handleSwitchChange('newVacancyAlerts')}
-                      disabled={!preferences.emailNotifications}
-                      size="small"
-                    />
-                  }
-                  label="New team vacancy alerts"
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.newPlayerAlerts}
-                      onChange={handleSwitchChange('newPlayerAlerts')}
-                      disabled={!preferences.emailNotifications}
-                      size="small"
-                    />
-                  }
-                  label="New player availability alerts"
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.trialInvitations}
-                      onChange={handleSwitchChange('trialInvitations')}
-                      disabled={!preferences.emailNotifications}
-                      size="small"
-                    />
-                  }
-                  label="Trial invitations"
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.weeklyDigest}
-                      onChange={handleSwitchChange('weeklyDigest')}
-                      disabled={!preferences.emailNotifications}
-                      size="small"
-                    />
-                  }
-                  label="Weekly activity digest"
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={preferences.instantAlerts}
-                      onChange={handleSwitchChange('instantAlerts')}
-                      disabled={!preferences.emailNotifications}
-                      size="small"
-                    />
-                  }
-                  label="Instant alerts (immediate notifications)"
-                />
-              </Box>
             </FormGroup>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Individual notification types */}
+            <Stack spacing={2} sx={{ ml: 4 }}>
+              {[
+                {
+                  field: 'newVacancyAlerts' as const,
+                  icon: <SoccerIcon fontSize="small" color="primary" />,
+                  label: 'New team vacancy alerts',
+                  description: 'Emailed when a team in your area posts a new player vacancy matching your age group and/or position.',
+                },
+                {
+                  field: 'newPlayerAlerts' as const,
+                  icon: <PersonIcon fontSize="small" color="primary" />,
+                  label: 'New player availability alerts',
+                  description: 'Emailed when a player matching your team\'s open positions becomes available in your area.',
+                },
+                {
+                  field: 'trialInvitations' as const,
+                  icon: <TrialIcon fontSize="small" color="primary" />,
+                  label: 'Trial invitations',
+                  description: 'Receive emails when a coach directly invites you to attend a trial or training session.',
+                },
+                {
+                  field: 'weeklyDigest' as const,
+                  icon: <DigestIcon fontSize="small" color="primary" />,
+                  label: 'Weekly activity digest',
+                  description: 'A summary email every Sunday with new vacancies, players, and platform activity from the past week.',
+                },
+                {
+                  field: 'instantAlerts' as const,
+                  icon: <InstantIcon fontSize="small" color="warning" />,
+                  label: 'Instant alerts',
+                  description: 'Get notified within minutes of a matching advert being posted. Useful when spots fill up quickly.',
+                },
+              ].map(({ field, icon, label, description }) => (
+                <Box key={field} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                  <Box sx={{ mt: 1 }}>{icon}</Box>
+                  <Box sx={{ flex: 1 }}>
+                    <FormControlLabel
+                      sx={{ m: 0, alignItems: 'flex-start' }}
+                      control={
+                        <Switch
+                          checked={preferences[field]}
+                          onChange={handleSwitchChange(field)}
+                          disabled={!preferences.emailNotifications}
+                          size="small"
+                          sx={{ mt: 0.3, mr: 1 }}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {label}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {description}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+
+            {/* Preview card */}
+            {preferences.emailNotifications && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Example email preview
+                </Typography>
+                <Card variant="outlined" sx={{ maxWidth: 420, bgcolor: 'grey.50' }}>
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                      From: noreply@thegrassrootshub.co.uk
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
+                      {preferences.instantAlerts
+                        ? '⚡ New match: U16 Midfielder vacancy in Manchester'
+                        : preferences.newVacancyAlerts
+                        ? '⚽ New team vacancy matching your profile'
+                        : preferences.weeklyDigest
+                        ? '📋 Your weekly Grassroots Scout digest'
+                        : '🔔 Grassroots Scout notification'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {preferences.instantAlerts
+                        ? 'Northside FC just posted a new U16 midfielder position. 3 other players have already viewed this — act fast!'
+                        : preferences.weeklyDigest
+                        ? 'This week: 12 new vacancies, 8 new players, 3 trial invitations in your area.'
+                        : 'A new opportunity matching your profile is available. Log in to view details and express interest.'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
           </AccordionDetails>
         </Accordion>
 

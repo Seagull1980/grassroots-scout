@@ -11,6 +11,8 @@ import {
   Paper,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -29,6 +31,8 @@ import { Conversation, MatchProgress } from '../types';
 const MyApplicationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [matchProgress, setMatchProgress] = useState<MatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +64,36 @@ const MyApplicationsPage: React.FC = () => {
   }, [user?.role]);
 
   const roleLabel = user?.role === 'Parent/Guardian' ? 'family applications tracker' : 'applications tracker';
+  const timelineStages: MatchProgress['stage'][] = [
+    'initial_interest',
+    'dialogue_active',
+    'trial_invited',
+    'trial_scheduled',
+    'trial_completed',
+    'decision_pending',
+    'match_confirmed',
+  ];
+
+  const formatStage = (stage?: string) => (stage ? stage.replace(/_/g, ' ') : 'initial interest');
+  const formatStageShort = (stage?: string) => {
+    const map: Record<string, string> = {
+      initial_interest: 'Interest',
+      dialogue_active: 'Chat',
+      trial_invited: 'Invited',
+      trial_scheduled: 'Scheduled',
+      trial_completed: 'Completed',
+      decision_pending: 'Decision',
+      match_confirmed: 'Confirmed',
+    };
+    return map[stage || 'initial_interest'] || formatStage(stage);
+  };
+  const getStageIndex = (stage?: string) => timelineStages.indexOf((stage || 'initial_interest') as MatchProgress['stage']);
+  const daysSince = (dateString?: string) => {
+    if (!dateString) return 0;
+    const timestamp = new Date(dateString).getTime();
+    if (Number.isNaN(timestamp)) return 0;
+    return Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
+  };
 
   const relevantConversations = useMemo(() => {
     return conversations.filter((conversation) => {
@@ -75,6 +109,9 @@ const MyApplicationsPage: React.FC = () => {
   const unreadCount = relevantConversations.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0);
   const trialCount = matchProgress.filter((match) => ['trial_invited', 'trial_scheduled'].includes(match.stage)).length;
   const responseNeededCount = matchProgress.filter((match) => match.assignedTo === 'player' || match.assignedTo === 'parent').length;
+  const staleConversationCount = relevantConversations.filter(
+    (conversation) => conversation.unreadCount > 0 && daysSince(conversation.updatedAt) >= 2
+  ).length;
 
   if (user?.role !== 'Player' && user?.role !== 'Parent/Guardian') {
     return (
@@ -95,6 +132,12 @@ const MyApplicationsPage: React.FC = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+
+        {staleConversationCount > 0 && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            {staleConversationCount} conversation{staleConversationCount === 1 ? '' : 's'} have been waiting for your reply for over 48 hours.
           </Alert>
         )}
 
@@ -186,9 +229,12 @@ const MyApplicationsPage: React.FC = () => {
                                 {conversation.latestMessage.message}
                               </Typography>
                               <Stack direction="row" spacing={1} flexWrap="wrap">
-                                <Chip size="small" label={conversation.matchProgressStage.replace(/_/g, ' ')} color="primary" variant="outlined" />
+                                <Chip size="small" label={formatStage(conversation.matchProgressStage)} color="primary" variant="outlined" />
                                 {conversation.unreadCount > 0 && <Chip size="small" label={`${conversation.unreadCount} unread`} color="error" />}
                                 <Chip size="small" label={otherParticipant?.role || 'Coach'} variant="outlined" />
+                                {conversation.unreadCount > 0 && daysSince(conversation.updatedAt) >= 2 && (
+                                  <Chip size="small" label="Follow up now" color="warning" />
+                                )}
                               </Stack>
                             </Box>
                             <Button
@@ -227,8 +273,28 @@ const MyApplicationsPage: React.FC = () => {
                             {match.position || 'Role'} {match.ageGroup ? `• ${match.ageGroup}` : ''}
                           </Typography>
                           <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
-                            <Chip size="small" label={match.stage.replace(/_/g, ' ')} color={match.assignedTo ? 'warning' : 'default'} />
+                            <Chip size="small" label={formatStage(match.stage)} color={match.assignedTo ? 'warning' : 'default'} />
                             {match.nextAction && <Chip size="small" label={match.nextAction} variant="outlined" />}
+                            {match.assignedTo && daysSince(match.updatedAt) >= 2 && (
+                              <Chip size="small" label="Reminder due" color="warning" variant="outlined" />
+                            )}
+                          </Stack>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mb: 1.25 }}>
+                            {timelineStages.map((stage, index) => {
+                              const activeIndex = getStageIndex(match.stage);
+                              const isCurrent = index === activeIndex;
+                              const isComplete = index < activeIndex;
+                              return (
+                                <Chip
+                                  key={`${match.id}-${stage}`}
+                                  size="small"
+                                  label={isMobile ? formatStageShort(stage) : formatStage(stage)}
+                                  color={isCurrent ? 'primary' : isComplete ? 'success' : 'default'}
+                                  variant={isCurrent || isComplete ? 'filled' : 'outlined'}
+                                  sx={{ mb: 0.5, maxWidth: isMobile ? 112 : 'none' }}
+                                />
+                              );
+                            })}
                           </Stack>
                           <Button size="small" onClick={() => navigate('/match-completions')}>
                             Open Match Progress

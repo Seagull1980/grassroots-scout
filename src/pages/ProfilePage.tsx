@@ -31,8 +31,9 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
+  Collapse,
 } from '@mui/material';
-import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward } from '@mui/icons-material';
+import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
@@ -103,6 +104,7 @@ const ProfilePage: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionPanelOpen, setCompletionPanelOpen] = useState(false);
   
   // Form state
   const [profileData, setProfileData] = useState<ProfileUpdateData>({
@@ -543,6 +545,67 @@ const ProfilePage: React.FC = () => {
         <Alert severity="error" sx={{ mb: 2 }}>
           {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
+      )}
+
+      {/* Persistent completion progress — shown whenever profile is incomplete */}
+      {completionPercentage < 100 && (
+        <Paper
+          variant="outlined"
+          sx={{
+            mb: 3,
+            borderColor: completionPercentage < 50 ? 'error.light' : completionPercentage < 80 ? 'warning.light' : 'success.light',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
+            onClick={() => setCompletionPanelOpen((prev) => !prev)}
+          >
+            <Box sx={{ flex: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Profile completion — {completionPercentage}%
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {completionChecklist.filter(i => !i?.completed).length} item{completionChecklist.filter(i => !i?.completed).length !== 1 ? 's' : ''} remaining
+                  </Typography>
+                  {completionPanelOpen ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+                </Box>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={completionPercentage}
+                color={completionPercentage < 50 ? 'error' : completionPercentage < 80 ? 'warning' : 'success'}
+                sx={{ height: 6, borderRadius: 3 }}
+              />
+            </Box>
+          </Box>
+          <Collapse in={completionPanelOpen}>
+            <Box sx={{ px: 2, pb: 2 }}>
+              <List dense disablePadding>
+                {completionChecklist.filter(Boolean).map((item, index) => (
+                  <ListItem key={item?.field || index} disableGutters>
+                    <ListItemIcon sx={{ minWidth: 28 }}>
+                      {item?.completed ? (
+                        <CheckCircle fontSize="small" color="success" />
+                      ) : (
+                        <RadioButtonUnchecked fontSize="small" color="disabled" />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item?.label}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        color: item?.completed ? 'text.primary' : 'text.secondary',
+                      }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          </Collapse>
+        </Paper>
       )}
 
       <Paper sx={{ width: '100%' }}>

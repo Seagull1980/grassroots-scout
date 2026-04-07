@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Card,
-  CardActions,
   CardContent,
   Chip,
   Container,
@@ -267,6 +266,10 @@ const StartHerePage: React.FC = () => {
     };
   }, [profileCompletion, unreadMessages, user.role]);
 
+  const secondaryActions = useMemo(() => {
+    return actions.filter((action) => action.path !== topPriority.path).slice(0, 2);
+  }, [actions, topPriority.path]);
+
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       <PageHeader
@@ -320,28 +323,58 @@ const StartHerePage: React.FC = () => {
 
         <RoleOnboardingChecklist role={user.role as 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin'} />
 
-        <Grid container spacing={3}>
-          {actions.map((action) => (
-            <Grid item xs={12} md={6} lg={4} key={`${action.path}-${action.title}`}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ mb: 1 }}>{action.icon}</Box>
-                  <Typography variant="h6" sx={{ mb: 1 }}>
-                    {action.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {action.description}
-                  </Typography>
-                </CardContent>
-                <CardActions>
-                  <Button variant="contained" onClick={() => navigate(action.path)} fullWidth>
-                    {action.cta}
-                  </Button>
-                </CardActions>
-              </Card>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 0.5, fontWeight: 700 }}>
+              Your next best action
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Keep momentum by taking one primary step, then use up to two secondary actions.
+            </Typography>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={() => navigate(topPriority.path)}
+              sx={{ mb: 2, minWidth: { xs: '100%', sm: 260 } }}
+            >
+              {topPriority.actionLabel}
+            </Button>
+
+            <Grid container spacing={2}>
+              {secondaryActions.map((action) => (
+                <Grid item xs={12} md={6} key={`${action.path}-${action.title}`}>
+                  <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                      {action.icon}
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                        {action.title}
+                      </Typography>
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {action.description}
+                    </Typography>
+                    <Button variant="outlined" onClick={() => navigate(action.path)} fullWidth>
+                      {action.cta}
+                    </Button>
+                  </Paper>
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
+          </CardContent>
+        </Card>
+
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+            More quick actions
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
+            {actions.slice(0, 6).map((action) => (
+              <Button key={`more-${action.path}-${action.title}`} variant="text" onClick={() => navigate(action.path)}>
+                {action.title}
+              </Button>
+            ))}
+          </Stack>
+        </Paper>
       </Container>
     </Box>
   );
