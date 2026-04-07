@@ -2221,10 +2221,10 @@ app.get('/api/analytics/site-stats', authenticateToken, async (req, res) => {
       'SELECT COUNT(*) as count FROM match_completions WHERE completionStatus = "confirmed"'
     );
     
-    // Get active listings (team vacancies + player availability)
-    const activeTeamVacancies = await db.query('SELECT COUNT(*) as count FROM team_vacancies');
-    const activePlayerListings = await db.query('SELECT COUNT(*) as count FROM player_availability');
-    const activeListings = activeTeamVacancies.rows[0].count + activePlayerListings.rows[0].count;
+    // Get active listings only (exclude filled/expired/inactive records)
+    const activeTeamVacancies = await db.query("SELECT COUNT(*) as count FROM team_vacancies WHERE status = 'active'");
+    const activePlayerListings = await db.query("SELECT COUNT(*) as count FROM player_availability WHERE status = 'active'");
+    const activeListings = Number(activeTeamVacancies.rows[0].count || 0) + Number(activePlayerListings.rows[0].count || 0);
 
     res.json({
       totalVisits: totalVisits.rows[0].count,
@@ -2249,29 +2249,53 @@ app.get('/api/analytics/weekly-traffic', authenticateToken, async (req, res) => 
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Get last 7 days of traffic data (excluding admin users)
+    // Get last 7 days of traffic data (including today, excluding admin users)
     const trafficData = await db.query(
       `SELECT 
-         CASE CAST(strftime('%w', DATE(timestamp)) AS INTEGER)
-           WHEN 0 THEN 'Sun'
-           WHEN 1 THEN 'Mon'
-           WHEN 2 THEN 'Tue'
-           WHEN 3 THEN 'Wed'
-           WHEN 4 THEN 'Thu'
-           WHEN 5 THEN 'Fri'
-           WHEN 6 THEN 'Sat'
-         END as date,
+         DATE(timestamp) as dayKey,
          COUNT(*) as visits,
          COUNT(DISTINCT pv.sessionId) as uniqueUsers
        FROM page_views pv
        LEFT JOIN users u ON pv.userId = u.id
-       WHERE DATE(timestamp) >= date('now', '-7 days')
+       WHERE DATE(timestamp) >= date('now', '-6 days')
        AND (u.id IS NULL OR u.role != 'Admin')
        GROUP BY DATE(timestamp)
        ORDER BY DATE(timestamp)`
     );
 
-    res.json(trafficData.rows);
+    const trafficLookup = new Map(
+      (trafficData.rows || []).map((row) => [
+        row.dayKey,
+        {
+          visits: Number(row.visits || 0),
+          uniqueUsers: Number(row.uniqueUsers || 0),
+        },
+      ])
+    );
+
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const toLocalDateKey = (dateObj) => {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const now = new Date();
+    const weeklySeries = [];
+    for (let offset = 6; offset >= 0; offset -= 1) {
+      const current = new Date(now);
+      current.setDate(now.getDate() - offset);
+      const key = toLocalDateKey(current);
+      const values = trafficLookup.get(key) || { visits: 0, uniqueUsers: 0 };
+      weeklySeries.push({
+        date: dayLabels[current.getDay()],
+        visits: values.visits,
+        uniqueUsers: values.uniqueUsers,
+      });
+    }
+
+    res.json(weeklySeries);
   } catch (error) {
     console.error('Get weekly traffic error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2287,32 +2311,37 @@ app.get('/api/analytics/monthly-matches', authenticateToken, async (req, res) =>
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Get last 6 months of successful matches
+    // Get last 6 months of successful matches (including current month)
     const matchData = await db.query(
       `SELECT 
-         CASE CAST(strftime('%m', DATE(completedAt)) AS INTEGER)
-           WHEN 1 THEN 'Jan'
-           WHEN 2 THEN 'Feb'
-           WHEN 3 THEN 'Mar'
-           WHEN 4 THEN 'Apr'
-           WHEN 5 THEN 'May'
-           WHEN 6 THEN 'Jun'
-           WHEN 7 THEN 'Jul'
-           WHEN 8 THEN 'Aug'
-           WHEN 9 THEN 'Sep'
-           WHEN 10 THEN 'Oct'
-           WHEN 11 THEN 'Nov'
-           WHEN 12 THEN 'Dec'
-         END as month,
+         strftime('%Y-%m', DATE(completedAt)) as monthKey,
          COUNT(*) as matches
        FROM match_completions
        WHERE completionStatus = 'confirmed' 
-         AND DATE(completedAt) >= date('now', '-6 months')
-       GROUP BY strftime('%Y-%m', DATE(completedAt))
-       ORDER BY DATE(completedAt)`
+         AND DATE(completedAt) >= date('now', 'start of month', '-5 months')
+       GROUP BY monthKey
+       ORDER BY monthKey`
     );
 
-    res.json(matchData.rows);
+    const matchesLookup = new Map(
+      (matchData.rows || []).map((row) => [row.monthKey, Number(row.matches || 0)])
+    );
+
+    const monthlySeries = [];
+    const start = new Date();
+    start.setDate(1);
+    start.setMonth(start.getMonth() - 5);
+
+    for (let i = 0; i < 6; i += 1) {
+      const monthDate = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+      monthlySeries.push({
+        month: monthDate.toLocaleString('en-US', { month: 'short' }),
+        matches: matchesLookup.get(monthKey) || 0,
+      });
+    }
+
+    res.json(monthlySeries);
   } catch (error) {
     console.error('Get monthly matches error:', error);
     res.status(500).json({ error: 'Internal server error' });
