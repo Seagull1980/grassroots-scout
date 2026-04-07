@@ -44,6 +44,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import PageHeader from '../components/PageHeader';
 import EnquiryDashboard from '../components/EnquiryDashboard';
+import ActionEmptyState from '../components/ActionEmptyState';
 
 interface Advert {
   id: number;
@@ -504,6 +505,22 @@ const MyAdvertsPage: React.FC = () => {
         </Alert>
       )}
 
+      {user.role === 'Coach' && (
+        <Paper sx={{ p: 2, mb: 3, display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Stay on top of player interest
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              The applications hub now gives you one place to review unread replies, trial steps, and decisions.
+            </Typography>
+          </Box>
+          <Button variant="contained" onClick={() => navigate('/coach-applications')}>
+            Open Applications Hub
+          </Button>
+        </Paper>
+      )}
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
@@ -581,17 +598,17 @@ const MyAdvertsPage: React.FC = () => {
                 Team Vacancies
               </Typography>
               {vacancies.length === 0 ? (
-                <Paper sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography color="text.secondary" sx={{ mb: 2 }}>
-                    You haven't posted any team vacancies yet.
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
-                  >
-                    Post Your First Vacancy
-                  </Button>
-                </Paper>
+                <ActionEmptyState
+                  icon={<AssessmentIcon sx={{ fontSize: 36 }} />}
+                  title="No team vacancies yet"
+                  description="Post your first role and this page will become your management surface for edits, analytics, and application follow-up."
+                  suggestions={[
+                    'Create a vacancy with the role, age group, and location clearly defined.',
+                    'Open the applications hub after posting so new interest is easier to review.',
+                  ]}
+                  primaryAction={{ label: 'Post Your First Vacancy', onClick: () => navigate('/post-vacancy') }}
+                  secondaryAction={{ label: 'Search Players', onClick: () => navigate('/search') }}
+                />
               ) : (
                 <Grid container spacing={2}>
                   {vacancies.map(renderAdvertCard)}
@@ -613,17 +630,27 @@ const MyAdvertsPage: React.FC = () => {
                 Player Availability
               </Typography>
               {playerAvailabilities.length === 0 ? (
-                <Paper sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography color="text.secondary" sx={{ mb: 2 }}>
-                    You haven't posted any player availability listings yet.
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
-                  >
-                    Post Your Availability
-                  </Button>
-                </Paper>
+                <ActionEmptyState
+                  icon={<AssessmentIcon sx={{ fontSize: 36 }} />}
+                  title={user.role === 'Parent/Guardian' ? 'No child availability listings yet' : 'No player availability listings yet'}
+                  description={user.role === 'Parent/Guardian'
+                    ? 'Publish child availability once the child profile is ready so coaches receive a more complete picture.'
+                    : 'Publish your availability so coaches can discover you without you repeating the same details in every message.'}
+                  suggestions={user.role === 'Parent/Guardian'
+                    ? [
+                        'Check emergency and medical details before posting.',
+                        'Use the applications tracker to keep coach replies organised afterwards.',
+                      ]
+                    : [
+                        'Keep your role, location, and age group current before posting.',
+                        'Use your tracker to follow up once coaches reply.',
+                      ]}
+                  primaryAction={{
+                    label: user.role === 'Parent/Guardian' ? 'Open Child Availability' : 'Post Your Availability',
+                    onClick: () => navigate(user.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability'),
+                  }}
+                  secondaryAction={{ label: 'Open Tracker', onClick: () => navigate('/my-applications') }}
+                />
               ) : (
                 <Grid container spacing={2}>
                   {playerAvailabilities.map(renderAdvertCard)}
@@ -633,21 +660,20 @@ const MyAdvertsPage: React.FC = () => {
           )}
 
           {vacancies.length === 0 && playerAvailabilities.length === 0 && (
-            <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No Adverts Yet
-              </Typography>
-              <Typography color="text.secondary" sx={{ mb: 3 }}>
-                Start by posting a new advert to connect with the grassroots football community.
-              </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
-              >
-                Create New Advert
-              </Button>
-            </Paper>
+            <ActionEmptyState
+              icon={<AssessmentIcon sx={{ fontSize: 36 }} />}
+              title="No adverts yet"
+              description="This page becomes more useful once you have live adverts to manage. Post the first one, then come back here for analytics and status changes."
+              suggestions={[
+                'Create one live advert before trying to manage multiple drafts or statuses.',
+                'Use search and messaging alongside adverts instead of relying on one channel only.',
+              ]}
+              primaryAction={{
+                label: user?.role === 'Coach' ? 'Create Vacancy' : user?.role === 'Parent/Guardian' ? 'Open Child Availability' : 'Create Availability',
+                onClick: () => navigate(user?.role === 'Coach' ? '/post-vacancy' : user?.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability'),
+              }}
+              secondaryAction={{ label: 'Go to Search', onClick: () => navigate('/search') }}
+            />
           )}
         </>
       )}

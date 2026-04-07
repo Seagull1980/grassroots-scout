@@ -45,6 +45,8 @@ import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
 import StartHerePage from './pages/StartHerePage';
 import NotFoundPage from './pages/NotFoundPage';
+import CoachApplicationsPage from './pages/CoachApplicationsPage';
+import MyApplicationsPage from './pages/MyApplicationsPage';
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
 import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
@@ -103,6 +105,8 @@ const RouteTitleManager = () => {
       if (path.startsWith('/post-vacancy')) return 'Post Vacancy | The Grassroots Scout';
       if (path.startsWith('/post-availability')) return 'Post Availability | The Grassroots Scout';
       if (path.startsWith('/my-adverts')) return 'My Adverts | The Grassroots Scout';
+      if (path.startsWith('/coach-applications')) return 'Applications Hub | The Grassroots Scout';
+      if (path.startsWith('/my-applications')) return 'My Applications | The Grassroots Scout';
       if (path.startsWith('/admin')) return 'Admin | The Grassroots Scout';
       if (path.startsWith('/forum')) return 'Forum | The Grassroots Scout';
       if (path.startsWith('/alert-preferences')) return 'Alert Preferences | The Grassroots Scout';
@@ -191,6 +195,16 @@ const AppRoutes = () => {
         <Route path="/my-adverts" element={
           <ProtectedRoute>
             <MyAdvertsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/coach-applications" element={
+          <ProtectedRoute>
+            <CoachApplicationsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/my-applications" element={
+          <ProtectedRoute>
+            <MyApplicationsPage />
           </ProtectedRoute>
         } />
         <Route path="/search" element={

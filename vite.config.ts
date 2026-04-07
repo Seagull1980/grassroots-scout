@@ -27,8 +27,7 @@ export default defineConfig({
             'src/pages/AboutManagementPage.tsx'
           ],
           'analytics-features': [
-            'src/pages/PerformanceAnalyticsPage.tsx',
-            'src/pages/EnhancedDashboardPage.tsx'
+            'src/pages/PerformanceAnalyticsPage.tsx'
           ],
           'maps-features': [
             'src/pages/MapsPage.tsx',

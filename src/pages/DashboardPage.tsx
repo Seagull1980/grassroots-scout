@@ -43,9 +43,10 @@ import api, { profileAPI, UserProfile } from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
 import PageHeader from '../components/PageHeader';
-import CoachOnboardingChecklist from '../components/CoachOnboardingChecklist';
+import RoleOnboardingChecklist from '../components/RoleOnboardingChecklist';
 import VacancyStatusWidget from '../components/VacancyStatusWidget';
 import NotificationCenter from '../components/NotificationCenter';
+import ActionEmptyState from '../components/ActionEmptyState';
 
 interface BookmarkData {
   id: number;
@@ -77,6 +78,7 @@ const DashboardPage: React.FC = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [profileCompletion, setProfileCompletion] = useState(0);
+  const [unreadConversations, setUnreadConversations] = useState(0);
 
   const vacancyUpdates = recentActivity.filter((activity) => activity.type === 'vacancy').length;
   const playerUpdates = recentActivity.filter((activity) => activity.type === 'player_availability').length;
@@ -131,7 +133,10 @@ const DashboardPage: React.FC = () => {
     try {
       setLoading(true);
 
-      const bookmarksResponse = await api.get('/bookmarks?limit=10');
+      const [bookmarksResponse, conversationsResponse] = await Promise.all([
+        api.get('/bookmarks?limit=10'),
+        api.get('/conversations'),
+      ]);
       const bookmarkActivities = (bookmarksResponse.data?.bookmarks || [])
         .map((bookmark: BookmarkData) => {
           if (bookmark.targetType !== 'vacancy' && bookmark.targetType !== 'player_availability') {
@@ -155,6 +160,9 @@ const DashboardPage: React.FC = () => {
         .filter((activity: RecentActivity | null): activity is RecentActivity => activity !== null);
 
       setRecentActivity(bookmarkActivities);
+      const conversations = conversationsResponse.data?.conversations || [];
+      const unread = conversations.reduce((sum: number, conversation: any) => sum + (conversation.unreadCount || 0), 0);
+      setUnreadConversations(unread);
       
     } catch (error: any) {
       setError('Failed to load dashboard data');
@@ -409,6 +417,27 @@ const DashboardPage: React.FC = () => {
           </Alert>
         )}
 
+        {unreadConversations > 0 && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 3 }}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => navigate('/messages')}
+              >
+                Open Inbox
+              </Button>
+            }
+          >
+            <Typography variant="body2">
+              <strong>Action needed:</strong> You have {unreadConversations} unread conversation message{unreadConversations === 1 ? '' : 's'}.
+              Replying quickly helps keep applications and trials moving.
+            </Typography>
+          </Alert>
+        )}
+
         {/* Welcome Section with Impersonation Alert */}
         <Box sx={{ mb: 4 }}>
         {isImpersonating && (
@@ -517,12 +546,7 @@ const DashboardPage: React.FC = () => {
         ))}
       </Grid>
 
-      {/* Coach Onboarding Checklist */}
-      {user?.role === 'Coach' && !localStorage.getItem('coach_onboarding_dismissed') && (
-        <CoachOnboardingChecklist
-          onDismiss={() => window.location.reload()}
-        />
-      )}
+      <RoleOnboardingChecklist role={user.role as 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin'} />
 
       {/* Main Content Grid */}
       <Grid container spacing={3}>
@@ -571,53 +595,30 @@ const DashboardPage: React.FC = () => {
               ) : recentActivity.length > 0 ? (
                 recentActivity.slice(0, 3).map(renderActivityItem)
               ) : (
-                <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
-                  <Avatar
-                    sx={{
-                      width: 80,
-                      height: 80,
-                      bgcolor: 'primary.light',
-                      color: 'primary.main',
-                      mx: 'auto',
-                      mb: 2
-                    }}
-                  >
-                    <BookmarkIcon sx={{ fontSize: 40 }} />
-                  </Avatar>
-                  <Typography variant="h6" gutterBottom>
-                    {user?.role === 'Coach'
-                      ? 'No Activity Yet'
-                      : 'Start Your Journey'}
-                  </Typography>
-                  <Typography color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
-                    {user?.role === 'Coach'
-                      ? 'Post your first team vacancy or search for talented players to get started. Your activity will appear here.'
-                      : 'Explore teams and opportunities. Bookmark items you like and they\'ll show up here for quick access!'}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <Button
-                      variant="contained"
-                      onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/search')}
-                      startIcon={user?.role === 'Coach' ? <GroupIcon /> : <SearchIcon />}
-                    >
-                      {user?.role === 'Coach' ? 'Post Vacancy' : 'Find Teams'}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={() => navigate('/search')}
-                      startIcon={<SearchIcon />}
-                    >
-                      Explore
-                    </Button>
-                  </Box>
-                  {profileCompletion < 80 && (
-                    <Alert severity="info" sx={{ mt: 2, textAlign: 'left' }}>
-                      <Typography variant="body2">
-                        <strong>Tip:</strong> Complete your profile to get personalized recommendations!
-                      </Typography>
-                    </Alert>
-                  )}
-                </Box>
+                <ActionEmptyState
+                  icon={<BookmarkIcon sx={{ fontSize: 38 }} />}
+                  title={user?.role === 'Coach' ? 'No activity yet' : 'Nothing bookmarked yet'}
+                  description={user?.role === 'Coach'
+                    ? 'The dashboard will start surfacing activity once you post a vacancy, open applications, or begin reaching out to players.'
+                    : 'The dashboard becomes more useful once you search, bookmark opportunities, and start conversations with coaches.'}
+                  suggestions={user?.role === 'Coach'
+                    ? [
+                        'Post a live vacancy so players can find you.',
+                        'Use the applications hub to keep every conversation moving.',
+                      ]
+                    : [
+                        'Run a search and bookmark the teams worth following up with.',
+                        'Keep your availability advert current so replies stay relevant.',
+                      ]}
+                  primaryAction={{
+                    label: user?.role === 'Coach' ? 'Post Vacancy' : 'Search Opportunities',
+                    onClick: () => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/search'),
+                  }}
+                  secondaryAction={{
+                    label: user?.role === 'Coach' ? 'Open Applications' : 'Open Tracker',
+                    onClick: () => navigate(user?.role === 'Coach' ? '/coach-applications' : '/my-applications'),
+                  }}
+                />
               )}
             </CardContent>
           </Card>
@@ -667,15 +668,42 @@ const DashboardPage: React.FC = () => {
                 )}
                 
                 {user.role === 'Coach' && (
+                  <>
+                    <Grid item xs={6}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<GroupIcon />}
+                        onClick={() => handleQuickAction('team-profile')}
+                        sx={{ py: 2 }}
+                      >
+                        Team Profile
+                      </Button>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<AssessmentIcon />}
+                        onClick={() => navigate('/coach-applications')}
+                        sx={{ py: 2 }}
+                      >
+                        Applications Hub
+                      </Button>
+                    </Grid>
+                  </>
+                )}
+
+                {(user.role === 'Player' || user.role === 'Parent/Guardian') && (
                   <Grid item xs={6}>
                     <Button
                       fullWidth
                       variant="contained"
-                      startIcon={<GroupIcon />}
-                      onClick={() => handleQuickAction('team-profile')}
+                      startIcon={<AssessmentIcon />}
+                      onClick={() => navigate('/my-applications')}
                       sx={{ py: 2 }}
                     >
-                      Team Profile
+                      My Applications
                     </Button>
                   </Grid>
                 )}

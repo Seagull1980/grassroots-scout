@@ -211,6 +211,8 @@ const Navbar: React.FC = () => {
   const secondaryNavItems = user ? [
     { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
     { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> },
+    ...(user?.role === 'Coach' ? [{ path: '/coach-applications', label: 'Applications Hub', icon: <ManageAccounts /> }] : []),
+    ...((user?.role === 'Player' || user?.role === 'Parent/Guardian') ? [{ path: '/my-applications', label: 'My Applications', icon: <Analytics /> }] : []),
     { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
     ...(user?.role === 'Coach' ? [

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -50,6 +50,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Message, Conversation, MatchProgress, MatchProgressStage } from '../types';
 import { API_URL } from '../services/api';
 import PageHeader from '../components/PageHeader';
+import ActionEmptyState from '../components/ActionEmptyState';
 // Simple date formatting utility
 const formatDistanceToNow = (date: Date): string => {
   const now = new Date();
@@ -87,6 +88,7 @@ function TabPanel(props: TabPanelProps) {
 const MessagesPage: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -125,6 +127,25 @@ const MessagesPage: React.FC = () => {
   const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
   const [userPrivacySettings, setUserPrivacySettings] = useState<any>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'needsReply'>('all');
+
+  const sortedConversations = useMemo(() => {
+    const conversationsWithPriority = [...conversations].sort((a, b) => {
+      if ((a.unreadCount || 0) !== (b.unreadCount || 0)) {
+        return (b.unreadCount || 0) - (a.unreadCount || 0);
+      }
+
+      const aTime = new Date(a.latestMessage.createdAt).getTime();
+      const bTime = new Date(b.latestMessage.createdAt).getTime();
+      return bTime - aTime;
+    });
+
+    if (conversationFilter === 'needsReply') {
+      return conversationsWithPriority.filter((conversation) => (conversation.unreadCount || 0) > 0);
+    }
+
+    return conversationsWithPriority;
+  }, [conversationFilter, conversations]);
 
   useEffect(() => {
     if (user) {
@@ -162,6 +183,22 @@ const MessagesPage: React.FC = () => {
       setNewMessageOpen(true);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    const state = location.state as any;
+    if (!state?.conversationId || conversations.length === 0) {
+      return;
+    }
+
+    const matchedConversation = conversations.find((conversation) => conversation.id === state.conversationId);
+    if (!matchedConversation) {
+      return;
+    }
+
+    setTabValue(state.openTrackerTab ?? 0);
+    handleConversationSelect(matchedConversation);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [conversations, location.pathname, location.state, navigate]);
 
   const loadConversations = async () => {
     try {
@@ -683,13 +720,44 @@ const MessagesPage: React.FC = () => {
                     <RefreshIcon />
                   </IconButton>
                 </Box>
+                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                  <Chip
+                    size="small"
+                    label={`All (${conversations.length})`}
+                    color={conversationFilter === 'all' ? 'primary' : 'default'}
+                    variant={conversationFilter === 'all' ? 'filled' : 'outlined'}
+                    onClick={() => setConversationFilter('all')}
+                  />
+                  <Chip
+                    size="small"
+                    label={`Needs Reply (${conversations.reduce((sum, conversation) => sum + ((conversation.unreadCount || 0) > 0 ? 1 : 0), 0)})`}
+                    color={conversationFilter === 'needsReply' ? 'warning' : 'default'}
+                    variant={conversationFilter === 'needsReply' ? 'filled' : 'outlined'}
+                    onClick={() => setConversationFilter('needsReply')}
+                  />
+                </Box>
                 {conversations.length === 0 ? (
-                  <Typography color="text.secondary" align="center" py={4}>
-                    No conversations yet
-                  </Typography>
+                  <ActionEmptyState
+                    icon={<MessageIcon sx={{ fontSize: 36 }} />}
+                    title="No conversations yet"
+                    description={user?.role === 'Coach'
+                      ? 'Conversations will appear here when players or parents respond to your vacancies, or when you reach out first.'
+                      : 'Coach replies and your own outreach will appear here once you start exploring opportunities.'}
+                    suggestions={user?.role === 'Coach'
+                      ? [
+                          'Post a vacancy to attract direct interest.',
+                          'Open the applications hub to keep future enquiries organised.',
+                        ]
+                      : [
+                          'Search for teams and send the first message instead of waiting.',
+                          'Use your applications tracker to follow progress once replies start.',
+                        ]}
+                    primaryAction={{ label: 'Open Search', onClick: () => navigate('/search') }}
+                    secondaryAction={{ label: user?.role === 'Coach' ? 'Applications Hub' : 'My Applications', onClick: () => navigate(user?.role === 'Coach' ? '/coach-applications' : '/my-applications') }}
+                  />
                 ) : (
                   <List>
-                    {conversations.map((conversation) => {
+                    {sortedConversations.map((conversation) => {
                       const otherParticipant = conversation.participants.find(p => p.userId !== user?.id);
                       return (
                         <ListItem
@@ -888,12 +956,15 @@ const MessagesPage: React.FC = () => {
             ) : (
               <Card>
                 <CardContent>
-                  <Box textAlign="center" py={8}>
-                    <MessageIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary">
-                      Select a conversation to view messages
-                    </Typography>
-                  </Box>
+                  <ActionEmptyState
+                    icon={<MessageIcon sx={{ fontSize: 36 }} />}
+                    title="Select a conversation"
+                    description="Pick a thread from the left to read the full history, update the match stage, and reply quickly."
+                    suggestions={[
+                      'Use match stages to avoid leaving players in vague conversations.',
+                      'Reply from here when you need the full conversation context before responding.',
+                    ]}
+                  />
                 </CardContent>
               </Card>
             )}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
+  CardActions,
   CardContent,
   Typography,
   Button,
@@ -31,8 +32,11 @@ import {
   MedicalServices as MedicalIcon,
   Phone as PhoneIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import PageHeader from '../components/PageHeader';
+import ActionEmptyState from '../components/ActionEmptyState';
 
 interface Child {
   id: number;
@@ -67,6 +71,7 @@ interface ChildFormData {
 }
 
 const ChildrenManagementPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,20 +261,27 @@ const ChildrenManagementPage: React.FC = () => {
     );
   }
 
+  const profilesWithMedicalInfo = children.filter((child) => Boolean(child.medicalInfo?.trim())).length;
+  const profilesWithEmergencyContact = children.filter((child) => Boolean(child.emergencyContact?.trim()) && Boolean(child.emergencyPhone?.trim())).length;
+  const profilesNeedingAttention = children.filter((child) => !child.medicalInfo?.trim() || !child.emergencyContact?.trim() || !child.emergencyPhone?.trim()).length;
+
   return (
-    <Box p={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Manage Children
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setShowAddDialog(true)}
-        >
-          Add Child
-        </Button>
-      </Box>
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      <PageHeader
+        title="Manage Children"
+        subtitle="Keep each child profile complete so coaches have the right context before they reach out."
+        icon={<PersonIcon sx={{ fontSize: 32 }} />}
+        actions={(
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setShowAddDialog(true)}
+          >
+            Add Child
+          </Button>
+        )}
+      />
+      <Box p={3}>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
@@ -286,32 +298,73 @@ const ChildrenManagementPage: React.FC = () => {
       {loading ? (
         <Typography>Loading children...</Typography>
       ) : children.length === 0 ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No Children Added Yet
-          </Typography>
-          <Typography color="text.secondary" mb={2}>
-            Add your children to manage their football activities and create player availability postings on their behalf.
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setShowAddDialog(true)}
-          >
-            Add Your First Child
-          </Button>
-        </Paper>
+        <ActionEmptyState
+          icon={<PersonIcon sx={{ fontSize: 36 }} />}
+          title="No children added yet"
+          description="Add the first child profile here so family football activity stays organised around the right child record."
+          suggestions={[
+            'Start with the child who is actively looking for a team first.',
+            'Add emergency and medical details during setup so you do not need to chase them later.',
+            'Use child availability once the profile is complete.',
+          ]}
+          primaryAction={{ label: 'Add Your First Child', onClick: () => setShowAddDialog(true) }}
+          secondaryAction={{ label: 'Open Family Relationships', onClick: () => navigate('/family-relationships') }}
+        />
       ) : (
-        <Grid container spacing={3}>
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {[
+              { label: 'Children', value: children.length, helper: 'Active child profiles' },
+              { label: 'Medical info ready', value: profilesWithMedicalInfo, helper: 'Profiles with medical notes' },
+              { label: 'Emergency contacts ready', value: profilesWithEmergencyContact, helper: 'Profiles with contact and phone' },
+              { label: 'Needs attention', value: profilesNeedingAttention, helper: 'Profiles missing critical details' },
+            ].map((stat) => (
+              <Grid item xs={12} sm={6} md={3} key={stat.label}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="body2" color="text.secondary">
+                      {stat.label}
+                    </Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {stat.helper}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Paper sx={{ p: 2.5, mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Family overview
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Use this page as the control centre for each child. The aim is to make it obvious which profiles are ready for coaches and which still need information.
+            </Typography>
+            {profilesNeedingAttention > 0 && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing medical or emergency details. Tighten those before sending coaches to them.
+              </Alert>
+            )}
+          </Paper>
+
+          <Grid container spacing={3}>
           {children.map((child) => (
             <Grid item xs={12} md={6} lg={4} key={child.id}>
-              <Card>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Typography variant="h6" component="h2">
-                      {child.firstName} {child.lastName}
-                    </Typography>
+                    <Box>
+                      <Typography variant="h6" component="h2">
+                        {child.firstName} {child.lastName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Updated {new Date(child.updatedAt).toLocaleDateString()}
+                      </Typography>
+                    </Box>
                     <Box>
                       <IconButton
                         size="small"
@@ -329,6 +382,12 @@ const ChildrenManagementPage: React.FC = () => {
                       </IconButton>
                     </Box>
                   </Box>
+
+                  <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
+                    <Chip label={`Age ${calculateAge(child.dateOfBirth)}`} size="small" />
+                    <Chip label={child.preferredPosition || 'Position missing'} size="small" variant="outlined" color={child.preferredPosition ? 'default' : 'warning'} />
+                    <Chip label={child.medicalInfo ? 'Medical ready' : 'Medical needed'} size="small" color={child.medicalInfo ? 'success' : 'warning'} variant="outlined" />
+                  </Stack>
 
                   <Stack spacing={1}>
                     <Box display="flex" alignItems="center">
@@ -367,7 +426,7 @@ const ChildrenManagementPage: React.FC = () => {
                       <Box display="flex" alignItems="center">
                         <PhoneIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
                         <Typography variant="body2" color="text.secondary">
-                          Emergency: {child.emergencyContact}
+                          Emergency: {child.emergencyContact}{child.emergencyPhone ? ` • ${child.emergencyPhone}` : ''}
                         </Typography>
                       </Box>
                     )}
@@ -382,12 +441,30 @@ const ChildrenManagementPage: React.FC = () => {
                         </Typography>
                       </Box>
                     )}
+
+                    {!child.emergencyContact || !child.emergencyPhone ? (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Add a complete emergency contact before sharing this profile with more coaches.
+                      </Alert>
+                    ) : null}
                   </Stack>
                 </CardContent>
+                <CardActions sx={{ px: 2, pb: 2, pt: 0, mt: 'auto', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button size="small" variant="contained" onClick={() => openEditDialog(child)}>
+                    Edit Profile
+                  </Button>
+                  <Button size="small" variant="outlined" onClick={() => navigate('/child-player-availability')}>
+                    Child Availability
+                  </Button>
+                  <Button size="small" variant="text" onClick={() => navigate('/family-relationships')}>
+                    Family Access
+                  </Button>
+                </CardActions>
               </Card>
             </Grid>
           ))}
-        </Grid>
+          </Grid>
+        </>
       )}
 
       {/* Add/Edit Child Dialog */}
@@ -542,6 +619,7 @@ const ChildrenManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   );
 };
