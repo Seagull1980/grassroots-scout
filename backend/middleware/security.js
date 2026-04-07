@@ -1,6 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const crypto = require('crypto');
+const ipKeyGenerator = rateLimit.ipKeyGenerator || ((ip) => ip);
 
 // Generate CSP nonce for each request
 const generateNonce = () => crypto.randomBytes(16).toString('base64');
@@ -13,11 +14,7 @@ const createRateLimiter = (windowMs, max, message) => {
     message: { error: message },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => {
-      const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-      // Normalize IPv4-mapped IPv6 addresses (e.g. ::ffff:1.2.3.4 -> 1.2.3.4)
-      return ip.replace(/^::ffff:/, '');
-    },
+    keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
     handler: (req, res) => {
       console.warn(`⚠️  Rate limit exceeded for IP: ${req.ip}, endpoint: ${req.path}`);
       res.status(429).json({ error: message });
@@ -55,7 +52,11 @@ const messageLimiter = rateLimit({
   message: { error: 'Too many messages sent. Please try again later.' },
   keyGenerator: (req) => {
     // Rate limit by user ID if authenticated, otherwise by IP
-    return req.user?.userId ? `user:${req.user.userId}` : req.ip;
+    if (req.user?.userId) {
+      return `user:${req.user.userId}`;
+    }
+
+    return `ip:${ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown')}`;
   },
   handler: (req, res) => {
     console.warn(`⚠️  Message rate limit exceeded for ${req.user?.userId ? `user ${req.user.userId}` : `IP ${req.ip}`}`);

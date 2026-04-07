@@ -1410,7 +1410,7 @@ app.post('/api/auth/login', [
 });
 
 // Middleware to authenticate JWT tokens
-const authenticateToken = (req, res, next) => {
+function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -1423,15 +1423,15 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
-};
+}
 
 // Admin middleware
-const requireAdmin = (req, res, next) => {
+function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'Admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
-};
+}
 
 // Get current user endpoint
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
