@@ -11,3 +11,8 @@ backend/database.sqlite-*
 backend/*.log
 .vercel
 .env*.local
+
+# Local debug snapshots (do not track)
+_live_index_bundle.js
+_vercel_home.html
+_vercel_home_after_fix.html
