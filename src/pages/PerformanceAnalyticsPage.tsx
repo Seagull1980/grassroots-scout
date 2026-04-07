@@ -9,6 +9,7 @@ import {
   CardContent,
   Skeleton,
   Chip,
+  Alert,
 } from '@mui/material';
 import {
   People,
@@ -78,6 +79,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
   });
   const [trafficData, setTrafficData] = useState<TrafficData[]>([]);
   const [matchData, setMatchData] = useState<{ month: string; matches: number }[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     // Redirect non-admin users
@@ -94,6 +96,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
   const loadAnalyticsData = async () => {
     try {
       setLoading(true);
+      setDataError(null);
 
       // Fetch real analytics data from backend
       const [statsRes, trafficRes, matchesRes] = await Promise.all([
@@ -114,38 +117,17 @@ const PerformanceAnalyticsPage: React.FC = () => {
       setMatchData(matchesRes.data || []);
     } catch (err) {
       console.error('Failed to load analytics:', err);
-      // Fallback to mock data if API fails
-      const mockStats: SiteStats = {
-        totalVisits: 12547,
-        uniqueVisitors: 8923,
-        newUsers: 342,
-        searchesPerformed: 5634,
-        successfulMatches: 156,
-        activeListings: 278,
-      };
-
-      const mockTrafficData: TrafficData[] = [
-        { date: 'Mon', visits: 450, uniqueUsers: 320 },
-        { date: 'Tue', visits: 520, uniqueUsers: 380 },
-        { date: 'Wed', visits: 490, uniqueUsers: 350 },
-        { date: 'Thu', visits: 610, uniqueUsers: 420 },
-        { date: 'Fri', visits: 580, uniqueUsers: 410 },
-        { date: 'Sat', visits: 890, uniqueUsers: 650 },
-        { date: 'Sun', visits: 820, uniqueUsers: 590 },
-      ];
-
-      const mockMatchData = [
-        { month: 'Jan', matches: 12 },
-        { month: 'Feb', matches: 18 },
-        { month: 'Mar', matches: 22 },
-        { month: 'Apr', matches: 28 },
-        { month: 'May', matches: 35 },
-        { month: 'Jun', matches: 41 },
-      ];
-
-      setStats(mockStats);
-      setTrafficData(mockTrafficData);
-      setMatchData(mockMatchData);
+      setStats({
+        totalVisits: 0,
+        uniqueVisitors: 0,
+        newUsers: 0,
+        searchesPerformed: 0,
+        successfulMatches: 0,
+        activeListings: 0,
+      });
+      setTrafficData([]);
+      setMatchData([]);
+      setDataError('Live analytics could not be loaded. The values below are unavailable until the API responds.');
     } finally {
       setLoading(false);
     }
@@ -182,7 +164,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
                     Total Site Visits
                   </Typography>
                   <Chip
-                    label="+12% this week"
+                    label="Live metric"
                     size="small"
                     sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
                   />
@@ -205,7 +187,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
                     Unique Visitors
                   </Typography>
                   <Chip
-                    label="+8% this week"
+                    label="Live metric"
                     size="small"
                     sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}
                   />
@@ -340,21 +322,27 @@ const PerformanceAnalyticsPage: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           Weekly Traffic Overview
         </Typography>
-        <Box height={300}>
-          <Line
-            data={chartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: 'top' },
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }}
-          />
-        </Box>
+        {safeTrafficData.length === 0 ? (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            No weekly traffic data available yet.
+          </Alert>
+        ) : (
+          <Box height={300}>
+            <Line
+              data={chartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { position: 'top' },
+                },
+                scales: {
+                  y: { beginAtZero: true }
+                }
+              }}
+            />
+          </Box>
+        )}
       </Paper>
     );
   };
@@ -382,21 +370,27 @@ const PerformanceAnalyticsPage: React.FC = () => {
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Players successfully matched with teams
         </Typography>
-        <Box height={300}>
-          <Bar
-            data={chartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }}
-          />
-        </Box>
+        {safeMatchData.length === 0 ? (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            No monthly match data available yet.
+          </Alert>
+        ) : (
+          <Box height={300}>
+            <Bar
+              data={chartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                },
+                scales: {
+                  y: { beginAtZero: true }
+                }
+              }}
+            />
+          </Box>
+        )}
       </Paper>
     );
   };
@@ -411,6 +405,11 @@ const PerformanceAnalyticsPage: React.FC = () => {
         <Typography variant="body1" color="text.secondary">
           Overview of platform traffic, user engagement, and successful matches
         </Typography>
+        {dataError && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {dataError}
+          </Alert>
+        )}
       </Box>
 
       {/* Stats Cards */}
