@@ -220,9 +220,12 @@ const AnalyticsPage: React.FC = () => {
   const getPageDisplayName = (page: string): string => {
     const pageNames: { [key: string]: string } = {
       '/': 'Home',
+      '/start': 'Start Here',
       '/dashboard': 'Dashboard',
       '/search': 'Search',
       '/post-advert': 'Post Advert',
+      '/post-vacancy': 'Post Vacancy',
+      '/post-availability': 'Post Availability',
       '/profile': 'Profile',
       '/success-stories': 'Success Stories',
       '/match-completions': 'Match Completions',

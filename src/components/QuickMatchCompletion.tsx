@@ -11,6 +11,9 @@ import {
   Alert,
   Tooltip,
   Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +32,7 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
   vacancyId,
   availabilityId,
   childAvailabilityId,
-  prefilledData,
+  prefilledData = {},
   onSuccess,
   hideFab = false
 }) => {
@@ -186,57 +189,45 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
               placeholder="Enter the team name"
             />
             
-            <TextField
-              select
-              label="Position"
-              aria-label="Position"
-              value={formData.position}
-              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              fullWidth
-              required
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ title: 'Position' }}
-              SelectProps={{ 
-                native: true,
-                title: 'Position',
-                MenuProps: {
-                  style: { zIndex: 1301 }
-                }
-              }}
-            >
-              <option value="">Select Position</option>
-              {positions.map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </TextField>
+            <FormControl fullWidth required>
+              <InputLabel htmlFor="qmc-position-select">Position</InputLabel>
+              <Select
+                native
+                value={formData.position}
+                title="Position"
+                aria-label="Position"
+                onChange={(e) => setFormData({ ...formData, position: e.target.value as string })}
+                label="Position"
+                inputProps={{ id: 'qmc-position-select', title: 'Position', 'aria-label': 'Position' }}
+              >
+                <option value="">Select Position</option>
+                {positions.map((position) => (
+                  <option key={position} value={position}>
+                    {position}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
             
-            <TextField
-              select
-              label="Age Group"
-              aria-label="Age Group"
-              value={formData.ageGroup}
-              onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
-              fullWidth
-              required
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ title: 'Age Group' }}
-              SelectProps={{ 
-                native: true,
-                title: 'Age Group',
-                MenuProps: {
-                  style: { zIndex: 1301 }
-                }
-              }}
-            >
-              <option value="">Select Age Group</option>
-              {ageGroups.map((ageGroup) => (
-                <option key={ageGroup} value={ageGroup}>
-                  {ageGroup}
-                </option>
-              ))}
-            </TextField>
+            <FormControl fullWidth required>
+              <InputLabel htmlFor="qmc-agegroup-select">Age Group</InputLabel>
+              <Select
+                native
+                value={formData.ageGroup}
+                title="Age Group"
+                aria-label="Age Group"
+                onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value as string })}
+                label="Age Group"
+                inputProps={{ id: 'qmc-agegroup-select', title: 'Age Group', 'aria-label': 'Age Group' }}
+              >
+                <option value="">Select Age Group</option>
+                {ageGroups.map((ageGroup) => (
+                  <option key={ageGroup} value={ageGroup}>
+                    {ageGroup}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
             
             <Autocomplete
               fullWidth

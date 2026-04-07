@@ -62,6 +62,7 @@ import {
   Cancel as InactiveIcon,
   Science as ScienceIcon,
   Flag as FlagIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { leaguesAPI, League, adminAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -1147,6 +1148,35 @@ const AdminPage: React.FC = () => {
                     </Typography>
                   </Box>
                   <FlagIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} lg={3}>
+            <Card
+              sx={{
+                background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/email-logs')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Email Logs
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Delivery Success & Failures
+                    </Typography>
+                  </Box>
+                  <EmailIcon sx={{ fontSize: 40, opacity: 0.8 }} />
                 </Box>
               </CardContent>
             </Card>

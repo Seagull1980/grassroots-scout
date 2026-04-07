@@ -59,6 +59,18 @@ interface User {
   lastLogin?: string;
 }
 
+const toBoolean = (value: unknown): boolean =>
+  value === true || value === 1 || value === '1' || value === 'true';
+
+const normalizeAdminUser = (user: any): User => ({
+  ...user,
+  firstName: user.firstName ?? user.firstname ?? '',
+  lastName: user.lastName ?? user.lastname ?? '',
+  betaAccess: toBoolean(user.betaAccess ?? user.betaaccess),
+  isEmailVerified: toBoolean(user.isEmailVerified ?? user.isemailverified),
+  isBlocked: toBoolean(user.isBlocked ?? user.isblocked),
+});
+
 const UserAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
@@ -111,8 +123,11 @@ const UserAdminPage: React.FC = () => {
       });
       
       console.log('[UserAdminPage] Response received:', response.data);
-      setUsers(response.data.users || []);
-      console.log('[UserAdminPage] Users set to:', response.data.users?.length || 0, 'users');
+      const normalizedUsers = Array.isArray(response.data?.users)
+        ? response.data.users.map(normalizeAdminUser)
+        : [];
+      setUsers(normalizedUsers);
+      console.log('[UserAdminPage] Users set to:', normalizedUsers.length, 'users');
     } catch (err: any) {
       console.error('[UserAdminPage] Error fetching users:', err);
       console.error('[UserAdminPage] Error response:', err.response);

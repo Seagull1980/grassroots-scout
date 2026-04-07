@@ -307,9 +307,9 @@ export const OnboardingFlow: React.FC = () => {
         return;
       }
       
-      // Show onboarding after a short delay
+      // Show onboarding after the page has rendered
       if (shouldShowOnboarding) {
-        setTimeout(() => setOpen(true), 1000);
+        setOpen(true);
       }
     }
   }, [user]);
@@ -579,42 +579,46 @@ export const OnboardingFlow: React.FC = () => {
             />
 
             {user?.role === 'Player' && (
-              <TextField
-                fullWidth
-                select
-                label="Playing Position"
-                aria-label="Playing Position"
-                value={userData.position}
-                onChange={(e) => setUserData(prev => ({ ...prev, position: e.target.value }))}
-                inputProps={{ title: 'Playing Position' }}
-                SelectProps={{ native: true, title: 'Playing Position' }}
-                helperText="Your primary position"
-              >
-                <option value=""></option>
-                <option value="Goalkeeper">Goalkeeper</option>
-                <option value="Defender">Defender</option>
-                <option value="Midfielder">Midfielder</option>
-                <option value="Forward">Forward</option>
-                <option value="Winger">Winger</option>
-                <option value="Striker">Striker</option>
-              </TextField>
+              <FormControl fullWidth>
+                <InputLabel htmlFor="ob-position-select">Playing Position</InputLabel>
+                <Select
+                  native
+                  title="Playing Position"
+                  aria-label="Playing Position"
+                  value={userData.position}
+                  onChange={(e) => setUserData(prev => ({ ...prev, position: e.target.value as string }))}
+                  label="Playing Position"
+                  inputProps={{ id: 'ob-position-select', title: 'Playing Position', 'aria-label': 'Playing Position' }}
+                >
+                  <option value=""></option>
+                  <option value="Goalkeeper">Goalkeeper</option>
+                  <option value="Defender">Defender</option>
+                  <option value="Midfielder">Midfielder</option>
+                  <option value="Forward">Forward</option>
+                  <option value="Winger">Winger</option>
+                  <option value="Striker">Striker</option>
+                </Select>
+              </FormControl>
             )}
 
-            <TextField
-              fullWidth
-              select
-              label="Experience Level"
-              value={userData.experienceLevel}
-              onChange={(e) => setUserData(prev => ({ ...prev, experienceLevel: e.target.value }))}
-              SelectProps={{ native: true, title: 'Experience Level' }}
-              helperText="Your current football experience level"
-            >
-              <option value=""></option>
-              <option value="Grassroots">Grassroots</option>
-              <option value="Amateur">Amateur</option>
-              <option value="Semi-Pro">Semi-Pro</option>
-              <option value="Professional">Professional</option>
-            </TextField>
+            <FormControl fullWidth>
+              <InputLabel htmlFor="ob-experiencelevel-select">Experience Level</InputLabel>
+              <Select
+                native
+                title="Experience Level"
+                aria-label="Experience Level"
+                value={userData.experienceLevel}
+                onChange={(e) => setUserData(prev => ({ ...prev, experienceLevel: e.target.value as string }))}
+                label="Experience Level"
+                inputProps={{ id: 'ob-experiencelevel-select', title: 'Experience Level', 'aria-label': 'Experience Level' }}
+              >
+                <option value=""></option>
+                <option value="Grassroots">Grassroots</option>
+                <option value="Amateur">Amateur</option>
+                <option value="Semi-Pro">Semi-Pro</option>
+                <option value="Professional">Professional</option>
+              </Select>
+            </FormControl>
 
             <TextField
               fullWidth
@@ -803,6 +807,8 @@ export const OnboardingFlow: React.FC = () => {
               <Select
                 labelId="team-gender-label"
                 id="team-gender-select"
+                title="Team Gender"
+                aria-label="Team Gender"
                 value={teamData.teamGender}
                 label="Team Gender"
                 onChange={(e) => setTeamData({ ...teamData, teamGender: e.target.value })}

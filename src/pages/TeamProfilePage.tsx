@@ -328,7 +328,10 @@ const TeamProfilePage: React.FC = () => {
               </Typography>
             )}
           </Box>
-          <Button variant="outlined" onClick={() => navigate('/team-management')}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/team-management', { state: { editTeamId: teamDetails.id } })}
+          >
             Edit Team
           </Button>
         </Box>

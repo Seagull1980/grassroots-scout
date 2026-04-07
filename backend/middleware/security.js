@@ -13,6 +13,11 @@ const createRateLimiter = (windowMs, max, message) => {
     message: { error: message },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => {
+      const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+      // Normalize IPv4-mapped IPv6 addresses (e.g. ::ffff:1.2.3.4 -> 1.2.3.4)
+      return ip.replace(/^::ffff:/, '');
+    },
     handler: (req, res) => {
       console.warn(`⚠️  Rate limit exceeded for IP: ${req.ip}, endpoint: ${req.path}`);
       res.status(429).json({ error: message });

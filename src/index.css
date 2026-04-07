@@ -36,6 +36,11 @@ body {
   min-height: 100vh;
 }
 
+/* Keep Google Places suggestion list above MUI dialogs (onboarding wizard). */
+.pac-container {
+  z-index: 2000 !important;
+}
+
 /* Page transition animations */
 @keyframes fadeIn {
   from {

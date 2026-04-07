@@ -22,18 +22,35 @@ import {
   MenuItem,
   Checkbox,
   FormControlLabel,
+  Stack,
+  Chip,
+  Divider,
 } from '@mui/material';
 import { Add, Edit, Delete, People } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { trainingAPI, TrainingSession } from '../services/api';
+import { trainingAPI, TrainingSession, openTrainingAPI, OpenTrainingRegistration } from '../services/api';
+
+type RegistrationStatusFilter = 'all' | OpenTrainingRegistration['status'];
 
 const TrainingSessionsPage: React.FC = () => {
-  const { } = useAuth();
+  const { user } = useAuth();
+  const isCoach = user?.role === 'Coach' || user?.role === 'Admin';
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [success, setSuccess] = useState('');
+  const [myRegistrations, setMyRegistrations] = useState<Record<number, { id: number; status: string; paymentStatus: string } | null>>({});
+  const [joiningSessionId, setJoiningSessionId] = useState<number | null>(null);
+  const [registrationsDialogOpen, setRegistrationsDialogOpen] = useState(false);
+  const [activeSession, setActiveSession] = useState<TrainingSession | null>(null);
+  const [registrations, setRegistrations] = useState<OpenTrainingRegistration[]>([]);
+  const [registrationsLoading, setRegistrationsLoading] = useState(false);
+  const [registrationFilter, setRegistrationFilter] = useState<RegistrationStatusFilter>('all');
+  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
+  const [capacity, setCapacity] = useState<{ maxParticipants: number | null; currentParticipants: number; remaining: number | null } | null>(null);
+  const [updatingRegistrationId, setUpdatingRegistrationId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -57,8 +74,13 @@ const TrainingSessionsPage: React.FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
+      setError('');
       const response = await trainingAPI.getSessions();
       setSessions(response.sessions);
+      // Pre-populate player registration map from inline my_registration field
+      const regMap: Record<number, { id: number; status: string; paymentStatus: string } | null> = {};
+      response.sessions.forEach(s => { regMap[s.id] = s.my_registration ?? null; });
+      setMyRegistrations(regMap);
     } catch (err) {
       setError('Failed to load training sessions');
     } finally {
@@ -127,6 +149,7 @@ const TrainingSessionsPage: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
+      setError('');
       if (editingSession) {
         await trainingAPI.updateSession(editingSession.id, {
           title: formData.title,
@@ -162,6 +185,7 @@ const TrainingSessionsPage: React.FC = () => {
       }
       handleCloseDialog();
       loadSessions();
+      setSuccess(editingSession ? 'Training session updated successfully.' : 'Training session created successfully.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save training session');
     }
@@ -170,13 +194,124 @@ const TrainingSessionsPage: React.FC = () => {
   const handleDelete = async (sessionId: number) => {
     if (window.confirm('Are you sure you want to delete this training session?')) {
       try {
+        setError('');
         await trainingAPI.deleteSession(sessionId);
         loadSessions();
+        setSuccess('Training session deleted successfully.');
       } catch (err) {
         setError('Failed to delete training session');
       }
     }
   };
+
+  const loadRegistrations = async (sessionId: number) => {
+    try {
+      setRegistrationsLoading(true);
+      setError('');
+      const response = await openTrainingAPI.getRegistrations(sessionId);
+      setRegistrations(response.registrations || []);
+      setRegistrationCounts(response.counts || {});
+      setCapacity(response.capacity || null);
+    } catch (err: any) {
+      setRegistrations([]);
+      setRegistrationCounts({});
+      setCapacity(null);
+      const apiError = err?.response?.data?.error;
+      setError(apiError || 'Could not load registrations for this session. Ensure this session exists in calendar events.');
+    } finally {
+      setRegistrationsLoading(false);
+    }
+  };
+
+  const handleOpenRegistrations = async (session: TrainingSession) => {
+    setActiveSession(session);
+    setRegistrationsDialogOpen(true);
+    await loadRegistrations(session.id);
+  };
+
+  const handleCloseRegistrations = () => {
+    setRegistrationsDialogOpen(false);
+    setActiveSession(null);
+    setRegistrations([]);
+    setRegistrationCounts({});
+    setCapacity(null);
+    setRegistrationFilter('all');
+    setUpdatingRegistrationId(null);
+  };
+
+  const handleUpdateRegistration = async (
+    registrationId: number,
+    updates: {
+      status?: OpenTrainingRegistration['status'];
+      paymentStatus?: OpenTrainingRegistration['paymentStatus'];
+      dropReason?: string;
+    }
+  ) => {
+    if (!activeSession) return;
+
+    try {
+      setUpdatingRegistrationId(registrationId);
+      setError('');
+      await openTrainingAPI.updateRegistration(activeSession.id, registrationId, updates);
+      await loadRegistrations(activeSession.id);
+      setSuccess('Registration updated successfully.');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Failed to update registration.');
+    } finally {
+      setUpdatingRegistrationId(null);
+    }
+  };
+
+  const handleCancelRegistration = async (registrationId: number) => {
+    if (!activeSession) return;
+
+    try {
+      setUpdatingRegistrationId(registrationId);
+      setError('');
+      await openTrainingAPI.cancelRegistration(activeSession.id, registrationId, 'Cancelled by coach');
+      await loadRegistrations(activeSession.id);
+      setSuccess('Registration cancelled and spot updated.');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Failed to cancel registration.');
+    } finally {
+      setUpdatingRegistrationId(null);
+    }
+  };
+
+  const handleJoinSession = async (sessionId: number) => {
+    try {
+      setJoiningSessionId(sessionId);
+      setError('');
+      const response = await openTrainingAPI.register(sessionId, { allowWaitlist: true });
+      setMyRegistrations(prev => ({
+        ...prev,
+        [sessionId]: { id: response.registration.id, status: response.registration.status, paymentStatus: response.registration.paymentStatus },
+      }));
+      setSuccess(response.message);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Failed to register for this session.');
+    } finally {
+      setJoiningSessionId(null);
+    }
+  };
+
+  const handleCancelMyRegistration = async (sessionId: number) => {
+    const reg = myRegistrations[sessionId];
+    if (!reg) return;
+    try {
+      setJoiningSessionId(sessionId);
+      setError('');
+      await openTrainingAPI.cancelRegistration(sessionId, reg.id, 'Cancelled by player');
+      setMyRegistrations(prev => ({ ...prev, [sessionId]: null }));
+      setSuccess('Registration cancelled.');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Failed to cancel registration.');
+    } finally {
+      setJoiningSessionId(null);
+    }
+  };
+
+  const filteredRegistrations = registrations.filter(reg => registrationFilter === 'all' || reg.status === registrationFilter);
 
   if (loading) {
     return (
@@ -192,18 +327,26 @@ const TrainingSessionsPage: React.FC = () => {
         <Typography variant="h4" component="h1">
           Training Sessions
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-        >
-          Create Session
-        </Button>
+        {isCoach && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => handleOpenDialog()}
+          >
+            Create Session
+          </Button>
+        )}
       </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {typeof error === 'string' ? error : JSON.stringify(error)}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          {success}
         </Alert>
       )}
 
@@ -274,17 +417,70 @@ const TrainingSessionsPage: React.FC = () => {
                     <strong>Special Offers:</strong> {session.special_offers}
                   </Typography>
                 )}
+                {!isCoach && session.coach_name && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    <strong>Coach:</strong> {session.coach_name}
+                  </Typography>
+                )}
+                {!isCoach && session.max_spaces > 0 && (
+                  <Typography variant="body2">
+                    <strong>Spaces:</strong> {session.current_participants}/{session.max_spaces}
+                    {session.current_participants >= session.max_spaces
+                      ? <Chip label="Full" size="small" color="warning" sx={{ ml: 1 }} />
+                      : <Chip label={`${session.max_spaces - session.current_participants} left`} size="small" color="success" sx={{ ml: 1 }} />}
+                  </Typography>
+                )}
               </CardContent>
               <CardActions>
-                <IconButton onClick={() => handleOpenDialog(session)}>
-                  <Edit />
-                </IconButton>
-                <IconButton onClick={() => handleDelete(session.id)}>
-                  <Delete />
-                </IconButton>
-                <Button size="small" startIcon={<People />}>
-                  View Bookings
-                </Button>
+                {isCoach ? (
+                  <>
+                    <IconButton onClick={() => handleOpenDialog(session)}>
+                      <Edit />
+                    </IconButton>
+                    <IconButton onClick={() => handleDelete(session.id)}>
+                      <Delete />
+                    </IconButton>
+                    <Button size="small" startIcon={<People />} onClick={() => handleOpenRegistrations(session)}>
+                      Manage Players
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {myRegistrations[session.id] ? (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip
+                          label={myRegistrations[session.id]!.status.replace(/_/g, ' ')}
+                          size="small"
+                          color={myRegistrations[session.id]!.status === 'confirmed' ? 'success' : myRegistrations[session.id]!.status === 'waitlisted' ? 'warning' : 'default'}
+                        />
+                        {!['dropped_out', 'cancelled', 'declined'].includes(myRegistrations[session.id]!.status) && (
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="text"
+                            disabled={joiningSessionId === session.id}
+                            onClick={() => handleCancelMyRegistration(session.id)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </Stack>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        disabled={joiningSessionId === session.id}
+                        onClick={() => handleJoinSession(session.id)}
+                      >
+                        {joiningSessionId === session.id
+                          ? 'Joining…'
+                          : session.max_spaces > 0 && session.current_participants >= session.max_spaces
+                            ? 'Join Waitlist'
+                            : 'Join Session'}
+                      </Button>
+                    )}
+                  </>
+                )}
               </CardActions>
             </Card>
           </Grid>
@@ -430,6 +626,113 @@ const TrainingSessionsPage: React.FC = () => {
           <Button onClick={handleSubmit} variant="contained">
             {editingSession ? 'Update' : 'Create'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={registrationsDialogOpen} onClose={handleCloseRegistrations} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Player Registrations {activeSession ? `- ${activeSession.title}` : ''}
+        </DialogTitle>
+        <DialogContent>
+          {capacity && (
+            <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+              <Chip label={`Current: ${capacity.currentParticipants}`} color="primary" size="small" />
+              <Chip label={`Max: ${capacity.maxParticipants ?? 'No limit'}`} size="small" />
+              <Chip label={`Remaining: ${capacity.remaining ?? 'Unlimited'}`} color="success" size="small" />
+            </Stack>
+          )}
+
+          <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+            <Chip label={`All: ${registrations.length}`} size="small" />
+            <Chip label={`Pending: ${registrationCounts.pending_confirmation || 0}`} size="small" />
+            <Chip label={`Confirmed: ${registrationCounts.confirmed || 0}`} color="success" size="small" />
+            <Chip label={`Waitlist: ${registrationCounts.waitlisted || 0}`} color="warning" size="small" />
+            <Chip label={`Overdue: ${registrationCounts.payment_overdue || 0}`} color="error" size="small" />
+          </Stack>
+
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel>Status Filter</InputLabel>
+            <Select
+              value={registrationFilter}
+              label="Status Filter"
+              onChange={(e) => setRegistrationFilter(e.target.value as RegistrationStatusFilter)}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="pending_confirmation">Pending confirmation</MenuItem>
+              <MenuItem value="confirmed">Confirmed</MenuItem>
+              <MenuItem value="waitlisted">Waitlisted</MenuItem>
+              <MenuItem value="payment_pending">Payment pending</MenuItem>
+              <MenuItem value="payment_overdue">Payment overdue</MenuItem>
+              <MenuItem value="declined">Declined</MenuItem>
+              <MenuItem value="dropped_out">Dropped out</MenuItem>
+              <MenuItem value="cancelled">Cancelled</MenuItem>
+            </Select>
+          </FormControl>
+
+          {registrationsLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : filteredRegistrations.length === 0 ? (
+            <Alert severity="info">No registrations found for the selected filter.</Alert>
+          ) : (
+            <Stack spacing={1.5}>
+              {filteredRegistrations.map((registration) => {
+                const name = `${registration.firstName || ''} ${registration.lastName || ''}`.trim() || `User ${registration.userId}`;
+                const isUpdating = updatingRegistrationId === registration.id;
+
+                return (
+                  <Card key={registration.id} variant="outlined">
+                    <CardContent sx={{ pb: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap">
+                        <Typography variant="subtitle1">{name}</Typography>
+                        <Stack direction="row" spacing={1}>
+                          <Chip label={registration.status.replace('_', ' ')} size="small" color={registration.status === 'confirmed' ? 'success' : registration.status === 'waitlisted' ? 'warning' : 'default'} />
+                          <Chip label={`Payment: ${registration.paymentStatus.replace('_', ' ')}`} size="small" color={registration.paymentStatus === 'paid' ? 'success' : registration.paymentStatus === 'overdue' ? 'error' : 'default'} />
+                        </Stack>
+                      </Stack>
+
+                      <Typography variant="body2" color="text.secondary">
+                        {registration.email || 'No email available'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Registered: {new Date(registration.createdAt).toLocaleString()}
+                      </Typography>
+
+                      {registration.paymentDueAt && (
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          Payment due: {new Date(registration.paymentDueAt).toLocaleString()}
+                        </Typography>
+                      )}
+                    </CardContent>
+
+                    <Divider />
+
+                    <CardActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+                      <Button size="small" variant="outlined" disabled={isUpdating} onClick={() => handleUpdateRegistration(registration.id, { status: 'confirmed' })}>
+                        Confirm
+                      </Button>
+                      <Button size="small" variant="outlined" disabled={isUpdating} onClick={() => handleUpdateRegistration(registration.id, { status: 'waitlisted' })}>
+                        Waitlist
+                      </Button>
+                      <Button size="small" variant="outlined" disabled={isUpdating} onClick={() => handleUpdateRegistration(registration.id, { paymentStatus: 'overdue', status: 'payment_overdue' })}>
+                        Mark Overdue
+                      </Button>
+                      <Button size="small" color="warning" variant="outlined" disabled={isUpdating} onClick={() => handleUpdateRegistration(registration.id, { status: 'dropped_out', dropReason: 'Dropped by coach' })}>
+                        Drop Out
+                      </Button>
+                      <Button size="small" color="error" variant="text" disabled={isUpdating} onClick={() => handleCancelRegistration(registration.id)}>
+                        Cancel
+                      </Button>
+                    </CardActions>
+                  </Card>
+                );
+              })}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseRegistrations}>Close</Button>
         </DialogActions>
       </Dialog>
     </Container>

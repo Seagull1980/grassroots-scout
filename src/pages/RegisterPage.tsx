@@ -68,7 +68,7 @@ const RegisterPage: React.FC = () => {
       case 'Coach':
         return 'As a coach, you can post team vacancies, manage teams, and invite players to trials.';
       case 'Player':
-        return 'As a player, you can browse teams, post your availability, and apply for team positions. Players under 16 must be registered by a parent/guardian.';
+        return 'As a player, you can browse teams, post your availability, and apply for team positions.';
       case 'Parent/Guardian':
         return "As a parent/guardian, you can manage profiles for players under 16, communicate with coaches, and monitor your child's activity.";
       default:
@@ -84,7 +84,7 @@ const RegisterPage: React.FC = () => {
     if (name === 'password') setPasswordTouched(true);
     if (name === 'dateOfBirth' && formData.role === 'Player' && value) {
       if (calculateAge(value) < 16) {
-        setAgeWarning(`Players under 16 must be registered by a parent or guardian.`);
+        setAgeWarning(`Under 16? A parent or guardian needs to register on your behalf — tap "Switch role" below to continue as Parent/Guardian.`);
       }
     }
   };
@@ -185,9 +185,11 @@ const RegisterPage: React.FC = () => {
       registrationData.dateOfBirth = formData.dateOfBirth;
     }
 
+
+
     try {
       await register(registrationData);
-      navigate('/maps');
+      navigate('/start');
     } catch (error: any) {
       let general = 'Registration failed. Please try again.';
       const newFieldErrors: Record<string, string> = {};
@@ -411,6 +413,8 @@ const RegisterPage: React.FC = () => {
                     )}
                   </>
                 )}
+
+
               </>
             )}
 
@@ -576,7 +580,7 @@ const RegisterPage: React.FC = () => {
                 </Button>
               ) : (
                 <Tooltip title={submitTooltip} arrow disableHoverListener={!submitDisabled}>
-                  <span style={{ width: '100%' }}>
+                  <Box component="span" sx={{ display: 'block', width: '100%' }}>
                     <Button
                       type="submit"
                       fullWidth
@@ -586,7 +590,7 @@ const RegisterPage: React.FC = () => {
                     >
                       {isLoading ? <CircularProgress size={24} /> : 'Create Account'}
                     </Button>
-                  </span>
+                  </Box>
                 </Tooltip>
               )}
             </Box>

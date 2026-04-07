@@ -587,7 +587,7 @@ const MyAdvertsPage: React.FC = () => {
                   </Typography>
                   <Button
                     variant="contained"
-                    onClick={() => navigate('/post-advert')}
+                    onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
                   >
                     Post Your First Vacancy
                   </Button>
@@ -619,7 +619,7 @@ const MyAdvertsPage: React.FC = () => {
                   </Typography>
                   <Button
                     variant="contained"
-                    onClick={() => navigate('/post-advert')}
+                    onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
                   >
                     Post Your Availability
                   </Button>
@@ -643,7 +643,7 @@ const MyAdvertsPage: React.FC = () => {
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/post-advert')}
+                onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}
               >
                 Create New Advert
               </Button>

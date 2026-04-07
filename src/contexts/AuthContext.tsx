@@ -7,7 +7,12 @@ import { isApiError } from '../utils/errorHandling';
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => Promise<boolean>;
+  register: (userData: Omit<User, 'id' | 'createdAt'> & {
+    password: string;
+    dateOfBirth?: string;
+    teamName?: string;
+    businessName?: string;
+  }) => Promise<boolean>;
   logout: () => void;
   refreshUserData: () => Promise<void>;
   isLoading: boolean;
@@ -68,6 +73,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const storedUser = JSON.parse(storedUserStr);
             if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] User restored from storage:', storedUser.email);
             setUser(storedUser);
+
+            // Validate token/server session to avoid stale localStorage auth state.
+            try {
+              const response = await authAPI.getCurrentUser();
+              if (response?.user) {
+                setUser(response.user as User);
+                storage.setItem('user', JSON.stringify(response.user));
+              }
+            } catch (validationError) {
+              const status = isApiError(validationError) ? validationError.response?.status : undefined;
+              if (status === 401 || status === 403) {
+                if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Stored session invalid, clearing auth state');
+                setUser(null);
+                storage.removeItem('token');
+                storage.removeItem('user');
+              } else {
+                // Non-auth failures (network/server transient) should not force logout.
+                if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Session validation skipped due to transient error');
+              }
+            }
           } else {
             console.warn('[AuthContext] Token exists but no user data found');
             storage.removeItem('token'); // Clean up orphaned token
@@ -165,7 +190,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (userData: Omit<User, 'id' | 'createdAt'> & { password: string; dateOfBirth?: string }): Promise<boolean> => {
+  const register = async (userData: Omit<User, 'id' | 'createdAt'> & {
+    password: string;
+    dateOfBirth?: string;
+    teamName?: string;
+    businessName?: string;
+  }): Promise<boolean> => {
     setIsLoading(true);
     try {
       const registerData: RegisterData = {
@@ -179,6 +209,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Include date of birth if provided
       if (userData.dateOfBirth) {
         registerData.dateOfBirth = userData.dateOfBirth;
+      }
+
+      if (userData.teamName) {
+        registerData.teamName = userData.teamName;
+      }
+
+      if (userData.businessName) {
+        registerData.businessName = userData.businessName;
       }
       
       if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Sending registration data:', registerData);
@@ -226,11 +264,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshUserData = useCallback(async () => {
     try {
-      console.log('[AuthContext] Refreshing user data from server...');
+      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Refreshing user data from server...');
       const response = await authAPI.getCurrentUser();
       if (response && response.user) {
         const updatedUser = response.user as User;
-        console.log('[AuthContext] User data refreshed:', updatedUser.email, 'betaAccess:', updatedUser.betaAccess);
+        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] User data refreshed:', updatedUser.email, 'betaAccess:', updatedUser.betaAccess);
         setUser(updatedUser);
         storage.setItem('user', JSON.stringify(updatedUser));
       }
@@ -240,9 +278,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const impersonateUser = useCallback((userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
-    console.log('🔄 AuthContext: impersonateUser called with:', userType);
-    console.log('👤 Current user:', user);
-    console.log('🔐 Current isImpersonating:', isImpersonating);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔄 AuthContext: impersonateUser called with:', userType);
+      console.log('👤 Current user:', user);
+      console.log('🔐 Current isImpersonating:', isImpersonating);
+    }
     
     if (!user || user.role !== 'Admin') {
       console.error('❌ AuthContext: User is not admin or not logged in');
@@ -252,7 +292,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       // Save original user if not already impersonating
       if (!isImpersonating) {
-        console.log('💾 Saving original user for impersonation');
+        if (process.env.NODE_ENV !== 'production') console.log('💾 Saving original user for impersonation');
         setOriginalUser(user);
       }
       
@@ -265,28 +305,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: `test.${userType.toLowerCase().replace('/', '.').replace(' ', '.')}@example.com`,
       };
       
-      console.log('👤 Created mock user:', mockUser);
+      if (process.env.NODE_ENV !== 'production') console.log('👤 Created mock user:', mockUser);
       
       setUser(mockUser);
       setIsImpersonating(true);
       
-      console.log('✅ AuthContext: Impersonation successful');
+      if (process.env.NODE_ENV !== 'production') console.log('✅ AuthContext: Impersonation successful');
     } catch (error) {
       console.error('❌ AuthContext: Error during impersonation:', error);
     }
   }, [user, isImpersonating]);
 
   const stopImpersonation = useCallback(() => {
-    console.log('🔄 AuthContext: stopImpersonation called');
-    console.log('👤 Original user:', originalUser);
-    console.log('🔐 Is impersonating:', isImpersonating);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔄 AuthContext: stopImpersonation called');
+      console.log('👤 Original user:', originalUser);
+      console.log('🔐 Is impersonating:', isImpersonating);
+    }
     
     if (originalUser && isImpersonating) {
-      console.log('🔄 Restoring original user');
+      if (process.env.NODE_ENV !== 'production') console.log('🔄 Restoring original user');
       setUser(originalUser);
       setOriginalUser(null);
       setIsImpersonating(false);
-      console.log('✅ AuthContext: Impersonation stopped successfully');
+      if (process.env.NODE_ENV !== 'production') console.log('✅ AuthContext: Impersonation stopped successfully');
     } else {
       console.warn('⚠️ AuthContext: Cannot stop impersonation - no original user or not impersonating');
     }

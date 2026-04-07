@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TextField, TextFieldProps, Box } from '@mui/material';
+import { Loader } from '@googlemaps/js-api-loader';
+import { GOOGLE_MAPS_CONFIG } from '../config/maps';
 
 interface LocationAutocompleteProps extends Omit<TextFieldProps, 'onChange'> {
   value: string;
@@ -31,39 +33,83 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   const [useLegacyAPI, setUseLegacyAPI] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const originalWarnRef = useRef<any>(null);
+  const [mapsLoadFailed, setMapsLoadFailed] = useState(false);
 
   useEffect(() => {
-    // Check if Google Maps is loaded
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setIsGoogleMapsLoaded(true);
-      // Force legacy API as PlaceAutocompleteElement doesn't support controlled values
-      setUseLegacyAPI(true);
-      
-      // Suppress the Google Maps legacy API deprecation warning
-      // It's expected and unavoidable in React due to PlaceAutocompleteElement's limitations
-      if (!originalWarnRef.current) {
-        originalWarnRef.current = console.warn;
-        console.warn = (...args: any[]) => {
-          // Suppress Google Maps deprecation warning for legacy Autocomplete
-          if (
-            args[0]?.includes?.('google.maps.places.Autocomplete') ||
-            args[0]?.includes?.('PlaceAutocompleteElement')
-          ) {
-            return; // Silently suppress this specific warning
-          }
-          // Call original console.warn for all other warnings
-          originalWarnRef.current(...args);
-        };
+    let isMounted = true;
+
+    const ensureGoogleMapsLoaded = async () => {
+      if (window.google?.maps?.places) {
+        if (isMounted) {
+          setIsGoogleMapsLoaded(true);
+          setUseLegacyAPI(true);
+        }
+        return;
       }
-    }
-    
-    return () => {
-      // Restore original console.warn on cleanup
-      if (originalWarnRef.current) {
-        console.warn = originalWarnRef.current;
+
+      const apiKey = GOOGLE_MAPS_CONFIG.apiKey;
+      if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
+        if (isMounted) {
+          setMapsLoadFailed(true);
+        }
+        return;
+      }
+
+      try {
+        const loader = new Loader({
+          apiKey,
+          version: GOOGLE_MAPS_CONFIG.version,
+          libraries: ['places']
+        });
+
+        await loader.load();
+
+        if (isMounted && window.google?.maps?.places) {
+          setIsGoogleMapsLoaded(true);
+          // Force legacy API as PlaceAutocompleteElement doesn't support controlled values.
+          setUseLegacyAPI(true);
+        }
+      } catch (error) {
+        console.error('Failed to load Google Maps Places API:', error);
+        if (isMounted) {
+          setMapsLoadFailed(true);
+        }
       }
     };
+
+    ensureGoogleMapsLoaded();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isGoogleMapsLoaded || originalWarnRef.current) {
+      return;
+    }
+
+    // Suppress the Google Maps legacy API deprecation warning.
+    // It's expected and unavoidable in React due to PlaceAutocompleteElement limitations.
+    originalWarnRef.current = console.warn;
+    console.warn = (...args: any[]) => {
+      if (
+        args[0]?.includes?.('google.maps.places.Autocomplete') ||
+        args[0]?.includes?.('PlaceAutocompleteElement')
+      ) {
+        return;
+      }
+
+      originalWarnRef.current(...args);
+    };
+
+    return () => {
+      if (originalWarnRef.current) {
+        console.warn = originalWarnRef.current;
+        originalWarnRef.current = null;
+      }
+    };
+  }, [isGoogleMapsLoaded]);
 
   useEffect(() => {
     // Update the input value when the value prop changes (e.g., when loading from localStorage)
@@ -196,7 +242,9 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
       placeholder={placeholder}
       helperText={
         textFieldProps.helperText || 
-        (isGoogleMapsLoaded ? 'Start typing to see suggestions' : 'Google Maps autocomplete not available')
+        (isGoogleMapsLoaded
+          ? 'Start typing to see suggestions'
+          : (mapsLoadFailed ? 'Google Maps autocomplete unavailable right now' : 'Loading location suggestions...'))
       }
     />
   );

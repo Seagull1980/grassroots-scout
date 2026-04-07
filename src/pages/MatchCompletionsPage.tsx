@@ -24,6 +24,9 @@ import {
   Checkbox,
   Divider,
   Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -489,42 +492,44 @@ const MatchCompletionsPage: React.FC = () => {
                 fullWidth
                 required
               />
-              <TextField
-                select
-                label="Position"
-                aria-label="Position"
-                value={formData.position}
-                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                fullWidth
-                required
-                inputProps={{ title: 'Position' }}
-                SelectProps={{ native: true, title: 'Position' }}
-              >
-                <option value="">Select Position</option>
-                {positions.map((position) => (
-                  <option key={position} value={position}>
-                    {position}
-                  </option>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Age Group"
-                aria-label="Age Group"
-                value={formData.ageGroup}
-                onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
-                fullWidth
-                required
-                inputProps={{ title: 'Age Group' }}
-                SelectProps={{ native: true, title: 'Age Group' }}
-              >
-                <option value="">Select Age Group</option>
-                {ageGroups.map((ageGroup) => (
-                  <option key={ageGroup} value={ageGroup}>
-                    {ageGroup}
-                  </option>
-                ))}
-              </TextField>
+              <FormControl fullWidth required>
+                <InputLabel htmlFor="mc-position-select">Position</InputLabel>
+                <Select
+                  native
+                  title="Position"
+                  aria-label="Position"
+                  value={formData.position}
+                  onChange={(e) => setFormData({ ...formData, position: e.target.value as string })}
+                  label="Position"
+                  inputProps={{ id: 'mc-position-select', title: 'Position', 'aria-label': 'Position' }}
+                >
+                  <option value="">Select Position</option>
+                  {positions.map((position) => (
+                    <option key={position} value={position}>
+                      {position}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth required>
+                <InputLabel htmlFor="mc-agegroup-select">Age Group</InputLabel>
+                <Select
+                  native
+                  title="Age Group"
+                  aria-label="Age Group"
+                  value={formData.ageGroup}
+                  onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value as string })}
+                  label="Age Group"
+                  inputProps={{ id: 'mc-agegroup-select', title: 'Age Group', 'aria-label': 'Age Group' }}
+                >
+                  <option value="">Select Age Group</option>
+                  {ageGroups.map((ageGroup) => (
+                    <option key={ageGroup} value={ageGroup}>
+                      {ageGroup}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
               <Autocomplete
                 options={leagues}
                 getOptionLabel={(option) => option.name || ''}

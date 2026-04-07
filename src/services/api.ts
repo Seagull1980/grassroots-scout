@@ -449,6 +449,8 @@ export interface RegisterData {
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
   dateOfBirth?: string;
+  teamName?: string;
+  businessName?: string;
 }
 
 export interface VacancyData {
@@ -512,6 +514,7 @@ export interface TrainingSession {
   time: string;
   location: string;
   max_spaces: number;
+  current_participants: number;
   price: number;
   price_type: 'per_session' | 'per_month' | 'free';
   includes_equipment: boolean;
@@ -522,6 +525,7 @@ export interface TrainingSession {
   coach_name?: string;
   created_at: string;
   updated_at: string;
+  my_registration?: { id: number; status: string; paymentStatus: string } | null;
 }
 
 export interface TrainingBooking {
@@ -532,6 +536,24 @@ export interface TrainingBooking {
   booked_at: string;
   name: string;
   email: string;
+}
+
+export interface OpenTrainingRegistration {
+  id: number;
+  eventId: number;
+  userId: number;
+  status: 'pending_confirmation' | 'confirmed' | 'waitlisted' | 'declined' | 'dropped_out' | 'payment_pending' | 'payment_overdue' | 'cancelled';
+  paymentStatus: 'not_required' | 'pending' | 'paid' | 'overdue';
+  paymentDueAt?: string;
+  confirmedBy?: number;
+  confirmedAt?: string;
+  droppedAt?: string;
+  dropReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 }
 
 // Family Relationships
@@ -1140,13 +1162,8 @@ export const playingHistoryAPI = {
 export const trainingAPI = {
   // Get training sessions (coaches see their own, players see all)
   getSessions: async (): Promise<{ sessions: TrainingSession[] }> => {
-    try {
-      const response = await api.get('/training/sessions');
-      return response.data;
-    } catch (err) {
-      // Endpoint not implemented, return empty list silently
-      return { sessions: [] };
-    }
+    const response = await api.get('/training/sessions');
+    return response.data;
   },
 
   // Create training session (coaches only)
@@ -1225,6 +1242,56 @@ export const trainingAPI = {
     } catch (err) {
       throw new Error('Failed to load session bookings');
     }
+  },
+};
+
+export const openTrainingAPI = {
+  register: async (eventId: number, payload?: {
+    paymentDueAt?: string;
+    paymentStatus?: 'not_required' | 'pending' | 'paid' | 'overdue';
+    allowWaitlist?: boolean;
+  }): Promise<{ message: string; registration: { id: number; status: string; paymentStatus: string; consumedSpot: boolean } }> => {
+    const response = await api.post(`/calendar/events/${eventId}/open-training/register`, payload || {});
+    return response.data;
+  },
+
+  getRegistrations: async (eventId: number): Promise<{
+    registrations: OpenTrainingRegistration[];
+    counts: Record<string, number>;
+    capacity: { maxParticipants: number | null; currentParticipants: number; remaining: number | null };
+  }> => {
+    const response = await api.get(`/calendar/events/${eventId}/open-training/registrations`);
+    return response.data;
+  },
+
+  updateRegistration: async (
+    eventId: number,
+    registrationId: number,
+    payload: {
+      status?: OpenTrainingRegistration['status'];
+      paymentStatus?: OpenTrainingRegistration['paymentStatus'];
+      paymentDueAt?: string | null;
+      dropReason?: string;
+    }
+  ): Promise<{ message: string; status: string; promotedUserId: number | null }> => {
+    const response = await api.put(`/calendar/events/${eventId}/open-training/registrations/${registrationId}`, payload);
+    return response.data;
+  },
+
+  cancelRegistration: async (
+    eventId: number,
+    registrationId: number,
+    reason?: string
+  ): Promise<{ message: string; promotedUserId: number | null }> => {
+    const response = await api.post(`/calendar/events/${eventId}/open-training/registrations/${registrationId}/cancel`, {
+      reason: reason || null,
+    });
+    return response.data;
+  },
+
+  getMyRegistration: async (eventId: number): Promise<{ registration: { id: number; status: string; paymentStatus: string } | null }> => {
+    const response = await api.get(`/calendar/events/${eventId}/open-training/my-registration`);
+    return response.data;
   },
 };
 

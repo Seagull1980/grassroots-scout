@@ -7,6 +7,10 @@ class CronService {
     this.db = db;
   }
 
+  setDatabase(db) {
+    this.db = db;
+  }
+
   // Initialize all cron jobs
   init() {
     console.log('🕐 Initializing cron jobs...');
@@ -110,6 +114,11 @@ class CronService {
         "DELETE FROM alert_logs WHERE sentAt < datetime('now', '-1 year')"
       );
 
+      // Delete old email delivery audit logs (older than 90 days)
+      await this.db.query(
+        "DELETE FROM email_delivery_logs WHERE createdAt < datetime('now', '-90 days')"
+      );
+
       console.log('✅ Old data cleanup completed');
     } catch (error) {
       console.error('❌ Data cleanup failed:', error);
@@ -145,7 +154,7 @@ class CronService {
           let recentActivity = [];
           
           if (user.role === 'Player' || user.role === 'Parent/Guardian') {
-            const vacancies = await db.query(`
+            const vacancies = await this.db.query(`
               SELECT title, league, position, ageGroup, createdAt
               FROM team_vacancies 
               WHERE createdAt > datetime('now', '-7 days') AND status = 'active'
@@ -158,7 +167,7 @@ class CronService {
               date: v.createdAt
             }));
           } else if (user.role === 'Coach') {
-            const players = await db.query(`
+            const players = await this.db.query(`
               SELECT title, preferredLeagues, ageGroup, createdAt
               FROM player_availability 
               WHERE createdAt > datetime('now', '-7 days') AND status = 'active'

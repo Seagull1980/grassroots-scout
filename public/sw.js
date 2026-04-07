@@ -1,12 +1,10 @@
 // Service Worker for caching and PWA features
-const CACHE_NAME = 'grassroots-scout-v1';
-const STATIC_CACHE = 'grassroots-scout-static-v1';
-const DYNAMIC_CACHE = 'grassroots-scout-dynamic-v1';
+const CACHE_NAME = 'grassroots-scout-v2';
+const STATIC_CACHE = 'grassroots-scout-static-v2';
+const DYNAMIC_CACHE = 'grassroots-scout-dynamic-v2';
 
 // Resources to cache immediately
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.ico',
   '/robots.txt'
@@ -57,6 +55,12 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') return;
+
+  // Always use network-first for app shell navigation to avoid stale HTML after deploys.
+  if (request.mode === 'navigate') {
+    event.respondWith(handleNavigationRequest(request));
+    return;
+  }
 
   // Handle API requests
   if (url.pathname.startsWith('/api/')) {
@@ -151,6 +155,30 @@ async function handleStaticRequest(request) {
       const offlineResponse = await caches.match('/offline.html');
       return offlineResponse || new Response('Offline', { status: 503 });
     }
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+// Handle HTML navigation with network-first strategy to keep app shell fresh.
+async function handleNavigationRequest(request) {
+  try {
+    const response = await fetch(request);
+    if (response.status === 200) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    const cachedRoot = await caches.match('/');
+    if (cachedRoot) {
+      return cachedRoot;
+    }
+
     return new Response('Offline', { status: 503 });
   }
 }

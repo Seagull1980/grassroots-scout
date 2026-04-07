@@ -3,6 +3,8 @@ const encryptionService = require('../utils/encryption.js');
 
 class EmailService {
   constructor() {
+    this.auditLogger = null;
+
     // Configure email transporter with timeout and retry settings
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -11,10 +13,6 @@ class EmailService {
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        rejectUnauthorized: false, // Allow self-signed certificates
-        ciphers: 'SSLv3'
       },
       connectionTimeout: 10000, // 10 second timeout
       greetingTimeout: 10000,
@@ -264,28 +262,152 @@ class EmailService {
             </div>
           </div>
         `
+      },
+
+      passwordReset: {
+        subject: 'Reset Your Password - The Grassroots Hub',
+        html: (data) => `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #2E7D32; margin-bottom: 20px;">Password Reset Request</h2>
+              <p>Hello ${data.firstName},</p>
+              <p>We received a request to reset your password. Click the button below to choose a new one:</p>
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}"
+                   style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
+                  Reset Password
+                </a>
+              </div>
+              <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:<br>
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}">${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}</a>
+              </p>
+              <p style="color: #666; font-size: 14px; margin-top: 20px;">This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.</p>
+              <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
+                <p>Best regards,<br>The Grassroots Hub Team</p>
+              </div>
+            </div>
+          </div>
+        `
+      },
+
+      trialResponse: {
+        subject: (data) => `Trial Invitation ${data.status === 'accepted' ? 'Accepted' : 'Declined'} - ${data.trialTitle}`,
+        html: (data) => `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #2E7D32; margin-bottom: 20px;">Trial Invitation ${data.status === 'accepted' ? 'Accepted ✅' : 'Declined ❌'}</h2>
+              <p>Hi ${data.coachName},</p>
+              <p><strong>${data.playerName}</strong> has <strong>${data.status}</strong> your trial invitation for:</p>
+              <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #2E7D32; margin-top: 0;">${data.trialTitle}</h3>
+              </div>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/calendar"
+                   style="background-color: #2E7D32; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                  View Your Calendar
+                </a>
+              </div>
+              <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
+                <p>Best regards,<br>The Grassroots Hub Team</p>
+              </div>
+            </div>
+          </div>
+        `
       }
     };
   }
 
+  setAuditLogger(auditLogger) {
+    this.auditLogger = typeof auditLogger === 'function' ? auditLogger : null;
+  }
+
+  async recordAuditEntry(entry) {
+    if (!this.auditLogger) {
+      return;
+    }
+
+    try {
+      await this.auditLogger(entry);
+    } catch (error) {
+      console.error('⚠️ Failed to write email audit log:', error.message);
+    }
+  }
+
+  async sendMailWithAudit(mailOptions, context = {}) {
+    const baseAudit = {
+      recipientEmail: mailOptions.to,
+      templateName: context.templateName || 'custom',
+      subject: mailOptions.subject || null,
+      provider: 'smtp',
+      metadata: context.metadata || null
+    };
+
+    try {
+      const result = await this.transporter.sendMail(mailOptions);
+
+      await this.recordAuditEntry({
+        ...baseAudit,
+        status: 'sent',
+        messageId: result.messageId || null,
+        errorCode: null,
+        errorMessage: null
+      });
+
+      return result;
+    } catch (error) {
+      await this.recordAuditEntry({
+        ...baseAudit,
+        status: 'failed',
+        messageId: null,
+        errorCode: error.code || null,
+        errorMessage: error.message || 'Unknown email delivery error'
+      });
+
+      throw error;
+    }
+  }
+
   async sendEmail(to, template, data) {
+    let mailOptions = null;
+
     try {
       const templateConfig = this.templates[template];
       if (!templateConfig) {
         throw new Error(`Template '${template}' not found`);
       }
 
-      const mailOptions = {
+      mailOptions = {
         from: `"The Grassroots Hub" <${process.env.EMAIL_USER}>`,
         to: to,
         subject: templateConfig.subject,
         html: templateConfig.html(data)
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: template,
+        metadata: {
+          dataKeys: data && typeof data === 'object' ? Object.keys(data) : []
+        }
+      });
       console.log(`✅ Email sent successfully to ${to}: ${template}`);
       return result;
     } catch (error) {
+      if (mailOptions === null) {
+        await this.recordAuditEntry({
+          recipientEmail: to,
+          templateName: template,
+          subject: null,
+          status: 'failed',
+          messageId: null,
+          errorCode: error.code || null,
+          errorMessage: error.message || 'Email composition failed',
+          provider: 'smtp',
+          metadata: {
+            dataKeys: data && typeof data === 'object' ? Object.keys(data) : []
+          }
+        });
+      }
+
       console.error(`❌ Failed to send email to ${to}:`, error);
       throw error;
     }
@@ -364,12 +486,42 @@ class EmailService {
         `
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'adminMessage',
+        metadata: { subject }
+      });
       console.log(`✅ Admin message sent successfully to ${userEmail}`);
       return result;
     } catch (error) {
       console.error(`❌ Failed to send admin message to ${userEmail}:`, error);
       throw error;
+    }
+  }
+
+  async sendPasswordResetEmail(email, firstName, resetToken) {
+    return this.sendEmail(email, 'passwordReset', { firstName, token: resetToken });
+  }
+
+  async sendTrialResponse(coachEmail, coachName, playerName, trialTitle, status) {
+    try {
+      const templateData = this.templates.trialResponse;
+      const mailOptions = {
+        from: `"The Grassroots Hub" <${process.env.EMAIL_USER}>`,
+        to: coachEmail,
+        subject: typeof templateData.subject === 'function'
+          ? templateData.subject({ coachName, playerName, trialTitle, status })
+          : templateData.subject,
+        html: templateData.html({ coachName, playerName, trialTitle, status })
+      };
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'trialResponse',
+        metadata: { status }
+      });
+      console.log(`✅ Trial response notification sent to ${coachEmail}`);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send trial response notification:`, error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -422,7 +574,9 @@ class EmailService {
         `
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'betaAccessGranted'
+      });
       console.log(`✅ Beta access granted email sent to ${userEmail}`);
       return result;
     } catch (error) {
@@ -467,7 +621,10 @@ class EmailService {
         `
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'teamInvitation',
+        metadata: { teamName }
+      });
       console.log(`✅ Team invitation email sent to ${invitedEmail}`);
       return { success: true, messageId: result.messageId };
     } catch (error) {
@@ -497,7 +654,10 @@ class EmailService {
         `
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'invitationResponse',
+        metadata: { teamName, status: statusText }
+      });
       console.log(`✅ Invitation response notification sent to ${inviterEmail}`);
       return { success: true, messageId: result.messageId };
     } catch (error) {
@@ -527,7 +687,10 @@ class EmailService {
         `
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'coachRemovalNotification',
+        metadata: { teamName }
+      });
       console.log(`✅ Removal notification sent to ${coachEmail}`);
       return { success: true, messageId: result.messageId };
     } catch (error) {

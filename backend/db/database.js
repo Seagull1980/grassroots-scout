@@ -238,6 +238,8 @@ class Database {
         userId INTEGER UNIQUE NOT NULL,
         phone VARCHAR,
         dateOfBirth DATE,
+        coachTeamName VARCHAR,
+        coachingBusinessName VARCHAR,
         location VARCHAR,
         bio VARCHAR,
         position VARCHAR,
@@ -372,6 +374,20 @@ class Database {
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         lastTriggered TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS email_delivery_logs (
+        id SERIAL PRIMARY KEY,
+        recipientEmail VARCHAR NOT NULL,
+        templateName VARCHAR,
+        subject VARCHAR,
+        status VARCHAR NOT NULL CHECK(status IN ('sent', 'failed')),
+        messageId VARCHAR,
+        errorCode VARCHAR,
+        errorMessage TEXT,
+        provider VARCHAR DEFAULT 'smtp',
+        metadata TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
 
       `CREATE TABLE IF NOT EXISTS calendar_events (
@@ -1354,6 +1370,45 @@ class Database {
         : `PRAGMA table_info(users)`;
       const usersColumns = await this.query(checkUsersColumns);
 
+      // Migration 7b: Add coach team/business fields to user_profiles
+      const checkProfileColumns = this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'user_profiles'`
+        : `PRAGMA table_info(user_profiles)`;
+      const profileColumns = await this.query(checkProfileColumns);
+
+      if (this.dbType === 'postgresql') {
+        const profileColumnNames = profileColumns.rows.map(row => row.column_name);
+        if (!profileColumnNames.includes('coachteamname')) {
+          await this.query('ALTER TABLE user_profiles ADD COLUMN coachTeamName VARCHAR');
+          console.log('✅ Added coachTeamName column to user_profiles table');
+        }
+        if (!profileColumnNames.includes('coachingbusinessname')) {
+          await this.query('ALTER TABLE user_profiles ADD COLUMN coachingBusinessName VARCHAR');
+          console.log('✅ Added coachingBusinessName column to user_profiles table');
+        }
+      } else {
+        const hasCoachTeamName = profileColumns.rows.some(row => row.name === 'coachTeamName');
+        const hasCoachingBusinessName = profileColumns.rows.some(row => row.name === 'coachingBusinessName');
+
+        if (!hasCoachTeamName) {
+          try {
+            await this.query('ALTER TABLE user_profiles ADD COLUMN coachTeamName VARCHAR');
+            console.log('✅ Added coachTeamName column to user_profiles table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+
+        if (!hasCoachingBusinessName) {
+          try {
+            await this.query('ALTER TABLE user_profiles ADD COLUMN coachingBusinessName VARCHAR');
+            console.log('✅ Added coachingBusinessName column to user_profiles table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
       if (this.dbType === 'postgresql') {
         const userColumnNames = usersColumns.rows.map(row => row.column_name);
         if (!userColumnNames.includes('isdeleted')) {
@@ -1488,6 +1543,8 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_team_vacancies_location ON team_vacancies USING GIN(locationData)',
       'CREATE INDEX IF NOT EXISTS idx_email_alerts_user ON email_alerts(userId)',
       'CREATE INDEX IF NOT EXISTS idx_email_alerts_active ON email_alerts(isActive)',
+      'CREATE INDEX IF NOT EXISTS idx_email_delivery_logs_status ON email_delivery_logs(status)',
+      'CREATE INDEX IF NOT EXISTS idx_email_delivery_logs_created ON email_delivery_logs(createdAt)',
       'CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(date)',
       'CREATE INDEX IF NOT EXISTS idx_trial_invitations_player ON trial_invitations(playerId)',
       'CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(eventId)',

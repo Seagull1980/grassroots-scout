@@ -24,7 +24,7 @@ import {
   LocationOn as LocationIcon,
   FilterList as FilterIcon
 } from '@mui/icons-material';
-import api from '../services/api';
+import api, { leaguesAPI } from '../services/api';
 
 interface AlertPreferences {
   emailNotifications: boolean;
@@ -57,9 +57,9 @@ const AlertPreferencesPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [leagueOptions, setLeagueOptions] = useState<string[]>([]);
 
   // Available options
-  const leagues = ['Premier League', 'Championship', 'League One', 'League Two', 'National League', 'Sunday League'];
   const ageGroups = ['U8', 'U10', 'U12', 'U14', 'U16', 'U18', 'U21', 'Senior', 'Veterans'];
   const positions = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Winger', 'Striker'];
 
@@ -70,8 +70,17 @@ const AlertPreferencesPage: React.FC = () => {
   const loadPreferences = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/alerts/preferences');
-      setPreferences(response.data.preferences);
+      const [preferencesResponse, leaguesResponse] = await Promise.all([
+        api.get('/alerts/preferences'),
+        leaguesAPI.getForSearch(false),
+      ]);
+
+      setPreferences(preferencesResponse.data.preferences);
+
+      const leagueNames = (leaguesResponse || [])
+        .map((league) => league?.name)
+        .filter((name): name is string => Boolean(name));
+      setLeagueOptions(leagueNames);
     } catch (error: any) {
       setError('Failed to load alert preferences');
       console.error('Error loading preferences:', error);
@@ -261,7 +270,7 @@ const AlertPreferencesPage: React.FC = () => {
                 Only receive alerts for these leagues (leave empty for all leagues)
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {leagues.map((league) => (
+                {leagueOptions.map((league) => (
                   <Chip
                     key={league}
                     label={league}

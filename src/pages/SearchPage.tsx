@@ -319,7 +319,6 @@ const SearchPage: React.FC = () => {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     setPage(1);
-    setSortBy('newest');
   };
 
   const handleToggleSave = (item: TeamVacancy | PlayerAvailability, type: 'vacancy' | 'player') => {
@@ -1338,8 +1337,8 @@ const SearchPage: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
       <PageHeader
-        title="Search Adverts"
-        subtitle="Find teams and players that match your goals"
+        title={user?.role === 'Coach' ? 'Find Players' : user?.role ? 'Find a Team' : 'Search Adverts'}
+        subtitle={user?.role === 'Coach' ? 'Browse player availability in your area' : user?.role ? 'Find teams looking for your skills' : 'Find teams and players that match your goals'}
         icon={<Search sx={{ fontSize: 32 }} />}
         actions={(
           <>
@@ -1477,7 +1476,7 @@ const SearchPage: React.FC = () => {
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} sx={{ display: showMoreFilters ? 'block' : 'none' }}>
             <Autocomplete
               fullWidth
               options={Array.isArray(leagues) ? [...leagues, { id: -1, name: '+ Request New League', region: '', url: '', hits: 0 }] : []}
@@ -1700,7 +1699,7 @@ const SearchPage: React.FC = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} md={3} sx={{ display: showMoreFilters ? 'block' : 'none' }}>
             <FormControl fullWidth>
               <InputLabel>Sort By</InputLabel>
               <Select
@@ -2232,7 +2231,7 @@ const SearchPage: React.FC = () => {
                 <Button variant="outlined" onClick={clearFilters}>
                   Clear Filters
                 </Button>
-                <Button variant="contained" onClick={() => navigate('/post-advert')}>
+                <Button variant="contained" onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}>
                   Post Advert
                 </Button>
               </Box>

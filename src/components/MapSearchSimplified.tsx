@@ -26,7 +26,13 @@ import {
   TextField,
   FormControlLabel,
   Switch,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  Tooltip
 } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
@@ -34,10 +40,13 @@ import {
   Person as PersonIcon,
   Groups as GroupsIcon,
   Message as MessageIcon,
+  Send as SendIcon,
   AutoAwesome as RecommendIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { analyticsTracking } from '../services/analyticsTracking';
+import { API_URL } from '../services/api';
+import { ageGroupMatches } from '../utils/mapFilters';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
 type SortMode = 'relevance' | 'distance' | 'age' | 'recent';
@@ -106,6 +115,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const markersRef = useRef<google.maps.Marker[]>([]);
   const markerByKeyRef = useRef<Record<string, google.maps.Marker>>({});
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const rowPulseTimeoutRef = useRef<number | null>(null);
   const mapIdleListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const heatmapRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
@@ -124,8 +134,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => localStorage.getItem('mapOnboardingDismissed') !== 'true');
   const [clusteredHiddenCount, setClusteredHiddenCount] = useState(0);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
+  const [pulsingResultKey, setPulsingResultKey] = useState<string | null>(null);
   const [mapCenter] = useState<google.maps.LatLngLiteral>(() => getInitialMapCenter());
   const [mapZoom] = useState(() => getInitialMapZoom());
+  const [debugCounts, setDebugCounts] = useState({ total: 0, inView: 0, filtered: 0 });
   const [selectedRecipients, setSelectedRecipients] = useState<Record<string, {
     id: string;
     name: string;
@@ -134,6 +146,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     messageType: string;
     context: string;
   }>>({});
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false);
+  const [bulkMessageText, setBulkMessageText] = useState('');
+  const [isSendingBulkMessage, setIsSendingBulkMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   
   // Filter options
@@ -158,19 +174,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   };
 
   const normalizeText = (value: unknown): string => String(value ?? '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-
-  const normalizeAgeGroup = (value: unknown): string => {
-    const raw = String(value ?? '').toLowerCase().trim();
-    if (!raw) return '';
-
-    const underMatch = raw.match(/(?:u|under)\s*[-]?\s*(\d{1,2})/i);
-    if (underMatch) return `u${underMatch[1]}`;
-
-    if (raw.includes('adult')) return 'adult';
-    if (raw.includes('veteran')) return 'veterans';
-
-    return normalizeText(raw);
-  };
 
   const positionAliases: Record<string, string[]> = {
     goalkeeper: ['goalkeeper', 'gk', 'goalie', 'keeper'],
@@ -207,6 +210,25 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     if (result.preferredPosition) return [result.preferredPosition];
     return [];
   };
+
+  const triggerRowPulse = (resultKey: string) => {
+    setPulsingResultKey(resultKey);
+    if (rowPulseTimeoutRef.current) {
+      window.clearTimeout(rowPulseTimeoutRef.current);
+    }
+    rowPulseTimeoutRef.current = window.setTimeout(() => {
+      setPulsingResultKey((current) => (current === resultKey ? null : current));
+      rowPulseTimeoutRef.current = null;
+    }, 1500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (rowPulseTimeoutRef.current) {
+        window.clearTimeout(rowPulseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const positionMatches = (selectedPos: string, resultPos: string): boolean => {
     const selectedNorm = normalizeText(selectedPos);
@@ -250,14 +272,25 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return { lat: center.lat(), lng: center.lng() };
   };
 
-  const toDistanceKm = (origin: google.maps.LatLngLiteral, destination: google.maps.LatLngLiteral): number | null => {
-    if (!window.google?.maps?.geometry?.spherical?.computeDistanceBetween || !window.google?.maps?.LatLng) {
-      return null;
-    }
-    const from = new window.google.maps.LatLng(origin.lat, origin.lng);
-    const to = new window.google.maps.LatLng(destination.lat, destination.lng);
-    const meters = window.google.maps.geometry.spherical.computeDistanceBetween(from, to);
-    return meters / 1000;
+  const toDistanceKm = (
+    from: google.maps.LatLngLiteral | null | undefined,
+    to: google.maps.LatLngLiteral | null | undefined
+  ): number | null => {
+    if (!from || !to) return null;
+
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const deltaLat = toRadians(to.lat - from.lat);
+    const deltaLng = toRadians(to.lng - from.lng);
+    const fromLat = toRadians(from.lat);
+    const toLat = toRadians(to.lat);
+
+    const haversine =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(fromLat) * Math.cos(toLat) * Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+
+    const arc = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    return earthRadiusKm * arc;
   };
 
   const resolveResultPosition = (result: any): google.maps.LatLngLiteral | null => {
@@ -383,6 +416,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       const bounds = mapInstanceRef.current?.getBounds();
       const inView = filterResultsByMapArea(results, bounds);
       const finalFiltered = sortResults(applyAdditionalFilters(inView));
+      setDebugCounts({ total: results.length, inView: inView.length, filtered: finalFiltered.length });
       setFilteredResults(finalFiltered);
       setHasActiveFilter(true);
     });
@@ -391,6 +425,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const initialBounds = mapInstanceRef.current.getBounds();
     const inView = filterResultsByMapArea(results, initialBounds);
     const finalFiltered = sortResults(applyAdditionalFilters(inView));
+    setDebugCounts({ total: results.length, inView: inView.length, filtered: finalFiltered.length });
     setFilteredResults(finalFiltered);
     setHasActiveFilter(true);
 
@@ -416,12 +451,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         
         if (searchType === 'vacancies' || searchType === 'both') {
           endpoints.push(
-            fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/teams`, {
-              headers: { Authorization: `Bearer ${token}` }
+            fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/vacancies`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
             }).then(async r => {
-              if (!r.ok) throw new Error(`Teams endpoint failed: ${r.status}`);
+              if (!r.ok) throw new Error(`Vacancies endpoint failed: ${r.status}`);
               const data = await r.json();
-              return { type: 'vacancy', items: Array.isArray(data) ? data : data.data || [] };
+              return { type: 'vacancy', items: Array.isArray(data) ? data : data.vacancies || data.data || [] };
             })
           );
         }
@@ -686,7 +721,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               color: #999;
               font-style: italic;
             ">
-              Click to view in table below
+              Click to highlight in table below
             </p>
             ${messageButton}
           </div>
@@ -702,7 +737,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         });
         setSelectedItem(result);
         setSelectedResultKey(resultKey);
-        rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        triggerRowPulse(resultKey);
         if (infoWindowRef.current && mapInstanceRef.current) {
           infoWindowRef.current.setContent(createInfoContent(result, index + 1));
           infoWindowRef.current.open(mapInstanceRef.current, marker);
@@ -737,7 +772,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             if (infoContent) {
               infoContent.addEventListener('click', () => {
                 setSelectedResultKey(resultKey);
-                rowRefs.current[resultKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                triggerRowPulse(resultKey);
               });
             }
           });
@@ -826,8 +861,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const recipients = Object.values(selectedRecipients);
     if (!recipients.length) return;
 
-    const teamCount = recipients.filter(r => r.relatedVacancyId).length;
-
     analyticsTracking.track('map_message_clicked', {
       category: 'Map',
       action: 'message_from_result',
@@ -836,25 +869,121 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       searchType
     });
 
-    navigate('/messages', {
-      state: {
-        bulkRecipients: recipients,
-        context: teamCount > 0 ? 'team adverts' : 'player adverts'
-      }
-    });
+    setBulkMessageOpen(true);
   };
 
-  const isBulkMessagingEnabled = user?.role === 'Coach' || user?.role === 'Player' || user?.role === 'Parent/Guardian';
+  const handleSelectAll = () => {
+    if (allEligibleSelected) {
+      setSelectedRecipients({});
+    } else {
+      const newSelections: Record<string, { id: string; name: string; relatedVacancyId?: string; relatedPlayerAvailabilityId?: string; messageType: string; context: string; }> = { ...selectedRecipients };
+      eligibleResults.forEach(result => {
+        const resultKey = getResultKey(result);
+        if (!newSelections[resultKey]) {
+          const recipient = getMessageRecipient(result);
+          if (!recipient) return;
+          const isTeamTarget = result.itemType === 'team' || result.itemType === 'vacancy';
+          newSelections[resultKey] = {
+            id: recipient.id,
+            name: recipient.name,
+            relatedPlayerAvailabilityId: !isTeamTarget && result.id ? String(result.id) : undefined,
+            relatedVacancyId: isTeamTarget && result.id ? String(result.id) : undefined,
+            messageType: isTeamTarget ? 'vacancy_interest' : 'availability_interest',
+            context: result.title || (isTeamTarget ? 'team advert' : 'player advert')
+          };
+        }
+      });
+      setSelectedRecipients(newSelections);
+    }
+  };
+
+  const handleSendBulkMessage = async () => {
+    const recipients = Object.values(selectedRecipients);
+    const message = bulkMessageText.trim();
+
+    if (!recipients.length || !message) return;
+
+    try {
+      setIsSendingBulkMessage(true);
+      let successCount = 0;
+      const failedRecipients: string[] = [];
+
+      for (const recipient of recipients) {
+        const recipientIdInt = parseInt(recipient.id, 10);
+        if (isNaN(recipientIdInt)) {
+          failedRecipients.push(recipient.name || recipient.id);
+          continue;
+        }
+
+        const body: any = {
+          recipientId: recipientIdInt,
+          subject: `Message regarding ${recipient.context || 'availability'}`,
+          message,
+          messageType: recipient.messageType || 'vacancy_interest'
+        };
+
+        if (recipient.relatedVacancyId) {
+          const vacancyId = parseInt(String(recipient.relatedVacancyId), 10);
+          if (!isNaN(vacancyId)) body.relatedVacancyId = vacancyId;
+        }
+
+        if (recipient.relatedPlayerAvailabilityId) {
+          const availabilityId = parseInt(String(recipient.relatedPlayerAvailabilityId), 10);
+          if (!isNaN(availabilityId)) body.relatedPlayerAvailabilityId = availabilityId;
+        }
+
+        const response = await fetch(`${API_URL}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+          successCount += 1;
+        } else {
+          failedRecipients.push(recipient.name || recipient.id);
+        }
+      }
+
+      if (successCount > 0) {
+        setBulkMessageText('');
+        setBulkMessageOpen(false);
+        setSelectedRecipients({});
+        setSuccessMessage(`Sent ${successCount} message${successCount === 1 ? '' : 's'} successfully.`);
+      }
+
+      if (failedRecipients.length > 0) {
+        setError(`Sent ${successCount} message${successCount === 1 ? '' : 's'}. Failed for: ${failedRecipients.join(', ')}`);
+      } else {
+        setError(null);
+      }
+    } catch (sendError) {
+      console.error('Failed to send bulk message from map:', sendError);
+      setError('Failed to send messages. Please try again.');
+    } finally {
+      setIsSendingBulkMessage(false);
+    }
+  };
+
+  const isBulkMessagingEnabled =
+    user?.role === 'Coach' ||
+    user?.role === 'Player' ||
+    user?.role === 'Parent/Guardian' ||
+    user?.role === 'Admin';
   const canBulkMessageResult = (result: any) => {
     if (!isBulkMessagingEnabled) return false;
+    if (user?.role === 'Admin') return result.itemType === 'player' || result.itemType === 'team' || result.itemType === 'vacancy';
     if (user?.role === 'Coach') return result.itemType === 'player';
-    return result.itemType === 'team';
+    return result.itemType === 'team' || result.itemType === 'vacancy';
   };
-  const hasBulkEligibleResults = filteredResults.some(canBulkMessageResult);
   const selectedCount = Object.keys(selectedRecipients).length;
   const selectedTeamCount = Object.values(selectedRecipients).filter(r => r.relatedVacancyId).length;
   const selectedTypeLabel = selectedTeamCount > 0 ? 'team' : 'player';
-  const recommendations = sortResults(results)
+  const recommendationsSource = hasActiveFilter ? filteredResults : results;
+  const recommendations = sortResults(recommendationsSource)
     .filter(item => {
       if (searchType === 'players') return item.itemType === 'player';
       if (searchType === 'vacancies') return item.itemType === 'vacancy' || item.itemType === 'team';
@@ -868,12 +997,16 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     // Filter by age group
     if (selectedAgeGroup) {
-      const selectedAgeNormalized = normalizeAgeGroup(selectedAgeGroup);
       filtered = filtered.filter(result => {
-        const ageNormalized = normalizeAgeGroup(result.ageGroup || result.playerAgeGroup || result.teamAgeGroup || '');
-        if (!ageNormalized) return false;
-        if (ageNormalized === selectedAgeNormalized) return true;
-        return ageNormalized.includes(selectedAgeNormalized) || selectedAgeNormalized.includes(ageNormalized);
+        const resultAgeGroup =
+          result.ageGroup ||
+          result.agegroup ||
+          result.playerAgeGroup ||
+          result.teamAgeGroup ||
+          result.age ||
+          '';
+
+        return ageGroupMatches(selectedAgeGroup, resultAgeGroup);
       });
     }
 
@@ -920,6 +1053,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       pos?.lng ?? 'no-lng'
     ].join('-');
   };
+
+  const eligibleResults = filteredResults.filter(canBulkMessageResult);
+  const allEligibleSelected = eligibleResults.length > 0 && eligibleResults.every(r => Boolean(selectedRecipients[getResultKey(r)]));
+  const someEligibleSelected = eligibleResults.some(r => Boolean(selectedRecipients[getResultKey(r)]));
 
   const getMessageRecipient = (result: any): { id: string; name: string } | null => {
     const candidateValues = [
@@ -1091,6 +1228,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             />
           </Stack>
 
+          {results.length > 0 && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+              <Chip size="small" variant="outlined" label={`Total: ${debugCounts.total || results.length}`} />
+              <Chip size="small" variant="outlined" label={`In view: ${debugCounts.inView}`} />
+              <Chip size="small" color="primary" variant="outlined" label={`After filters: ${hasActiveFilter ? debugCounts.filtered : results.length}`} />
+            </Stack>
+          )}
+
           {clusteredHiddenCount > 0 && (
             <Alert severity="info" sx={{ py: 0.5 }}>
               Zoom in to reveal {clusteredHiddenCount} more result{clusteredHiddenCount !== 1 ? 's' : ''}.
@@ -1146,7 +1291,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       {/* Map Container */}
       <Paper elevation={3} sx={{ position: 'relative', height: { xs: '55vh', sm: '600px' }, minHeight: 420, overflow: 'hidden' }}>
-        <div ref={mapRef} style={{ width: '100%', height: '100%' }} aria-label="Map" />
+        <Box ref={mapRef} aria-label="Map" sx={{ width: '100%', height: '100%' }} />
       </Paper>
 
       {/* Selected Item Details */}
@@ -1214,11 +1359,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* Results Table */}
       {hasActiveFilter && filteredResults.length > 0 && (
         <>
-          {isBulkMessagingEnabled && hasBulkEligibleResults && (
+          {isBulkMessagingEnabled && filteredResults.length > 0 && (
             <Paper sx={{ mt: 2, p: 1.5 }}>
               <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap">
                 <Typography variant="body2" color="text.secondary">
-                  {selectedCount} {selectedTypeLabel}{selectedCount === 1 ? '' : 's'} selected
+                  {eligibleResults.length === 0
+                    ? `Bulk messaging is available here, but none of the current results are eligible. ${user?.role === 'Coach' ? 'Coaches can bulk message players.' : user?.role === 'Admin' ? 'Admins can bulk message both players and teams.' : 'Players and parents can bulk message teams.'}`
+                    : selectedCount === 0
+                      ? `Tick the boxes below to select and message multiple ${user?.role === 'Coach' ? 'players' : user?.role === 'Admin' ? 'players or teams' : 'teams'}`
+                      : `${selectedCount} ${selectedTypeLabel}${selectedCount === 1 ? '' : 's'} selected`}
                 </Typography>
                 <Stack direction="row" spacing={1}>
                   <Button
@@ -1234,7 +1383,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     variant="contained"
                     startIcon={<MessageIcon />}
                     onClick={handleMessageSelected}
-                    disabled={selectedCount === 0}
+                    disabled={selectedCount === 0 || eligibleResults.length === 0}
                   >
                     Message Selected
                   </Button>
@@ -1246,8 +1395,19 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: 'primary.main' }}>
-                {isBulkMessagingEnabled && hasBulkEligibleResults && (
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Select</TableCell>
+                {isBulkMessagingEnabled && filteredResults.length > 0 && (
+                  <TableCell padding="checkbox" sx={{ color: 'white' }}>
+                    <Tooltip title={eligibleResults.length === 0 ? 'No eligible recipients in current results' : (allEligibleSelected ? 'Deselect all' : 'Select all')}>
+                      <Checkbox
+                        size="small"
+                        sx={{ color: 'white', '&.Mui-checked': { color: 'white' }, '&.MuiCheckbox-indeterminate': { color: 'white' } }}
+                        checked={allEligibleSelected}
+                        indeterminate={someEligibleSelected && !allEligibleSelected}
+                        onChange={handleSelectAll}
+                        disabled={eligibleResults.length === 0}
+                      />
+                    </Tooltip>
+                  </TableCell>
                 )}
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Description</TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
@@ -1327,11 +1487,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     onClick={() => {
                       setSelectedItem(result);
                       setSelectedResultKey(resultKey);
-                      const pos = getResultPosition(result);
-                      if (pos && mapInstanceRef.current) {
-                        mapInstanceRef.current.setCenter(pos);
-                        mapInstanceRef.current.setZoom(13);
-                      }
+                      triggerRowPulse(resultKey);
 
                       const marker = markerByKeyRef.current[resultKey];
                       if (marker) {
@@ -1340,11 +1496,17 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                     }}
                     sx={{
                       cursor: 'pointer',
-                      bgcolor: selectedResultKey === resultKey ? 'action.selected' : 'inherit'
+                      bgcolor: selectedResultKey === resultKey ? 'action.selected' : 'inherit',
+                      animation: pulsingResultKey === resultKey ? 'rowHighlightPulse 1.5s ease-out' : 'none',
+                      '@keyframes rowHighlightPulse': {
+                        '0%': { boxShadow: 'inset 0 0 0 2px rgba(25, 118, 210, 0.0)' },
+                        '30%': { boxShadow: 'inset 0 0 0 2px rgba(25, 118, 210, 0.55)' },
+                        '100%': { boxShadow: 'inset 0 0 0 2px rgba(25, 118, 210, 0.0)' }
+                      }
                     }}
                   >
-                    {isBulkMessagingEnabled && hasBulkEligibleResults && (
-                      <TableCell>
+                    {isBulkMessagingEnabled && filteredResults.length > 0 && (
+                      <TableCell padding="checkbox">
                         {canBulkMessageResult(result) && (
                           <Checkbox
                             size="small"
@@ -1383,7 +1545,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                       {result.itemType === 'player' && (
                         (() => {
                           const recipient = getMessageRecipient(result);
+                          const multipleSelected = selectedCount > 1;
                           return (
+                        <Tooltip title={multipleSelected ? 'Deselect others to send an individual message, or use "Message Selected" above to message everyone at once' : ''} arrow disableHoverListener={!multipleSelected}>
+                          <span>
                         <Button
                           variant="contained"
                           size="small"
@@ -1408,10 +1573,12 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                               }
                             });
                           }}
-                          disabled={!recipient}
+                          disabled={!recipient || multipleSelected}
                         >
                           Message
                         </Button>
+                          </span>
+                        </Tooltip>
                           );
                         })()
                       )}
@@ -1428,9 +1595,52 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* No Results Message */}
       {hasActiveFilter && filteredResults.length === 0 && (
         <Alert severity="warning" sx={{ mt: 2 }}>
-          No {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.
+          {selectedAgeGroup || selectedPositions.length > 0
+            ? `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} match the current map filters in this area. Try clearing a filter, zooming out, or panning to a different location.`
+            : `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.`}
         </Alert>
       )}
+
+      <Dialog open={bulkMessageOpen} onClose={() => !isSendingBulkMessage && setBulkMessageOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Message Selected {selectedTypeLabel}{selectedCount === 1 ? '' : 's'}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This will send the same message to {selectedCount} selected {selectedTypeLabel}{selectedCount === 1 ? '' : 's'}.
+          </Typography>
+          <TextField
+            multiline
+            minRows={4}
+            fullWidth
+            autoFocus
+            label="Your message"
+            value={bulkMessageText}
+            onChange={(e) => setBulkMessageText(e.target.value)}
+            disabled={isSendingBulkMessage}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkMessageOpen(false)} disabled={isSendingBulkMessage}>Cancel</Button>
+          <Button
+            variant="contained"
+            startIcon={isSendingBulkMessage ? <CircularProgress size={16} /> : <SendIcon />}
+            onClick={handleSendBulkMessage}
+            disabled={isSendingBulkMessage || !bulkMessageText.trim() || selectedCount === 0}
+          >
+            {isSendingBulkMessage ? 'Sending...' : `Send to ${selectedCount}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(successMessage)}
+        autoHideDuration={3500}
+        onClose={() => setSuccessMessage(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSuccessMessage(null)} sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -30,7 +30,7 @@ const Footer: React.FC = () => {
                 <Box
                   component="img"
                   src="/logo.jpg"
-                  alt="The Grassroots Hub Logo"
+                  alt="The Grassroots Scout Logo"
                   sx={{
                     height: 50,
                     width: 50,
@@ -41,7 +41,7 @@ const Footer: React.FC = () => {
                 />
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    The Grassroots Hub
+                    The Grassroots Scout
                   </Typography>
                   <Typography
                     variant="subtitle2"
@@ -51,7 +51,7 @@ const Footer: React.FC = () => {
                       fontSize: '0.9rem'
                     }}
                   >
-                    Connect. Play. Develop
+                    Discover. Connect. Develop
                   </Typography>
                 </Box>
               </Box>
@@ -89,7 +89,7 @@ const Footer: React.FC = () => {
                 <Link
                   component="button"
                   variant="body2"
-                  onClick={() => navigate('/post-advert')}
+                  onClick={() => navigate('/post-vacancy')}
                   sx={{ 
                     color: 'rgba(255,255,255,0.8)', 
                     textAlign: 'left',
@@ -183,12 +183,12 @@ const Footer: React.FC = () => {
                     '&:hover': { color: '#10B981', transform: 'translateX(4px)' }
                   }}
                 >
-                  Privacy Policy
+                  About Us
                 </Link>
                 <Link
                   component="button"
                   variant="body2"
-                  onClick={() => navigate('/about')}
+                  onClick={() => navigate('/forum')}
                   sx={{ 
                     color: 'rgba(255,255,255,0.8)', 
                     textAlign: 'left',
@@ -198,12 +198,12 @@ const Footer: React.FC = () => {
                     '&:hover': { color: '#10B981', transform: 'translateX(4px)' }
                   }}
                 >
-                  Terms of Service
+                  Community Forum
                 </Link>
                 <Link
                   component="button"
                   variant="body2"
-                  onClick={() => navigate('/about')}
+                  onClick={() => navigate('/forum')}
                   sx={{ 
                     color: 'rgba(255,255,255,0.8)', 
                     textAlign: 'left',
@@ -233,7 +233,7 @@ const Footer: React.FC = () => {
             variant="body2"
             sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}
           >
-            © {new Date().getFullYear()} The Grassroots Hub. Connecting communities through football.
+            © {new Date().getFullYear()} The Grassroots Scout. Connecting communities through football.
           </Typography>
           <Typography
             variant="caption"
@@ -244,7 +244,7 @@ const Footer: React.FC = () => {
               fontStyle: 'italic' 
             }}
           >
-            "Connect. Play. Develop" - Building tomorrow's football stars today
+            "Discover. Connect. Develop" - Building tomorrow's football stars today
           </Typography>
         </Box>
       </Container>

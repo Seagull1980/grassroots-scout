@@ -1,5 +1,10 @@
 // Service Worker registration and PWA utilities
 export const registerServiceWorker = async () => {
+  if (!import.meta.env.PROD) {
+    console.log('Skipping service worker registration in development');
+    return null;
+  }
+
   if ('serviceWorker' in navigator) {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js', {
@@ -85,9 +90,9 @@ const showUpdateNotification = () => {
 
 export const unregisterServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
-    const registration = await navigator.serviceWorker.ready;
-    await registration.unregister();
-    console.log('Service Worker unregistered');
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    console.log('Service Worker(s) unregistered');
   }
 };
 

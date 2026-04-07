@@ -19,13 +19,13 @@ const ProtectedRoute = ({
   // Use user?.id instead of user to only re-run when user logs in/out, not on every data refresh
   useEffect(() => {
     if (user && requireAuth) {
-      console.log('[ProtectedRoute] Refreshing user data on mount');
+      if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Refreshing user data on mount');
       refreshUserData();
 
       // Refresh every 5 minutes (300 seconds) instead of 30 seconds to reduce server load
       // This is only needed to catch admin beta access toggles, which are infrequent
       const refreshInterval = setInterval(() => {
-        console.log('[ProtectedRoute] Periodic user data refresh');
+        if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Periodic user data refresh');
         refreshUserData();
       }, 300000); // Changed from 30000 (30s) to 300000 (5 minutes)
 
@@ -33,7 +33,7 @@ const ProtectedRoute = ({
     }
   }, [user?.id, requireAuth, refreshUserData]); // Use user?.id to prevent re-running on every user data update
 
-  console.log('[ProtectedRoute]', {
+  if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute]', {
     path: location.pathname,
     requireAuth,
     isLoading,
@@ -43,7 +43,7 @@ const ProtectedRoute = ({
 
   // Show loading spinner while checking authentication
   if (isLoading && requireAuth) {
-    console.log('[ProtectedRoute] Loading authentication state...');
+    if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Loading authentication state...');
     return (
       <Box 
         sx={{ 
@@ -60,7 +60,7 @@ const ProtectedRoute = ({
 
   // If authentication is required but user is not logged in
   if (requireAuth && !user) {
-    console.log('[ProtectedRoute] Redirecting to login - auth required but no user');
+    if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to login - auth required but no user');
     // Save the attempted location for redirecting after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -71,7 +71,7 @@ const ProtectedRoute = ({
     const isAdmin = user.role === 'Admin';
     const hasBetaAccess = user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || isAdmin;
 
-    console.log('[ProtectedRoute] Beta access check:', {
+    if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Beta access check:', {
       betaAccess: user.betaAccess,
       betaAccessType: typeof user.betaAccess,
       isAdmin,
@@ -80,24 +80,24 @@ const ProtectedRoute = ({
 
     // Redirect to beta access denied if user doesn't have access
     if (!isBetaAccessDeniedPage && !hasBetaAccess) {
-      console.log('[ProtectedRoute] Redirecting to beta-access-denied - no beta access');
+      if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to beta-access-denied - no beta access');
       return <Navigate to="/beta-access-denied" replace />;
     }
 
     // Redirect from beta-access-denied if user now has access
     if (isBetaAccessDeniedPage && hasBetaAccess) {
-      console.log('[ProtectedRoute] Redirecting to maps - beta access granted');
-      return <Navigate to="/maps" replace />;
+      if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to start - beta access granted');
+      return <Navigate to="/start" replace />;
     }
   }
 
-  // If user is logged in but trying to access login/register pages, redirect to maps
+  // If user is logged in but trying to access login/register pages, redirect to start
   if (!requireAuth && user && (location.pathname === '/login' || location.pathname === '/register')) {
-    console.log('[ProtectedRoute] Redirecting to maps - user already logged in');
-    return <Navigate to="/maps" replace />;
+    if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to start - user already logged in');
+    return <Navigate to="/start" replace />;
   }
 
-  console.log('[ProtectedRoute] Rendering protected content');
+  if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Rendering protected content');
   return <>{children}</>;
 };
 

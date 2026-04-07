@@ -1,7 +1,8 @@
 import { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useParams, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
 import { LoadingSpinner as AppLoadingSpinner } from './components/LoadingComponents';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -33,7 +34,7 @@ import DashboardPage from './pages/DashboardPage.tsx';
 import PostAdvertPage from './pages/PostAdvertPage.tsx';
 import EditAdvertPage from './pages/EditAdvertPage.tsx';
 import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
-import SearchPage from './pages/SearchPage.tsx';
+import SearchPage from './pages/SearchPage';
 import ProfilePage from './pages/ProfilePage.tsx';
 import AboutManagementPage from './pages/AboutManagementPage.tsx';
 import CalendarPage from './pages/CalendarPage.tsx';
@@ -42,18 +43,20 @@ import Forum from './pages/Forum.tsx';
 import ForumPostDetail from './pages/ForumPostDetail.tsx';
 import FlaggedContent from './pages/FlaggedContent.tsx';
 import TrainingSessionsPage from './pages/TrainingSessionsPage.tsx';
+import StartHerePage from './pages/StartHerePage';
+import NotFoundPage from './pages/NotFoundPage';
 // Import lazy loading utilities
 import { LazyComponents } from './utils/lazyLoading';
 import { useMobileScrollOptimization, optimizeViewportForMobile } from './utils/performance';
 import AdminClubsPage from './pages/AdminClubsPage';
 import AdminTeamsPage from './pages/AdminTeamsPage';
 import AdminModerationDashboard from './pages/AdminModerationDashboard';
+import AdminEmailLogsPage from './pages/AdminEmailLogsPage';
 
 // Heavy features - lazy loaded
 const {
   MapsPage,
   PerformanceAnalyticsPage,
-  EnhancedSearchPage,
   AdminPage,
   TeamProfilePage,
   TeamRosterPage,
@@ -83,23 +86,30 @@ const AdvancedAnalyticsInsights = LazyComponents.AdvancedAnalyticsInsights;
 // Enhanced loading component
 const LoadingSpinner = () => <AppLoadingSpinner text="Loading page..." />;
 
-// Component to handle navigation away from Maps page
-const MapsNavigationHandler = () => {
+const RouteTitleManager = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const prevPath = sessionStorage.getItem('prevPath') || '/';
-    const currentPath = location.pathname;
+    const path = location.pathname;
 
-    // If we were on /maps and now we're navigating away, force a full reload
-    if (prevPath === '/maps' && currentPath !== '/maps') {
-      console.log('Navigating away from Maps - forcing page reload');
-      sessionStorage.setItem('prevPath', currentPath);
-      window.location.href = currentPath;
-      return;
-    }
+    const getTitle = () => {
+      if (path === '/') return 'The Grassroots Scout';
+      if (path.startsWith('/start')) return 'Start Here | The Grassroots Scout';
+      if (path.startsWith('/dashboard')) return 'Dashboard | The Grassroots Scout';
+      if (path.startsWith('/search')) return 'Search | The Grassroots Scout';
+      if (path.startsWith('/messages')) return 'Messages | The Grassroots Scout';
+      if (path.startsWith('/maps')) return 'Maps | The Grassroots Scout';
+      if (path.startsWith('/profile')) return 'Profile | The Grassroots Scout';
+      if (path.startsWith('/post-vacancy')) return 'Post Vacancy | The Grassroots Scout';
+      if (path.startsWith('/post-availability')) return 'Post Availability | The Grassroots Scout';
+      if (path.startsWith('/my-adverts')) return 'My Adverts | The Grassroots Scout';
+      if (path.startsWith('/admin')) return 'Admin | The Grassroots Scout';
+      if (path.startsWith('/forum')) return 'Forum | The Grassroots Scout';
+      if (path.startsWith('/alert-preferences')) return 'Alert Preferences | The Grassroots Scout';
+      return 'The Grassroots Scout';
+    };
 
-    sessionStorage.setItem('prevPath', currentPath);
+    document.title = getTitle();
   }, [location.pathname]);
 
   return null;
@@ -108,12 +118,11 @@ const MapsNavigationHandler = () => {
 const AppRoutes = () => {
   const AuthLandingRoute = () => {
     const { user } = useAuth();
-    return user ? <Navigate to="/maps" replace /> : <HomePage />;
+    return user ? <Navigate to="/start" replace /> : <HomePage />;
   };
 
   return (
     <>
-      <MapsNavigationHandler />
       <Suspense fallback={<LoadingSpinner />}>
         <ErrorBoundary>
           <Routes>
@@ -154,9 +163,24 @@ const AppRoutes = () => {
             <DashboardPage />
           </ProtectedRoute>
         } />
+        <Route path="/start" element={
+          <ProtectedRoute>
+            <StartHerePage />
+          </ProtectedRoute>
+        } />
         <Route path="/post-advert" element={
           <ProtectedRoute>
             <PostAdvertPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/post-vacancy" element={
+          <ProtectedRoute>
+            <PostAdvertPage initialPostType="vacancy" />
+          </ProtectedRoute>
+        } />
+        <Route path="/post-availability" element={
+          <ProtectedRoute>
+            <PostAdvertPage initialPostType="availability" />
           </ProtectedRoute>
         } />
         <Route path="/edit-advert/:id" element={
@@ -298,6 +322,11 @@ const AppRoutes = () => {
             <AdminSupportPage />
           </ProtectedRoute>
         } />
+        <Route path="/admin/email-logs" element={
+          <ProtectedRoute>
+            <AdminEmailLogsPage />
+          </ProtectedRoute>
+        } />
         <Route path="/admin/success-stories" element={
           <ProtectedRoute>
             <AdminSuccessStoriesPage />
@@ -338,11 +367,6 @@ const AppRoutes = () => {
             <RecommendationsPage />
           </ProtectedRoute>
         } />
-        <Route path="/enhanced-search" element={
-          <ProtectedRoute>
-            <EnhancedSearchPage />
-          </ProtectedRoute>
-        } />
         <Route path="/training-invitations" element={
           <ProtectedRoute>
             <TrainingInvitations />
@@ -365,6 +389,7 @@ const AppRoutes = () => {
             <TrialManagement />
           </ProtectedRoute>
         } /> */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
         </ErrorBoundary>
     </Suspense>
@@ -405,6 +430,7 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <RouteTitleManager />
               <ErrorBoundary>
                 <Navbar />
               </ErrorBoundary>
@@ -424,7 +450,9 @@ function App() {
                   position={{ bottom: 100, right: 16 }}
                 />
               </ErrorBoundary>
-              <AppRoutes />
+              <Box sx={{ pb: { xs: '64px', md: 0 } }}>
+                <AppRoutes />
+              </Box>
             </Router>
           </NotificationProvider>
         </AuthProvider>

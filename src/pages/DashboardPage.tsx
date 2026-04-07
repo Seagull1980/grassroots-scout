@@ -39,7 +39,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import api, { profileAPI, UserProfile } from '../services/api';
 import Recommendations from '../components/Recommendations';
 import SocialShare from '../components/SocialShare';
 import PageHeader from '../components/PageHeader';
@@ -88,17 +88,28 @@ const DashboardPage: React.FC = () => {
     calculateProfileCompletion();
   }, []);
 
-  const calculateProfileCompletion = () => {
+  const calculateProfileCompletion = async () => {
     if (!user) return;
-    let completion = 0;
-    const fields = [
-      user.firstName,
-      user.lastName,
-      user.email
-    ];
-    completion = (fields.filter(f => f).length / fields.length) * 100;
-    setProfileCompletion(Math.round(completion));
-    localStorage.setItem('profile_completion', completion.toString());
+    try {
+      const response = await profileAPI.get();
+      const p: UserProfile = response.profile;
+      const baseFields = [p.firstname, p.lastname, p.dateofbirth, p.location, p.bio];
+      const roleFields =
+        user.role === 'Player'
+          ? [p.position, p.preferredfoot, p.experiencelevel]
+          : user.role === 'Coach'
+          ? [p.coachinglicense?.length ? 'ok' : '', p.yearsexperience, p.teamname]
+          : [];
+      const all = [...baseFields, ...roleFields];
+      const filled = all.filter((f) => f !== undefined && f !== null && f !== '').length;
+      const completion = Math.round((filled / all.length) * 100);
+      setProfileCompletion(completion);
+      localStorage.setItem('profile_completion', completion.toString());
+    } catch {
+      // Fallback: only mandatory auth fields are known — treat as incomplete
+      setProfileCompletion(30);
+      localStorage.setItem('profile_completion', '30');
+    }
   };
 
   const trackPageView = async () => {
@@ -156,10 +167,10 @@ const DashboardPage: React.FC = () => {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case 'create_vacancy':
-        navigate('/post-advert');
+        navigate('/post-vacancy');
         break;
       case 'create_availability':
-        navigate('/post-advert');
+        navigate('/post-availability');
         break;
       case 'search':
         navigate('/search');
@@ -586,7 +597,7 @@ const DashboardPage: React.FC = () => {
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <Button
                       variant="contained"
-                      onClick={() => navigate(user?.role === 'Coach' ? '/post-advert' : '/search')}
+                      onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/search')}
                       startIcon={user?.role === 'Coach' ? <GroupIcon /> : <SearchIcon />}
                     >
                       {user?.role === 'Coach' ? 'Post Vacancy' : 'Find Teams'}
@@ -753,7 +764,7 @@ const DashboardPage: React.FC = () => {
       {isMobile && (
         <SpeedDial
           ariaLabel="Quick Actions"
-          sx={{ position: 'fixed', bottom: 16, right: 16 }}
+          sx={{ position: 'fixed', bottom: 80, right: 16 }}
           icon={<SpeedDialIcon />}
         >
           {speedDialActions.map((action) => (

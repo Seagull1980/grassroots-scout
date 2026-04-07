@@ -19,6 +19,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsive, useResponsiveSpacing } from '../hooks/useResponsive';
+import Footer from '../components/Footer';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ const HomePage: React.FC = () => {
       title: 'For Coaches',
       description: 'Post team vacancies and find talented players for your grassroots football team.',
       action: 'Post Vacancy',
-      path: '/post-advert',
+      path: '/post-vacancy',
     },
     {
       icon: <Group fontSize="large" color="primary" />,
@@ -83,6 +84,7 @@ const HomePage: React.FC = () => {
   ];
 
   return (
+    <>
     <Container maxWidth="lg">
       {/* Hero Section */}
       <Box 
@@ -190,7 +192,7 @@ const HomePage: React.FC = () => {
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/maps')}
+                onClick={() => navigate('/dashboard')}
                 sx={{ 
                   px: 6, 
                   py: 2, 
@@ -198,7 +200,7 @@ const HomePage: React.FC = () => {
                   boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
                 }}
               >
-                Open Maps
+                Open Dashboard
               </Button>
               <Button
                 variant="outlined"
@@ -344,10 +346,7 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: 'white',
               }}
             >
               {statsLoading ? '...' : `${siteStats.activeTeams}+`}
@@ -362,10 +361,7 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: 'white',
               }}
             >
               {statsLoading ? '...' : `${siteStats.registeredPlayers}+`}
@@ -380,10 +376,7 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: 'white',
               }}
             >
               {statsLoading ? '...' : `${siteStats.successfulMatches}+`}
@@ -415,6 +408,8 @@ const HomePage: React.FC = () => {
         </Box>
       )}
     </Container>
+    <Footer />
+    </>
   );
 };
 

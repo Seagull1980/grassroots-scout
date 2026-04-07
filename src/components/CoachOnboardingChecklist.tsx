@@ -74,7 +74,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
       label: '✓ Post Your First Vacancy',
       description: 'Post an open position to start recruiting players',
       completed: false,
-      action: '/post-advert',
+      action: '/post-vacancy',
       actionLabel: 'Post Vacancy',
     },
   ];

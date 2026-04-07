@@ -57,6 +57,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { NotificationBell } from './NotificationComponents';
 import { useResponsive } from '../hooks/useResponsive';
 import api, { API_URL } from '../services/api';
+import { Conversation } from '../types';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ const Navbar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
 
   // Track scroll position for navbar styling
@@ -94,6 +96,25 @@ const Navbar: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnreadMessagesCount = async () => {
+      try {
+        const response = await api.get(`${apiPrefix}/conversations`);
+        const conversations: Conversation[] = response.data?.conversations || [];
+        const unreadTotal = conversations.reduce((sum, convo) => sum + (convo.unreadCount || 0), 0);
+        setUnreadMessagesCount(unreadTotal);
+      } catch (error) {
+        console.error('Error fetching unread messages count:', error);
+      }
+    };
+
+    fetchUnreadMessagesCount();
+    const interval = setInterval(fetchUnreadMessagesCount, 30000);
+    return () => clearInterval(interval);
+  }, [user, apiPrefix]);
+
   const fetchPendingInvitationsCount = async () => {
     try {
       const response = await api.get(`${apiPrefix}/invitations`);
@@ -104,14 +125,10 @@ const Navbar: React.FC = () => {
     }
   };
 
-  // Custom navigate function that forces page reload when leaving Maps
+  const getPostRoute = () => (user?.role === 'Coach' ? '/post-vacancy' : '/post-availability');
+
   const safeNavigate = (path: string) => {
-    if (location.pathname === '/maps') {
-      // Force full page reload when navigating away from Maps
-      window.location.href = path;
-    } else {
-      navigate(path);
-    }
+    navigate(path);
   };
 
   // Ref for the mobile menu button to manage focus
@@ -158,9 +175,20 @@ const Navbar: React.FC = () => {
 
   // Core navigation items for mobile bottom nav
   const coreNavItems = user ? [
-    { path: '/maps', label: 'Home', icon: <Home />, show: true },
+    { path: '/start', label: 'Home', icon: <Home />, show: true },
     { path: '/search', label: 'Search Adverts', icon: <Search />, show: true },
-    { path: '/messages', label: 'Messages', icon: <Message />, show: true },
+    {
+      path: '/messages',
+      label: 'Messages',
+      icon: unreadMessagesCount > 0 ? (
+        <Badge badgeContent={unreadMessagesCount} color="error">
+          <Message />
+        </Badge>
+      ) : (
+        <Message />
+      ),
+      show: true,
+    },
     { path: '/profile', label: 'Profile', icon: <Person />, show: true },
   ] : [
     { path: '/', label: 'Home', icon: <Home />, show: true },
@@ -169,12 +197,11 @@ const Navbar: React.FC = () => {
 
   // Primary navigation items for desktop
   const primaryNavItems = user ? [
-    { path: '/maps', label: 'Maps', icon: <Map /> },
+    { path: '/start', label: 'Home', icon: <Home /> },
     { path: '/search', label: 'Search', icon: <Search /> },
-    { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
-    ...(user?.role === 'Coach' ? [{ path: '/post-advert', label: 'Post Advert', icon: <PostAdd /> }] : []),
-    { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> },
+    { path: '/maps', label: 'Maps', icon: <Map /> },
+    ...(user?.role !== 'Admin' ? [{ path: getPostRoute(), label: user?.role === 'Coach' ? 'Post Vacancy' : 'Post Availability', icon: <PostAdd /> }] : []),
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
   ] : [
     { path: '/', label: 'Home', icon: <Home /> },
@@ -182,9 +209,8 @@ const Navbar: React.FC = () => {
 
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
-    ...(user?.role !== 'Admin' && user?.role !== 'Coach' ? [
-      { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> }
-    ] : []),
+    { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
+    { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> },
     { path: '/forum', label: 'Forum', icon: <ForumIcon /> },
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
     ...(user?.role === 'Coach' ? [
@@ -268,6 +294,9 @@ const Navbar: React.FC = () => {
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
             Grassroots Scout
+          </Typography>
+          <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>
+            Discover. Connect. Develop
           </Typography>
           {user && (
             <Typography variant="caption" sx={{ opacity: 0.9 }}>
@@ -387,7 +416,7 @@ const Navbar: React.FC = () => {
                 fontWeight: 700,
                 color: 'primary.main'
               }}
-              onClick={() => safeNavigate(user ? '/maps' : '/')}
+              onClick={() => safeNavigate(user ? '/start' : '/')}
             >
               The Grassroots Scout
             </Typography>
@@ -452,7 +481,7 @@ const Navbar: React.FC = () => {
                       },
                     }}
                   >
-                    More
+                    Utilities
                   </Button>
                   <Menu
                     anchorEl={moreMenuAnchorEl}
@@ -518,34 +547,6 @@ const Navbar: React.FC = () => {
                       {user.firstName?.[0]}{user.lastName?.[0]}
                     </Avatar>
                   </IconButton>
-                  <Menu 
-                    anchorEl={anchorEl} 
-                    open={Boolean(anchorEl)} 
-                    onClose={handleClose}
-                    PaperProps={{
-                      sx: {
-                        '& .MuiMenuItem-root': {
-                          color: '#0f172a',
-                          '&:hover': {
-                            bgcolor: 'rgba(0, 0, 0, 0.04)',
-                          }
-                        }
-                      }
-                    }}
-                  >
-                    <MenuItem onClick={() => safeNavigate('/profile')}>
-                      <ListItemIcon><Person /></ListItemIcon>
-                      Profile
-                    </MenuItem>
-                    <MenuItem onClick={() => safeNavigate('/alert-preferences')}>
-                      <ListItemIcon><NotificationBell /></ListItemIcon>
-                      Alert Preferences
-                    </MenuItem>
-                    <Divider />
-                    <MenuItem onClick={handleLogout}>
-                      Logout
-                    </MenuItem>
-                  </Menu>
                 </>
               ) : (
                 <Box sx={{ display: 'flex', gap: 1 }}>
@@ -639,7 +640,7 @@ const Navbar: React.FC = () => {
                 fontWeight: 700,
                 color: 'primary.main'
               }}
-              onClick={() => safeNavigate(user ? '/maps' : '/')}
+              onClick={() => safeNavigate(user ? '/start' : '/')}
             >
               Grassroots Scout
             </Typography>

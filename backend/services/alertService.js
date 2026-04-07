@@ -257,12 +257,13 @@ class AlertService {
     try {
       console.log('📊 Starting weekly digest generation...');
       
-      // Get users who want weekly digests
+      // Get users who want weekly digests (LEFT JOIN so new users with no prefs row are included by default)
       const usersResult = await this.db.query(`
         SELECT u.id, u.email, u.firstName, u.role
         FROM users u
-        JOIN user_alert_preferences uap ON u.id = uap.userId
-        WHERE uap.emailNotifications = 1 AND uap.weeklyDigest = 1
+        LEFT JOIN user_alert_preferences uap ON u.id = uap.userId
+        WHERE (uap.emailNotifications IS NULL OR uap.emailNotifications = 1)
+          AND (uap.weeklyDigest IS NULL OR uap.weeklyDigest = 1)
       `);
 
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

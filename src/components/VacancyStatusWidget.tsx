@@ -263,7 +263,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
             fullWidth
             variant="contained"
             color="primary"
-            onClick={() => navigate('/post-advert')}
+            onClick={() => navigate('/post-vacancy')}
           >
             Post Your First Vacancy
           </Button>

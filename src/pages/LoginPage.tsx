@@ -42,7 +42,6 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[LoginPage] handleSubmit called');
     
     // Clear any previous error
     setLoginError(null);
@@ -52,20 +51,15 @@ const LoginPage: React.FC = () => {
       return;
     }
 
-    console.log('[LoginPage] About to call login method');
     try {
-      console.log('[LoginPage] Attempting login for:', formData.email);
       const success = await login(formData.email, formData.password);
-      console.log('[LoginPage] Login method returned, success =', success);
       if (success) {
-        console.log('[LoginPage] Login successful, navigating to maps');
         setTimeout(() => {
-          navigate('/maps', { replace: true });
+          navigate('/start', { replace: true });
         }, 100);
       } else {
         // Always show error for failed login
         setLoginError('Invalid email or password. Please check your credentials and try again.');
-        console.log('[LoginPage] Error state set to: Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
       // Defensive: handle unexpected errors (network, server, etc.)
@@ -74,7 +68,6 @@ const LoginPage: React.FC = () => {
         message = 'Invalid email or password. Please check your credentials and try again.';
       }
       setLoginError(message);
-      console.log('[LoginPage] Error state set in catch block:', message);
     }
   };
 

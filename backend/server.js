@@ -15,9 +15,12 @@ require('dotenv').config();
 const DatabaseUtils = require('./db/database');
 const leagueRequestsRouter = require('./routes/league-requests');
 const emailService = require('./services/emailService');
+const alertService = require('./services/alertService');
+const cronService = require('./services/cronService');
 const { messageLimiter, validateMessageContent } = require('./middleware/security');
 
 const app = express();
+app.set('trust proxy', 1); // Trust Railway/Vercel reverse proxy for correct IP resolution
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-jwt-secret';
 
@@ -310,6 +313,250 @@ const initSupportMessagesTable = async () => {
 // Initialize support messages table on startup
 initSupportMessagesTable();
 
+// Create open training registrations table to support capped open sessions and waitlists
+const initOpenTrainingRegistrationsTable = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS open_training_registrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        eventId INTEGER NOT NULL,
+        userId INTEGER NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'pending_confirmation',
+        paymentStatus VARCHAR(20) NOT NULL DEFAULT 'not_required',
+        paymentDueAt TIMESTAMP,
+        confirmedBy INTEGER,
+        confirmedAt TIMESTAMP,
+        droppedAt TIMESTAMP,
+        dropReason TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(eventId, userId)
+      )
+    `);
+
+    await db.query('CREATE INDEX IF NOT EXISTS idx_open_training_regs_event ON open_training_registrations(eventId)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_open_training_regs_user ON open_training_registrations(userId)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_open_training_regs_status ON open_training_registrations(status)');
+
+    console.log('✅ Open training registrations table initialized');
+  } catch (error) {
+    console.log('⚠️  Open training registrations table may already exist or error occurred:', error.message);
+  }
+};
+
+initOpenTrainingRegistrationsTable();
+
+// Bootstrap alert-system tables so notification features work without running a separate migration
+const initAlertSystemTables = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_alert_preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL UNIQUE,
+        emailNotifications BOOLEAN DEFAULT TRUE,
+        newVacancyAlerts BOOLEAN DEFAULT TRUE,
+        newPlayerAlerts BOOLEAN DEFAULT TRUE,
+        trialInvitations BOOLEAN DEFAULT TRUE,
+        weeklyDigest BOOLEAN DEFAULT TRUE,
+        instantAlerts BOOLEAN DEFAULT FALSE,
+        preferredLeagues TEXT DEFAULT '[]',
+        ageGroups TEXT DEFAULT '[]',
+        positions TEXT DEFAULT '[]',
+        maxDistance INTEGER DEFAULT 50,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS alert_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        alertType VARCHAR(50) NOT NULL,
+        targetId INTEGER,
+        targetType VARCHAR(50),
+        sentAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS notification_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        notificationType VARCHAR(50) NOT NULL,
+        priority INTEGER DEFAULT 1,
+        data TEXT NOT NULL,
+        scheduledFor TIMESTAMP,
+        attempts INTEGER DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'pending',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processedAt TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('\u2705 Alert system tables initialized');
+  } catch (error) {
+    console.log('\u26a0\ufe0f  Alert system table initialization error:', error.message);
+  }
+};
+
+initAlertSystemTables();
+
+const OPEN_TRAINING_SPOT_CONSUMING_STATUSES = new Set(['pending_confirmation', 'confirmed', 'payment_pending']);
+
+const statusConsumesSpot = (status) => OPEN_TRAINING_SPOT_CONSUMING_STATUSES.has(String(status || '').toLowerCase());
+
+const createNotification = async (userId, type, title, message, relatedId, relatedType) => {
+  await db.query(
+    `INSERT INTO notifications (userId, type, title, message, relatedId, relatedType)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, type, title, message, relatedId || null, relatedType || null]
+  );
+};
+
+const promoteNextWaitlistedRegistrant = async (eventId) => {
+  const waitlistResult = await db.query(
+    `SELECT otr.id, otr.userId, ce.title
+     FROM open_training_registrations otr
+     JOIN calendar_events ce ON ce.id = otr.eventId
+     WHERE otr.eventId = ? AND otr.status = 'waitlisted'
+     ORDER BY otr.createdAt ASC
+     LIMIT 1`,
+    [eventId]
+  );
+
+  if (!waitlistResult.rows || waitlistResult.rows.length === 0) {
+    return null;
+  }
+
+  const nextUp = waitlistResult.rows[0];
+
+  const capacityUpdate = await db.query(
+    `UPDATE calendar_events
+     SET currentParticipants = currentParticipants + 1
+     WHERE id = ?
+       AND (maxParticipants IS NULL OR currentParticipants < maxParticipants)`,
+    [eventId]
+  );
+
+  if (!capacityUpdate.rowCount) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  await db.query(
+    `UPDATE open_training_registrations
+     SET status = ?, updatedAt = ?
+     WHERE id = ?`,
+    ['pending_confirmation', now, nextUp.id]
+  );
+
+  await createNotification(
+    nextUp.userId,
+    'training_waitlist_promoted',
+    'You have been promoted from the waitlist',
+    `A spot has opened for "${nextUp.title}". Please confirm your attendance.`,
+    eventId,
+    'open_training'
+  );
+
+  emailOpenTrainingStatusChange(nextUp.userId, nextUp.title, 'pending_confirmation');
+
+  return nextUp.userId;
+};
+
+// Send a brief email to a user when their open-training registration status changes
+const emailOpenTrainingStatusChange = async (userId, eventTitle, status) => {
+  try {
+    if (!emailTransporter) return;
+    const userResult = await db.query('SELECT email, firstName FROM users WHERE id = ?', [userId]);
+    if (!userResult.rows?.length) return;
+    const { email, firstName } = userResult.rows[0];
+
+    const subjects = {
+      confirmed: `You're confirmed for ${eventTitle}!`,
+      waitlisted: `You've been added to the waitlist for ${eventTitle}`,
+      pending_confirmation: `Registration received for ${eventTitle}`,
+      payment_overdue: `Spot released due to missed payment — ${eventTitle}`,
+      dropped_out: `Your registration for ${eventTitle} has been cancelled`,
+    };
+    const bodies = {
+      confirmed: `<p>Great news, ${firstName}! Your place on <strong>${eventTitle}</strong> has been confirmed. We look forward to seeing you there.</p>`,
+      waitlisted: `<p>Hi ${firstName}, you have been added to the waiting list for <strong>${eventTitle}</strong>. We will let you know as soon as a spot opens up.</p>`,
+      pending_confirmation: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been received and is awaiting coach confirmation.</p>`,
+      payment_overdue: `<p>Hi ${firstName}, your spot on <strong>${eventTitle}</strong> has been released because payment was not received by the deadline. Please re-register if you are still interested.</p>`,
+      dropped_out: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been cancelled. Contact the coach if this was unexpected.</p>`,
+    };
+
+    const subject = subjects[status] || `Registration update for ${eventTitle}`;
+    const body = bodies[status] || `<p>Hi ${firstName}, your registration status for <strong>${eventTitle}</strong> has been updated to "${status}".</p>`;
+
+    await sendEmailWithTimeout(
+      emailTransporter.sendMail({
+        from: process.env.EMAIL_USER || 'thegrassrootsupp@gmail.com',
+        to: email,
+        subject,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#2E7D32;">The Grassroots Hub</h2>
+          ${body}
+          <p style="color:#666;font-size:12px;">This is an automated message from The Grassroots Hub.</p>
+        </div>`
+      }),
+      10000
+    );
+  } catch (err) {
+    console.warn('Open training email notification skipped:', err.message);
+  }
+};
+
+// Scheduled job: release spots for registrations past their payment deadline
+const runPaymentDueCheck = async () => {
+  try {
+    const now = new Date().toISOString();
+    const overdueResult = await db.query(
+      `SELECT otr.id, otr.eventId, otr.userId, ce.title
+       FROM open_training_registrations otr
+       JOIN calendar_events ce ON ce.id = otr.eventId
+       WHERE otr.status = 'payment_pending'
+         AND otr.paymentDueAt IS NOT NULL
+         AND otr.paymentDueAt < ?`,
+      [now]
+    );
+
+    if (!overdueResult.rows?.length) return;
+
+    for (const reg of overdueResult.rows) {
+      await db.query(
+        `UPDATE open_training_registrations
+         SET status = 'payment_overdue', paymentStatus = 'overdue', updatedAt = ?
+         WHERE id = ?`,
+        [now, reg.id]
+      );
+      await db.query(
+        'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+        [reg.eventId]
+      );
+      await createNotification(
+        reg.userId,
+        'payment_overdue',
+        'Spot released — payment deadline missed',
+        `Your spot on "${reg.title}" has been released because payment was not received in time.`,
+        reg.eventId,
+        'open_training'
+      );
+      emailOpenTrainingStatusChange(reg.userId, reg.title, 'payment_overdue');
+      await promoteNextWaitlistedRegistrant(reg.eventId);
+      console.log(`\u23f0 Released overdue spot: registration ${reg.id} for event ${reg.eventId}`);
+    }
+  } catch (err) {
+    console.error('Payment due check error:', err);
+  }
+};
+
+// Run payment-due check every 10 minutes and once at startup
+setInterval(runPaymentDueCheck, 10 * 60 * 1000);
+setTimeout(runPaymentDueCheck, 8000);
+
 // Profanity filter for forum content
 const profanityList = [
   'damn', 'hell', 'crap', 'bastard', 'bitch', 'ass', 'asshole',
@@ -371,107 +618,12 @@ const sendEmailWithTimeout = async (emailPromise, timeoutMs = 5000) => {
   return Promise.race([emailPromise, timeoutPromise]);
 };
 
-// Helper function to send verification email
-const sendVerificationEmail = async (email, firstName, verificationToken) => {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${verificationToken}`;
-  
-  const mailOptions = {
-    from: process.env.EMAIL_USER || 'your-email@gmail.com',
-    to: email,
-    subject: 'Verify Your Email - The Grassroots Hub',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2E7D32;">Welcome to The Grassroots Hub, ${firstName}!</h2>
-        <p>Thank you for registering with us. To complete your registration and secure your account, please verify your email address by clicking the button below:</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="background-color: #2E7D32; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Verify Email Address
-          </a>
-        </div>
-        
-        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-        
-        <p style="margin-top: 30px; font-size: 14px; color: #666;">
-          This verification link will expire in 24 hours. If you didn't create an account with us, please ignore this email.
-        </p>
-        
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="font-size: 12px; color: #999; text-align: center;">
-          The Grassroots Hub - Connecting Football Players with Teams
-        </p>
-      </div>
-    `
-  };
+// Auth email helpers — delegate to emailService so delivery is audit-logged
+const sendVerificationEmail = (email, firstName, verificationToken) =>
+  emailService.sendVerificationEmail(email, firstName, verificationToken);
 
-  try {
-    await emailTransporter.sendMail(mailOptions);
-    console.log(`✅ Verification email sent to ${email}`);
-  } catch (error) {
-    console.error('❌ Error sending verification email:', error.message);
-    console.error('Email config - USER:', process.env.EMAIL_USER);
-    console.error('Email config - PASS set:', !!process.env.EMAIL_PASS);
-    throw error;
-  }
-};
-
-// Helper function to send password reset email
-const sendPasswordResetEmail = async (email, firstName, resetToken) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
-  
-  const mailOptions = {
-    from: process.env.EMAIL_USER || 'your-email@gmail.com',
-    to: email,
-    subject: 'Reset Your Password - The Grassroots Hub',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2E7D32;">Password Reset Request</h2>
-        <p>Hello ${firstName},</p>
-        <p>We received a request to reset your password for your The Grassroots Hub account. If you made this request, please click the button below to reset your password:</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" 
-             style="background-color: #2E7D32; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Reset Password
-          </a>
-        </div>
-        
-        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-        
-        <p style="margin-top: 30px; font-size: 14px; color: #666;">
-          This password reset link will expire in 1 hour. If you didn't request a password reset, please ignore this email and your password will remain unchanged.
-        </p>
-        
-        <p style="margin-top: 20px; font-size: 14px; color: #666;">
-          For security reasons, we recommend that you:
-        </p>
-        <ul style="font-size: 14px; color: #666;">
-          <li>Use a strong, unique password</li>
-          <li>Don't share your password with anyone</li>
-          <li>Log out from shared computers</li>
-        </ul>
-        
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="font-size: 12px; color: #999; text-align: center;">
-          The Grassroots Hub - Connecting Football Players with Teams
-        </p>
-      </div>
-    `
-  };
-
-  try {
-    await emailTransporter.sendMail(mailOptions);
-    console.log(`✅ Password reset email sent to ${email}`);
-  } catch (error) {
-    console.error('❌ Error sending password reset email:', error.message);
-    console.error('Email config - USER:', process.env.EMAIL_USER);
-    console.error('Email config - PASS set:', !!process.env.EMAIL_PASS);
-    throw error;
-  }
-};
+const sendPasswordResetEmail = (email, firstName, resetToken) =>
+  emailService.sendPasswordResetEmail(email, firstName, resetToken);
 
 // Emergency admin creation endpoint (remove after use)
 app.post('/api/admin/create-cgill', async (req, res) => {
@@ -530,6 +682,31 @@ app.get('/api/debug/users', async (req, res) => {
   console.log('🚀 Starting server initialization with table order fix...');
   try {
     await db.createTables();
+
+    emailService.setAuditLogger(async (entry) => {
+      const metadataJson = entry.metadata ? JSON.stringify(entry.metadata) : null;
+      await db.query(
+        `INSERT INTO email_delivery_logs
+         (recipientEmail, templateName, subject, status, messageId, errorCode, errorMessage, provider, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          entry.recipientEmail,
+          entry.templateName || null,
+          entry.subject || null,
+          entry.status,
+          entry.messageId || null,
+          entry.errorCode || null,
+          entry.errorMessage || null,
+          entry.provider || 'smtp',
+          metadataJson
+        ]
+      );
+    });
+
+    cronService.setDatabase(db);
+    cronService.init();
+    cronService.start();
+
     console.log(`🚀 Server running on port ${PORT} with ${process.env.DB_TYPE || 'sqlite'} database`);
   } catch (error) {
     console.error('❌ Failed to initialize database:', error);
@@ -577,6 +754,10 @@ app.get('/api/health', (req, res) => {
 // Team vacancies endpoint
 app.get('/api/vacancies', async (req, res) => {
   try {
+    const frozenFilterClause = db.dbType === 'postgresql'
+      ? '(tv.isFrozen = FALSE OR tv.isFrozen IS NULL)'
+      : '(tv.isFrozen = 0 OR tv.isFrozen IS NULL)';
+
     const result = await db.query(`
       SELECT 
         tv.id,
@@ -599,7 +780,7 @@ app.get('/api/vacancies', async (req, res) => {
       FROM team_vacancies tv
       LEFT JOIN users u ON tv.postedBy = u.id
       WHERE tv.status = 'active'
-        AND (tv.isFrozen = 0 OR tv.isFrozen IS NULL)
+        AND ${frozenFilterClause}
       ORDER BY tv.createdAt DESC
     `);
 
@@ -638,6 +819,66 @@ app.get('/api/vacancies', async (req, res) => {
   } catch (error) {
     console.error('Error fetching vacancies:', error);
     res.status(500).json({ error: 'Failed to fetch vacancies' });
+  }
+});
+
+// Create a new team vacancy (Coach or Admin)
+app.post('/api/vacancies', [
+  authenticateToken,
+  body('title').notEmpty().withMessage('Title is required'),
+  body('description').notEmpty().withMessage('Description is required'),
+  body('league').notEmpty().withMessage('League is required'),
+  body('ageGroup').notEmpty().withMessage('Age group is required'),
+  body('position').notEmpty().withMessage('Position is required')
+], async (req, res) => {
+  try {
+    if (!['Coach', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only coaches can post team vacancies' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      title, description, league, ageGroup, position,
+      teamGender, location, locationData, contactInfo,
+      hasMatchRecording, hasPathwayToSenior, teamId
+    } = req.body;
+
+    const result = await db.query(
+      `INSERT INTO team_vacancies
+         (title, description, league, ageGroup, position, teamGender,
+          location, locationData, contactInfo, postedBy, teamId,
+          hasMatchRecording, hasPathwayToSenior, status, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', datetime('now'))`,
+      [
+        title, description, league, ageGroup, position,
+        teamGender || 'Mixed',
+        location || null,
+        locationData ? JSON.stringify(locationData) : null,
+        contactInfo || null,
+        req.user.userId,
+        teamId || null,
+        hasMatchRecording ? 1 : 0,
+        hasPathwayToSenior ? 1 : 0
+      ]
+    );
+
+    const vacancyId = result.lastID || result.insertId;
+
+    alertService.sendNewVacancyAlerts({
+      id: vacancyId, title, description, league, ageGroup, position,
+      location: location || ''
+    }).catch((alertError) => {
+      console.error('Failed to send new vacancy alerts:', alertError);
+    });
+
+    res.status(201).json({ message: 'Vacancy posted successfully', vacancyId });
+  } catch (error) {
+    console.error('Create vacancy error:', error);
+    res.status(500).json({ error: 'Failed to post vacancy' });
   }
 });
 
@@ -741,7 +982,9 @@ app.post('/api/auth/register', [
   body('firstName').notEmpty().withMessage('First name is required'),
   body('lastName').notEmpty().withMessage('Last name is required'),
   body('role').isIn(['Coach', 'Player', 'Parent/Guardian']).withMessage('Valid role is required'),
-  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required for players')
+  body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required for players'),
+  body('teamName').optional({ checkFalsy: true }).isLength({ max: 120 }).withMessage('Team name must be 120 characters or less'),
+  body('businessName').optional({ checkFalsy: true }).isLength({ max: 120 }).withMessage('Business name must be 120 characters or less')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -749,7 +992,7 @@ app.post('/api/auth/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role, dateOfBirth } = req.body;
+    const { email, password, firstName, lastName, role, dateOfBirth, teamName, businessName } = req.body;
 
     // Age restriction check for players
     if (role === 'Player') {
@@ -810,15 +1053,37 @@ app.post('/api/auth/register', [
         // Don't block registration - user can request resend later
       });
 
-    // Create user profile with date of birth if provided (only for Players)
-    if (dateOfBirth && role === 'Player') {
+    const normalizedTeamName = typeof teamName === 'string' ? teamName.trim() : '';
+    const normalizedBusinessName = typeof businessName === 'string' ? businessName.trim() : '';
+
+    // Create user profile when registration includes profile fields
+    if ((dateOfBirth && role === 'Player') || (role === 'Coach' && (normalizedTeamName || normalizedBusinessName))) {
       try {
+        const profileColumns = ['userId'];
+        const profileValues = [userId];
+
+        if (dateOfBirth && role === 'Player') {
+          profileColumns.push('dateOfBirth');
+          profileValues.push(dateOfBirth);
+        }
+
+        if (role === 'Coach' && normalizedTeamName) {
+          profileColumns.push('coachTeamName');
+          profileValues.push(normalizedTeamName);
+        }
+
+        if (role === 'Coach' && normalizedBusinessName) {
+          profileColumns.push('coachingBusinessName');
+          profileValues.push(normalizedBusinessName);
+        }
+
+        const placeholders = profileColumns.map(() => '?').join(', ');
         await db.query(
-          'INSERT INTO user_profiles (userId, dateOfBirth) VALUES (?, ?)',
-          [userId, dateOfBirth]
+          `INSERT INTO user_profiles (${profileColumns.join(', ')}) VALUES (${placeholders})`,
+          profileValues
         );
       } catch (profileError) {
-        console.warn('Failed to create user profile with dateOfBirth:', profileError.message);
+        console.warn('Failed to create user profile during registration:', profileError.message);
         // Continue - user profile is optional, don't block registration
       }
     }
@@ -899,17 +1164,20 @@ app.post('/api/auth/resend-verification', [
     }
 
     const { email } = req.body;
+    const genericResponse = {
+      message: 'If an account with that email exists and is not yet verified, a verification email has been sent.'
+    };
 
     // Find user
     const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     if (!userResult.rows || userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.json(genericResponse);
     }
 
     const user = userResult.rows[0];
 
     if (user.isEmailVerified) {
-      return res.status(400).json({ error: 'Email is already verified' });
+      return res.json(genericResponse);
     }
 
     // Generate new verification token
@@ -932,9 +1200,7 @@ app.post('/api/auth/resend-verification', [
         // Still return success since the token was updated
       });
 
-    res.json({
-      message: 'Verification email sent successfully. Please check your email.'
-    });
+    res.json(genericResponse);
   } catch (error) {
     console.error('Resend verification error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -2283,24 +2549,29 @@ app.post('/api/player-availability', [
     );
 
     const availabilityId = result.lastID;
+    const createdAvailability = {
+      id: availabilityId,
+      title,
+      description,
+      preferredLeagues: Array.isArray(preferredLeagues) ? preferredLeagues : [],
+      ageGroup,
+      positions: Array.isArray(positions) ? positions : [],
+      preferredTeamGender: preferredTeamGender || 'Mixed',
+      location,
+      locationData: locationData || null,
+      postedBy: req.user.userId,
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+
+    alertService.sendNewPlayerAlerts(createdAvailability).catch((alertError) => {
+      console.error('Failed to send new player availability alerts:', alertError);
+    });
 
     res.status(201).json({
       message: 'Player availability created successfully',
       availabilityId,
-      availability: {
-        id: availabilityId,
-        title,
-        description,
-        preferredLeagues: Array.isArray(preferredLeagues) ? preferredLeagues : [],
-        ageGroup,
-        positions: Array.isArray(positions) ? positions : [],
-        preferredTeamGender: preferredTeamGender || 'Mixed',
-        location,
-        locationData: locationData || null,
-        postedBy: req.user.userId,
-        status: 'active',
-        createdAt: new Date().toISOString()
-      }
+      availability: createdAvailability
     });
   } catch (error) {
     console.error('Create player availability error:', error);
@@ -2575,6 +2846,19 @@ app.post('/api/child-player-availability', [
         status: 'active',
         createdAt: new Date().toISOString()
       }
+    });
+
+    // Notify coaches who have player alerts enabled for this age group / league
+    alertService.sendNewPlayerAlerts({
+      id: availabilityId,
+      title,
+      description,
+      preferredLeagues: JSON.stringify(preferredLeagues || []),
+      ageGroup,
+      positions,
+      location: location || ''
+    }).catch((alertError) => {
+      console.error('Failed to send child player availability alerts:', alertError);
     });
   } catch (error) {
     console.error('Create child player availability error:', error);
@@ -4491,11 +4775,30 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
     console.log('[Admin Users] Admin request from user:', req.user.userId);
     
     const result = await db.query(`
-      SELECT id, email, firstName, lastName, role, betaAccess, createdAt FROM users LIMIT 100
+      SELECT
+        id,
+        email,
+        firstname as "firstName",
+        lastname as "lastName",
+        role,
+        betaaccess as "betaAccess",
+        createdat as "createdAt",
+        isemailverified as "isEmailVerified",
+        isblocked as "isBlocked"
+      FROM users
+      ORDER BY createdat DESC
+      LIMIT 100
     `);
-    
-    console.log(`[Admin Users] Query successful, found ${result.rows ? result.rows.length : 0} users`);
-    res.json({ users: result.rows || [] });
+
+    const users = (result.rows || []).map((user) => ({
+      ...user,
+      betaAccess: Boolean(user.betaAccess ?? user.betaaccess),
+      isEmailVerified: Boolean(user.isEmailVerified ?? user.isemailverified),
+      isBlocked: Boolean(user.isBlocked ?? user.isblocked),
+    }));
+
+    console.log(`[Admin Users] Query successful, found ${users.length} users`);
+    res.json({ users });
   } catch (error) {
     console.error('[Admin Users] Query failed:', error.message);
     console.error('[Admin Users] Error details:', error);
@@ -4831,7 +5134,7 @@ app.post('/api/admin/users/:id/block', authenticateToken, async (req, res) => {
 app.post('/api/admin/users/:id/message', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { subject, message } = req.body;
     
     // Check if user is admin
     const adminCheck = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
@@ -4839,10 +5142,23 @@ app.post('/api/admin/users/:id/message', authenticateToken, async (req, res) => 
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // Send message (could integrate with messaging system)
-    console.log(`[Admin Users] Message to user ${id}: ${message}`);
-    
-    res.json({ message: 'Message sent successfully' });
+    const targetResult = await db.query('SELECT email, firstName FROM users WHERE id = ?', [id]);
+    if (!targetResult.rows || targetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const targetUser = targetResult.rows[0];
+    const messageSubject = (subject && String(subject).trim()) || 'Message from The Grassroots Hub Admin';
+
+    let emailDelivery = 'sent';
+    try {
+      await emailService.sendAdminMessage(targetUser.email, targetUser.firstName || 'there', messageSubject, message || '');
+    } catch (emailError) {
+      console.error('[Admin Users] Email delivery failed:', emailError.message);
+      emailDelivery = 'failed';
+    }
+
+    res.json({ message: 'Message sent successfully', emailDelivery });
   } catch (error) {
     console.error('[Admin Users] Message error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -4883,7 +5199,7 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
     }
 
     // Get current beta access status
-    const userCheck = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
+    const userCheck = await db.query('SELECT betaaccess, email, firstName FROM users WHERE id = ?', [id]);
     if (!userCheck.rows || userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -4902,6 +5218,14 @@ app.post('/api/admin/users/:id/beta-access', authenticateToken, async (req, res)
     const verifyResult = await db.query('SELECT betaaccess FROM users WHERE id = ?', [parseInt(id)]);
     const savedValue = verifyResult.rows?.[0]?.betaaccess;
     console.log('[Beta Access POST] Verified saved value:', savedValue, 'Type:', typeof savedValue);
+
+    if (!currentBetaAccess && Boolean(savedValue)) {
+      emailService
+        .sendBetaAccessGranted(userCheck.rows[0].email, userCheck.rows[0].firstName || 'there')
+        .catch((emailError) => {
+          console.error('[Beta Access POST] Failed to send beta access email:', emailError.message);
+        });
+    }
     
     res.json({ 
       message: newBetaAccess ? 'Beta access granted' : 'Beta access revoked',
@@ -4928,7 +5252,7 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     }
 
     // Get current beta access status
-    const userCheck = await db.query('SELECT betaaccess FROM users WHERE id = ?', [id]);
+    const userCheck = await db.query('SELECT betaaccess, email, firstName FROM users WHERE id = ?', [id]);
     if (!userCheck.rows || userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -4957,6 +5281,14 @@ app.patch('/api/admin/users/:id/beta-access', authenticateToken, async (req, res
     
     // Return the actual value from database (should be boolean for PostgreSQL)
     const boolValue = Boolean(actualNewValue);
+
+    if (!currentBetaAccess && boolValue) {
+      emailService
+        .sendBetaAccessGranted(userCheck.rows[0].email, userCheck.rows[0].firstName || 'there')
+        .catch((emailError) => {
+          console.error('[Beta Access PATCH] Failed to send beta access email:', emailError.message);
+        });
+    }
     
     res.json({ 
       message: boolValue ? 'Beta access granted' : 'Beta access revoked',
@@ -5881,6 +6213,108 @@ app.patch('/api/admin/support/:messageId', authenticateToken, async (req, res) =
   }
 });
 
+// Get email delivery logs (Admin only)
+app.get('/api/admin/email-delivery-logs', authenticateToken, async (req, res) => {
+  try {
+    const userResult = await db.query('SELECT role FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0 || userResult.rows[0].role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const requestedStatus = typeof req.query.status === 'string' ? req.query.status.toLowerCase() : 'failed';
+    const status = requestedStatus === 'sent' || requestedStatus === 'failed' ? requestedStatus : 'failed';
+    const recipient = typeof req.query.recipient === 'string' ? req.query.recipient.trim().toLowerCase() : '';
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    const sinceDate = new Date(Date.now() - (days * 24 * 60 * 60 * 1000)).toISOString();
+
+    let query = `
+      SELECT id, recipientEmail, templateName, subject, status, messageId, errorCode, errorMessage, provider, metadata, createdAt
+      FROM email_delivery_logs
+      WHERE createdAt >= ?
+    `;
+    const params = [sinceDate];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    if (recipient) {
+      query += ' AND LOWER(recipientEmail) LIKE ?';
+      params.push(`%${recipient}%`);
+    }
+
+    query += ' ORDER BY createdAt DESC LIMIT ?';
+    params.push(limit);
+
+    const logsResult = await db.query(query, params);
+    const summaryResult = await db.query(
+      `SELECT status, COUNT(*) as count
+       FROM email_delivery_logs
+       WHERE createdAt >= ?
+       GROUP BY status`,
+      [sinceDate]
+    );
+
+    const logs = (logsResult.rows || []).map((row) => {
+      let parsedMetadata = null;
+      const metadata = row.metadata;
+
+      if (typeof metadata === 'string' && metadata.trim()) {
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        } catch (error) {
+          parsedMetadata = { raw: metadata };
+        }
+      } else if (metadata && typeof metadata === 'object') {
+        parsedMetadata = metadata;
+      }
+
+      return {
+        id: row.id,
+        recipientEmail: row.recipientEmail || row.recipientemail,
+        templateName: row.templateName || row.templatename,
+        subject: row.subject,
+        status: row.status,
+        messageId: row.messageId || row.messageid,
+        errorCode: row.errorCode || row.errorcode,
+        errorMessage: row.errorMessage || row.errormessage,
+        provider: row.provider,
+        metadata: parsedMetadata,
+        createdAt: row.createdAt || row.createdat
+      };
+    });
+
+    const summary = {
+      sent: 0,
+      failed: 0
+    };
+
+    (summaryResult.rows || []).forEach((entry) => {
+      const key = String(entry.status || '').toLowerCase();
+      const count = Number(entry.count || 0);
+      if (key === 'sent' || key === 'failed') {
+        summary[key] = count;
+      }
+    });
+
+    res.json({
+      logs,
+      summary,
+      filters: {
+        status,
+        recipient,
+        limit,
+        days
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching email delivery logs:', error);
+    res.status(500).json({ error: 'Failed to fetch email delivery logs' });
+  }
+});
+
 // ===========================
 // ANALYTICS ENDPOINTS
 // ===========================
@@ -6772,6 +7206,66 @@ app.delete('/api/email-alerts/:alertId', authenticateToken, async (req, res) => 
   }
 });
 
+// Test an email alert by sending a sample notification
+app.post('/api/email-alerts/:alertId/test', authenticateToken, async (req, res) => {
+  try {
+    const { alertId } = req.params;
+
+    const alertResult = await db.query(
+      'SELECT * FROM email_alerts WHERE id = ? AND userId = ? AND isActive = 1',
+      [alertId, req.user.userId]
+    );
+
+    if (!alertResult.rows || alertResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Active email alert not found' });
+    }
+
+    const userResult = await db.query('SELECT firstName, email FROM users WHERE id = ?', [req.user.userId]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    const testVacancy = {
+      id: 'test-alert',
+      title: 'Test Vacancy Alert',
+      position: 'Midfielder',
+      league: 'Local League',
+      ageGroup: 'U16',
+      location: 'Your Area',
+      description: 'This is a test alert email to confirm your notification setup is working.'
+    };
+
+    await emailService.sendNewVacancyAlert(user.email, user.firstName || 'there', testVacancy);
+
+    res.json({ message: 'Test email sent successfully' });
+  } catch (error) {
+    console.error('Test email alert error:', error);
+    res.status(500).json({ error: 'Failed to send test email' });
+  }
+});
+
+// Alert preferences — GET and PUT
+app.get('/api/alerts/preferences', authenticateToken, async (req, res) => {
+  try {
+    const preferences = await alertService.getAlertPreferences(req.user.userId);
+    res.json({ preferences });
+  } catch (error) {
+    console.error('Get alert preferences error:', error);
+    res.status(500).json({ error: 'Failed to load alert preferences' });
+  }
+});
+
+app.put('/api/alerts/preferences', authenticateToken, async (req, res) => {
+  try {
+    await alertService.setAlertPreferences(req.user.userId, req.body);
+    res.json({ message: 'Alert preferences saved successfully' });
+  } catch (error) {
+    console.error('Set alert preferences error:', error);
+    res.status(500).json({ error: 'Failed to save alert preferences' });
+  }
+});
+
 // Invite player to trial
 app.post('/api/calendar/events/:eventId/invite', [
   authenticateToken,
@@ -6828,6 +7322,15 @@ app.post('/api/calendar/events/:eventId/invite', [
       ]
     );
 
+    alertService.sendTrialInvitationAlert(
+      playerId,
+      `${event.firstName} ${event.lastName}`,
+      event,
+      message
+    ).catch((emailError) => {
+      console.error('Failed to send trial invitation email alert:', emailError);
+    });
+
     res.status(201).json({ message: 'Player invited successfully' });
   } catch (error) {
     console.error('Invite player error:', error);
@@ -6874,7 +7377,7 @@ app.put('/api/calendar/invitations/:invitationId/respond', [
       );
     }
 
-    // Notify coach of response
+    // Notify coach of response (in-app)
     await db.query(
       `INSERT INTO notifications (userId, type, title, message, relatedId, relatedType) 
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -6887,6 +7390,27 @@ app.put('/api/calendar/invitations/:invitationId/respond', [
         'trial'
       ]
     );
+
+    // Also send email to coach
+    db.query('SELECT email, firstName FROM users WHERE id = ?', [invitation.invitedBy])
+      .then((coachResult) => {
+        if (coachResult.rows && coachResult.rows.length > 0) {
+          const coach = coachResult.rows[0];
+          const coachEmail = encryptionService.decrypt(coach.email);
+          emailService.sendTrialResponse(
+            coachEmail,
+            coach.firstName || 'Coach',
+            `${invitation.firstName} ${invitation.lastName}`,
+            invitation.title,
+            status
+          ).catch((emailError) => {
+            console.error('Failed to send trial response email to coach:', emailError);
+          });
+        }
+      })
+      .catch((lookupError) => {
+        console.error('Failed to look up coach for trial response email:', lookupError);
+      });
 
     res.json({ message: 'Response recorded successfully' });
   } catch (error) {
@@ -6916,14 +7440,539 @@ app.get('/api/calendar/invitations', authenticateToken, async (req, res) => {
   }
 });
 
-// Join/leave open event
+// ─── Training Sessions (open / pay-to-join sessions created by coaches) ──────
+// Backed by calendar_events (eventType='training'). Extra fields (price, etc.)
+// are JSON-encoded in the locationData column.
+
+app.get('/api/training/sessions', authenticateToken, async (req, res) => {
+  try {
+    const isCoach = req.user.role === 'Coach' || req.user.role === 'Admin';
+    let rows;
+
+    if (isCoach) {
+      const result = await db.query(
+        `SELECT ce.*, u.firstName, u.lastName
+         FROM calendar_events ce
+         JOIN users u ON ce.createdBy = u.id
+         WHERE ce.eventType = 'training' AND ce.createdBy = ?
+         ORDER BY ce.date DESC, ce.startTime ASC`,
+        [req.user.userId]
+      );
+      rows = result.rows || [];
+    } else {
+      // Players see all scheduled training sessions; include their own registration
+      const result = await db.query(
+        `SELECT ce.*, u.firstName, u.lastName,
+                otr.id AS reg_id, otr.status AS reg_status,
+                otr.paymentStatus AS reg_payment_status
+         FROM calendar_events ce
+         JOIN users u ON ce.createdBy = u.id
+         LEFT JOIN open_training_registrations otr
+           ON otr.eventId = ce.id AND otr.userId = ?
+         WHERE ce.eventType = 'training' AND ce.status = 'scheduled'
+         ORDER BY ce.date ASC, ce.startTime ASC`,
+        [req.user.userId]
+      );
+      rows = result.rows || [];
+    }
+
+    const sessions = rows.map(row => {
+      let extras = {};
+      try { extras = JSON.parse(row.locationData || '{}'); } catch {}
+      return {
+        id: row.id,
+        coach_id: row.createdBy,
+        title: row.title,
+        description: row.description || '',
+        date: row.date,
+        time: row.startTime,
+        location: row.location || '',
+        max_spaces: row.maxParticipants || 0,
+        current_participants: row.currentParticipants || 0,
+        price: extras.price || 0,
+        price_type: extras.price_type || 'per_session',
+        includes_equipment: extras.includes_equipment || false,
+        includes_facilities: extras.includes_facilities || false,
+        payment_methods: extras.payment_methods || 'cash,bank_transfer',
+        refund_policy: extras.refund_policy || '',
+        special_offers: extras.special_offers || '',
+        coach_name: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+        created_at: row.createdAt,
+        updated_at: row.createdAt,
+        // Player's own registration (null if not registered / coach view)
+        my_registration: row.reg_id
+          ? { id: row.reg_id, status: row.reg_status, paymentStatus: row.reg_payment_status }
+          : null,
+      };
+    });
+
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Get training sessions error:', error);
+    res.status(500).json({ error: 'Failed to fetch training sessions' });
+  }
+});
+
+app.post('/api/training/sessions', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'Coach' && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only coaches can create training sessions' });
+    }
+    const { title, description, date, time, location, max_spaces,
+            price, price_type, includes_equipment, includes_facilities,
+            payment_methods, refund_policy, special_offers } = req.body;
+
+    if (!title || !date || !time || !location) {
+      return res.status(400).json({ error: 'Title, date, time and location are required' });
+    }
+
+    const extraData = JSON.stringify({
+      price: price || 0,
+      price_type: price_type || 'per_session',
+      includes_equipment: !!includes_equipment,
+      includes_facilities: !!includes_facilities,
+      payment_methods: payment_methods || 'cash,bank_transfer',
+      refund_policy: refund_policy || '',
+      special_offers: special_offers || '',
+    });
+
+    const result = await db.query(
+      `INSERT INTO calendar_events
+         (title, description, eventType, date, startTime, endTime, location,
+          locationData, createdBy, maxParticipants, hasVacancies, status, createdAt)
+       VALUES (?, ?, 'training', ?, ?, ?, ?, ?, ?, ?, TRUE, 'scheduled', CURRENT_TIMESTAMP)`,
+      [title, description || '', date, time, time, location,
+       extraData, req.user.userId, max_spaces || null]
+    );
+
+    res.status(201).json({ id: result.lastID, message: 'Training session created successfully' });
+  } catch (error) {
+    console.error('Create training session error:', error);
+    res.status(500).json({ error: 'Failed to create training session' });
+  }
+});
+
+app.put('/api/training/sessions/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const owned = await db.query(
+      `SELECT id, createdBy, locationData FROM calendar_events WHERE id = ? AND eventType = 'training'`,
+      [sessionId]
+    );
+    if (!owned.rows?.length) return res.status(404).json({ error: 'Session not found' });
+    if (String(owned.rows[0].createdBy) !== String(req.user.userId) && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Not authorized to edit this session' });
+    }
+
+    const { title, description, date, time, location, max_spaces,
+            price, price_type, includes_equipment, includes_facilities,
+            payment_methods, refund_policy, special_offers } = req.body;
+
+    let existingExtras = {};
+    try { existingExtras = JSON.parse(owned.rows[0].locationData || '{}'); } catch {}
+
+    const updatedExtras = JSON.stringify({
+      ...existingExtras,
+      ...(price !== undefined && { price }),
+      ...(price_type && { price_type }),
+      ...(includes_equipment !== undefined && { includes_equipment: !!includes_equipment }),
+      ...(includes_facilities !== undefined && { includes_facilities: !!includes_facilities }),
+      ...(payment_methods && { payment_methods }),
+      ...(refund_policy !== undefined && { refund_policy }),
+      ...(special_offers !== undefined && { special_offers }),
+    });
+
+    await db.query(
+      `UPDATE calendar_events
+       SET title = ?, description = ?, date = ?, startTime = ?, endTime = ?,
+           location = ?, locationData = ?, maxParticipants = ?
+       WHERE id = ?`,
+      [title, description || '', date, time, time, location,
+       updatedExtras, max_spaces || null, sessionId]
+    );
+
+    res.json({ message: 'Training session updated successfully' });
+  } catch (error) {
+    console.error('Update training session error:', error);
+    res.status(500).json({ error: 'Failed to update training session' });
+  }
+});
+
+app.delete('/api/training/sessions/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const owned = await db.query(
+      `SELECT id, createdBy FROM calendar_events WHERE id = ? AND eventType = 'training'`,
+      [sessionId]
+    );
+    if (!owned.rows?.length) return res.status(404).json({ error: 'Session not found' });
+    if (String(owned.rows[0].createdBy) !== String(req.user.userId) && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Not authorized to delete this session' });
+    }
+
+    await db.query('DELETE FROM calendar_events WHERE id = ?', [sessionId]);
+    res.json({ message: 'Training session deleted successfully' });
+  } catch (error) {
+    console.error('Delete training session error:', error);
+    res.status(500).json({ error: 'Failed to delete training session' });
+  }
+});
+
+// Player's own registration for a specific training session
+app.get('/api/calendar/events/:eventId/open-training/my-registration', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const result = await db.query(
+      `SELECT id, status, paymentStatus, paymentDueAt, createdAt, updatedAt
+       FROM open_training_registrations
+       WHERE eventId = ? AND userId = ?`,
+      [eventId, req.user.userId]
+    );
+    const registration = result.rows?.length ? result.rows[0] : null;
+    res.json({ registration });
+  } catch (error) {
+    console.error('Get my-registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Open training registrations (capacity-safe + waitlist support)
+app.post('/api/calendar/events/:eventId/open-training/register', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { paymentDueAt, paymentStatus = 'not_required', allowWaitlist = true } = req.body || {};
+    const userId = req.user.userId;
+
+    const eventResult = await db.query(
+      'SELECT id, title, eventType, status, createdBy FROM calendar_events WHERE id = ?',
+      [eventId]
+    );
+
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const event = eventResult.rows[0];
+    if (event.status === 'cancelled' || event.status === 'completed') {
+      return res.status(400).json({ error: 'This event is no longer accepting registrations' });
+    }
+
+    const existing = await db.query(
+      'SELECT id, status FROM open_training_registrations WHERE eventId = ? AND userId = ?',
+      [eventId, userId]
+    );
+
+    if (existing.rows && existing.rows.length > 0) {
+      return res.status(400).json({ error: `Already registered with status: ${existing.rows[0].status}` });
+    }
+
+    let registrationStatus = 'pending_confirmation';
+    let consumedSpot = false;
+
+    const claimSpotResult = await db.query(
+      `UPDATE calendar_events
+       SET currentParticipants = currentParticipants + 1
+       WHERE id = ?
+         AND (maxParticipants IS NULL OR currentParticipants < maxParticipants)`,
+      [eventId]
+    );
+
+    if (claimSpotResult.rowCount) {
+      consumedSpot = true;
+    } else if (allowWaitlist) {
+      registrationStatus = 'waitlisted';
+    } else {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const insertResult = await db.query(
+        `INSERT INTO open_training_registrations
+         (eventId, userId, status, paymentStatus, paymentDueAt, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [eventId, userId, registrationStatus, paymentStatus, paymentDueAt || null, now, now]
+      );
+
+      await createNotification(
+        event.createdBy,
+        'open_training_registration',
+        'New open training registration',
+        `A player requested a place on "${event.title}" (${registrationStatus}).`,
+        eventId,
+        'open_training'
+      );
+
+      return res.status(201).json({
+        message: registrationStatus === 'waitlisted' ? 'Added to waitlist' : 'Registration submitted',
+        registration: {
+          id: insertResult.lastID,
+          status: registrationStatus,
+          paymentStatus,
+          consumedSpot
+        }
+      });
+    } catch (insertError) {
+      if (consumedSpot) {
+        await db.query(
+          'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+          [eventId]
+        );
+      }
+
+      const msg = String(insertError?.message || '').toLowerCase();
+      if (msg.includes('unique')) {
+        return res.status(400).json({ error: 'Already registered for this event' });
+      }
+      throw insertError;
+    }
+  } catch (error) {
+    console.error('Open training registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/calendar/events/:eventId/open-training/registrations', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const eventResult = await db.query(
+      'SELECT id, createdBy, maxParticipants, currentParticipants FROM calendar_events WHERE id = ?',
+      [eventId]
+    );
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const event = eventResult.rows[0];
+    const isOwner = String(event.createdBy) === String(req.user.userId);
+    const isAdmin = req.user.role === 'Admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only event owner can view registrations' });
+    }
+
+    const registrationsResult = await db.query(
+      `SELECT otr.*, u.firstName, u.lastName, u.email
+       FROM open_training_registrations otr
+       JOIN users u ON u.id = otr.userId
+       WHERE otr.eventId = ?
+       ORDER BY otr.createdAt ASC`,
+      [eventId]
+    );
+
+    const registrations = registrationsResult.rows || [];
+    const counts = registrations.reduce((acc, row) => {
+      const key = row.status || 'unknown';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      registrations,
+      counts,
+      capacity: {
+        maxParticipants: event.maxParticipants,
+        currentParticipants: event.currentParticipants,
+        remaining: event.maxParticipants == null ? null : Math.max(0, event.maxParticipants - event.currentParticipants)
+      }
+    });
+  } catch (error) {
+    console.error('Get open training registrations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/calendar/events/:eventId/open-training/registrations/:registrationId', [
+  authenticateToken,
+  body('status').optional().isIn(['pending_confirmation', 'confirmed', 'waitlisted', 'declined', 'dropped_out', 'payment_pending', 'payment_overdue', 'cancelled']),
+  body('paymentStatus').optional().isIn(['not_required', 'pending', 'paid', 'overdue'])
+], async (req, res) => {
+  try {
+    const { eventId, registrationId } = req.params;
+    const { status, paymentStatus, paymentDueAt, dropReason } = req.body || {};
+    const now = new Date().toISOString();
+
+    const eventResult = await db.query('SELECT id, title, createdBy FROM calendar_events WHERE id = ?', [eventId]);
+    if (!eventResult.rows || eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    const event = eventResult.rows[0];
+
+    if (String(event.createdBy) !== String(req.user.userId) && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only event owner can update registrations' });
+    }
+
+    const regResult = await db.query(
+      'SELECT * FROM open_training_registrations WHERE id = ? AND eventId = ?',
+      [registrationId, eventId]
+    );
+    if (!regResult.rows || regResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    const existing = regResult.rows[0];
+    const nextStatus = status || existing.status;
+    const prevConsumes = statusConsumesSpot(existing.status);
+    const nextConsumes = statusConsumesSpot(nextStatus);
+    const spotFreed = prevConsumes && !nextConsumes;
+
+    if (!prevConsumes && nextConsumes) {
+      const claimSpotResult = await db.query(
+        `UPDATE calendar_events
+         SET currentParticipants = currentParticipants + 1
+         WHERE id = ?
+           AND (maxParticipants IS NULL OR currentParticipants < maxParticipants)`,
+        [eventId]
+      );
+
+      if (!claimSpotResult.rowCount) {
+        return res.status(400).json({ error: 'Cannot confirm: event is already full' });
+      }
+    }
+
+    if (spotFreed) {
+      await db.query(
+        'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+        [eventId]
+      );
+    }
+
+    const updateFields = ['updatedAt = ?'];
+    const updateValues = [now];
+
+    if (status !== undefined) {
+      updateFields.push('status = ?');
+      updateValues.push(nextStatus);
+    }
+    if (paymentStatus !== undefined) {
+      updateFields.push('paymentStatus = ?');
+      updateValues.push(paymentStatus);
+    }
+    if (paymentDueAt !== undefined) {
+      updateFields.push('paymentDueAt = ?');
+      updateValues.push(paymentDueAt || null);
+    }
+    if (nextStatus === 'confirmed') {
+      updateFields.push('confirmedBy = ?');
+      updateValues.push(req.user.userId);
+      updateFields.push('confirmedAt = ?');
+      updateValues.push(now);
+    }
+    if (nextStatus === 'dropped_out' || nextStatus === 'cancelled') {
+      updateFields.push('droppedAt = ?');
+      updateValues.push(now);
+      updateFields.push('dropReason = ?');
+      updateValues.push(dropReason || null);
+    }
+
+    updateValues.push(registrationId, eventId);
+    await db.query(
+      `UPDATE open_training_registrations
+       SET ${updateFields.join(', ')}
+       WHERE id = ? AND eventId = ?`,
+      updateValues
+    );
+
+    await createNotification(
+      existing.userId,
+      'open_training_status_updated',
+      'Training registration updated',
+      `Your registration for "${event.title}" is now "${nextStatus}".`,
+      eventId,
+      'open_training'
+    );
+
+    // Email player when their status changes to a notable state
+    if (['confirmed', 'waitlisted', 'dropped_out', 'payment_overdue'].includes(nextStatus)) {
+      emailOpenTrainingStatusChange(existing.userId, event.title, nextStatus);
+    }
+
+    let promotedUserId = null;
+    if (spotFreed) {
+      promotedUserId = await promoteNextWaitlistedRegistrant(eventId);
+    }
+
+    res.json({
+      message: 'Registration updated successfully',
+      status: nextStatus,
+      promotedUserId
+    });
+  } catch (error) {
+    console.error('Update open training registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/calendar/events/:eventId/open-training/registrations/:registrationId/cancel', authenticateToken, async (req, res) => {
+  try {
+    const { eventId, registrationId } = req.params;
+    const { reason } = req.body || {};
+    const now = new Date().toISOString();
+
+    const registrationResult = await db.query(
+      `SELECT otr.*, ce.title, ce.createdBy
+       FROM open_training_registrations otr
+       JOIN calendar_events ce ON ce.id = otr.eventId
+       WHERE otr.id = ? AND otr.eventId = ?`,
+      [registrationId, eventId]
+    );
+
+    if (!registrationResult.rows || registrationResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    const registration = registrationResult.rows[0];
+    const isOwner = String(registration.userId) === String(req.user.userId);
+    const isCoach = String(registration.createdBy) === String(req.user.userId) || req.user.role === 'Admin';
+    if (!isOwner && !isCoach) {
+      return res.status(403).json({ error: 'Not allowed to cancel this registration' });
+    }
+
+    const prevConsumes = statusConsumesSpot(registration.status);
+    await db.query(
+      `UPDATE open_training_registrations
+       SET status = ?, droppedAt = ?, dropReason = ?, updatedAt = ?
+       WHERE id = ? AND eventId = ?`,
+      ['dropped_out', now, reason || null, now, registrationId, eventId]
+    );
+
+    if (prevConsumes) {
+      await db.query(
+        'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+        [eventId]
+      );
+    }
+
+    let promotedUserId = null;
+    if (prevConsumes) {
+      promotedUserId = await promoteNextWaitlistedRegistrant(eventId);
+    }
+
+    if (isOwner) {
+      await createNotification(
+        registration.createdBy,
+        'open_training_dropout',
+        'Player dropped out',
+        `A player dropped out from "${registration.title}".${reason ? ` Reason: ${reason}` : ''}`,
+        eventId,
+        'open_training'
+      );
+    }
+
+    res.json({ message: 'Registration cancelled', promotedUserId });
+  } catch (error) {
+    console.error('Cancel open training registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Join/leave open event (legacy endpoint retained for compatibility)
 app.post('/api/calendar/events/:eventId/join', authenticateToken, async (req, res) => {
   try {
     const { eventId } = req.params;
-    
-    // Verify event exists
+
     const eventResult = await db.query(
-      'SELECT * FROM calendar_events WHERE id = ?',
+      'SELECT id, title, eventType, maxParticipants, currentParticipants FROM calendar_events WHERE id = ?',
       [eventId]
     );
 
@@ -6933,14 +7982,60 @@ app.post('/api/calendar/events/:eventId/join', authenticateToken, async (req, re
 
     const event = eventResult.rows[0];
 
-    // Check if event is full
-    if (event.maxParticipants && event.currentParticipants >= event.maxParticipants) {
-      return res.status(400).json({ error: 'Event is full' });
+    // For training/open sessions, create an open training registration
+    if (event.eventType === 'training' || event.eventType === 'open_trial') {
+      const existingRegistration = await db.query(
+        'SELECT id, status FROM open_training_registrations WHERE eventId = ? AND userId = ?',
+        [eventId, req.user.userId]
+      );
+
+      if (existingRegistration.rows && existingRegistration.rows.length > 0) {
+        return res.status(400).json({ error: `Already registered with status: ${existingRegistration.rows[0].status}` });
+      }
+
+      let registrationStatus = 'pending_confirmation';
+      let consumedSpot = false;
+
+      const claimTrainingSpotResult = await db.query(
+        `UPDATE calendar_events
+         SET currentParticipants = currentParticipants + 1
+         WHERE id = ?
+           AND (maxParticipants IS NULL OR currentParticipants < maxParticipants)`,
+        [eventId]
+      );
+
+      if (claimTrainingSpotResult.rowCount) {
+        consumedSpot = true;
+      } else {
+        registrationStatus = 'waitlisted';
+      }
+
+      try {
+        const now = new Date().toISOString();
+        await db.query(
+          `INSERT INTO open_training_registrations
+           (eventId, userId, status, paymentStatus, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [eventId, req.user.userId, registrationStatus, 'not_required', now, now]
+        );
+      } catch (insertError) {
+        if (consumedSpot) {
+          await db.query(
+            'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+            [eventId]
+          );
+        }
+        throw insertError;
+      }
+
+      return res.json({
+        message: registrationStatus === 'waitlisted' ? 'Added to waitlist' : 'Registration submitted',
+        status: registrationStatus
+      });
     }
 
-    // Check if already joined
     const existingParticipant = await db.query(
-      'SELECT * FROM event_participants WHERE eventId = ? AND userId = ?',
+      'SELECT id FROM event_participants WHERE eventId = ? AND userId = ?',
       [eventId, req.user.userId]
     );
 
@@ -6948,15 +8043,30 @@ app.post('/api/calendar/events/:eventId/join', authenticateToken, async (req, re
       return res.status(400).json({ error: 'Already joined this event' });
     }
 
-    await db.query(
-      'INSERT INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
-      [eventId, req.user.userId, 'participant']
-    );
-
-    await db.query(
-      'UPDATE calendar_events SET currentParticipants = currentParticipants + 1 WHERE id = ?',
+    const claimSpotResult = await db.query(
+      `UPDATE calendar_events
+       SET currentParticipants = currentParticipants + 1
+       WHERE id = ?
+         AND (maxParticipants IS NULL OR currentParticipants < maxParticipants)`,
       [eventId]
     );
+
+    if (!claimSpotResult.rowCount) {
+      return res.status(400).json({ error: 'Event is full' });
+    }
+
+    try {
+      await db.query(
+        'INSERT INTO event_participants (eventId, userId, role) VALUES (?, ?, ?)',
+        [eventId, req.user.userId, 'participant']
+      );
+    } catch (insertError) {
+      await db.query(
+        'UPDATE calendar_events SET currentParticipants = currentParticipants - 1 WHERE id = ? AND currentParticipants > 0',
+        [eventId]
+      );
+      throw insertError;
+    }
 
     res.json({ message: 'Joined event successfully' });
   } catch (error) {
@@ -6968,7 +8078,16 @@ app.post('/api/calendar/events/:eventId/join', authenticateToken, async (req, re
 app.delete('/api/calendar/events/:eventId/leave', authenticateToken, async (req, res) => {
   try {
     const { eventId } = req.params;
-    
+
+    const participantResult = await db.query(
+      'SELECT id FROM event_participants WHERE eventId = ? AND userId = ?',
+      [eventId, req.user.userId]
+    );
+
+    if (!participantResult.rows || participantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Not joined to this event' });
+    }
+
     await db.query(
       'DELETE FROM event_participants WHERE eventId = ? AND userId = ?',
       [eventId, req.user.userId]
@@ -8873,13 +9992,33 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
   try {
     const { teamId } = req.params;
 
-    // Check if user has permission to edit team
+    // Check if user has permission to edit team.
+    // Avoid JSON_EXTRACT in SQL since PostgreSQL does not support it.
     const membership = await db.query(`
       SELECT permissions FROM team_members
-      WHERE teamId = ? AND userId = ? AND JSON_EXTRACT(permissions, '$.canEditTeam') = true
+      WHERE teamId = ? AND userId = ?
     `, [teamId, req.user.userId]);
 
     if (!membership.rows || membership.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to edit this team' });
+    }
+
+    const rawPermissions = membership.rows[0].permissions;
+    let parsedPermissions = {};
+    try {
+      parsedPermissions = typeof rawPermissions === 'string'
+        ? JSON.parse(rawPermissions)
+        : (rawPermissions || {});
+    } catch (e) {
+      parsedPermissions = {};
+    }
+
+    const canEditTeam =
+      parsedPermissions.canEditTeam === true ||
+      parsedPermissions.canEditTeam === 1 ||
+      parsedPermissions.canEditTeam === '1';
+
+    if (!canEditTeam) {
       return res.status(403).json({ error: 'You do not have permission to edit this team' });
     }
 
@@ -9131,14 +10270,34 @@ app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
     const { teamId } = req.params;
     const { coachId, role } = req.body;
 
-    // Check if user has permission to invite members
+    // Check if user has permission to invite members.
+    // Avoid JSON_EXTRACT in SQL since PostgreSQL does not support it.
     const membership = await db.query(`
       SELECT permissions, t.teamName FROM team_members tm
       JOIN teams t ON tm.teamId = t.id
-      WHERE tm.teamId = ? AND tm.userId = ? AND JSON_EXTRACT(tm.permissions, '$.canInviteMembers') = true
+      WHERE tm.teamId = ? AND tm.userId = ?
     `, [teamId, req.user.userId]);
 
     if (!membership.rows || membership.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to invite members' });
+    }
+
+    const rawPermissions = membership.rows[0].permissions;
+    let parsedPermissions = {};
+    try {
+      parsedPermissions = typeof rawPermissions === 'string'
+        ? JSON.parse(rawPermissions)
+        : (rawPermissions || {});
+    } catch (e) {
+      parsedPermissions = {};
+    }
+
+    const canInviteMembers =
+      parsedPermissions.canInviteMembers === true ||
+      parsedPermissions.canInviteMembers === 1 ||
+      parsedPermissions.canInviteMembers === '1';
+
+    if (!canInviteMembers) {
       return res.status(403).json({ error: 'You do not have permission to invite members' });
     }
 
@@ -9186,10 +10345,26 @@ app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
 
     // Send invitation email
     const acceptLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invitations/${invitationToken}`;
-    await emailService.sendTeamInvitation(coach.email, inviterName, teamName, acceptLink);
+    const invitationEmailResult = await emailService.sendTeamInvitation(coach.email, inviterName, teamName, acceptLink);
+
+    if (!invitationEmailResult.success) {
+      return res.status(201).json({
+        message: 'Invitation created, but email delivery failed. The invited coach can still accept in-app.',
+        emailDelivery: 'failed',
+        invitationId: invId,
+        invitedCoach: {
+          id: coach.id,
+          name: `${coach.firstName} ${coach.lastName}`,
+          email: coach.email,
+          role,
+          status: 'pending'
+        }
+      });
+    }
 
     res.status(201).json({
       message: 'Invitation sent successfully',
+      emailDelivery: 'sent',
       invitationId: invId,
       invitedCoach: {
         id: coach.id,
@@ -9296,11 +10471,18 @@ app.post('/api/invitations/:invitationToken/accept', authenticateToken, async (r
     const inviterName = inviterResult.rows ? `${inviterResult.rows[0].firstName} ${inviterResult.rows[0].lastName}` : 'The team';
 
     // Send acceptance notification to inviter
+    let notificationDelivery = 'not_sent';
     if (inviterEmail) {
-      await emailService.sendInvitationResponse(inviterEmail, inviterName, teamName, `${req.user.firstName} ${req.user.lastName}`, 'accepted');
+      const responderResult = await db.query('SELECT firstName, lastName FROM users WHERE id = ?', [req.user.userId]);
+      const responderName = (responderResult.rows && responderResult.rows.length > 0)
+        ? `${responderResult.rows[0].firstName} ${responderResult.rows[0].lastName}`
+        : 'A coach';
+
+      const responseEmailResult = await emailService.sendInvitationResponse(inviterEmail, inviterName, teamName, responderName, 'accepted');
+      notificationDelivery = responseEmailResult.success ? 'sent' : 'failed';
     }
 
-    res.json({ message: 'Invitation accepted successfully' });
+    res.json({ message: 'Invitation accepted successfully', notificationDelivery });
   } catch (error) {
     console.error('Error accepting invitation:', error);
     res.status(500).json({ error: 'Failed to accept invitation' });
@@ -9346,11 +10528,18 @@ app.post('/api/invitations/:invitationToken/reject', authenticateToken, async (r
     const inviterName = inviterResult.rows ? `${inviterResult.rows[0].firstName} ${inviterResult.rows[0].lastName}` : 'The team';
 
     // Send rejection notification to inviter
+    let notificationDelivery = 'not_sent';
     if (inviterEmail) {
-      await emailService.sendInvitationResponse(inviterEmail, inviterName, teamName, `${req.user.firstName} ${req.user.lastName}`, 'rejected');
+      const responderResult = await db.query('SELECT firstName, lastName FROM users WHERE id = ?', [req.user.userId]);
+      const responderName = (responderResult.rows && responderResult.rows.length > 0)
+        ? `${responderResult.rows[0].firstName} ${responderResult.rows[0].lastName}`
+        : 'A coach';
+
+      const responseEmailResult = await emailService.sendInvitationResponse(inviterEmail, inviterName, teamName, responderName, 'rejected');
+      notificationDelivery = responseEmailResult.success ? 'sent' : 'failed';
     }
 
-    res.json({ message: 'Invitation rejected' });
+    res.json({ message: 'Invitation rejected', notificationDelivery });
   } catch (error) {
     console.error('Error rejecting invitation:', error);
     res.status(500).json({ error: 'Failed to reject invitation' });
@@ -9362,13 +10551,33 @@ app.delete('/api/teams/:teamId/members/:userId', authenticateToken, async (req, 
   try {
     const { teamId, userId } = req.params;
 
-    // Check if requester has permission to remove members
+    // Check if requester has permission to remove members.
+    // Avoid JSON_EXTRACT in SQL since PostgreSQL does not support it.
     const membership = await db.query(`
       SELECT permissions FROM team_members
-      WHERE teamId = ? AND userId = ? AND JSON_EXTRACT(permissions, '$.canEditTeam') = true
+      WHERE teamId = ? AND userId = ?
     `, [teamId, req.user.userId]);
 
     if (!membership.rows || membership.rows.length === 0) {
+      return res.status(403).json({ error: 'You do not have permission to remove members' });
+    }
+
+    const rawPermissions = membership.rows[0].permissions;
+    let parsedPermissions = {};
+    try {
+      parsedPermissions = typeof rawPermissions === 'string'
+        ? JSON.parse(rawPermissions)
+        : (rawPermissions || {});
+    } catch (e) {
+      parsedPermissions = {};
+    }
+
+    const canEditTeam =
+      parsedPermissions.canEditTeam === true ||
+      parsedPermissions.canEditTeam === 1 ||
+      parsedPermissions.canEditTeam === '1';
+
+    if (!canEditTeam) {
       return res.status(403).json({ error: 'You do not have permission to remove members' });
     }
 
@@ -9397,9 +10606,17 @@ app.delete('/api/teams/:teamId/members/:userId', authenticateToken, async (req, 
     const removerName = removerResult.rows ? `${removerResult.rows[0].firstName} ${removerResult.rows[0].lastName}` : 'A team manager';
 
     // Send removal notification
-    await emailService.sendCoachRemovalNotification(member.email, `${member.firstName} ${member.lastName}`, teamName, removerName);
+    const removalEmailResult = await emailService.sendCoachRemovalNotification(
+      member.email,
+      `${member.firstName} ${member.lastName}`,
+      teamName,
+      removerName
+    );
 
-    res.json({ message: 'Team member removed successfully' });
+    res.json({
+      message: 'Team member removed successfully',
+      notificationDelivery: removalEmailResult.success ? 'sent' : 'failed'
+    });
   } catch (error) {
     console.error('Error removing team member:', error);
     res.status(500).json({ error: 'Failed to remove team member' });
@@ -10020,6 +11237,18 @@ app.post('/api/admin/test-team-vacancies', authenticateToken, async (req, res) =
           position,
           league: league.name,
           location: location.city
+        });
+
+        alertService.sendNewVacancyAlerts({
+          id: result.lastID || result.insertId,
+          title,
+          description,
+          league: league.name,
+          ageGroup,
+          position,
+          location: location.city
+        }).catch((alertError) => {
+          console.error('Failed to send new vacancy alerts:', alertError);
         });
       }
     }

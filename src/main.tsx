@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css'
-import { registerServiceWorker } from './utils/pwa';
+import { unregisterServiceWorker } from './utils/pwa';
 
 // Global error handler for debugging - suppress harmless extension errors
 window.addEventListener('error', (event) => {
@@ -45,6 +45,6 @@ if (root) {
   console.error('Root element not found');
 }
 
-// Register service worker for PWA functionality
-registerServiceWorker();
+// Temporarily disable service worker registration to prevent stale app-shell caches.
+unregisterServiceWorker().catch(() => undefined);
 

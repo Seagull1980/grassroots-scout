@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -32,9 +32,10 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api, { API_URL, leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
 
 interface Team {
   id: number;
@@ -78,6 +79,8 @@ interface Coach {
 const TeamManagement: React.FC = () => {
   const apiPrefix = API_URL ? '' : '/api';
   const navigate = useNavigate();
+  const location = useLocation();
+  const consumedEditTeamIdRef = useRef<number | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -91,7 +94,6 @@ const TeamManagement: React.FC = () => {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [clubs, setClubs] = useState<string[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   // Form states
@@ -285,22 +287,31 @@ const TeamManagement: React.FC = () => {
     loadTeamMembers(team.id);
   };
 
-  const handleEditTeam = (team: Team) => {
-    setEditingTeam(team);
-    setEditForm({
-      teamName: team.teamName || '',
-      clubName: team.clubName || '',
-      ageGroup: team.ageGroup || '',
-      league: team.league || '',
-      teamGender: team.teamGender || 'Mixed',
-      location: team.location || '',
-      playingTimePolicy: team.playingTimePolicy || '',
-      teamBio: team.teamBio || '',
-      trainingLocation: team.trainingLocation || '',
-      homePitchLocation: team.homePitchLocation || '',
-      honours: team.honours || ''
-    });
-    setEditDialogOpen(true);
+  const handleEditTeam = async (team: Team) => {
+    try {
+      // Load full team details so the edit form always opens with complete values.
+      const response = await api.get(`${apiPrefix}/teams/${team.id}`);
+      const fullTeam = response.data?.team || team;
+
+      setEditingTeam(team);
+      setEditForm({
+        teamName: fullTeam.teamName || '',
+        clubName: fullTeam.clubName || '',
+        ageGroup: fullTeam.ageGroup || '',
+        league: fullTeam.league || '',
+        teamGender: fullTeam.teamGender || 'Mixed',
+        location: fullTeam.location || '',
+        playingTimePolicy: fullTeam.playingTimePolicy || '',
+        teamBio: fullTeam.teamBio || '',
+        trainingLocation: fullTeam.trainingLocation || '',
+        homePitchLocation: fullTeam.homePitchLocation || '',
+        honours: fullTeam.honours || ''
+      });
+      // Ensure any team-members dialog is dismissed when edit mode is activated.
+      setSelectedTeam(null);
+    } catch (error: any) {
+      setError(error.response?.data?.error || 'Failed to load team details for editing');
+    }
   };
 
   const handleUpdateTeam = async () => {
@@ -308,7 +319,6 @@ const TeamManagement: React.FC = () => {
 
     try {
       await api.put(`${apiPrefix}/teams/${editingTeam.id}`, editForm);
-      setEditDialogOpen(false);
       setEditingTeam(null);
       loadTeams();
 
@@ -329,8 +339,8 @@ const TeamManagement: React.FC = () => {
       setRequestLeagueDialogOpen(false);
       setLeagueRequest({ name: '', region: '', url: '', description: '' });
       alert('League request submitted successfully! Admins will review your request.');
-      // Add the requested league to the createForm
-      if (editDialogOpen) {
+      // Add the requested league to the currently active form
+      if (editingTeam) {
         setEditForm((prev) => ({ ...prev, league: leagueRequest.name }));
       } else {
         setCreateForm({ ...createForm, league: leagueRequest.name });
@@ -339,6 +349,26 @@ const TeamManagement: React.FC = () => {
       setError(error.response?.data?.error || 'Failed to submit league request');
     }
   };
+
+  useEffect(() => {
+    const routeState = location.state as { editTeamId?: number } | null;
+    const requestedEditTeamId = routeState?.editTeamId;
+
+    if (!requestedEditTeamId || loading || teams.length === 0) {
+      return;
+    }
+
+    if (consumedEditTeamIdRef.current === requestedEditTeamId) {
+      return;
+    }
+
+    const teamToEdit = teams.find((team) => team.id === requestedEditTeamId);
+
+    if (teamToEdit) {
+      consumedEditTeamIdRef.current = requestedEditTeamId;
+      handleEditTeam(teamToEdit);
+    }
+  }, [location.state, loading, teams]);
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -374,6 +404,221 @@ const TeamManagement: React.FC = () => {
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
           {typeof error === 'string' ? error : JSON.stringify(error)}
         </Alert>
+      )}
+
+      {editingTeam && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Editing {editingTeam.teamName}
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Team Name"
+              value={editForm.teamName}
+              onChange={(e) => setEditForm({ ...editForm, teamName: e.target.value })}
+              sx={{ mt: 2 }}
+              required
+            />
+            <Autocomplete
+              fullWidth
+              freeSolo
+              options={clubs.filter(Boolean)}
+              value={editForm.clubName || null}
+              getOptionLabel={(option) => {
+                if (!option) return '';
+                return typeof option === 'string' ? option : '';
+              }}
+              onChange={(_, newValue) => setEditForm({ ...editForm, clubName: newValue || '' })}
+              onInputChange={(_, newValue) => {
+                setEditForm({ ...editForm, clubName: newValue });
+                if (newValue.length >= 1) {
+                  searchClubs(newValue);
+                } else {
+                  setClubs([]);
+                }
+              }}
+              loading={loadingClubs}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Club Name (Optional)"
+                  helperText="Start typing to search for your club. If found, your team will be linked to it. Otherwise, you can create a new club entry."
+                  sx={{ mt: 2 }}
+                />
+              )}
+              noOptionsText="No clubs found - you can create a new one"
+              disableClearable={false}
+              slotProps={{
+                popper: {
+                  modifiers: [
+                    {
+                      name: 'flip',
+                      enabled: false,
+                    }
+                  ],
+                  sx: { zIndex: 1301 }
+                }
+              }}
+            />
+            <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Club Linking:</strong> We'll search our database for existing clubs. If your club is already registered, your team will be linked to it automatically. This helps keep all your club's teams organized in one place.
+              </Typography>
+            </Alert>
+            <Autocomplete
+              fullWidth
+              options={AGE_GROUP_OPTIONS}
+              value={editForm.ageGroup || null}
+              getOptionLabel={(option) => option || ''}
+              onChange={(_, newValue) => setEditForm({ ...editForm, ageGroup: newValue || '' })}
+              renderInput={(params) => (
+                <TextField {...params} label="Age Group" required />
+              )}
+              sx={{ mt: 2 }}
+              disableClearable={false}
+              slotProps={{
+                popper: {
+                  modifiers: [
+                    {
+                      name: 'flip',
+                      enabled: false,
+                    }
+                  ],
+                  sx: { zIndex: 1301 }
+                }
+              }}
+            />
+            <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <Autocomplete
+                  fullWidth
+                  options={leagues.map(l => l.name)}
+                  value={editForm.league || null}
+                  getOptionLabel={(option) => option || ''}
+                  onChange={(_, newValue) => setEditForm({ ...editForm, league: newValue || '' })}
+                  inputValue={editForm.league}
+                  onInputChange={(_, newValue) => setEditForm({ ...editForm, league: newValue })}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="League"
+                      required
+                      helperText={loadingLeagues ? 'Loading leagues...' : "Can't find your league? Request it below"}
+                    />
+                  )}
+                  loading={loadingLeagues}
+                  disableClearable={false}
+                  filterOptions={(options, state) => {
+                    const filtered = options.filter(option =>
+                      option.toLowerCase().includes(state.inputValue.toLowerCase())
+                    );
+                    return filtered;
+                  }}
+                  slotProps={{
+                    popper: {
+                      modifiers: [
+                        {
+                          name: 'flip',
+                          enabled: false,
+                        }
+                      ],
+                      sx: { zIndex: 1301 }
+                    }
+                  }}
+                />
+              </Box>
+              <Button
+                variant="outlined"
+                onClick={() => setRequestLeagueDialogOpen(true)}
+                sx={{ mt: 1 }}
+              >
+                Request League
+              </Button>
+            </Box>
+            <TextField
+              fullWidth
+              label="Location"
+              value={editForm.location}
+              onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              fullWidth
+              label="Team Bio"
+              value={editForm.teamBio}
+              onChange={(e) => setEditForm({ ...editForm, teamBio: e.target.value })}
+              sx={{ mt: 2 }}
+              multiline
+              rows={3}
+            />
+            <LocationAutocomplete
+              fullWidth
+              label="Training Location"
+              value={editForm.trainingLocation}
+              onChange={(value) => setEditForm({ ...editForm, trainingLocation: value })}
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              fullWidth
+              label="Home Pitch Location"
+              value={editForm.homePitchLocation}
+              onChange={(e) => setEditForm({ ...editForm, homePitchLocation: e.target.value })}
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              fullWidth
+              label="Honours"
+              value={editForm.honours}
+              onChange={(e) => setEditForm({ ...editForm, honours: e.target.value })}
+              sx={{ mt: 2 }}
+              multiline
+              rows={3}
+            />
+            <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
+              <InputLabel>Playing Time Policy</InputLabel>
+              <Select
+                label="Playing Time Policy"
+                value={editForm.playingTimePolicy}
+                onChange={(e) => setEditForm({ ...editForm, playingTimePolicy: e.target.value })}
+                MenuProps={{
+                  sx: { zIndex: 1301 }
+                }}
+              >
+                <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
+                <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
+                <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
+              <InputLabel id="inline-edit-team-gender-label">Team Gender</InputLabel>
+              <Select
+                labelId="inline-edit-team-gender-label"
+                id="inline-edit-team-gender"
+                label="Team Gender"
+                value={editForm.teamGender}
+                onChange={(e) => setEditForm({ ...editForm, teamGender: e.target.value })}
+                MenuProps={{
+                  sx: { zIndex: 1301 }
+                }}
+              >
+                {TEAM_GENDER_OPTIONS.map(option => (
+                  <MenuItem key={option} value={option}>{option}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Box sx={{ mt: 3, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+              <Button onClick={() => setEditingTeam(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateTeam} variant="contained" disabled={!editingTeam}>
+                Save Changes
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       <Grid container spacing={3}>
@@ -429,6 +674,7 @@ const TeamManagement: React.FC = () => {
                       event.stopPropagation();
                       handleEditTeam(team);
                     }}
+                    onMouseDown={(event) => event.stopPropagation()}
                     sx={{ mb: 1 }}
                   >
                     Edit Team
@@ -624,11 +870,11 @@ const TeamManagement: React.FC = () => {
             multiline
             rows={3}
           />
-          <TextField
+          <LocationAutocomplete
             fullWidth
             label="Training Location"
             value={createForm.trainingLocation}
-            onChange={(e) => setCreateForm({ ...createForm, trainingLocation: e.target.value })}
+            onChange={(value) => setCreateForm({ ...createForm, trainingLocation: value })}
             sx={{ mt: 2 }}
           />
           <TextField
@@ -684,228 +930,6 @@ const TeamManagement: React.FC = () => {
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleCreateTeam} variant="contained">
             Create Team
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Team Dialog */}
-      <Dialog
-        open={editDialogOpen}
-        onClose={() => {
-          setEditDialogOpen(false);
-          setEditingTeam(null);
-        }}
-        maxWidth="sm"
-        fullWidth
-        sx={{ zIndex: 1300 }}
-      >
-        <DialogTitle>Edit Team</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Team Name"
-            value={editForm.teamName}
-            onChange={(e) => setEditForm({ ...editForm, teamName: e.target.value })}
-            sx={{ mt: 2 }}
-            required
-          />
-          <Autocomplete
-            fullWidth
-            freeSolo
-            options={clubs.filter(Boolean)}
-            value={editForm.clubName || null}
-            getOptionLabel={(option) => {
-              if (!option) return '';
-              return typeof option === 'string' ? option : '';
-            }}
-            onChange={(_, newValue) => setEditForm({ ...editForm, clubName: newValue || '' })}
-            onInputChange={(_, newValue) => {
-              setEditForm({ ...editForm, clubName: newValue });
-              if (newValue.length >= 1) {
-                searchClubs(newValue);
-              } else {
-                setClubs([]);
-              }
-            }}
-            loading={loadingClubs}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Club Name (Optional)"
-                helperText="Start typing to search for your club. If found, your team will be linked to it. Otherwise, you can create a new club entry."
-                sx={{ mt: 2 }}
-              />
-            )}
-            noOptionsText="No clubs found - you can create a new one"
-            disableClearable={false}
-            slotProps={{
-              popper: {
-                modifiers: [
-                  {
-                    name: 'flip',
-                    enabled: false,
-                  }
-                ],
-                sx: { zIndex: 1301 }
-              }
-            }}
-          />
-          <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Club Linking:</strong> We'll search our database for existing clubs. If your club is already registered, your team will be linked to it automatically. This helps keep all your club's teams organized in one place.
-            </Typography>
-          </Alert>
-          <Autocomplete
-            fullWidth
-            options={AGE_GROUP_OPTIONS}
-            value={editForm.ageGroup || null}
-            getOptionLabel={(option) => option || ''}
-            onChange={(_, newValue) => setEditForm({ ...editForm, ageGroup: newValue || '' })}
-            renderInput={(params) => (
-              <TextField {...params} label="Age Group" required />
-            )}
-            sx={{ mt: 2 }}
-            disableClearable={false}
-            slotProps={{
-              popper: {
-                modifiers: [
-                  {
-                    name: 'flip',
-                    enabled: false,
-                  }
-                ],
-                sx: { zIndex: 1301 }
-              }
-            }}
-          />
-          <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
-            <Box sx={{ flex: 1 }}>
-              <Autocomplete
-                fullWidth
-                options={leagues.map(l => l.name)}
-                value={editForm.league || null}
-                getOptionLabel={(option) => option || ''}
-                onChange={(_, newValue) => setEditForm({ ...editForm, league: newValue || '' })}
-                inputValue={editForm.league}
-                onInputChange={(_, newValue) => setEditForm({ ...editForm, league: newValue })}
-                renderInput={(params) => (
-                  <TextField 
-                    {...params} 
-                    label="League" 
-                    required
-                    helperText={loadingLeagues ? 'Loading leagues...' : "Can't find your league? Request it below"}
-                  />
-                )}
-                loading={loadingLeagues}
-                disableClearable={false}
-                filterOptions={(options, state) => {
-                  const filtered = options.filter(option =>
-                    option.toLowerCase().includes(state.inputValue.toLowerCase())
-                  );
-                  return filtered;
-                }}
-                slotProps={{
-                  popper: {
-                    modifiers: [
-                      {
-                        name: 'flip',
-                        enabled: false,
-                      }
-                    ],
-                    sx: { zIndex: 1301 }
-                  }
-                }}
-              />
-            </Box>
-            <Button 
-              variant="outlined" 
-              onClick={() => setRequestLeagueDialogOpen(true)}
-              sx={{ mt: 1 }}
-            >
-              Request League
-            </Button>
-          </Box>
-          <TextField
-            fullWidth
-            label="Location"
-            value={editForm.location}
-            onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-            sx={{ mt: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Team Bio"
-            value={editForm.teamBio}
-            onChange={(e) => setEditForm({ ...editForm, teamBio: e.target.value })}
-            sx={{ mt: 2 }}
-            multiline
-            rows={3}
-          />
-          <TextField
-            fullWidth
-            label="Training Location"
-            value={editForm.trainingLocation}
-            onChange={(e) => setEditForm({ ...editForm, trainingLocation: e.target.value })}
-            sx={{ mt: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Home Pitch Location"
-            value={editForm.homePitchLocation}
-            onChange={(e) => setEditForm({ ...editForm, homePitchLocation: e.target.value })}
-            sx={{ mt: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Honours"
-            value={editForm.honours}
-            onChange={(e) => setEditForm({ ...editForm, honours: e.target.value })}
-            sx={{ mt: 2 }}
-            multiline
-            rows={3}
-          />
-          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
-            <InputLabel>Playing Time Policy</InputLabel>
-            <Select
-              label="Playing Time Policy"
-              value={editForm.playingTimePolicy}
-              onChange={(e) => setEditForm({ ...editForm, playingTimePolicy: e.target.value })}
-              MenuProps={{
-                sx: { zIndex: 1301 }
-              }}
-            >
-              <MenuItem value="equal">Equal Playing Time - All players get roughly equal time</MenuItem>
-              <MenuItem value="merit">Merit Based - Playing time earned through performance</MenuItem>
-              <MenuItem value="dependent">Dependent on Circumstances - Varies based on situation</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth sx={{ mt: 2 }} variant="outlined">
-            <InputLabel id="edit-team-gender-label">Team Gender</InputLabel>
-            <Select
-              labelId="edit-team-gender-label"
-              id="edit-team-gender"
-              label="Team Gender"
-              value={editForm.teamGender}
-              onChange={(e) => setEditForm({ ...editForm, teamGender: e.target.value })}
-              MenuProps={{
-                sx: { zIndex: 1301 }
-              }}
-            >
-              {TEAM_GENDER_OPTIONS.map(option => (
-                <MenuItem key={option} value={option}>{option}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setEditDialogOpen(false);
-            setEditingTeam(null);
-          }}>
-            Cancel
-          </Button>
-          <Button onClick={handleUpdateTeam} variant="contained" disabled={!editingTeam}>
-            Save Changes
           </Button>
         </DialogActions>
       </Dialog>

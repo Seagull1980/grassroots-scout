@@ -33,7 +33,7 @@ import {
   IconButton,
 } from '@mui/material';
 import { Delete as DeleteIcon, PostAdd as PostAddIcon } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { vacanciesAPI, playerAvailabilityAPI, leaguesAPI, League } from '../services/api';
 import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
@@ -56,8 +56,13 @@ interface Team {
   };
 }
 
-const PostAdvertPage: React.FC = () => {
+interface PostAdvertPageProps {
+  initialPostType?: 'vacancy' | 'availability';
+}
+
+const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading } = useAuth();
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -96,6 +101,24 @@ const PostAdvertPage: React.FC = () => {
     teamId: '', // For team-based posting
     adminPostType: 'vacancy' as 'vacancy' | 'availability', // For admins to choose type
   });
+
+  useEffect(() => {
+    if (!user || user.role !== 'Admin') return;
+
+    const pathBasedType = location.pathname === '/post-availability'
+      ? 'availability'
+      : location.pathname === '/post-vacancy'
+      ? 'vacancy'
+      : undefined;
+
+    const resolvedType = initialPostType || pathBasedType;
+    if (resolvedType && resolvedType !== formData.adminPostType) {
+      setFormData((prev) => ({
+        ...prev,
+        adminPostType: resolvedType,
+      }));
+    }
+  }, [user, initialPostType, location.pathname, formData.adminPostType]);
 
   const [locationData, setLocationData] = useState<Location | null>(null);
 
