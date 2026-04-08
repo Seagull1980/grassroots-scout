@@ -30,7 +30,7 @@ jobs:
 
       - name: Run team management smoke tests
         env:
-          SMOKE_BASE_URL: ${{ inputs.smoke_base_url || secrets.SMOKE_BASE_URL }}
+           SMOKE_BASE_URL: ${{ inputs.smoke_base_url || vars.SMOKE_BASE_URL }}
           SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
           SMOKE_TIMEOUT_MS: '20000'
         run: node backend/scripts/smoke-team-management.js
