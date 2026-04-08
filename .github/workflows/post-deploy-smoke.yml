@@ -1,0 +1,42 @@
+name: Post-Deploy Smoke Tests
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      smoke_base_url:
+        description: 'Override base URL for smoke tests'
+        required: false
+        type: string
+
+jobs:
+  smoke-test:
+    name: Run team management smoke tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Wait for Vercel & Railway deploy propagation
+        run: sleep 120
+
+      - name: Run team management smoke tests
+        env:
+          SMOKE_BASE_URL: ${{ inputs.smoke_base_url || secrets.SMOKE_BASE_URL }}
+          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
+          SMOKE_TIMEOUT_MS: '20000'
+        run: node backend/scripts/smoke-team-management.js
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Smoke tests failed after deploy to main. Check the logs above for which endpoint failed."
+          echo "::notice::If this is a new deploy, it may just need more time. Re-run this job manually after a few minutes."
