@@ -1,0 +1,119 @@
+name: Post-Rollback Smoke Checks
+
+on:
+  workflow_run:
+    workflows: ["Rollback Production"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      frontend_url:
+        description: "Frontend base URL (optional, defaults to secret FRONTEND_BASE_URL)"
+        required: false
+        type: string
+      backend_url:
+        description: "Backend base URL (optional, defaults to secret BACKEND_BASE_URL)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    # Run automatically only when rollback workflow succeeds, or always when triggered manually
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Resolve target URLs
+        id: urls
+        shell: bash
+        env:
+          INPUT_FRONTEND_URL: ${{ github.event.inputs.frontend_url }}
+          INPUT_BACKEND_URL: ${{ github.event.inputs.backend_url }}
+          SECRET_FRONTEND_URL: ${{ secrets.FRONTEND_BASE_URL }}
+          SECRET_BACKEND_URL: ${{ secrets.BACKEND_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          FRONTEND_URL="${INPUT_FRONTEND_URL:-}"
+          BACKEND_URL="${INPUT_BACKEND_URL:-}"
+
+          if [[ -z "$FRONTEND_URL" ]]; then
+            FRONTEND_URL="${SECRET_FRONTEND_URL:-}"
+          fi
+
+          if [[ -z "$BACKEND_URL" ]]; then
+            BACKEND_URL="${SECRET_BACKEND_URL:-}"
+          fi
+
+          # Safe default for this repository's production backend
+          if [[ -z "$BACKEND_URL" ]]; then
+            BACKEND_URL="https://grassroots-scout-backend-production-7b21.up.railway.app"
+          fi
+
+          if [[ -z "$FRONTEND_URL" ]]; then
+            echo "Missing frontend URL. Set FRONTEND_BASE_URL secret or provide workflow input frontend_url."
+            exit 1
+          fi
+
+          # Remove trailing slash to avoid double-slash URL joins
+          FRONTEND_URL="${FRONTEND_URL%/}"
+          BACKEND_URL="${BACKEND_URL%/}"
+
+          echo "frontend=$FRONTEND_URL" >> "$GITHUB_OUTPUT"
+          echo "backend=$BACKEND_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for deployment propagation
+        run: sleep 90
+
+      - name: Run smoke checks
+        shell: bash
+        env:
+          FRONTEND_URL: ${{ steps.urls.outputs.frontend }}
+          BACKEND_URL: ${{ steps.urls.outputs.backend }}
+        run: |
+          set -euo pipefail
+
+          check_http() {
+            local url="$1"
+            local label="$2"
+            local attempts=10
+            local delay=20
+            local status=0
+
+            echo "Checking $label -> $url"
+
+            for i in $(seq 1 "$attempts"); do
+              status=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" "$url" || true)
+              if [[ "$status" =~ ^(2|3) ]]; then
+                echo "PASS: $label ($status)"
+                return 0
+              fi
+
+              echo "Attempt $i/$attempts failed for $label (HTTP $status). Retrying in ${delay}s..."
+              sleep "$delay"
+            done
+
+            echo "FAIL: $label did not become healthy. Last status: $status"
+            echo "Response preview:"
+            head -c 500 /tmp/resp.txt || true
+            return 1
+          }
+
+          check_http "$FRONTEND_URL/" "Frontend home"
+          check_http "$FRONTEND_URL/login" "Frontend login"
+          check_http "$FRONTEND_URL/search" "Frontend search"
+
+          check_http "$BACKEND_URL/api/health" "Backend health"
+          check_http "$BACKEND_URL/api/public/site-stats" "Backend public stats"
+
+          # Also validates Vercel proxy route if frontend is Vercel
+          check_http "$FRONTEND_URL/api/health" "Frontend API proxy health"
+
+      - name: Summary
+        run: |
+          echo "Post-rollback smoke checks completed successfully."
+          echo "Frontend: ${{ steps.urls.outputs.frontend }}"
+          echo "Backend: ${{ steps.urls.outputs.backend }}"
