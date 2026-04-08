@@ -10226,19 +10226,25 @@ app.get('/api/teams/:teamId/vacancies', authenticateToken, async (req, res) => {
 // Search for coaches by name or email
 app.get('/api/coaches/search', authenticateToken, async (req, res) => {
   try {
-    const { q } = req.query;
-    if (!q || q.length < 2) {
+    if (req.user.role !== 'Coach' && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only coaches and admins can search coaches' });
+    }
+
+    const rawQuery = String(req.query.q || '').trim();
+    if (!rawQuery || rawQuery.length < 3) {
       return res.json({ coaches: [] });
     }
 
-    const searchTerm = `%${q}%`;
+    const searchTerm = `%${rawQuery}%`;
     const coaches = await db.query(`
       SELECT id, firstName, lastName, email
       FROM users
       WHERE role = 'Coach' 
+      AND id != ?
       AND (firstName LIKE ? OR lastName LIKE ? OR email LIKE ?)
-      LIMIT 10
-    `, [searchTerm, searchTerm, searchTerm]);
+      ORDER BY firstName ASC, lastName ASC
+      LIMIT 8
+    `, [req.user.userId, searchTerm, searchTerm, searchTerm]);
 
     const coachesList = coaches.rows || coaches || [];
     const results = coachesList.map(coach => ({

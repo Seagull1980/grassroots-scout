@@ -23,7 +23,8 @@ import {
   ListItemText,
   Alert,
   Autocomplete,
-  IconButton
+  IconButton,
+  Snackbar
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -96,6 +97,16 @@ const TeamManagement: React.FC = () => {
   const [clubs, setClubs] = useState<string[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [removeMemberDialog, setRemoveMemberDialog] = useState<{
+    open: boolean;
+    memberId: number | null;
+    memberName: string;
+  }>({
+    open: false,
+    memberId: null,
+    memberName: ''
+  });
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -203,7 +214,7 @@ const TeamManagement: React.FC = () => {
   };
 
   const searchCoaches = async (searchTerm: string) => {
-    if (!searchTerm || searchTerm.length < 2) {
+    if (!searchTerm || searchTerm.trim().length < 3) {
       setCoaches([]);
       return;
     }
@@ -251,10 +262,10 @@ const TeamManagement: React.FC = () => {
       setInviteDialogOpen(false);
       setInviteForm({ coachId: null, coachName: '', role: 'Assistant Coach' });
       setCoaches([]);
-      
+
       // Show success message
       setError('');
-      alert('Invitation sent successfully! The coach will receive an email notification.');
+      setSuccessMessage('Invitation sent successfully. The coach will receive an email notification.');
       loadTeamMembers(selectedTeam.id);
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to send invitation');
@@ -275,15 +286,11 @@ const TeamManagement: React.FC = () => {
   const handleRemoveMember = async (memberId: number) => {
     if (!selectedTeam) return;
 
-    if (!window.confirm('Are you sure you want to remove this coach from the team?')) {
-      return;
-    }
-
     try {
       await api.delete(`${apiPrefix}/teams/${selectedTeam.id}/members/${memberId}`);
       await loadTeamMembers(selectedTeam.id);
       setError('');
-      alert('Coach removed successfully');
+      setSuccessMessage('Coach removed successfully.');
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to remove coach');
     }
@@ -345,7 +352,7 @@ const TeamManagement: React.FC = () => {
       await api.post(`${apiPrefix}/api/league-requests`, leagueRequest);
       setRequestLeagueDialogOpen(false);
       setLeagueRequest({ name: '', region: '', url: '', description: '' });
-      alert('League request submitted successfully! Admins will review your request.');
+      setSuccessMessage('League request submitted successfully. Admins will review your request.');
       // Add the requested league to the currently active form
       if (editingTeam) {
         setEditForm((prev) => ({ ...prev, league: leagueRequest.name }));
@@ -963,7 +970,7 @@ const TeamManagement: React.FC = () => {
                 window.clearTimeout(coachSearchTimeoutRef.current);
               }
 
-              if (!value || value.length < 2) {
+              if (!value || value.length < 3) {
                 setCoaches([]);
                 return;
               }
@@ -982,9 +989,9 @@ const TeamManagement: React.FC = () => {
               <TextField 
                 {...params} 
                 label="Search by Name or Email" 
-                placeholder="Type at least 2 characters..."
+                placeholder="Type at least 3 characters..."
                 required
-                helperText={searchingCoaches ? 'Searching...' : 'Search coaches by name or email'}
+                helperText={searchingCoaches ? 'Searching...' : 'Search coaches by name or email (min 3 characters)'}
               />
             )}
             sx={{ mt: 2 }}
@@ -1044,7 +1051,11 @@ const TeamManagement: React.FC = () => {
                         edge="end" 
                         aria-label="delete"
                         color="error"
-                        onClick={() => handleRemoveMember(member.userId)}
+                        onClick={() => setRemoveMemberDialog({
+                          open: true,
+                          memberId: member.userId,
+                          memberName: `${member.firstName || 'Unknown'} ${member.lastName || 'Unknown'}`
+                        })}
                         title="Remove from team"
                       >
                         <DeleteIcon />
@@ -1153,6 +1164,49 @@ const TeamManagement: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog
+        open={removeMemberDialog.open}
+        onClose={() => setRemoveMemberDialog({ open: false, memberId: null, memberName: '' })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Remove Coach</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to remove {removeMemberDialog.memberName} from this team?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoveMemberDialog({ open: false, memberId: null, memberName: '' })}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={async () => {
+              const memberId = removeMemberDialog.memberId;
+              setRemoveMemberDialog({ open: false, memberId: null, memberName: '' });
+              if (memberId) {
+                await handleRemoveMember(memberId);
+              }
+            }}
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(successMessage)}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSuccessMessage('')} sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
