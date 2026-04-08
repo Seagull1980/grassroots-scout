@@ -1,0 +1,105 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Known-good commit SHA to restore production to (optional if using rollback_commits)"
+        required: false
+        type: string
+      rollback_commits:
+        description: "If target_sha is empty, roll back this many commits from current main"
+        required: false
+        default: "1"
+        type: string
+      run_build_check:
+        description: "Run npm ci + npm run build before pushing rollback"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main with full history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve rollback target
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin main --prune
+          git checkout main
+          git reset --hard origin/main
+
+          INPUT_SHA="${{ github.event.inputs.target_sha }}"
+          INPUT_COUNT="${{ github.event.inputs.rollback_commits }}"
+
+          if [[ -n "$INPUT_SHA" ]]; then
+            TARGET_SHA="$INPUT_SHA"
+          else
+            if ! [[ "$INPUT_COUNT" =~ ^[0-9]+$ ]]; then
+              echo "rollback_commits must be a positive integer"
+              exit 1
+            fi
+            if [[ "$INPUT_COUNT" -lt 1 ]]; then
+              echo "rollback_commits must be at least 1"
+              exit 1
+            fi
+            TARGET_SHA="$(git rev-parse "HEAD~${INPUT_COUNT}")"
+          fi
+
+          git cat-file -e "$TARGET_SHA^{commit}"
+
+          if ! git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
+            echo "Target SHA is not an ancestor of current main. Refusing rollback."
+            exit 1
+          fi
+
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Restore repository snapshot to target commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_SHA="${{ steps.target.outputs.target_sha }}"
+
+          git restore --source="$TARGET_SHA" --staged --worktree .
+
+          if git diff --quiet --staged && git diff --quiet; then
+            echo "Main already matches target snapshot. Nothing to rollback."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "rollback: restore production snapshot to ${TARGET_SHA}"
+
+      - name: Optional build check
+        if: ${{ github.event.inputs.run_build_check == 'true' }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Push rollback commit to main
+        run: git push origin HEAD:main
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "Rollback pushed to main."
+          echo "Target SHA: ${{ steps.target.outputs.target_sha }}"
+          echo "New HEAD: $(git rev-parse HEAD)"
