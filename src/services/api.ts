@@ -1061,7 +1061,7 @@ export const teamRosterAPI = {
       criticalGaps: number;
     };
   }> => {
-    const response = await api.get(`/team-rosters/${rosterId}/analysis`);
+    const response = await api.get(`/team-rosters/${rosterId}/position-analysis`);
     return response.data;
   },
 

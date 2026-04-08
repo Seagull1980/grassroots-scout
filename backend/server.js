@@ -10654,9 +10654,19 @@ app.delete('/api/teams/:teamId/members/:userId', authenticateToken, async (req, 
 
 // ============= Team Rosters Endpoints =============
 
+const ensureCoachRoleForRoster = (req, res) => {
+  if (req.user?.role !== 'Coach') {
+    res.status(403).json({ error: 'Only coaches can manage team rosters' });
+    return false;
+  }
+  return true;
+};
+
 // Get all rosters for authenticated coach
 app.get('/api/team-rosters', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const query = `
       SELECT tr.id, tr.teamId, tr.maxSquadSize, tr.createdAt, tr.updatedAt,
              t.teamname as "teamName", t.clubname as "clubName", 
@@ -10702,6 +10712,8 @@ app.post('/api/team-rosters', authenticateToken, [
   body('league').notEmpty().withMessage('League is required')
 ], async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -10757,6 +10769,8 @@ app.post('/api/team-rosters', authenticateToken, [
 // Get a specific roster with players
 app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const rosterId = req.params.rosterId;
 
     const query = `
@@ -10799,6 +10813,8 @@ app.get('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
 // Update team roster details
 app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const rosterId = req.params.rosterId;
     const { teamName, clubName, ageGroup, league, maxSquadSize } = req.body;
 
@@ -10823,23 +10839,36 @@ app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
     `;
     await db.query(updateQuery, [maxSquadSize || null, rosterId]);
 
-    // Update team info if provided
-    if (teamName || clubName || ageGroup || league) {
+    // Update team info when fields are explicitly provided.
+    const teamUpdateFields = [];
+    const teamUpdateValues = [];
+
+    if (teamName !== undefined) {
+      teamUpdateFields.push('teamName = ?');
+      teamUpdateValues.push(teamName || null);
+    }
+    if (clubName !== undefined) {
+      teamUpdateFields.push('clubName = ?');
+      teamUpdateValues.push(clubName || null);
+    }
+    if (ageGroup !== undefined) {
+      teamUpdateFields.push('ageGroup = ?');
+      teamUpdateValues.push(ageGroup || null);
+    }
+    if (league !== undefined) {
+      teamUpdateFields.push('league = ?');
+      teamUpdateValues.push(league || null);
+    }
+
+    if (teamUpdateFields.length > 0) {
+      teamUpdateFields.push('updatedAt = CURRENT_TIMESTAMP');
       const teamUpdateQuery = `
         UPDATE teams
         SET ${teamUpdateFields.join(', ')}
         WHERE id = ?
       `;
-      const params = [];
-      if (teamName) params.push(teamName);
-      if (clubName) params.push(clubName);
-      if (ageGroup) params.push(ageGroup);
-      if (league) params.push(league);
-      params.push(verifyRows[0].teamId);
-
-      if (params.length > 1) {
-        await db.query(teamUpdateQuery, params);
-      }
+      teamUpdateValues.push(verifyRows[0].teamId);
+      await db.query(teamUpdateQuery, teamUpdateValues);
     }
 
     // Fetch updated roster data
@@ -10865,6 +10894,8 @@ app.put('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
 // Delete a team roster
 app.delete('/api/team-rosters/:rosterId', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const rosterId = req.params.rosterId;
 
     // Verify ownership
@@ -10905,6 +10936,8 @@ app.post('/api/team-rosters/:rosterId/players', authenticateToken, [
   body('preferredFoot').isIn(['Left', 'Right', 'Both']).withMessage('Invalid preferred foot')
 ], async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -10964,6 +10997,8 @@ app.post('/api/team-rosters/:rosterId/players', authenticateToken, [
 // Update player details
 app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const { rosterId, playerId } = req.params;
     const { playerName, bestPosition, alternativePositions, preferredFoot, age, contactInfo, notes, isActive } = req.body;
 
@@ -10985,19 +11020,19 @@ app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, asyn
     const updateFields = [];
     const updateValues = [];
 
-    if (playerName) {
+    if (playerName !== undefined) {
       updateFields.push('playerName = ?');
       updateValues.push(playerName);
     }
-    if (bestPosition) {
+    if (bestPosition !== undefined) {
       updateFields.push('bestPosition = ?');
       updateValues.push(bestPosition);
     }
-    if (alternativePositions) {
+    if (alternativePositions !== undefined) {
       updateFields.push('alternativePositions = ?');
       updateValues.push(JSON.stringify(alternativePositions));
     }
-    if (preferredFoot) {
+    if (preferredFoot !== undefined) {
       updateFields.push('preferredFoot = ?');
       updateValues.push(preferredFoot);
     }
@@ -11005,13 +11040,13 @@ app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, asyn
       updateFields.push('age = ?');
       updateValues.push(age);
     }
-    if (contactInfo) {
+    if (contactInfo !== undefined) {
       updateFields.push('contactInfo = ?');
-      updateValues.push(contactInfo);
+      updateValues.push(contactInfo || null);
     }
-    if (notes) {
+    if (notes !== undefined) {
       updateFields.push('notes = ?');
-      updateValues.push(notes);
+      updateValues.push(notes || null);
     }
     if (isActive !== undefined) {
       updateFields.push('isActive = ?');
@@ -11054,6 +11089,8 @@ app.put('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, asyn
 // Remove player from roster
 app.delete('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const { rosterId, playerId } = req.params;
 
     // Verify ownership
@@ -11083,6 +11120,8 @@ app.delete('/api/team-rosters/:rosterId/players/:playerId', authenticateToken, a
 // Get position analysis for roster (squad gaps)
 app.get('/api/team-rosters/:rosterId/position-analysis', authenticateToken, async (req, res) => {
   try {
+    if (!ensureCoachRoleForRoster(req, res)) return;
+
     const rosterId = req.params.rosterId;
 
     // Verify ownership
@@ -11132,12 +11171,24 @@ app.get('/api/team-rosters/:rosterId/position-analysis', authenticateToken, asyn
       };
     });
 
-    res.json({ analysis: gaps });
+    const totalPlayers = positions.reduce((sum, pos) => sum + Number(pos.count || 0), 0);
+    const activePositions = positions.length;
+    const criticalGaps = gaps.filter((gap) => gap.priority === 'high').length;
+
+    res.json({
+      gaps,
+      summary: {
+        totalPlayers,
+        activePositions,
+        criticalGaps
+      }
+    });
   } catch (error) {
     console.error('Error analyzing roster positions:', error);
     res.status(500).json({ error: 'Failed to analyze roster positions' });
   }
 });
+
 
 // Helper function to get default permissions for a role
 function getDefaultPermissions(role) {

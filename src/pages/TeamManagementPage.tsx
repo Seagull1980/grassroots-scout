@@ -81,6 +81,7 @@ const TeamManagement: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const consumedEditTeamIdRef = useRef<number | null>(null);
+  const coachSearchTimeoutRef = useRef<number | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -142,6 +143,12 @@ const TeamManagement: React.FC = () => {
   useEffect(() => {
     loadTeams();
     loadLeagues();
+
+    return () => {
+      if (coachSearchTimeoutRef.current !== null) {
+        window.clearTimeout(coachSearchTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadLeagues = async () => {
@@ -950,8 +957,20 @@ const TeamManagement: React.FC = () => {
             }}
             inputValue={inviteForm.coachName}
             onInputChange={(_, value) => {
-              setInviteForm({ ...inviteForm, coachName: value });
-              searchCoaches(value);
+              setInviteForm((prev) => ({ ...prev, coachName: value, coachId: null }));
+
+              if (coachSearchTimeoutRef.current !== null) {
+                window.clearTimeout(coachSearchTimeoutRef.current);
+              }
+
+              if (!value || value.length < 2) {
+                setCoaches([]);
+                return;
+              }
+
+              coachSearchTimeoutRef.current = window.setTimeout(() => {
+                searchCoaches(value);
+              }, 300);
             }}
             onChange={(_, value) => {
               if (value) {
