@@ -264,7 +264,8 @@ const StartHerePage: React.FC = () => {
       path: '/admin' };
   }, [parentNeedsChildProfile, profileCompletion, unreadMessages, user.role]);
 
-  const secondaryActions = useMemo(() => {1);
+  const secondaryActions = useMemo(() => {
+    return actions.filter((action) => action.path !== topPriority.path).slice(0, 1);
   }, [actions, topPriority.path]);
 
   const { trackUserAction } = useAnalytics();
@@ -274,8 +275,7 @@ const StartHerePage: React.FC = () => {
       role: user.role,
       page: 'start_here'
     });
-  }, [topPriority.title, user.role, trackUserActionon) => action.path !== topPriority.path).slice(0, 2);
-  }, [actions, topPriority.path]);
+  }, [topPriority.title, user.role, trackUserAction]);
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
