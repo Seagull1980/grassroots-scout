@@ -7,6 +7,35 @@ class AlertService {
     this.db = new Database();
   }
 
+  parseJsonArray(value) {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean);
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_error) {
+      return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
+
+  normalizeList(values) {
+    return this.parseJsonArray(values).map((item) => String(item).trim().toLowerCase());
+  }
+
+  hasOverlap(preferenceValues, candidateValues) {
+    if (preferenceValues.length === 0 || candidateValues.length === 0) {
+      return preferenceValues.length === 0;
+    }
+
+    return candidateValues.some((value) => preferenceValues.includes(value));
+  }
+
   // Create or update user alert preferences
   async setAlertPreferences(userId, preferences) {
     try {
@@ -116,6 +145,10 @@ class AlertService {
   // Send alerts for new vacancy
   async sendNewVacancyAlerts(vacancy) {
     try {
+      const vacancyLeague = String(vacancy.league || '').trim().toLowerCase();
+      const vacancyAgeGroup = String(vacancy.ageGroup || '').trim().toLowerCase();
+      const vacancyPositions = [String(vacancy.position || '').trim().toLowerCase()].filter(Boolean);
+
       // Find users who should receive alerts for this vacancy
       const query = `
         SELECT DISTINCT u.id, u.email, u.firstName, uap.*
@@ -124,23 +157,20 @@ class AlertService {
         WHERE u.role IN ('Player', 'Parent/Guardian')
         AND uap.emailNotifications = 1
         AND uap.newVacancyAlerts = 1
-        AND (
-          uap.preferredLeagues = '[]' OR 
-          uap.preferredLeagues LIKE '%"${vacancy.league}"%'
-        )
-        AND (
-          uap.ageGroups = '[]' OR 
-          uap.ageGroups LIKE '%"${vacancy.ageGroup}"%'
-        )
-        AND (
-          uap.positions = '[]' OR 
-          uap.positions LIKE '%"${vacancy.position}"%'
-        )
       `;
 
       const users = await this.db.query(query);
+      const matchingUsers = (users.rows || []).filter((user) => {
+        const preferredLeagues = this.normalizeList(user.preferredLeagues);
+        const ageGroups = this.normalizeList(user.ageGroups);
+        const positions = this.normalizeList(user.positions);
+
+        return this.hasOverlap(preferredLeagues, vacancyLeague ? [vacancyLeague] : [])
+          && this.hasOverlap(ageGroups, vacancyAgeGroup ? [vacancyAgeGroup] : [])
+          && this.hasOverlap(positions, vacancyPositions);
+      });
       
-      const emailPromises = users.rows.map(async (user) => {
+      const emailPromises = matchingUsers.map(async (user) => {
         try {
           const email = encryptionService.decrypt(user.email);
           await emailService.sendNewVacancyAlert(email, user.firstName, vacancy);
@@ -157,7 +187,7 @@ class AlertService {
       });
 
       await Promise.all(emailPromises);
-      console.log(`✅ Sent vacancy alerts to ${users.rows.length} users`);
+      console.log(`✅ Sent vacancy alerts to ${matchingUsers.length} users`);
       
     } catch (error) {
       console.error('Error sending vacancy alerts:', error);
@@ -168,6 +198,10 @@ class AlertService {
   // Send alerts for new player availability
   async sendNewPlayerAlerts(playerAvailability) {
     try {
+      const preferredLeagues = this.normalizeList(playerAvailability.preferredLeagues);
+      const ageGroups = [String(playerAvailability.ageGroup || '').trim().toLowerCase()].filter(Boolean);
+      const positions = this.normalizeList(playerAvailability.positions);
+
       // Find coaches who should receive alerts for this player
       const query = `
         SELECT DISTINCT u.id, u.email, u.firstName, uap.*
@@ -176,19 +210,20 @@ class AlertService {
         WHERE u.role = 'Coach'
         AND uap.emailNotifications = 1
         AND uap.newPlayerAlerts = 1
-        AND (
-          uap.preferredLeagues = '[]' OR 
-          uap.preferredLeagues LIKE '%"${playerAvailability.preferredLeagues}"%'
-        )
-        AND (
-          uap.ageGroups = '[]' OR 
-          uap.ageGroups LIKE '%"${playerAvailability.ageGroup}"%'
-        )
       `;
 
       const coaches = await this.db.query(query);
+      const matchingCoaches = (coaches.rows || []).filter((coach) => {
+        const coachLeagues = this.normalizeList(coach.preferredLeagues);
+        const coachAgeGroups = this.normalizeList(coach.ageGroups);
+        const coachPositions = this.normalizeList(coach.positions);
+
+        return this.hasOverlap(coachLeagues, preferredLeagues)
+          && this.hasOverlap(coachAgeGroups, ageGroups)
+          && this.hasOverlap(coachPositions, positions);
+      });
       
-      const emailPromises = coaches.rows.map(async (coach) => {
+      const emailPromises = matchingCoaches.map(async (coach) => {
         try {
           const email = encryptionService.decrypt(coach.email);
           await emailService.sendNewPlayerAlert(email, coach.firstName, playerAvailability);
@@ -205,7 +240,7 @@ class AlertService {
       });
 
       await Promise.all(emailPromises);
-      console.log(`✅ Sent player alerts to ${coaches.rows.length} coaches`);
+      console.log(`✅ Sent player alerts to ${matchingCoaches.length} coaches`);
       
     } catch (error) {
       console.error('Error sending player alerts:', error);

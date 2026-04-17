@@ -39,8 +39,7 @@ const FeedbackButton: React.FC = () => {
               position: 'fixed',
               bottom: 16,
               left: 16,
-              zIndex: 1000,
-            }}
+              zIndex: 1000 }}
           >
             <Feedback />
           </Fab>
@@ -53,12 +52,10 @@ const FeedbackButton: React.FC = () => {
         onClose={handleClose}
         anchorOrigin={{
           vertical: 'top',
-          horizontal: 'right',
-        }}
+          horizontal: 'right' }}
         transformOrigin={{
           vertical: 'bottom',
-          horizontal: 'left',
-        }}
+          horizontal: 'left' }}
       >
         <MenuItem onClick={() => handleOpenDialog('bug')}>
           <ListItemIcon>

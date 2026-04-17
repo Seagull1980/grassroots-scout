@@ -23,8 +23,7 @@ import {
   Checkbox,
   FormControlLabel,
   Modal,
-  Switch,
-} from '@mui/material';
+  Switch } from '@mui/material';
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -37,8 +36,7 @@ import {
   Home,
   GetApp as GetAppIcon,
   TrendingUp as TrendingUpIcon,
-  Assessment as AssessmentIcon,
-} from '@mui/icons-material';
+  Assessment as AssessmentIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -479,15 +477,14 @@ const MyAdvertsPage: React.FC = () => {
         actions={(
           <Button
             startIcon={<Home />}
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/start')}
             sx={{
               borderColor: 'rgba(255,255,255,0.6)',
               color: 'white',
-              '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
-            }}
+              '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
             variant="outlined"
           >
-            Back to Dashboard
+            Back to Start Here
           </Button>
         )}
       />
@@ -647,8 +644,7 @@ const MyAdvertsPage: React.FC = () => {
                       ]}
                   primaryAction={{
                     label: user.role === 'Parent/Guardian' ? 'Open Child Availability' : 'Post Your Availability',
-                    onClick: () => navigate(user.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability'),
-                  }}
+                    onClick: () => navigate(user.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability') }}
                   secondaryAction={{ label: 'Open Tracker', onClick: () => navigate('/my-applications') }}
                 />
               ) : (
@@ -670,8 +666,7 @@ const MyAdvertsPage: React.FC = () => {
               ]}
               primaryAction={{
                 label: user?.role === 'Coach' ? 'Create Vacancy' : user?.role === 'Parent/Guardian' ? 'Open Child Availability' : 'Create Availability',
-                onClick: () => navigate(user?.role === 'Coach' ? '/post-vacancy' : user?.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability'),
-              }}
+                onClick: () => navigate(user?.role === 'Coach' ? '/post-vacancy' : user?.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability') }}
               secondaryAction={{ label: 'Go to Search', onClick: () => navigate('/search') }}
             />
           )}

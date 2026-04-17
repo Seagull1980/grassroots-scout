@@ -24,8 +24,7 @@ import {
   FormControlLabel,
   Stack,
   Chip,
-  Divider,
-} from '@mui/material';
+  Divider } from '@mui/material';
 import { Add, Edit, Delete, People } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { trainingAPI, TrainingSession, openTrainingAPI, OpenTrainingRegistration } from '../services/api';
@@ -64,8 +63,7 @@ const TrainingSessionsPage: React.FC = () => {
     includes_facilities: false,
     payment_methods: 'cash,bank_transfer',
     refund_policy: '',
-    special_offers: '',
-  });
+    special_offers: '' });
 
   useEffect(() => {
     loadSessions();
@@ -104,8 +102,7 @@ const TrainingSessionsPage: React.FC = () => {
         includes_facilities: session.includes_facilities || false,
         payment_methods: session.payment_methods || 'cash,bank_transfer',
         refund_policy: session.refund_policy || '',
-        special_offers: session.special_offers || '',
-      });
+        special_offers: session.special_offers || '' });
     } else {
       setEditingSession(null);
       setFormData({
@@ -121,8 +118,7 @@ const TrainingSessionsPage: React.FC = () => {
         includes_facilities: false,
         payment_methods: 'cash,bank_transfer',
         refund_policy: '',
-        special_offers: '',
-      });
+        special_offers: '' });
     }
     setDialogOpen(true);
   };
@@ -143,8 +139,7 @@ const TrainingSessionsPage: React.FC = () => {
       includes_facilities: false,
       payment_methods: 'cash,bank_transfer',
       refund_policy: '',
-      special_offers: '',
-    });
+      special_offers: '' });
   };
 
   const handleSubmit = async () => {
@@ -164,8 +159,7 @@ const TrainingSessionsPage: React.FC = () => {
           includes_facilities: formData.includes_facilities,
           payment_methods: formData.payment_methods,
           refund_policy: formData.refund_policy,
-          special_offers: formData.special_offers,
-        });
+          special_offers: formData.special_offers });
       } else {
         await trainingAPI.createSession({
           title: formData.title,
@@ -180,8 +174,7 @@ const TrainingSessionsPage: React.FC = () => {
           includes_facilities: formData.includes_facilities,
           payment_methods: formData.payment_methods,
           refund_policy: formData.refund_policy,
-          special_offers: formData.special_offers,
-        });
+          special_offers: formData.special_offers });
       }
       handleCloseDialog();
       loadSessions();
@@ -285,8 +278,7 @@ const TrainingSessionsPage: React.FC = () => {
       const response = await openTrainingAPI.register(sessionId, { allowWaitlist: true });
       setMyRegistrations(prev => ({
         ...prev,
-        [sessionId]: { id: response.registration.id, status: response.registration.status, paymentStatus: response.registration.paymentStatus },
-      }));
+        [sessionId]: { id: response.registration.id, status: response.registration.status, paymentStatus: response.registration.paymentStatus } }));
       setSuccess(response.message);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Failed to register for this session.');

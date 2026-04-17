@@ -14,14 +14,12 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-} from '@mui/material';
+  DialogActions } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   RadioButtonUnchecked as RadioButtonUncheckedIcon,
   ArrowForward as ArrowForwardIcon,
-  Close as CloseIcon,
-} from '@mui/icons-material';
+  Close as CloseIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface ChecklistItem {
@@ -59,24 +57,21 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
       description: 'Add your coaching credentials, experience, and contact info',
       completed: false,
       action: '/profile',
-      actionLabel: 'Complete Profile',
-    },
+      actionLabel: 'Complete Profile' },
     {
       id: 'team',
       label: '✓ Create Your First Team',
       description: 'Set up your team with age group, league, and location',
       completed: false,
       action: '/team-management',
-      actionLabel: 'Create Team',
-    },
+      actionLabel: 'Create Team' },
     {
       id: 'vacancy',
       label: '✓ Post Your First Vacancy',
       description: 'Post an open position to start recruiting players',
       completed: false,
       action: '/post-vacancy',
-      actionLabel: 'Post Vacancy',
-    },
+      actionLabel: 'Post Vacancy' },
   ];
 
   const completedCount = items.filter(i => i.completed).length;
@@ -107,8 +102,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
         sx={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
-          mb: 3,
-        }}
+          mb: 3 }}
       >
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -134,9 +128,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                     backgroundColor: 'rgba(255,255,255,0.2)',
                     '& .MuiLinearProgress-bar': {
                       borderRadius: 4,
-                      backgroundColor: '#fff',
-                    },
-                  }}
+                      backgroundColor: '#fff' } }}
                 />
               </Box>
 
@@ -152,8 +144,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
               sx={{
                 color: 'white',
                 minWidth: 'auto',
-                ml: 2,
-              }}
+                ml: 2 }}
             >
               <CloseIcon />
             </Button>
@@ -170,8 +161,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                     py: 1.5,
                     px: 0,
                     borderBottom: index < items.length - 1 ? 1 : 0,
-                    borderColor: 'rgba(255,255,255,0.1)',
-                  }}
+                    borderColor: 'rgba(255,255,255,0.1)' }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: 'white' }}>
                     {item?.completed ? (
@@ -186,8 +176,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                         variant="body2"
                         sx={{
                           fontWeight: 500,
-                          textDecoration: item?.completed ? 'line-through' : 'none',
-                        }}
+                          textDecoration: item?.completed ? 'line-through' : 'none' }}
                       >
                         {item?.label || 'Unknown item'}
                       </Typography>
@@ -206,9 +195,7 @@ const CoachOnboardingChecklist: React.FC<CoachOnboardingChecklistProps> = ({ onD
                         color: 'white',
                         borderColor: 'white',
                         '&:hover': {
-                          backgroundColor: 'rgba(255,255,255,0.1)',
-                        },
-                      }}
+                          backgroundColor: 'rgba(255,255,255,0.1)' } }}
                       endIcon={<ArrowForwardIcon />}
                       onClick={() => handleActionClick(item.action)}
                     >

@@ -155,8 +155,7 @@ export const LazyComponents = {
   AdvancedAnalyticsInsights: createLazyComponent(
     () => import('../components/AdvancedAnalyticsInsights'),
     'AdvancedAnalyticsInsights'
-  ),
-};
+  ) };
 
 // Preload critical routes based on user role
 export const preloadCriticalRoutes = (userRole?: string) => {
@@ -180,5 +179,4 @@ export const loadHeavyFeatures = {
   maps: () => import('../components/MapSearch'),
   analytics: () => import('../pages/PerformanceAnalyticsPage'),
   charts: () => import('chart.js'),
-  messaging: () => import('../pages/MessagesPage'),
-};
+  messaging: () => import('../pages/MessagesPage') };

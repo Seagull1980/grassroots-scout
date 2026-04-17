@@ -51,8 +51,7 @@ export const useResponsiveSpacing = () => {
     cardSpacing: isMobile ? 1 : 2,
     buttonSize: isMobile ? 'large' : 'medium',
     iconSize: isMobile ? 'medium' : 'large',
-    formSpacing: isMobile ? 1 : 2,
-  };
+    formSpacing: isMobile ? 1 : 2 };
 };
 
 // Common responsive props

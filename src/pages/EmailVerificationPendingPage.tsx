@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Container, Paper, Box, Typography, Button, Alert, CircularProgress } from '@mui/material';
+import { Container, Paper, Box, Typography, Button, Alert, CircularProgress, TextField } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
@@ -8,21 +8,29 @@ const EmailVerificationPendingPage: React.FC = () => {
   const [isResending, setIsResending] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [email, setEmail] = useState(localStorage.getItem('pendingVerificationEmail') || '');
+
+  const maskEmail = (value: string) => {
+    const [localPart, domain] = value.split('@');
+    if (!localPart || !domain) return value;
+    if (localPart.length < 3) return `${localPart[0] || '*'}***@${domain}`;
+    return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
+  };
 
   const handleResendVerification = async () => {
     setIsResending(true);
     setMessage('');
     setError('');
 
-    const email = localStorage.getItem('pendingVerificationEmail');
     if (!email) {
-      setError('Email address not found. Please try registering again.');
+      setError('Enter your email address to resend verification.');
       setIsResending(false);
       return;
     }
 
     try {
       await authAPI.resendVerification({ email });
+      localStorage.setItem('pendingVerificationEmail', email);
       setMessage('Verification email sent successfully! Please check your email.');
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to resend verification email');
@@ -43,8 +51,7 @@ const EmailVerificationPendingPage: React.FC = () => {
           marginTop: 8,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-        }}
+          alignItems: 'center' }}
       >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -55,6 +62,16 @@ const EmailVerificationPendingPage: React.FC = () => {
             <Typography variant="body1" sx={{ mb: 3, textAlign: 'center' }}>
               We've sent a verification email to your email address. Please check your email and click the verification link to activate your account.
             </Typography>
+
+            <TextField
+              fullWidth
+              type="email"
+              label="Email for verification"
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim())}
+              sx={{ mb: 2 }}
+              helperText={email ? `Current: ${maskEmail(email)}` : 'Enter the address you used to register'}
+            />
 
             <Alert severity="info" sx={{ mb: 3, width: '100%' }}>
               <Typography variant="body2">
@@ -83,6 +100,13 @@ const EmailVerificationPendingPage: React.FC = () => {
                 sx={{ py: 1.5 }}
               >
                 {isResending ? <CircularProgress size={24} /> : 'Resend Verification Email'}
+              </Button>
+
+              <Button
+                variant="text"
+                onClick={() => window.open('https://mail.google.com', '_blank', 'noopener,noreferrer')}
+              >
+                Open Email Inbox
               </Button>
 
               <Button

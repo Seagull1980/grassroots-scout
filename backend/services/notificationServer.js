@@ -23,13 +23,34 @@ class NotificationServer {
     }
   }
 
+  getTokenFromRequest(req) {
+    const cookieHeader = req.headers?.cookie || '';
+    const cookies = cookieHeader.split(';').reduce((acc, pair) => {
+      const index = pair.indexOf('=');
+      if (index < 0) {
+        return acc;
+      }
+
+      const key = pair.slice(0, index).trim();
+      const value = pair.slice(index + 1).trim();
+      acc[key] = decodeURIComponent(value);
+      return acc;
+    }, {});
+
+    if (cookies.auth_token) {
+      return cookies.auth_token;
+    }
+
+    const url = new URL(req.url, 'http://localhost');
+    return url.searchParams.get('token');
+  }
+
   verifyClient(info) {
     try {
-      const url = new URL(info.req.url, 'http://localhost');
-      const token = url.searchParams.get('token');
+      const token = this.getTokenFromRequest(info.req);
       
       if (!token) {
-        console.log('❌ WebSocket authentication failed: No token provided');
+        console.log('❌ WebSocket authentication failed: No token/cookie provided');
         return false;
       }
       
@@ -55,8 +76,7 @@ class NotificationServer {
 
   handleConnection(ws, req) {
     try {
-      const url = new URL(req.url, 'http://localhost');
-      const token = url.searchParams.get('token');
+      const token = this.getTokenFromRequest(req);
       const user = jwt.verify(token, this.jwtSecret);
       
       const connectionId = uuidv4();

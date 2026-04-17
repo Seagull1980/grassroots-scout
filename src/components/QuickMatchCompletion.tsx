@@ -13,8 +13,7 @@ import {
   Autocomplete,
   FormControl,
   InputLabel,
-  Select,
-} from '@mui/material';
+  Select } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MatchCompletionFormData } from '../types';
@@ -63,15 +62,10 @@ const QuickMatchCompletion: React.FC<QuickMatchCompletionProps> = ({
 
     try {
       setLoading(true);
-      setError('');
-
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/match-completions', {
+      setError('');      const response = await fetch('/api/match-completions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 

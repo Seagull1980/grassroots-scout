@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'grassroots-hub-secret-key';
+require('dotenv').config();
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const shouldShowToken = process.argv.includes('--show-token');
 
 // Admin user data (from our database)
 const adminUser = {
@@ -22,8 +28,12 @@ const token = jwt.sign(
   { expiresIn: '24h' }
 );
 
-console.log('🔑 ADMIN TOKEN:');
-console.log(token);
+console.log('🔑 Admin token generated');
+if (shouldShowToken) {
+  console.log(token);
+} else {
+  console.log('Token output hidden by default. Re-run with --show-token to print it.');
+}
 
 console.log('\n👤 USER DATA:');
 console.log(JSON.stringify(adminUser));
@@ -34,7 +44,7 @@ console.log('1. Open DevTools (F12) in your browser');
 console.log('2. Go to Application → Local Storage → http://localhost:5173');
 console.log('3. Add these two keys:');
 console.log('\nKey: token');
-console.log('Value: ' + token);
+console.log('Value: [hidden by default; re-run with --show-token if you explicitly need it]');
 console.log('\nKey: user'); 
 console.log('Value: ' + JSON.stringify(adminUser));
 console.log('\n4. Refresh the page and try analytics!');

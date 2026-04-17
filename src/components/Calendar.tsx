@@ -22,13 +22,11 @@ import {
   InputLabel,
   Select,
   SelectChangeEvent,
-  AlertTitle,
-} from '@mui/material';
+  AlertTitle } from '@mui/material';
 import { CalendarEvent, calendarAPI } from '../services/api';
 import {
   CalendarIntegration,
-  ConflictDetection,
-} from '../types/calendar';
+  ConflictDetection } from '../types/calendar';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 // import EnhancedEventDialog from './EnhancedEventDialog'; // Temporarily disabled
 
@@ -43,8 +41,7 @@ import {
   Settings,
   CalendarToday,
   Google,
-  Microsoft,
-} from '@mui/icons-material';
+  Microsoft } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TrialData {
@@ -62,8 +59,7 @@ const mockCalendarAPI = {
   createTrial: async (trialData: TrialData) => {
     // Mock API call for trial creation
     return { id: Date.now(), ...trialData };
-  },
-};
+  } };
 
 const Calendar = () => {
   const { user } = useAuth();
@@ -99,8 +95,7 @@ const Calendar = () => {
     endTime: '',
     location: '',
     isRecurring: false,
-    recurringPattern: 'weekly' as 'weekly' | 'monthly',
-  });
+    recurringPattern: 'weekly' as 'weekly' | 'monthly' });
 
   // Trial form state
   const [trialForm, setTrialForm] = useState({
@@ -113,8 +108,7 @@ const Calendar = () => {
     maxParticipants: 20,
     ageGroup: '',
     positions: [] as string[],
-    requirements: '',
-  });
+    requirements: '' });
 
   const eventTypes = [
     { value: 'training', label: 'Training Session', icon: <FitnessCenter />, color: 'primary' },
@@ -161,12 +155,10 @@ const Calendar = () => {
   const handleDateClick = (date: Date) => {
     setEventForm({
       ...eventForm,
-      date: date.toISOString().split('T')[0],
-    });
+      date: date.toISOString().split('T')[0] });
     setTrialForm({
       ...trialForm,
-      date: date.toISOString().split('T')[0],
-    });
+      date: date.toISOString().split('T')[0] });
     setShowEventDialog(true);
   };
 
@@ -192,8 +184,7 @@ const Calendar = () => {
         endTime: '',
         location: '',
         isRecurring: false,
-        recurringPattern: 'weekly',
-      });
+        recurringPattern: 'weekly' });
       await loadEvents();
     } catch (error) {
       console.error('Error creating event:', error);
@@ -209,8 +200,7 @@ const Calendar = () => {
       const trialData = {
         ...trialForm,
         eventType: 'trial' as const,
-        time: `${trialForm.startTime} - ${trialForm.endTime}`,
-      };
+        time: `${trialForm.startTime} - ${trialForm.endTime}` };
       await mockCalendarAPI.createTrial(trialData);
       setShowTrialDialog(false);
       setTrialForm({
@@ -223,8 +213,7 @@ const Calendar = () => {
         maxParticipants: 20,
         ageGroup: '',
         positions: [],
-        requirements: '',
-      });
+        requirements: '' });
       await loadEvents();
     } catch (error) {
       console.error('Error creating trial:', error);
@@ -309,9 +298,7 @@ const Calendar = () => {
                     border: isToday ? 2 : 1,
                     borderColor: isToday ? 'primary.main' : 'divider',
                     '&:hover': {
-                      boxShadow: 2,
-                    },
-                  }}
+                      boxShadow: 2 } }}
                   onClick={() => handleDateClick(date)}
                 >
                   <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
@@ -335,9 +322,7 @@ const Calendar = () => {
                                 '& .MuiChip-label': {
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                },
-                              }}
+                                  whiteSpace: 'nowrap' } }}
                             />
                           </Box>
                         );

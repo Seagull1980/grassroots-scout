@@ -28,8 +28,7 @@ import {
   ListItemText,
   ListItemIcon,
   Switch,
-  FormControlLabel,
-} from '@mui/material';
+  FormControlLabel } from '@mui/material';
 import {
   Analytics,
   TrendingUp,
@@ -43,8 +42,7 @@ import {
   Add,
   Dashboard,
   SportsSoccer,
-  BarChart,
-} from '@mui/icons-material';
+  BarChart } from '@mui/icons-material';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -58,8 +56,7 @@ import {
   Title,
   Tooltip as ChartTooltip,
   Legend,
-  Filler,
-} from 'chart.js';
+  Filler } from 'chart.js';
 import { useAuth } from '../contexts/AuthContext';
 import { advancedAnalyticsService } from '../services/advancedAnalytics';
 import {
@@ -69,8 +66,7 @@ import {
   ComparisonData,
   AnalyticsPeriod,
   PerformanceGoal,
-  AnalyticsReport,
-} from '../types/analytics';
+  AnalyticsReport } from '../types/analytics';
 
 // Register Chart.js components
 ChartJS.register(
@@ -206,8 +202,7 @@ const AdvancedAnalyticsDashboard: React.FC<AdvancedAnalyticsDashboardProps> = ({
           data: trends.map(t => t.value),
           borderColor: '#1976d2',
           backgroundColor: 'rgba(25, 118, 210, 0.1)',
-          fill: true,
-        }
+          fill: true }
       ]
     };
   };
@@ -219,18 +214,15 @@ const AdvancedAnalyticsDashboard: React.FC<AdvancedAnalyticsDashboardProps> = ({
         {
           label: 'Your Performance',
           data: comparisons.map(c => c.playerValue),
-          backgroundColor: '#1976d2',
-        },
+          backgroundColor: '#1976d2' },
         {
           label: 'Team Average',
           data: comparisons.map(c => c.teamAverage),
-          backgroundColor: '#dc004e',
-        },
+          backgroundColor: '#dc004e' },
         {
           label: 'League Average',
           data: comparisons.map(c => c.leagueAverage),
-          backgroundColor: '#757575',
-        }
+          backgroundColor: '#757575' }
       ]
     };
   };
@@ -374,8 +366,7 @@ const AdvancedAnalyticsDashboard: React.FC<AdvancedAnalyticsDashboardProps> = ({
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: true },
-            },
+              legend: { display: true } },
             scales: {
               y: { beginAtZero: true }
             }

@@ -5,8 +5,7 @@ import {
   Button,
   Paper,
   Stack,
-  Typography,
-} from '@mui/material';
+  Typography } from '@mui/material';
 
 interface EmptyStateAction {
   label: string;
@@ -29,8 +28,7 @@ const ActionEmptyState: React.FC<ActionEmptyStateProps> = ({
   description,
   suggestions = [],
   primaryAction,
-  secondaryAction,
-}) => {
+  secondaryAction }) => {
   return (
     <Paper sx={{ p: 4, textAlign: 'center' }}>
       <Avatar
@@ -40,8 +38,7 @@ const ActionEmptyState: React.FC<ActionEmptyStateProps> = ({
           mx: 'auto',
           mb: 2,
           bgcolor: 'primary.light',
-          color: 'primary.main',
-        }}
+          color: 'primary.main' }}
       >
         {icon}
       </Avatar>

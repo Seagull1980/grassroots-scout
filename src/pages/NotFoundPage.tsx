@@ -18,8 +18,7 @@ const NotFoundPage: React.FC = () => {
           justifyContent: 'center',
           minHeight: '70vh',
           textAlign: 'center',
-          gap: 3,
-        }}
+          gap: 3 }}
       >
         <SportsFootball sx={{ fontSize: 80, color: 'text.disabled' }} />
         <Typography variant="h1" sx={{ fontSize: '6rem', fontWeight: 800, color: 'text.disabled', lineHeight: 1 }}>

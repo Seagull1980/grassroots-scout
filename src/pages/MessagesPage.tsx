@@ -207,9 +207,7 @@ const MessagesPage: React.FC = () => {
   const loadConversations = async () => {
     try {
       const response = await fetch(`${API_URL}/conversations`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -225,9 +223,7 @@ const MessagesPage: React.FC = () => {
   const loadMatchProgress = async () => {
     try {
       const response = await fetch(`${API_URL}/match-progress`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -242,9 +238,7 @@ const MessagesPage: React.FC = () => {
   const loadPrivacySettings = async () => {
     try {
       const response = await fetch(`${API_URL}/users/privacy-settings`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -260,9 +254,7 @@ const MessagesPage: React.FC = () => {
       const response = await fetch(`${API_URL}/conversations/${conversationId}/status`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({ matchProgressStage: newStage })
       });
 
@@ -325,9 +317,7 @@ const MessagesPage: React.FC = () => {
   const loadConversationMessages = async (conversationId: string) => {
     try {
       const response = await fetch(`${API_URL}/conversations/${conversationId}/messages`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -360,9 +350,7 @@ const MessagesPage: React.FC = () => {
       const response = await fetch(`${API_URL}/messages`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipientId: otherParticipant.userId,
           subject: 'Re: Conversation',
@@ -436,9 +424,7 @@ const MessagesPage: React.FC = () => {
         const response = await fetch(`${API_URL}/messages`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
+            'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
 
@@ -490,9 +476,7 @@ const MessagesPage: React.FC = () => {
       const response = await fetch(`${API_URL}/messages/${reportMessageId}/report`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           reason: reportReason,
           details: reportDetails || undefined
@@ -525,9 +509,7 @@ const MessagesPage: React.FC = () => {
       const response = await fetch(`${API_URL}/users/${targetUserId}/block`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reason || undefined })
       });
 
@@ -555,9 +537,7 @@ const MessagesPage: React.FC = () => {
       setDeletingMessageId(messageId);
       const response = await fetch(`${API_URL}/messages/${messageId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (response.ok) {
@@ -685,24 +665,20 @@ const MessagesPage: React.FC = () => {
       return [
         {
           label: 'Quick Follow-up',
-          text: 'Hi, just checking in on this. Are you still interested? If yes, I can suggest two trial slots this week.',
-        },
+          text: 'Hi, just checking in on this. Are you still interested? If yes, I can suggest two trial slots this week.' },
         {
           label: 'Availability Nudge',
-          text: 'No pressure, just keeping this moving. Could you share your availability for the next 7 days?',
-        },
+          text: 'No pressure, just keeping this moving. Could you share your availability for the next 7 days?' },
       ];
     }
 
     return [
       {
         label: 'Still Interested',
-        text: 'Hi, I am still interested in this opportunity. Could we confirm the next step and timing?',
-      },
+        text: 'Hi, I am still interested in this opportunity. Could we confirm the next step and timing?' },
       {
         label: 'Trial Confirmation',
-        text: 'Thanks for your message. I am available this week for a trial and can adapt to your preferred time.',
-      },
+        text: 'Thanks for your message. I am available this week for a trial and can adapt to your preferred time.' },
     ];
   }, [user?.role]);
 

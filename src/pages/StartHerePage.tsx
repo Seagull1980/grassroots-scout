@@ -10,8 +10,7 @@ import {
   Grid,
   Paper,
   Stack,
-  Typography,
-} from '@mui/material';
+  Typography } from '@mui/material';
 import {
   Search,
   PostAdd,
@@ -20,10 +19,10 @@ import {
   Map,
   Dashboard,
   FamilyRestroom,
-  Email,
-} from '@mui/icons-material';
+  Email } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAnalytics } from '../hooks/useAnalytics';
 import PageHeader from '../components/PageHeader';
 import RoleOnboardingChecklist from '../components/RoleOnboardingChecklist';
 import api, { profileAPI, UserProfile } from '../services/api';
@@ -41,15 +40,22 @@ const StartHerePage: React.FC = () => {
   const { user } = useAuth();
   const [profileCompletion, setProfileCompletion] = useState<number>(0);
   const [unreadMessages, setUnreadMessages] = useState<number>(0);
+  const [childrenCount, setChildrenCount] = useState<number>(0);
+  const [showAllActions, setShowAllActions] = useState<boolean>(false);
 
   if (!user) return null;
 
   useEffect(() => {
     const loadSignals = async () => {
       try {
-        const [profileResponse, conversationsResponse] = await Promise.all([
+        const childrenRequest = user.role === 'Parent/Guardian'
+          ? api.get('/children')
+          : Promise.resolve({ data: { children: [] } });
+
+        const [profileResponse, conversationsResponse, childrenResponse] = await Promise.all([
           profileAPI.get(),
           api.get('/conversations'),
+          childrenRequest,
         ]);
 
         const profile: UserProfile = profileResponse.profile;
@@ -67,15 +73,21 @@ const StartHerePage: React.FC = () => {
         const conversations = conversationsResponse.data?.conversations || [];
         const unread = conversations.reduce((sum: number, conversation: any) => sum + (conversation.unreadCount || 0), 0);
         setUnreadMessages(unread);
+
+        const children = childrenResponse.data?.children || [];
+        setChildrenCount(Array.isArray(children) ? children.length : 0);
       } catch {
         const fallbackCompletion = Number(localStorage.getItem('profile_completion') || 30);
         setProfileCompletion(Number.isFinite(fallbackCompletion) ? fallbackCompletion : 30);
         setUnreadMessages(0);
+        setChildrenCount(0);
       }
     };
 
     loadSignals();
   }, [user.role]);
+
+  const parentNeedsChildProfile = user.role === 'Parent/Guardian' && childrenCount === 0;
 
   const commonActions: QuickAction[] = [
     {
@@ -83,15 +95,13 @@ const StartHerePage: React.FC = () => {
       description: 'Find teams and players with the simplest filters first.',
       path: '/search',
       icon: <Search color="primary" />,
-      cta: 'Open Search',
-    },
+      cta: 'Open Search' },
     {
       title: 'Open Messages',
       description: 'Continue conversations and respond quickly.',
       path: '/messages',
       icon: <Message color="primary" />,
-      cta: 'View Messages',
-    },
+      cta: 'View Messages' },
   ];
 
   const roleActions: Record<string, QuickAction[]> = {
@@ -101,29 +111,25 @@ const StartHerePage: React.FC = () => {
         description: 'Create a vacancy advert and start receiving interest.',
         path: '/post-vacancy',
         icon: <PostAdd color="primary" />,
-        cta: 'Post Vacancy',
-      },
+        cta: 'Post Vacancy' },
       {
         title: 'Manage Team',
         description: 'Update team setup, roster and invitations.',
         path: '/team-management',
         icon: <Group color="primary" />,
-        cta: 'Manage Team',
-      },
+        cta: 'Manage Team' },
       {
         title: 'Applications Hub',
         description: 'Review player interest, unread replies, and next decisions in one place.',
         path: '/coach-applications',
         icon: <Message color="primary" />,
-        cta: 'Open Applications',
-      },
+        cta: 'Open Applications' },
       {
         title: 'Map Search',
         description: 'Browse players geographically on the map.',
         path: '/maps',
         icon: <Map color="primary" />,
-        cta: 'Open Map',
-      },
+        cta: 'Open Map' },
     ],
     Player: [
       {
@@ -131,29 +137,25 @@ const StartHerePage: React.FC = () => {
         description: 'Create your player advert so coaches can find you.',
         path: '/post-availability',
         icon: <PostAdd color="primary" />,
-        cta: 'Post Availability',
-      },
+        cta: 'Post Availability' },
       {
         title: 'Application Tracker',
         description: 'See replies, coach conversations, and trial progress without chasing messages.',
         path: '/my-applications',
         icon: <Message color="primary" />,
-        cta: 'Open Tracker',
-      },
+        cta: 'Open Tracker' },
       {
         title: 'Map Search',
         description: 'Find nearby teams and compare opportunities.',
         path: '/maps',
         icon: <Map color="primary" />,
-        cta: 'Open Map',
-      },
+        cta: 'Open Map' },
       {
-        title: 'My Dashboard',
-        description: 'Track your profile completion and updates.',
-        path: '/dashboard',
+        title: 'Profile & Readiness',
+        description: 'Review profile quality and keep your details match-ready.',
+        path: '/profile',
         icon: <Dashboard color="primary" />,
-        cta: 'Open Dashboard',
-      },
+        cta: 'Open Profile' },
     ],
     'Parent/Guardian': [
       {
@@ -161,29 +163,27 @@ const StartHerePage: React.FC = () => {
         description: 'Add and manage child player profiles in one place.',
         path: '/children',
         icon: <FamilyRestroom color="primary" />,
-        cta: 'Manage Children',
-      },
+        cta: 'Manage Children' },
       {
         title: 'Child Applications Tracker',
         description: 'Keep coach replies and trial progress organised for your children.',
         path: '/my-applications',
         icon: <Message color="primary" />,
-        cta: 'Open Tracker',
-      },
+        cta: 'Open Tracker' },
       {
         title: 'Post Availability',
-        description: 'Create an availability advert for your child.',
-        path: '/child-player-availability',
+        description: parentNeedsChildProfile
+          ? 'Add a child profile first, then post availability for that child.'
+          : 'Create an availability advert for your child.',
+        path: parentNeedsChildProfile ? '/children' : '/child-player-availability',
         icon: <PostAdd color="primary" />,
-        cta: 'Open Availability',
-      },
+        cta: parentNeedsChildProfile ? 'Add Child First' : 'Open Availability' },
       {
         title: 'Map Search',
         description: 'Find nearby teams and opportunities quickly.',
         path: '/maps',
         icon: <Map color="primary" />,
-        cta: 'Open Map',
-      },
+        cta: 'Open Map' },
     ],
     Admin: [
       {
@@ -191,24 +191,20 @@ const StartHerePage: React.FC = () => {
         description: 'Review moderation and operational activity.',
         path: '/admin',
         icon: <Dashboard color="primary" />,
-        cta: 'Open Admin',
-      },
+        cta: 'Open Admin' },
       {
         title: 'Post Team Vacancy',
         description: 'Create an admin vacancy post quickly.',
         path: '/post-vacancy',
         icon: <PostAdd color="primary" />,
-        cta: 'Post Vacancy',
-      },
+        cta: 'Post Vacancy' },
       {
         title: 'Email Delivery Logs',
         description: 'Review sent and failed notification emails.',
         path: '/admin/email-logs',
         icon: <Email color="primary" />,
-        cta: 'Open Logs',
-      },
-    ],
-  };
+        cta: 'Open Logs' },
+    ] };
 
   const actions = [...(roleActions[user.role] || []), ...commonActions];
 
@@ -218,8 +214,7 @@ const StartHerePage: React.FC = () => {
         title: 'Complete your profile first',
         description: `Your profile is ${profileCompletion}% complete. Filling key fields now improves matching quality and response rates.`,
         actionLabel: 'Open Profile',
-        path: '/profile',
-      };
+        path: '/profile' };
     }
 
     if (unreadMessages > 0) {
@@ -227,8 +222,7 @@ const StartHerePage: React.FC = () => {
         title: 'Reply to unread conversations',
         description: `You have ${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}. Fast replies keep opportunities warm.`,
         actionLabel: 'Open Messages',
-        path: '/messages',
-      };
+        path: '/messages' };
     }
 
     if (user.role === 'Coach') {
@@ -236,17 +230,23 @@ const StartHerePage: React.FC = () => {
         title: 'Post or refresh a vacancy',
         description: 'Fresh vacancies increase discovery and unlock more player interest in the applications hub.',
         actionLabel: 'Post Vacancy',
-        path: '/post-vacancy',
-      };
+        path: '/post-vacancy' };
     }
 
     if (user.role === 'Parent/Guardian') {
+      if (parentNeedsChildProfile) {
+        return {
+          title: 'Add your first child profile',
+          description: 'Before posting availability or applying, add a child profile so age, position, and safety details are complete.',
+          actionLabel: 'Manage Children',
+          path: '/children' };
+      }
+
       return {
-        title: 'Check child readiness',
-        description: 'Confirm each child profile is complete before sending new applications to coaches.',
-        actionLabel: 'Manage Children',
-        path: '/children',
-      };
+        title: 'Post child availability',
+        description: 'Now that your child profile is ready, publish an availability advert so local coaches can reach out.',
+        actionLabel: 'Open Availability',
+        path: '/child-player-availability' };
     }
 
     if (user.role === 'Player') {
@@ -254,20 +254,27 @@ const StartHerePage: React.FC = () => {
         title: 'Refresh your availability advert',
         description: 'Keeping your advert current makes replies faster and more relevant.',
         actionLabel: 'Post Availability',
-        path: '/post-availability',
-      };
+        path: '/post-availability' };
     }
 
     return {
       title: 'Open admin operations',
       description: 'Review moderation and platform health first before doing lower-priority admin tasks.',
       actionLabel: 'Open Admin',
-      path: '/admin',
-    };
-  }, [profileCompletion, unreadMessages, user.role]);
+      path: '/admin' };
+  }, [parentNeedsChildProfile, profileCompletion, unreadMessages, user.role]);
 
-  const secondaryActions = useMemo(() => {
-    return actions.filter((action) => action.path !== topPriority.path).slice(0, 2);
+  const secondaryActions = useMemo(() => {1);
+  }, [actions, topPriority.path]);
+
+  const { trackUserAction } = useAnalytics();
+
+  useEffect(() => {
+    trackUserAction('start_here_top_priority_shown', topPriority.title, {
+      role: user.role,
+      page: 'start_here'
+    });
+  }, [topPriority.title, user.role, trackUserActionon) => action.path !== topPriority.path).slice(0, 2);
   }, [actions, topPriority.path]);
 
   return (
@@ -296,14 +303,27 @@ const StartHerePage: React.FC = () => {
           </Alert>
         )}
 
+        {parentNeedsChildProfile && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button color="inherit" size="small" onClick={() => navigate('/children')}>
+                Add Child
+              </Button>
+            }
+          >
+            Parent/Guardian accounts need at least one child profile before creating availability adverts.
+          </Alert>
+        )}
+
         <Paper
           sx={{
             p: 2.5,
             mb: 3,
             border: '1px solid',
             borderColor: 'primary.light',
-            background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
-          }}
+            background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)' }}
         >
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
             <Box>
@@ -334,7 +354,13 @@ const StartHerePage: React.FC = () => {
             <Button
               variant="contained"
               size="large"
-              onClick={() => navigate(topPriority.path)}
+              onClick={() => {
+                trackUserAction('start_here_top_priority_clicked', topPriority.title, {
+                  role: user.role,
+                  page: 'start_here'
+                });
+                navigate(topPriority.path);
+              }}
               sx={{ mb: 2, minWidth: { xs: '100%', sm: 260 } }}
             >
               {topPriority.actionLabel}
@@ -363,18 +389,28 @@ const StartHerePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Paper variant="outlined" sx={{ p: 2.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-            More quick actions
-          </Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
-            {actions.slice(0, 6).map((action) => (
-              <Button key={`more-${action.path}-${action.title}`} variant="text" onClick={() => navigate(action.path)}>
-                {action.title}
-              </Button>
-            ))}
-          </Stack>
-        </Paper>
+        {showAllActions && (
+          <Paper variant="outlined" sx={{ p: 2.5 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              All actions
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
+              {actions.map((action) => (
+                <Button key={`all-${action.path}-${action.title}`} variant="text" onClick={() => navigate(action.path)}>
+                  {action.title}
+                </Button>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+        
+        {!showAllActions && (
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Button variant="text" onClick={() => setShowAllActions(true)}>
+              Show all actions
+            </Button>
+          </Box>
+        )}
       </Container>
     </Box>
   );

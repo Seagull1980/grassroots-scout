@@ -9,9 +9,7 @@ const EnhancedSkeleton = (props: any) => (
     sx={{
       ...props.sx,
       '&::after': {
-        animationDuration: '1.2s',
-      },
-    }}
+        animationDuration: '1.2s' } }}
   />
 );
 
@@ -23,14 +21,10 @@ export const SearchCardSkeleton: React.FC = () => (
       '@keyframes fadeInScale': {
         from: {
           opacity: 0,
-          transform: 'scale(0.95)',
-        },
+          transform: 'scale(0.95)' },
         to: {
           opacity: 1,
-          transform: 'scale(1)',
-        },
-      },
-    }}
+          transform: 'scale(1)' } } }}
   >
     <CardContent>
       {/* Title */}
@@ -76,9 +70,7 @@ export const DashboardCardSkeleton: React.FC = () => (
       animation: 'fadeInScale 0.3s ease-out',
       '@keyframes fadeInScale': {
         from: { opacity: 0, transform: 'scale(0.95)' },
-        to: { opacity: 1, transform: 'scale(1)' },
-      },
-    }}
+        to: { opacity: 1, transform: 'scale(1)' } } }}
   >
     <CardContent>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -98,9 +90,7 @@ export const ProfileCardSkeleton: React.FC = () => (
       animation: 'fadeInScale 0.3s ease-out',
       '@keyframes fadeInScale': {
         from: { opacity: 0, transform: 'scale(0.95)' },
-        to: { opacity: 1, transform: 'scale(1)' },
-      },
-    }}
+        to: { opacity: 1, transform: 'scale(1)' } } }}
   >
     <CardContent>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -149,9 +139,7 @@ export const ListItemSkeleton: React.FC<{ count?: number }> = ({ count = 5 }) =>
           animation: `fadeIn 0.3s ease-out ${index * 0.1}s both`,
           '@keyframes fadeIn': {
             from: { opacity: 0, transform: 'translateY(10px)' },
-            to: { opacity: 1, transform: 'translateY(0)' },
-          },
-        }}
+            to: { opacity: 1, transform: 'translateY(0)' } } }}
       >
         <EnhancedSkeleton variant="circular" width={40} height={40} sx={{ mr: 2 }} />
         <Box sx={{ flex: 1 }}>

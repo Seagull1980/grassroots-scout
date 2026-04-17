@@ -134,14 +134,12 @@ const ClubDashboardPage: React.FC = () => {
   const loadClubData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      
       const [updatesRes, infoRes] = await Promise.all([
         axios.get(`${ROSTER_API_URL}/club-updates/${encodeURIComponent(clubName!)}`, {
-          headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders }
+          headers: {  ...ngrokHeaders }
         }),
         axios.get(`${ROSTER_API_URL}/club-info/${encodeURIComponent(clubName!)}`, {
-          headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders }
+          headers: {  ...ngrokHeaders }
         })
       ]);
 
@@ -156,10 +154,9 @@ const ClubDashboardPage: React.FC = () => {
 
   const loadComments = async (updateId: number) => {
     try {
-      const token = localStorage.getItem('token');
       const response = await axios.get(
         `${ROSTER_API_URL}/club-updates/${updateId}/comments`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
       setComments(prev => ({ ...prev, [updateId]: response.data.comments }));
     } catch (err) {
@@ -180,11 +177,10 @@ const ClubDashboardPage: React.FC = () => {
 
   const handleCreateUpdate = async () => {
     try {
-      const token = localStorage.getItem('token');
       await axios.post(
         `${ROSTER_API_URL}/club-updates`,
         { clubName, ...updateForm },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
       setSuccess('Update posted successfully!');
       setShowUpdateDialog(false);
@@ -198,11 +194,10 @@ const ClubDashboardPage: React.FC = () => {
   const handleEditUpdate = async () => {
     if (!editingUpdate) return;
     try {
-      const token = localStorage.getItem('token');
       await axios.put(
         `${ROSTER_API_URL}/club-updates/${editingUpdate.id}`,
         updateForm,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
       setSuccess('Update edited successfully!');
       setShowUpdateDialog(false);
@@ -217,10 +212,9 @@ const ClubDashboardPage: React.FC = () => {
   const handleDeleteUpdate = async (updateId: number) => {
     if (!window.confirm('Are you sure you want to delete this update?')) return;
     try {
-      const token = localStorage.getItem('token');
       await axios.delete(
         `${ROSTER_API_URL}/club-updates/${updateId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
       setSuccess('Update deleted successfully!');
       loadClubData();
@@ -234,11 +228,10 @@ const ClubDashboardPage: React.FC = () => {
     if (!comment || comment.trim() === '') return;
 
     try {
-      const token = localStorage.getItem('token');
       await axios.post(
         `${ROSTER_API_URL}/club-updates/${updateId}/comments`,
         { comment },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
       setNewComment(prev => ({ ...prev, [updateId]: '' }));
       loadComments(updateId);
@@ -251,10 +244,9 @@ const ClubDashboardPage: React.FC = () => {
   const handleDeleteComment = async (updateId: number, commentId: number) => {
     if (!window.confirm('Are you sure you want to delete this comment?')) return;
     try {
-      const token = localStorage.getItem('token');
       await axios.delete(
         `${ROSTER_API_URL}/club-updates/${updateId}/comments/${commentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
       loadComments(updateId);
       loadClubData();
@@ -344,9 +336,9 @@ const ClubDashboardPage: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: 3 }}>
       {/* Breadcrumbs */}
       <Breadcrumbs sx={{ mb: 3 }}>
-        <MuiLink component={RouterLink} to="/dashboard" color="inherit" underline="hover" sx={{ display: 'flex', alignItems: 'center' }}>
+        <MuiLink component={RouterLink} to="/start" color="inherit" underline="hover" sx={{ display: 'flex', alignItems: 'center' }}>
           <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-          Dashboard
+          Start Here
         </MuiLink>
         <MuiLink component={RouterLink} to="/team-roster" color="inherit" underline="hover" sx={{ display: 'flex', alignItems: 'center' }}>
           <GroupsIcon sx={{ mr: 0.5 }} fontSize="inherit" />

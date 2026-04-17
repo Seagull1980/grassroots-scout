@@ -13,7 +13,11 @@ const leagueRequestsRouter = require('./routes/league-requests');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-jwt-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Middleware
 app.use(cors({

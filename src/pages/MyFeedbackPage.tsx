@@ -20,16 +20,14 @@ import {
   List,
   ListItem,
   ListItemText,
-  Fab,
-} from '@mui/material';
+  Fab } from '@mui/material';
 import {
   BugReport,
   Lightbulb,
   Refresh,
   Close,
   Comment,
-  Add,
-} from '@mui/icons-material';
+  Add } from '@mui/icons-material';
 import axios from 'axios';
 import { ROSTER_API_URL, ngrokHeaders } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,11 +80,8 @@ const MyFeedbackPage: React.FC = () => {
   const fetchMyFeedback = async () => {
     setLoading(true);
     setError('');
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/my-submissions`, {
-        headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
-      });
+    try {      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/my-submissions`, {
+        headers: {  ...ngrokHeaders } });
 
       setFeedback(response.data?.feedback || []);
     } catch (err: any) {
@@ -97,11 +92,8 @@ const MyFeedbackPage: React.FC = () => {
   };
 
   const fetchFeedbackDetails = async (feedbackId: number) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/${feedbackId}`, {
-        headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
-      });
+    try {      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/${feedbackId}`, {
+        headers: {  ...ngrokHeaders } });
 
       setComments(response.data?.comments || []);
     } catch (err: any) {
@@ -123,12 +115,10 @@ const MyFeedbackPage: React.FC = () => {
   const handleAddComment = async () => {
     if (!selectedFeedback || !newComment.trim()) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(
+    try {      await axios.post(
         `${ROSTER_API_URL}/api/feedback/${selectedFeedback.id}/comments`,
         { comment: newComment.trim() },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
 
       setNewComment('');
@@ -364,8 +354,7 @@ const MyFeedbackPage: React.FC = () => {
                           sx={{
                             bgcolor: comment.isAdminComment ? 'primary.50' : 'grey.50',
                             mb: 1,
-                            borderRadius: 1,
-                          }}
+                            borderRadius: 1 }}
                         >
                           <ListItemText
                             primary={

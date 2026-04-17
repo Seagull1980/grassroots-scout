@@ -3,8 +3,7 @@ import {
   Button,
   ButtonProps,
   CircularProgress,
-  Box,
-} from '@mui/material';
+  Box } from '@mui/material';
 
 interface LoadingButtonProps extends ButtonProps {
   loading?: boolean;
@@ -47,8 +46,7 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
         position: 'relative',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         opacity: isDisabled ? 0.9 : 1,
-        ...props.sx,
-      }}
+        ...props.sx }}
     >
       {loading && (
         <CircularProgress
@@ -56,8 +54,7 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
           sx={{
             position: 'absolute',
             left: '50%',
-            marginLeft: '-10px',
-          }}
+            marginLeft: '-10px' }}
         />
       )}
       <Box
@@ -65,8 +62,7 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
           visibility: loading ? 'hidden' : 'visible',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}
+          justifyContent: 'center' }}
       >
         {children}
       </Box>
@@ -82,8 +78,7 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
             top: 0,
             bottom: 0,
             fontSize: '0.85rem',
-            fontWeight: 600,
-          }}
+            fontWeight: 600 }}
         >
           {loadingText}
         </Box>

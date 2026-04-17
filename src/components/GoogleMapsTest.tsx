@@ -11,8 +11,7 @@ const GoogleMapsTest: React.FC = () => {
     googleMaps: false,
     places: false,
     autocomplete: false,
-    placeAutocompleteElement: false,
-  });
+    placeAutocompleteElement: false });
 
   useEffect(() => {
     const checkAPIs = () => {
@@ -20,8 +19,7 @@ const GoogleMapsTest: React.FC = () => {
         googleMaps: !!window.google?.maps,
         places: !!window.google?.maps?.places,
         autocomplete: !!window.google?.maps?.places?.Autocomplete,
-        placeAutocompleteElement: !!window.google?.maps?.places?.PlaceAutocompleteElement,
-      });
+        placeAutocompleteElement: !!window.google?.maps?.places?.PlaceAutocompleteElement });
     };
 
     // Check immediately

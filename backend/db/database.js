@@ -146,7 +146,9 @@ class Database {
         return reject(new Error('Database not initialized'));
       }
       
-      if (sql.trim().toUpperCase().startsWith('SELECT')) {
+      const normalizedSql = sql.trim().toUpperCase();
+
+      if (normalizedSql.startsWith('SELECT') || normalizedSql.startsWith('PRAGMA')) {
         this.db.all(sql, params, (err, rows) => {
           if (err) {
             reject(err);
@@ -1246,6 +1248,85 @@ class Database {
             if (!err.message.includes('duplicate column')) throw err;
           }
         }
+      }
+
+      // Migration 4b: Add password reset columns to users table if they do not exist
+      const passwordResetColumnsResult = this.dbType === 'postgresql'
+        ? await this.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name IN ('passwordresettoken', 'passwordresetexpires')`)
+        : await this.query('PRAGMA table_info(users)');
+
+      if (this.dbType === 'postgresql') {
+        const passwordResetColumnNames = passwordResetColumnsResult.rows.map(row => row.column_name);
+        if (!passwordResetColumnNames.includes('passwordresettoken')) {
+          await this.query('ALTER TABLE users ADD COLUMN passwordResetToken VARCHAR');
+          console.log('✅ Added passwordResetToken column to users table');
+        }
+        if (!passwordResetColumnNames.includes('passwordresetexpires')) {
+          await this.query('ALTER TABLE users ADD COLUMN passwordResetExpires TIMESTAMP');
+          console.log('✅ Added passwordResetExpires column to users table');
+        }
+      } else {
+        const hasPasswordResetToken = passwordResetColumnsResult.rows.some(row => row.name === 'passwordResetToken');
+        const hasPasswordResetExpires = passwordResetColumnsResult.rows.some(row => row.name === 'passwordResetExpires');
+
+        if (!hasPasswordResetToken) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN passwordResetToken VARCHAR');
+            console.log('✅ Added passwordResetToken column to users table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+
+        if (!hasPasswordResetExpires) {
+          try {
+            await this.query('ALTER TABLE users ADD COLUMN passwordResetExpires TIMESTAMP');
+            console.log('✅ Added passwordResetExpires column to users table');
+          } catch (err) {
+            if (!err.message.includes('duplicate column')) throw err;
+          }
+        }
+      }
+
+      // Migration 4c: Ensure email delivery audit table exists for reset diagnostics
+      const emailDeliveryLogsCheck = this.dbType === 'postgresql'
+        ? await this.query(`SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'email_delivery_logs')`)
+        : await this.query(`SELECT name FROM sqlite_master WHERE type='table' AND name='email_delivery_logs'`);
+      const hasEmailDeliveryLogsTable = this.dbType === 'postgresql'
+        ? emailDeliveryLogsCheck.rows[0]?.exists
+        : emailDeliveryLogsCheck.rows.length > 0;
+
+      if (!hasEmailDeliveryLogsTable) {
+        const createEmailDeliveryLogsTableSql = this.dbType === 'postgresql'
+          ? `CREATE TABLE email_delivery_logs (
+              id SERIAL PRIMARY KEY,
+              recipientEmail VARCHAR NOT NULL,
+              templateName VARCHAR,
+              subject VARCHAR,
+              status VARCHAR NOT NULL CHECK(status IN ('sent', 'failed')),
+              messageId VARCHAR,
+              errorCode VARCHAR,
+              errorMessage TEXT,
+              provider VARCHAR DEFAULT 'smtp',
+              metadata TEXT,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`
+          : `CREATE TABLE email_delivery_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              recipientEmail VARCHAR NOT NULL,
+              templateName VARCHAR,
+              subject VARCHAR,
+              status VARCHAR NOT NULL CHECK(status IN ('sent', 'failed')),
+              messageId VARCHAR,
+              errorCode VARCHAR,
+              errorMessage TEXT,
+              provider VARCHAR DEFAULT 'smtp',
+              metadata TEXT,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`;
+
+        await this.query(createEmailDeliveryLogsTableSql);
+        console.log('✅ Created email_delivery_logs table');
       }
 
       // Migration 5: Update preferredLeagues column in player_availability to support JSON array

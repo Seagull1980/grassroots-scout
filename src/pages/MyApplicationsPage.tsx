@@ -12,15 +12,13 @@ import {
   Stack,
   Typography,
   useMediaQuery,
-  useTheme,
-} from '@mui/material';
+  useTheme } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Message as MessageIcon,
   PostAdd as PostAddIcon,
   Search as SearchIcon,
-  Timeline as TimelineIcon,
-} from '@mui/icons-material';
+  Timeline as TimelineIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import ActionEmptyState from '../components/ActionEmptyState';
@@ -83,8 +81,7 @@ const MyApplicationsPage: React.FC = () => {
       trial_scheduled: 'Scheduled',
       trial_completed: 'Completed',
       decision_pending: 'Decision',
-      match_confirmed: 'Confirmed',
-    };
+      match_confirmed: 'Confirmed' };
     return map[stage || 'initial_interest'] || formatStage(stage);
   };
   const getStageIndex = (stage?: string) => timelineStages.indexOf((stage || 'initial_interest') as MatchProgress['stage']);
@@ -195,8 +192,7 @@ const MyApplicationsPage: React.FC = () => {
                 ]}
             primaryAction={{
               label: user?.role === 'Parent/Guardian' ? 'Open Child Availability' : 'Post Availability',
-              onClick: () => navigate(user?.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability'),
-            }}
+              onClick: () => navigate(user?.role === 'Parent/Guardian' ? '/child-player-availability' : '/post-availability') }}
             secondaryAction={{ label: 'Search Opportunities', onClick: () => navigate('/search') }}
           />
         ) : (

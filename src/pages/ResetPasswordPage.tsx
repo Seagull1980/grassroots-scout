@@ -83,13 +83,10 @@ const ResetPasswordPage: React.FC = () => {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
-          password,
-        }),
-      });
+          password }) });
 
       const data = await response.json();
 
@@ -140,8 +137,7 @@ const ResetPasswordPage: React.FC = () => {
               p: 4,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-            }}
+              alignItems: 'center' }}
           >
             <Error sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
             <Typography component="h1" variant="h4" align="center" gutterBottom>
@@ -185,8 +181,7 @@ const ResetPasswordPage: React.FC = () => {
               p: 4,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-            }}
+              alignItems: 'center' }}
           >
             <CheckCircle sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
             <Typography component="h1" variant="h4" align="center" gutterBottom>
@@ -223,8 +218,7 @@ const ResetPasswordPage: React.FC = () => {
             p: 4,
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-          }}
+            alignItems: 'center' }}
         >
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             Reset Password
@@ -267,8 +261,7 @@ const ResetPasswordPage: React.FC = () => {
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
-                ),
-              }}
+                ) }}
               helperText={
                 password ? (
                   <Box component="span" sx={{ color: passwordStrength.color }}>
@@ -309,8 +302,7 @@ const ResetPasswordPage: React.FC = () => {
                       {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
-                ),
-              }}
+                ) }}
               sx={{ mb: 3 }}
             />
 

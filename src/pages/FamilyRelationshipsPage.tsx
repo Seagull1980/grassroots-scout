@@ -20,15 +20,13 @@ import {
   Chip,
   IconButton,
   Grid,
-  Paper,
-} from '@mui/material';
+  Paper } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   VerifiedUser as VerifiedIcon,
   People as PeopleIcon,
-  Groups as PeopleGroupsIcon,
-} from '@mui/icons-material';
+  Groups as PeopleGroupsIcon } from '@mui/icons-material';
 import { familyRelationshipsAPI, coachChildrenAPI, childCoOwnersAPI, FamilyRelationship, CoachChild } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -49,27 +47,23 @@ const FamilyRelationshipsPage: React.FC = () => {
     childId: '',
     relatedUserId: '',
     relationship: 'parent' as 'parent' | 'child' | 'sibling' | 'guardian',
-    notes: '',
-  });
+    notes: '' });
 
   // Form state for coach-child link
   const [coachChildForm, setCoachChildForm] = useState({
     childId: '',
     relationshipType: 'parent' as 'parent' | 'guardian' | 'step_parent',
     teamId: '',
-    notes: '',
-  });
+    notes: '' });
 
   // Form state for requesting co-parent
   const [coParentForm, setCoParentForm] = useState({
     otherParentId: '',
-    childId: '',
-  });
+    childId: '' });
 
   // Form state for linking to existing child
   const [linkChildForm, setLinkChildForm] = useState({
-    existingChildId: '',
-  });
+    existingChildId: '' });
 
   const isCoach = user?.role === 'Coach';
   const isParent = user?.role === 'Parent/Guardian';
@@ -111,8 +105,7 @@ const FamilyRelationshipsPage: React.FC = () => {
 
       const data: any = {
         relationship: formData.relationship,
-        notes: formData.notes || undefined,
-      };
+        notes: formData.notes || undefined };
 
       // Only send one of childId or relatedUserId
       if (formData.childId) {
@@ -131,8 +124,7 @@ const FamilyRelationshipsPage: React.FC = () => {
         childId: '',
         relatedUserId: '',
         relationship: 'parent',
-        notes: '',
-      });
+        notes: '' });
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create relationship');
@@ -152,8 +144,7 @@ const FamilyRelationshipsPage: React.FC = () => {
       const data: any = {
         childId: parseInt(coachChildForm.childId),
         relationshipType: coachChildForm.relationshipType,
-        notes: coachChildForm.notes || undefined,
-      };
+        notes: coachChildForm.notes || undefined };
 
       if (coachChildForm.teamId) {
         data.teamId = parseInt(coachChildForm.teamId);
@@ -166,8 +157,7 @@ const FamilyRelationshipsPage: React.FC = () => {
         childId: '',
         relationshipType: 'parent',
         teamId: '',
-        notes: '',
-      });
+        notes: '' });
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to link child');
@@ -216,8 +206,7 @@ const FamilyRelationshipsPage: React.FC = () => {
 
       const childId = parseInt(coParentForm.childId);
       const data = {
-        otherParentId: parseInt(coParentForm.otherParentId),
-      };
+        otherParentId: parseInt(coParentForm.otherParentId) };
 
       await childCoOwnersAPI.requestCoParent(childId, data);
       setSuccess('Co-parent request sent successfully');
@@ -240,8 +229,7 @@ const FamilyRelationshipsPage: React.FC = () => {
       }
 
       const data = {
-        existingChildId: parseInt(linkChildForm.existingChildId),
-      };
+        existingChildId: parseInt(linkChildForm.existingChildId) };
 
       await childCoOwnersAPI.linkToExisting(data);
       setSuccess('Link request sent to the other parent for approval');

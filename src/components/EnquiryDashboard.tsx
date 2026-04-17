@@ -20,12 +20,10 @@ import {
   Alert,
   Divider,
   Grid,
-  Tooltip,
-} from '@mui/material';
+  Tooltip } from '@mui/material';
 import {
   Send as SendIcon,
-  Schedule as ScheduleIcon,
-} from '@mui/icons-material';
+  Schedule as ScheduleIcon } from '@mui/icons-material';
 import api from '../services/api';
 
 interface Enquiry {
@@ -48,20 +46,16 @@ interface EnquiryDashboardProps {
 const QUICK_RESPONSES = [
   {
     label: 'Shortlist',
-    message: 'Thanks for your interest. We would like to shortlist you for our trials.',
-  },
+    message: 'Thanks for your interest. We would like to shortlist you for our trials.' },
   {
     label: 'Trial Scheduled',
-    message: 'Great! We would like to invite you for a trial. Details: [Add date/time/location]',
-  },
+    message: 'Great! We would like to invite you for a trial. Details: [Add date/time/location]' },
   {
     label: 'Keep in Touch',
-    message: 'Thanks for your interest. We will keep your details on file for future opportunities.',
-  },
+    message: 'Thanks for your interest. We will keep your details on file for future opportunities.' },
   {
     label: 'Position Filled',
-    message: 'Thank you for your interest. Unfortunately, we have filled this position, but we will keep your details for future openings.',
-  },
+    message: 'Thank you for your interest. Unfortunately, we have filled this position, but we will keep your details for future openings.' },
 ];
 
 const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
@@ -111,8 +105,7 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
       setSendingReply(true);
       await api.post(`/enquiries/${selectedEnquiry.id}/reply`, {
         message: replyMessage,
-        status: 'replied',
-      });
+        status: 'replied' });
 
       // Update local state
       setEnquiries(prev =>
@@ -136,8 +129,7 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
   const handleStatusChange = async (enquiry: Enquiry, newStatus: Enquiry['status']) => {
     try {
       await api.patch(`/enquiries/${enquiry.id}`, {
-        status: newStatus,
-      });
+        status: newStatus });
 
       setEnquiries(prev =>
         prev.map(e =>
@@ -158,8 +150,7 @@ const EnquiryDashboard: React.FC<EnquiryDashboardProps> = ({ vacancyId }) => {
       shortlisted: 'info',
       trial_scheduled: 'warning',
       rejected: 'error',
-      signed: 'success',
-    };
+      signed: 'success' };
     return colors[status] || 'default';
   };
 

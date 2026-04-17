@@ -45,10 +45,9 @@ export { API_URL, ROSTER_API_URL };
 // Create axios instance for auth/main API (server-simple on port 3001)
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-  },
-});
+    'Content-Type': 'application/json' } });
 
 console.log('[API Config] API_URL:', API_URL);
 console.log('[API Config] ROSTER_API_URL:', ROSTER_API_URL);
@@ -56,10 +55,9 @@ console.log('[API Config] ROSTER_API_URL:', ROSTER_API_URL);
 // Create axios instance for roster API (team-roster-server on port 3002)
 const rosterApi = axios.create({
   baseURL: ROSTER_API_URL,
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-  },
-});
+    'Content-Type': 'application/json' } });
 
 // CSRF token management
 let csrfToken: string | null = null;
@@ -95,8 +93,7 @@ api.interceptors.request.use(async (config) => {
     console.log('[API Request] Auth endpoint called', {
       url: config.url,
       method: config.method,
-      fullUrl: config.baseURL + config.url,
-    });
+      fullUrl: config.baseURL + config.url });
   }
 
   // Log registration requests for debugging
@@ -105,15 +102,9 @@ api.interceptors.request.use(async (config) => {
       url: config.url,
       method: config.method,
       data: config.data,
-      headers: config.headers,
-    });
+      headers: config.headers });
   }
 
-  const token = storage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  
   // Add CSRF token for non-GET requests
   if (config.method && config.method.toLowerCase() !== 'get') {
     try {
@@ -128,11 +119,6 @@ api.interceptors.request.use(async (config) => {
 });
 
 rosterApi.interceptors.request.use(async (config) => {
-  const token = storage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  
   // Add CSRF token for non-GET requests
   if (config.method && config.method.toLowerCase() !== 'get') {
     try {
@@ -155,8 +141,7 @@ const handleAuthError = (error: any) => {
     status: error.response?.status,
     statusText: error.response?.statusText,
     data: error.response?.data,
-    message: error.message,
-  });
+    message: error.message });
 
   if (error.response?.status === 401 || error.response?.status === 403) {
     const currentPath = window.location.pathname;
@@ -437,6 +422,7 @@ export interface LoginResponse {
 export interface RegisterResponse {
   message: string;
   requiresVerification?: boolean;
+  emailVerificationRequired?: boolean;
   tempToken?: string;
   token?: string;
   user?: User;
@@ -647,7 +633,6 @@ export interface LinkToExistingChildData {
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    console.log('[API] Login attempt:', { email, baseURL: api.defaults.baseURL });
     const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
@@ -659,6 +644,11 @@ export const authAPI = {
 
   getCurrentUser: async (): Promise<{ user: User }> => {
     const response = await api.get('/auth/me');
+    return response.data;
+  },
+
+  logout: async (): Promise<{ message: string }> => {
+    const response = await api.post('/auth/logout');
     return response.data;
   },
 
@@ -675,8 +665,7 @@ export const authAPI = {
   changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
     const response = await api.put('/change-password', { currentPassword, newPassword });
     return response.data;
-  },
-};
+  } };
 
 // Profile API
 export const profileAPI = {
@@ -697,8 +686,7 @@ export const profileAPI = {
     
     const response = await api.put('/profile', transformedData);
     return response.data;
-  },
-};
+  } };
 
 // Vacancies API
 export const vacanciesAPI = {
@@ -718,8 +706,7 @@ export const vacanciesAPI = {
   }): Promise<{ vacancies: TeamVacancy[] }> => {
     const response = await api.get('/vacancies', { params: filters });
     return response.data;
-  },
-};
+  } };
 
 // Leagues API
 export const leaguesAPI = {
@@ -734,14 +721,12 @@ export const leaguesAPI = {
 
     return {
       ...league,
-      isActive,
-    } as League;
+      isActive } as League;
   },
 
   // Get leagues for search (includes user's pending requests if authenticated)
   getForSearch: async (includePending: boolean = true): Promise<League[]> => {
-    const token = localStorage.getItem('token');
-    const params = token && includePending ? '?includePending=true' : '';
+    const params = includePending ? '?includePending=true' : '';
     // baseURL already includes /api prefix
     const response = await api.get(`/leagues${params}`);
     return response.data.leagues || response.data;
@@ -787,10 +772,7 @@ export const leaguesAPI = {
   delete: async (id: number): Promise<{ message: string }> => {
     const response = await rosterApi.delete(`/admin/leagues/${id}`);
     return response.data;
-  },
-
-
-};
+  } };
 
 // Calendar API
 export const calendarAPI = {
@@ -798,9 +780,7 @@ export const calendarAPI = {
     const response = await api.get('/calendar/events', {
       params: {
         startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
-      },
-    });
+        endDate: endDate.toISOString().split('T')[0] } });
     return response.data;
   },
 
@@ -837,16 +817,14 @@ export const calendarAPI = {
   sendTrialInvites: async (inviteData: TrialInviteData): Promise<{ message: string; invitesSent: number }> => {
     const response = await api.post('/calendar/send-trial-invites', inviteData);
     return response.data;
-  },
-};
+  } };
 
 // Health check
 export const healthAPI = {
   check: async (): Promise<{ status: string; message: string }> => {
     const response = await api.get('/health');
     return response.data;
-  },
-};
+  } };
 
 // Admin management (Admin only)
 export const adminAPI = {
@@ -863,8 +841,7 @@ export const adminAPI = {
   freezeLeague: async (id: number, freeze: boolean): Promise<{ message: string; league: League }> => {
     const response = await api.patch(`/admin/leagues/${id}/freeze`, { freeze });
     return response.data;
-  },
-};
+  } };
 
 // Maps API - temporary implementation using existing vacancies
 export const getTeamVacancies = async (): Promise<TeamVacancy[]> => {
@@ -917,9 +894,7 @@ export const getTeamVacanciesWithLocationType = async (params: {
   try {
     const response = await axios.get(`${API_URL}/calendar/training-locations`, {
       params,
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-      }
+      headers: {}
     });
     return response.data;
   } catch (error) {
@@ -1097,9 +1072,7 @@ export const playingHistoryAPI = {
     const historyAPI = axios.create({
       baseURL: ROSTER_API_URL,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${storage.getItem('token')}`
-      }
+        'Content-Type': 'application/json' }
     });
     const response = await historyAPI.get(endpoint);
     return response.data;
@@ -1110,9 +1083,7 @@ export const playingHistoryAPI = {
     const historyAPI = axios.create({
       baseURL: ROSTER_API_URL,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${storage.getItem('token')}`
-      }
+        'Content-Type': 'application/json' }
     });
     const response = await historyAPI.post('/playing-history', historyData);
     return response.data;
@@ -1123,9 +1094,7 @@ export const playingHistoryAPI = {
     const historyAPI = axios.create({
       baseURL: ROSTER_API_URL,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${storage.getItem('token')}`
-      }
+        'Content-Type': 'application/json' }
     });
     const response = await historyAPI.put(`/playing-history/${historyId}`, historyData);
     return response.data;
@@ -1136,9 +1105,7 @@ export const playingHistoryAPI = {
     const historyAPI = axios.create({
       baseURL: ROSTER_API_URL,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${storage.getItem('token')}`
-      }
+        'Content-Type': 'application/json' }
     });
     const response = await historyAPI.delete(`/playing-history/${historyId}`);
     return response.data;
@@ -1149,9 +1116,7 @@ export const playingHistoryAPI = {
     const historyAPI = axios.create({
       baseURL: ROSTER_API_URL,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${storage.getItem('token')}`
-      }
+        'Content-Type': 'application/json' }
     });
     const response = await historyAPI.patch(`/playing-history/${historyId}/current-status`, { isCurrentTeam });
     return response.data;
@@ -1242,8 +1207,7 @@ export const trainingAPI = {
     } catch (err) {
       throw new Error('Failed to load session bookings');
     }
-  },
-};
+  } };
 
 export const openTrainingAPI = {
   register: async (eventId: number, payload?: {
@@ -1284,16 +1248,14 @@ export const openTrainingAPI = {
     reason?: string
   ): Promise<{ message: string; promotedUserId: number | null }> => {
     const response = await api.post(`/calendar/events/${eventId}/open-training/registrations/${registrationId}/cancel`, {
-      reason: reason || null,
-    });
+      reason: reason || null });
     return response.data;
   },
 
   getMyRegistration: async (eventId: number): Promise<{ registration: { id: number; status: string; paymentStatus: string } | null }> => {
     const response = await api.get(`/calendar/events/${eventId}/open-training/my-registration`);
     return response.data;
-  },
-};
+  } };
 
 // Family Relationships API
 export const familyRelationshipsAPI = {
@@ -1313,8 +1275,7 @@ export const familyRelationshipsAPI = {
   delete: async (relationshipId: number): Promise<{ message: string }> => {
     const response = await api.delete(`/family-relationships/${relationshipId}`);
     return response.data;
-  },
-};
+  } };
 
 // Coach Children API (for coaches who are also parents)
 export const coachChildrenAPI = {
@@ -1340,8 +1301,7 @@ export const coachChildrenAPI = {
   delete: async (relationshipId: number): Promise<{ message: string }> => {
     const response = await api.delete(`/coach-children/${relationshipId}`);
     return response.data;
-  },
-};
+  } };
 
 // Child Co-Owners API (multiple parents managing same child)
 export const childCoOwnersAPI = {
@@ -1373,8 +1333,7 @@ export const childCoOwnersAPI = {
   linkToExisting: async (data: LinkToExistingChildData): Promise<{ message: string; request: { id: number; childId: number; childName: string; status: string } }> => {
     const response = await api.post('/children/link-to-existing', data);
     return response.data;
-  },
-};
+  } };
 
 export { api, rosterApi };
 export default api;

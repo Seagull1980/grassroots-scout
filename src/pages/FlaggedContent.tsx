@@ -17,14 +17,12 @@ import {
   Tabs,
   Tab,
   IconButton,
-  Tooltip,
-} from '@mui/material';
+  Tooltip } from '@mui/material';
 import {
   Flag as FlagIcon,
   Cancel as CancelIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
-} from '@mui/icons-material';
+  Visibility as VisibilityIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -110,15 +108,12 @@ const FlaggedContent: React.FC = () => {
       const response = await fetch(`${API_URL}/forum/flags/${flagId}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_role: user?.role,
           user_id: user?.id,
           status,
-          action,
-        }),
-      });
+          action }) });
 
       if (!response.ok) {
         throw new Error('Failed to update flag');

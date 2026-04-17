@@ -15,23 +15,18 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Slider,
   Card,
   CardContent,
-  Stack,
-} from '@mui/material';
+  Stack } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   Notifications as NotificationsIcon,
   Email as EmailIcon,
-  LocationOn as LocationIcon,
   FilterList as FilterIcon,
   SportsSoccer as SoccerIcon,
   Person as PersonIcon,
   EmojiEvents as TrialIcon,
-  Summarize as DigestIcon,
-  FlashOn as InstantIcon,
-} from '@mui/icons-material';
+  Summarize as DigestIcon } from '@mui/icons-material';
 import api, { leaguesAPI } from '../services/api';
 
 interface AlertPreferences {
@@ -133,13 +128,6 @@ const AlertPreferencesPage: React.FC = () => {
     });
   };
 
-  const handleDistanceChange = (_event: Event, newValue: number | number[]) => {
-    setPreferences(prev => ({
-      ...prev,
-      maxDistance: newValue as number
-    }));
-  };
-
   if (loading) {
     return (
       <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
@@ -214,32 +202,22 @@ const AlertPreferencesPage: React.FC = () => {
                   field: 'newVacancyAlerts' as const,
                   icon: <SoccerIcon fontSize="small" color="primary" />,
                   label: 'New team vacancy alerts',
-                  description: 'Emailed when a team in your area posts a new player vacancy matching your age group and/or position.',
-                },
+                  description: 'Emailed when a team in your area posts a new player vacancy matching your age group and/or position.' },
                 {
                   field: 'newPlayerAlerts' as const,
                   icon: <PersonIcon fontSize="small" color="primary" />,
                   label: 'New player availability alerts',
-                  description: 'Emailed when a player matching your team\'s open positions becomes available in your area.',
-                },
+                  description: 'Emailed when a player matching your team\'s open positions becomes available in your area.' },
                 {
                   field: 'trialInvitations' as const,
                   icon: <TrialIcon fontSize="small" color="primary" />,
                   label: 'Trial invitations',
-                  description: 'Receive emails when a coach directly invites you to attend a trial or training session.',
-                },
+                  description: 'Receive emails when a coach directly invites you to attend a trial or training session.' },
                 {
                   field: 'weeklyDigest' as const,
                   icon: <DigestIcon fontSize="small" color="primary" />,
                   label: 'Weekly activity digest',
-                  description: 'A summary email every Sunday with new vacancies, players, and platform activity from the past week.',
-                },
-                {
-                  field: 'instantAlerts' as const,
-                  icon: <InstantIcon fontSize="small" color="warning" />,
-                  label: 'Instant alerts',
-                  description: 'Get notified within minutes of a matching advert being posted. Useful when spots fill up quickly.',
-                },
+                  description: 'A summary email every Sunday with new vacancies, players, and platform activity from the past week.' },
               ].map(({ field, icon, label, description }) => (
                 <Box key={field} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                   <Box sx={{ mt: 1 }}>{icon}</Box>
@@ -283,18 +261,14 @@ const AlertPreferencesPage: React.FC = () => {
                       From: noreply@thegrassrootshub.co.uk
                     </Typography>
                     <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
-                      {preferences.instantAlerts
-                        ? '⚡ New match: U16 Midfielder vacancy in Manchester'
-                        : preferences.newVacancyAlerts
+                      {preferences.newVacancyAlerts
                         ? '⚽ New team vacancy matching your profile'
                         : preferences.weeklyDigest
                         ? '📋 Your weekly Grassroots Scout digest'
                         : '🔔 Grassroots Scout notification'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {preferences.instantAlerts
-                        ? 'Northside FC just posted a new U16 midfielder position. 3 other players have already viewed this — act fast!'
-                        : preferences.weeklyDigest
+                      {preferences.weeklyDigest
                         ? 'This week: 12 new vacancies, 8 new players, 3 trial invitations in your area.'
                         : 'A new opportunity matching your profile is available. Log in to view details and express interest.'}
                     </Typography>
@@ -378,43 +352,6 @@ const AlertPreferencesPage: React.FC = () => {
                     variant={preferences.positions.includes(position) ? 'filled' : 'outlined'}
                   />
                 ))}
-              </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-
-        {/* Location Preferences */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <LocationIcon sx={{ mr: 1 }} />
-              <Typography variant="h6">Location Settings</Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Maximum Distance: {preferences.maxDistance} km
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Only show opportunities within this distance from your location
-              </Typography>
-              <Box sx={{ px: 2 }}>
-                <Slider
-                  value={preferences.maxDistance}
-                  onChange={handleDistanceChange}
-                  min={5}
-                  max={200}
-                  step={5}
-                  marks={[
-                    { value: 5, label: '5km' },
-                    { value: 50, label: '50km' },
-                    { value: 100, label: '100km' },
-                    { value: 200, label: '200km' }
-                  ]}
-                  valueLabelDisplay="auto"
-                  color="primary"
-                />
               </Box>
             </Box>
           </AccordionDetails>

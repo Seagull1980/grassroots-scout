@@ -469,8 +469,7 @@ const TeamManagement: React.FC = () => {
                   modifiers: [
                     {
                       name: 'flip',
-                      enabled: false,
-                    }
+                      enabled: false }
                   ],
                   sx: { zIndex: 1301 }
                 }
@@ -497,8 +496,7 @@ const TeamManagement: React.FC = () => {
                   modifiers: [
                     {
                       name: 'flip',
-                      enabled: false,
-                    }
+                      enabled: false }
                   ],
                   sx: { zIndex: 1301 }
                 }
@@ -535,8 +533,7 @@ const TeamManagement: React.FC = () => {
                       modifiers: [
                         {
                           name: 'flip',
-                          enabled: false,
-                        }
+                          enabled: false }
                       ],
                       sx: { zIndex: 1301 }
                     }
@@ -786,8 +783,7 @@ const TeamManagement: React.FC = () => {
                 modifiers: [
                   {
                     name: 'flip',
-                    enabled: false,
-                  }
+                    enabled: false }
                 ],
                 sx: { zIndex: 1301 }
               }
@@ -814,8 +810,7 @@ const TeamManagement: React.FC = () => {
                 modifiers: [
                   {
                     name: 'flip',
-                    enabled: false,
-                  }
+                    enabled: false }
                 ],
                 sx: { zIndex: 1301 }
               }
@@ -852,8 +847,7 @@ const TeamManagement: React.FC = () => {
                     modifiers: [
                       {
                         name: 'flip',
-                        enabled: false,
-                      }
+                        enabled: false }
                     ],
                     sx: { zIndex: 1301 }
                   }

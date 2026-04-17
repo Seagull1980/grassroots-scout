@@ -12,15 +12,13 @@ import {
   Stack,
   Typography,
   useMediaQuery,
-  useTheme,
-} from '@mui/material';
+  useTheme } from '@mui/material';
 import {
   Group as GroupIcon,
   Message as MessageIcon,
   Schedule as ScheduleIcon,
   TaskAlt as TaskAltIcon,
-  TrendingUp as TrendingUpIcon,
-} from '@mui/icons-material';
+  TrendingUp as TrendingUpIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import ActionEmptyState from '../components/ActionEmptyState';
@@ -56,8 +54,7 @@ const CoachApplicationsPage: React.FC = () => {
       trial_scheduled: 'Scheduled',
       trial_completed: 'Completed',
       decision_pending: 'Decision',
-      match_confirmed: 'Confirmed',
-    };
+      match_confirmed: 'Confirmed' };
     return map[stage || 'initial_interest'] || formatStage(stage);
   };
   const getStageIndex = (stage?: string) => timelineStages.indexOf((stage || 'initial_interest') as MatchProgress['stage']);

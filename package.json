@@ -28,7 +28,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "analytics:admin-kpi-report": "node backend/scripts/generate-admin-kpi-report.cjs"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",

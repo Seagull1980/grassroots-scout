@@ -41,16 +41,8 @@ const MatchCompletionSummary: React.FC<MatchCompletionSummaryProps> = ({
   const fetchCompletions = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       const response = await fetch('/api/match-completions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: {}
       });
 
       if (response.ok) {

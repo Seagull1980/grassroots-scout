@@ -1,9 +1,14 @@
 const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 const db = new sqlite3.Database('./database.sqlite');
+const shouldShowToken = process.argv.includes('--show-token');
 
 console.log('🔍 Debugging authentication for cgill1980@hotmail.com...\n');
 
@@ -41,8 +46,12 @@ db.get('SELECT * FROM users WHERE email = ?', ['cgill1980@hotmail.com'], (err, u
   };
 
   const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
-  console.log('\n🎫 Fresh JWT Token:');
-  console.log(token);
+  console.log('\n🎫 Fresh JWT token generated');
+  if (shouldShowToken) {
+    console.log(token);
+  } else {
+    console.log('Token output hidden by default. Re-run with --show-token to print it.');
+  }
 
   // Verify the token
   try {

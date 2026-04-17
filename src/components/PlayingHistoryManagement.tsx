@@ -34,8 +34,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Autocomplete,
-} from '@mui/material';
+  Autocomplete } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -135,7 +134,7 @@ const PlayingHistoryManagement: React.FC = () => {
         playingHistoryAPI.getHistory(),
         fetch(`${ROSTER_API_URL}/playing-history/stats`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            
             ...ngrokHeaders
           }
         }).then(res => res.json())

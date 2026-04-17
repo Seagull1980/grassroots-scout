@@ -5,8 +5,7 @@ import {
   Paper,
   Typography,
   Button,
-  Alert,
-} from '@mui/material';
+  Alert } from '@mui/material';
 import { Lock, Email } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';

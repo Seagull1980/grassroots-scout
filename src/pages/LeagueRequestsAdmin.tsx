@@ -107,15 +107,10 @@ const LeagueRequestsAdmin: React.FC = () => {
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      setError('');
-      
-      const token = localStorage.getItem('token');
-      const status = currentStatus === 'all' ? 'all' : currentStatus;
+      setError('');      const status = currentStatus === 'all' ? 'all' : currentStatus;
       
       const response = await fetch(`/api/league-requests/admin/all?status=${status}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: {}
       });
 
       const data = await response.json();
@@ -159,10 +154,7 @@ const LeagueRequestsAdmin: React.FC = () => {
     if (!selectedRequest) return;
 
     try {
-      setSubmittingReview(true);
-      const token = localStorage.getItem('token');
-      
-      const endpoint = `/api/league-requests/admin/${selectedRequest.id}/${reviewAction}`;
+      setSubmittingReview(true);      const endpoint = `/api/league-requests/admin/${selectedRequest.id}/${reviewAction}`;
       const body: any = { reviewNotes };
       
       if (reviewAction === 'approve') {
@@ -172,9 +164,7 @@ const LeagueRequestsAdmin: React.FC = () => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 

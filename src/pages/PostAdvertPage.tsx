@@ -30,8 +30,7 @@ import {
   Divider,
   Snackbar,
   Fade,
-  IconButton,
-} from '@mui/material';
+  IconButton } from '@mui/material';
 import { Delete as DeleteIcon, PostAdd as PostAddIcon } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -115,8 +114,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
     if (resolvedType && resolvedType !== formData.adminPostType) {
       setFormData((prev) => ({
         ...prev,
-        adminPostType: resolvedType,
-      }));
+        adminPostType: resolvedType }));
     }
   }, [user, initialPostType, location.pathname, formData.adminPostType]);
 
@@ -279,16 +277,14 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
-    });
+      [e.target.name]: e.target.value });
     setError('');
   };
 
   const handleSelectChange = (e: SelectChangeEvent) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
-    });
+      [e.target.name]: e.target.value });
     setError('');
   };
 
@@ -296,8 +292,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
     const value = e.target.value;
     setFormData({
       ...formData,
-      positions: typeof value === 'string' ? value.split(',') : value,
-    });
+      positions: typeof value === 'string' ? value.split(',') : value });
     setError('');
   };
 
@@ -326,9 +321,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
         try {
           setLoadingTeams(true);
           const response = await fetch('/api/teams', {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
+            headers: {}
           });
           if (response.ok) {
             const data = await response.json();
@@ -493,8 +486,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
         hasPathwayToSenior: false,
         playingTimePolicy: '',
         teamId: '',
-        adminPostType: 'vacancy',
-      });
+        adminPostType: 'vacancy' });
       setLocationData(null);
 
       // Redirect to My Adverts dashboard after 2 seconds (unless admin)
@@ -565,8 +557,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
       name: draftName.trim(),
       role: user.role,
       data: { formData, locationData },
-      createdAt: new Date().toISOString(),
-    };
+      createdAt: new Date().toISOString() };
     const updated = [newDraft, ...drafts];
     setDrafts(updated);
     localStorage.setItem('post_advert_drafts', JSON.stringify(updated));
@@ -591,8 +582,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
       hasPathwayToSenior: draft.data.formData.hasPathwayToSenior || false,
       playingTimePolicy: draft.data.formData.playingTimePolicy || '',
       teamId: draft.data.formData.teamId || '',
-      adminPostType: draft.data.formData.adminPostType || 'vacancy',
-    });
+      adminPostType: draft.data.formData.adminPostType || 'vacancy' });
     setLocationData(draft.data.locationData || null);
     setLoadedDraftName(draft.name);
     setSnackbar({ open: true, message: `Draft "${draft.name}" loaded successfully!`, severity: 'info' });
@@ -683,8 +673,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
                             adminPostType: e.target.value as 'vacancy' | 'availability',
                             position: '',
                             positions: [],
-                            teamId: '',
-                          }));
+                            teamId: '' }));
                         }}
                       >
                         <MenuItem value="vacancy">Team Vacancy (Coach)</MenuItem>
@@ -756,13 +745,11 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
                       } else if (typeof newValue === 'object' && newValue?.name) {
                         setFormData(prev => ({
                           ...prev,
-                          league: newValue.name,
-                        }));
+                          league: newValue.name }));
                       } else if (typeof newValue === 'string') {
                         setFormData(prev => ({
                           ...prev,
-                          league: newValue,
-                        }));
+                          league: newValue }));
                       }
                     }}
                     freeSolo={true}
@@ -770,8 +757,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
                       if (reason === 'input') {
                         setFormData(prev => ({
                           ...prev,
-                          league: inputValue,
-                        }));
+                          league: inputValue }));
                       }
                     }}
                     loading={loadingLeagues}
@@ -790,8 +776,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
                               {loadingLeagues ? <CircularProgress color="inherit" size={20} /> : null}
                               {params.InputProps.endAdornment}
                             </>
-                          ),
-                        }}
+                          ) }}
                       />
                     )}
                     renderOption={(props, option) => {
@@ -1221,7 +1206,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
                   <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <Button
                       variant="outlined"
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() => navigate('/start')}
                     >
                       Cancel
                     </Button>

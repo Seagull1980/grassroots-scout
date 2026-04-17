@@ -178,8 +178,7 @@ class AnalyticsTrackingService {
       pageLoadTime: navigation.loadEventEnd - navigation.loadEventStart,
       domContentLoaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
       timeToInteractive: navigation.loadEventEnd - navigation.fetchStart,
-      firstContentfulPaint: paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0,
-    };
+      firstContentfulPaint: paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0 };
 
     this.track('performance', {
       category: 'Performance',
@@ -332,9 +331,7 @@ class AnalyticsTrackingService {
       const response = await fetch(`${API_BASE_URL}/analytics/track`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.getAuthToken()}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           events: eventsToSend,
           sessionId: this.sessionId,
@@ -352,10 +349,6 @@ class AnalyticsTrackingService {
       // Re-add events to queue for retry
       this.events.unshift(...eventsToSend);
     }
-  }
-
-  private getAuthToken(): string {
-    return localStorage.getItem('token') || '';
   }
 
   // Utility methods

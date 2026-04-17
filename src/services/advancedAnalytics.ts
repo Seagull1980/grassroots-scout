@@ -11,8 +11,7 @@ import {
   AnalyticsReport,
   AnalyticsFilter,
   AnalyticsDashboard,
-  PlayerMatchPerformance,
-} from '../types/analytics';
+  PlayerMatchPerformance } from '../types/analytics';
 
 export class AdvancedAnalyticsService {
   private apiBase = '/api/analytics';
@@ -22,8 +21,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/players/${playerId}/stats`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 
@@ -31,8 +29,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/players/${playerId}/trends`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ metric, period }),
-    });
+      body: JSON.stringify({ metric, period }) });
     return response.json();
   }
 
@@ -51,8 +48,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/teams/${teamId}/stats`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 
@@ -112,8 +108,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/goals`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(goal),
-    });
+      body: JSON.stringify(goal) });
     return response.json();
   }
 
@@ -121,8 +116,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/goals/${goalId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    });
+      body: JSON.stringify(updates) });
     return response.json();
   }
 
@@ -136,8 +130,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/injuries`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(injury),
-    });
+      body: JSON.stringify(injury) });
     return response.json();
   }
 
@@ -145,8 +138,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/injuries/${injuryId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, actualReturnDate }),
-    });
+      body: JSON.stringify({ status, actualReturnDate }) });
     return response.json();
   }
 
@@ -155,8 +147,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/training/player/${playerId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 
@@ -164,8 +155,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/training`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(training),
-    });
+      body: JSON.stringify(training) });
     return response.json();
   }
 
@@ -181,8 +171,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/reports/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
+      body: JSON.stringify(config) });
     return response.json();
   }
 
@@ -207,8 +196,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/dashboards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dashboard),
-    });
+      body: JSON.stringify(dashboard) });
     return response.json();
   }
 
@@ -216,8 +204,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/dashboards/${dashboardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    });
+      body: JSON.stringify(updates) });
     return response.json();
   }
 
@@ -226,8 +213,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/search/players`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, filters }),
-    });
+      body: JSON.stringify({ query, filters }) });
     return response.json();
   }
 
@@ -235,8 +221,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/leaderboards/${metric}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period, limit }),
-    });
+      body: JSON.stringify({ period, limit }) });
     return response.json();
   }
 
@@ -324,8 +309,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/players/${playerId}/matches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 
@@ -333,8 +317,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/players/${playerId}/training`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 
@@ -347,8 +330,7 @@ export class AdvancedAnalyticsService {
     const response = await fetch(`${this.apiBase}/players/${playerId}/ratings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
-    });
+      body: JSON.stringify({ period }) });
     return response.json();
   }
 

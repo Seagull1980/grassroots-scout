@@ -19,8 +19,7 @@ import {
   SpeedDialAction,
   SpeedDialIcon,
   Tooltip,
-  Badge,
-} from '@mui/material';
+  Badge } from '@mui/material';
 import {
   AdminPanelSettings as AdminIcon,
   Person as PersonIcon,
@@ -30,8 +29,7 @@ import {
   Close as CloseIcon,
   SwapHoriz as SwapIcon,
   Settings as SettingsIcon,
-  TouchApp as TouchIcon,
-} from '@mui/icons-material';
+  TouchApp as TouchIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -55,8 +53,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
   position = { bottom: 80, right: 16 },
   mobileOnly = true,
   useSpeedDial = true,
-  showOnLoginPage = false,
-}) => {
+  showOnLoginPage = false }) => {
   // Declare all hooks first - hooks must be called unconditionally
   const theme = useTheme();
   const { user, impersonateUser, stopImpersonation, isImpersonating } = useAuth();
@@ -82,22 +79,19 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
       label: 'Coach',
       icon: <SchoolIcon />,
       description: 'Test team management and player recruitment features',
-      color: 'primary' as const,
-    },
+      color: 'primary' as const },
     {
       type: 'Player' as const,
       label: 'Player',
       icon: <PersonIcon />,
       description: 'Test player profile and team search features',
-      color: 'secondary' as const,
-    },
+      color: 'secondary' as const },
     {
       type: 'Parent/Guardian' as const,
       label: 'Parent',
       icon: <FamilyIcon />,
       description: 'Test parent features for managing children',
-      color: 'success' as const,
-    },
+      color: 'success' as const },
   ];
 
   const handleUserTypeSwitch = (userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
@@ -125,26 +119,22 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
       icon: <SchoolIcon />,
       name: 'Test as Coach',
       onClick: () => handleUserTypeSwitch('Coach'),
-      disabled: isImpersonating && user?.role === 'Coach',
-    },
+      disabled: isImpersonating && user?.role === 'Coach' },
     {
       icon: <PersonIcon />,
       name: 'Test as Player',
       onClick: () => handleUserTypeSwitch('Player'),
-      disabled: isImpersonating && user?.role === 'Player',
-    },
+      disabled: isImpersonating && user?.role === 'Player' },
     {
       icon: <FamilyIcon />,
       name: 'Test as Parent',
       onClick: () => handleUserTypeSwitch('Parent/Guardian'),
-      disabled: isImpersonating && user?.role === 'Parent/Guardian',
-    },
+      disabled: isImpersonating && user?.role === 'Parent/Guardian' },
     ...(isImpersonating ? [{
       icon: <StopIcon />,
       name: 'Return to Admin',
       onClick: handleStopImpersonation,
-      disabled: false,
-    }] : []),
+      disabled: false }] : []),
   ];
 
   // Render SpeedDial version for enhanced mobile experience
@@ -156,8 +146,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
           sx={{
             position: 'fixed',
             ...position,
-            zIndex: 1000,
-          }}
+            zIndex: 1000 }}
           icon={
             <Badge
               color="secondary"
@@ -176,8 +165,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
           direction="up"
           FabProps={{
             color: isImpersonating ? 'secondary' : 'primary',
-            size: 'medium',
-          }}
+            size: 'medium' }}
         >
           {speedDialActions.map((action) => (
             <SpeedDialAction
@@ -188,8 +176,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
               FabProps={{
                 disabled: action.disabled,
                 size: 'small',
-                color: action.disabled ? 'default' : 'primary',
-              }}
+                color: action.disabled ? 'default' : 'primary' }}
             />
           ))}
           
@@ -202,8 +189,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
               setDrawerOpen(true);
             }}
             FabProps={{
-              size: 'small',
-            }}
+              size: 'small' }}
           />
         </SpeedDial>
 
@@ -216,9 +202,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
             sx: {
               borderTopLeftRadius: 16,
               borderTopRightRadius: 16,
-              maxHeight: '85vh',
-            },
-          }}
+              maxHeight: '85vh' } }}
         >
           <Box sx={{ p: 3, minHeight: 200 }}>
             {/* Enhanced Header */}
@@ -288,9 +272,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                         ? 'primary.200'
                         : 'grey.200',
                       '&:hover': {
-                        bgcolor: 'grey.50',
-                      },
-                    }}
+                        bgcolor: 'grey.50' } }}
                   >
                     <ListItemIcon sx={{ minWidth: 48 }}>
                       <Box
@@ -298,8 +280,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                           p: 1,
                           borderRadius: 1,
                           bgcolor: `${userType.color}.100`,
-                          color: `${userType.color}.600`,
-                        }}
+                          color: `${userType.color}.600` }}
                       >
                         {userType.icon}
                       </Box>
@@ -392,11 +373,9 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
               bgcolor: isImpersonating ? 'secondary.main' : 'primary.main',
               '&:hover': {
                 bgcolor: isImpersonating ? 'secondary.dark' : 'primary.dark',
-                transform: 'scale(1.1)',
-              },
+                transform: 'scale(1.1)' },
               transition: 'all 0.2s ease-in-out',
-              boxShadow: 3,
-            }}
+              boxShadow: 3 }}
             size="medium"
           >
             {isImpersonating ? <SwapIcon /> : <AdminIcon />}
@@ -413,9 +392,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
           sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
-            maxHeight: '85vh',
-          },
-        }}
+            maxHeight: '85vh' } }}
       >
         <Box sx={{ p: 3, minHeight: 200 }}>
           {/* Same enhanced content as SpeedDial version */}
@@ -485,9 +462,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                       ? 'primary.200'
                       : 'grey.200',
                     '&:hover': {
-                      bgcolor: 'grey.50',
-                    },
-                  }}
+                      bgcolor: 'grey.50' } }}
                 >
                   <ListItemIcon sx={{ minWidth: 48 }}>
                     <Box
@@ -495,8 +470,7 @@ const MobileAdminSwitcher: React.FC<MobileAdminSwitcherProps> = ({
                         p: 1,
                         borderRadius: 1,
                         bgcolor: `${userType.color}.100`,
-                        color: `${userType.color}.600`,
-                      }}
+                        color: `${userType.color}.600` }}
                     >
                       {userType.icon}
                     </Box>

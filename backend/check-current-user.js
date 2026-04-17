@@ -3,13 +3,14 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const shouldShowToken = process.argv.includes('--show-token');
+
 // Check if a token exists and decode it
 const checkToken = () => {
-  // Use the same JWT secret that the server uses
-  const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
-  
-  console.log('Using JWT_SECRET from env:', process.env.JWT_SECRET || 'fallback: grassroots-hub-secret-key');
-  
   // Create a test admin token
   const adminUser = {
     id: 2,
@@ -29,8 +30,12 @@ const checkToken = () => {
     { expiresIn: '24h' }
   );
   
-  console.log('Admin test token for cgill1980@hotmail.com:');
-  console.log(token);
+  console.log('Admin test token generated for cgill1980@hotmail.com');
+  if (shouldShowToken) {
+    console.log(token);
+  } else {
+    console.log('Token output hidden by default. Re-run with --show-token to print it.');
+  }
   console.log('\nToken payload:');
   console.log(jwt.decode(token));
 };

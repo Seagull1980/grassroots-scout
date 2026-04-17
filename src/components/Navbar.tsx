@@ -19,15 +19,13 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   Paper,
-  Badge,
-} from '@mui/material';
+  Badge } from '@mui/material';
 import {
   Menu as MenuIcon,
   Search,
   CalendarToday,
   Map,
   Person,
-  Dashboard,
   AdminPanelSettings,
   PostAdd,
   Groups,
@@ -50,12 +48,12 @@ import {
   Home,
   Support,
   AcUnit,
-  MailOutline,
-} from '@mui/icons-material';
+  MailOutline } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { NotificationBell } from './NotificationComponents';
 import { useResponsive } from '../hooks/useResponsive';
+import { useAnalytics } from '../hooks/useAnalytics';
 import api, { API_URL } from '../services/api';
 import { Conversation } from '../types';
 
@@ -63,14 +61,28 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, isImpersonating, stopImpersonation } = useAuth();
+  const { trackUserAction, trackConversion } = useAnalytics();
   const { isMobile } = useResponsive();
   const apiPrefix = API_URL ? '' : '/api';
+
+  const trackAuthCta = (ctaName: 'login' | 'signup', placement: 'desktop_topbar' | 'mobile_topbar') => {
+    trackUserAction('auth_cta_click', ctaName, {
+      placement,
+      page: location.pathname,
+      isLoggedIn: !!user
+    });
+
+    if (ctaName === 'signup') {
+      trackConversion('navbar_signup_intent', 1);
+    }
+  };
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreMenuAnchorEl, setMoreMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [childrenCount, setChildrenCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
 
   // Track scroll position for navbar styling
@@ -90,11 +102,35 @@ const Navbar: React.FC = () => {
   useEffect(() => {
     if (user?.role === 'Coach') {
       fetchPendingInvitationsCount();
-      // Refresh count every 30 seconds
-      const interval = setInterval(fetchPendingInvitationsCount, 30000);
+      // Refresh count every 30 seconds, but only if tab is visible
+      const interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          fetchPendingInvitationsCount();
+        }
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchChildrenCount = async () => {
+      if (user?.role !== 'Parent/Guardian') {
+        setChildrenCount(0);
+        return;
+      }
+
+      try {
+        const response = await api.get(`${apiPrefix}/children`);
+        const children = response.data?.children || [];
+        setChildrenCount(Array.isArray(children) ? children.length : 0);
+      } catch (error) {
+        console.error('Error fetching children count:', error);
+        setChildrenCount(0);
+      }
+    };
+
+    fetchChildrenCount();
+  }, [apiPrefix, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -111,7 +147,11 @@ const Navbar: React.FC = () => {
     };
 
     fetchUnreadMessagesCount();
-    const interval = setInterval(fetchUnreadMessagesCount, 30000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadMessagesCount();
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [user, apiPrefix]);
 
@@ -125,7 +165,21 @@ const Navbar: React.FC = () => {
     }
   };
 
-  const getPostRoute = () => (user?.role === 'Coach' ? '/post-vacancy' : '/post-availability');
+  const getPostRoute = () => {
+    if (user?.role === 'Coach') return '/post-vacancy';
+    if (user?.role === 'Parent/Guardian') {
+      return childrenCount > 0 ? '/child-player-availability' : '/children';
+    }
+    return '/post-availability';
+  };
+
+  const getPostLabel = () => {
+    if (user?.role === 'Coach') return 'Post Vacancy';
+    if (user?.role === 'Parent/Guardian') {
+      return childrenCount > 0 ? 'Post Child Availability' : 'Add Child First';
+    }
+    return 'Post Availability';
+  };
 
   const safeNavigate = (path: string) => {
     navigate(path);
@@ -187,8 +241,7 @@ const Navbar: React.FC = () => {
       ) : (
         <Message />
       ),
-      show: true,
-    },
+      show: true },
     { path: '/profile', label: 'Profile', icon: <Person />, show: true },
   ] : [
     { path: '/', label: 'Home', icon: <Home />, show: true },
@@ -201,7 +254,7 @@ const Navbar: React.FC = () => {
     { path: '/search', label: 'Search', icon: <Search /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
     { path: '/maps', label: 'Maps', icon: <Map /> },
-    ...(user?.role !== 'Admin' ? [{ path: getPostRoute(), label: user?.role === 'Coach' ? 'Post Vacancy' : 'Post Availability', icon: <PostAdd /> }] : []),
+    ...(user?.role !== 'Admin' ? [{ path: getPostRoute(), label: getPostLabel(), icon: <PostAdd /> }] : []),
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
   ] : [
     { path: '/', label: 'Home', icon: <Home /> },
@@ -209,7 +262,6 @@ const Navbar: React.FC = () => {
 
   // Secondary navigation items that go in the "More" dropdown
   const secondaryNavItems = user ? [
-    { path: '/dashboard', label: 'Dashboard', icon: <Dashboard /> },
     { path: '/my-adverts', label: 'My Adverts', icon: <Assessment /> },
     ...(user?.role === 'Coach' ? [{ path: '/coach-applications', label: 'Applications Hub', icon: <ManageAccounts /> }] : []),
     ...((user?.role === 'Player' || user?.role === 'Parent/Guardian') ? [{ path: '/my-applications', label: 'My Applications', icon: <Analytics /> }] : []),
@@ -224,13 +276,18 @@ const Navbar: React.FC = () => {
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [
       { path: '/children', label: 'Manage Children', icon: <FamilyRestroom /> },
-      { path: '/child-player-availability', label: 'Parent View', icon: <ChildCare /> },
+      {
+        path: childrenCount > 0 ? '/child-player-availability' : '/children',
+        label: childrenCount > 0 ? 'Parent View' : 'Add Child First',
+        icon: <ChildCare />
+      },
       { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
     { path: '/performance-analytics', label: 'Performance Analytics', icon: <Analytics /> },
     ...(user?.role === 'Admin' ? [
       { path: '/analytics/real-time', label: 'Real-time Analytics', icon: <Analytics /> },
       { path: '/analytics/insights', label: 'Analytics Insights', icon: <Assessment /> },
+      { path: '/admin/kpi-report', label: 'Admin KPI Report', icon: <Assessment /> },
       { path: '/admin/success-stories', label: 'Success Story Approvals', icon: <EmojiEvents /> },
       { path: '/admin/feedback', label: 'Feedback Dashboard', icon: <FeedbackIcon /> },
       { path: '/admin/frozen-adverts', label: 'Frozen Adverts', icon: <AcUnit /> },
@@ -274,8 +331,7 @@ const Navbar: React.FC = () => {
           color: 'white',
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
-        }}
+          gap: 2 }}
       >
         <Box
           sx={{
@@ -286,8 +342,7 @@ const Navbar: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backdropFilter: 'blur(10px)',
-          }}
+            backdropFilter: 'blur(10px)' }}
         >
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             GS
@@ -327,24 +382,18 @@ const Navbar: React.FC = () => {
               '@keyframes slideInFromLeft': {
                 from: {
                   opacity: 0,
-                  transform: 'translateX(-20px)',
-                },
+                  transform: 'translateX(-20px)' },
                 to: {
                   opacity: 1,
-                  transform: 'translateX(0)',
-                },
-              },
+                  transform: 'translateX(0)' } },
               '&:hover': { 
                 bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
-                transform: 'translateX(4px)',
-              },
-            }}
+                transform: 'translateX(4px)' } }}
           >
             <ListItemIcon 
               sx={{ 
                 color: isActive(item.path) ? '#0066FF' : 'text.secondary',
-                minWidth: 40,
-              }}
+                minWidth: 40 }}
             >
               {item.icon}
             </ListItemIcon>
@@ -353,8 +402,7 @@ const Navbar: React.FC = () => {
               primaryTypographyProps={{
                 fontWeight: isActive(item.path) ? 600 : 500,
                 color: isActive(item.path) ? '#0066FF' : 'text.primary',
-                fontSize: '0.95rem',
-              }}
+                fontSize: '0.95rem' }}
             />
           </ListItem>
         ))}
@@ -370,16 +418,13 @@ const Navbar: React.FC = () => {
               transition: 'all 0.2s ease',
               '&:hover': { 
                 bgcolor: 'rgba(239, 68, 68, 0.08)',
-                color: 'error.main',
-              },
-            }}
+                color: 'error.main' } }}
           >
             <ListItemText 
               primary="Logout" 
               primaryTypographyProps={{
                 fontWeight: 500,
-                textAlign: 'center',
-              }}
+                textAlign: 'center' }}
             />
           </ListItem>
         </Box>
@@ -404,8 +449,7 @@ const Navbar: React.FC = () => {
             position: 'sticky !important',
             borderBottom: scrolled ? '1px solid rgba(0, 102, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)',
-          }}
+            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)' }}
         >
           <Toolbar>
             <Typography
@@ -449,14 +493,11 @@ const Navbar: React.FC = () => {
                       width: '60%',
                       height: '2px',
                       bgcolor: '#0066FF',
-                      borderRadius: '2px 2px 0 0',
-                    } : {},
+                      borderRadius: '2px 2px 0 0' } : {},
                     '&:hover': {
                       bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
                       color: '#0066FF',
-                      transform: 'translateY(-1px)',
-                    },
-                  }}
+                      transform: 'translateY(-1px)' } }}
                 >
                   {item.label}
                 </Button>
@@ -479,9 +520,7 @@ const Navbar: React.FC = () => {
                       '&:hover': { 
                         bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
                         color: '#0066FF',
-                        transform: 'translateY(-1px)',
-                      },
-                    }}
+                        transform: 'translateY(-1px)' } }}
                   >
                     Utilities
                   </Button>
@@ -494,8 +533,7 @@ const Navbar: React.FC = () => {
                         '& .MuiMenuItem-root': {
                           color: '#0f172a',
                           '&:hover': {
-                            bgcolor: 'rgba(0, 0, 0, 0.04)',
-                          }
+                            bgcolor: 'rgba(0, 0, 0, 0.04)' }
                         }
                       }
                     }}
@@ -540,8 +578,7 @@ const Navbar: React.FC = () => {
                       mr: 1,
                       '& .MuiChip-label': {
                         color: 'text.primary',
-                        fontWeight: 500,
-                      }
+                        fontWeight: 500 }
                     }}
                   />
                   <IconButton onClick={handleMenu}>
@@ -552,10 +589,22 @@ const Navbar: React.FC = () => {
                 </>
               ) : (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button color="inherit" onClick={() => safeNavigate('/login')}>
+                  <Button
+                    color="inherit"
+                    onClick={() => {
+                      trackAuthCta('login', 'desktop_topbar');
+                      safeNavigate('/login');
+                    }}
+                  >
                     Login
                   </Button>
-                  <Button variant="contained" onClick={() => safeNavigate('/register')}>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      trackAuthCta('signup', 'desktop_topbar');
+                      safeNavigate('/register');
+                    }}
+                  >
                     Sign Up
                   </Button>
                 </Box>
@@ -618,8 +667,7 @@ const Navbar: React.FC = () => {
             position: 'sticky !important',
             borderBottom: scrolled ? '1px solid rgba(0, 102, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)',
-          }}
+            boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)' }}
         >
           <Toolbar>
             <IconButton
@@ -657,9 +705,28 @@ const Navbar: React.FC = () => {
                   </Avatar>
                 </IconButton>
               ) : (
-                <Button color="inherit" onClick={() => safeNavigate('/login')} size="small">
-                  Login
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Button
+                    color="inherit"
+                    onClick={() => {
+                      trackAuthCta('login', 'mobile_topbar');
+                      safeNavigate('/login');
+                    }}
+                    size="small"
+                  >
+                    Login
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      trackAuthCta('signup', 'mobile_topbar');
+                      safeNavigate('/register');
+                    }}
+                    size="small"
+                  >
+                    Sign Up
+                  </Button>
+                </Box>
               )}
             </Box>
           </Toolbar>
@@ -679,13 +746,10 @@ const Navbar: React.FC = () => {
             width: 280,
             background: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)',
             borderTopRightRadius: 16,
-            borderBottomRightRadius: 16,
-          },
+            borderBottomRightRadius: 16 },
           '& .MuiBackdrop-root': {
             backdropFilter: 'blur(4px)',
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-          },
-        }}
+            backgroundColor: 'rgba(0, 0, 0, 0.4)' } }}
       >
         {drawer}
       </Drawer>

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const path = require('path');
+const fs = require('fs');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const helmet = require('helmet');
@@ -17,45 +18,118 @@ const leagueRequestsRouter = require('./routes/league-requests');
 const emailService = require('./services/emailService');
 const alertService = require('./services/alertService');
 const cronService = require('./services/cronService');
-const { messageLimiter, validateMessageContent } = require('./middleware/security');
+const adminKpiReportService = require('./services/adminKpiReportService.cjs');
+const {
+  generalLimiter,
+  authLimiter,
+  sanitizeRequest,
+  messageLimiter,
+  validateMessageContent
+} = require('./middleware/security');
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway/Vercel reverse proxy for correct IP resolution
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-jwt-secret';
+const isProduction = process.env.NODE_ENV === 'production';
+const JWT_SECRET = process.env.JWT_SECRET;
+const AUTH_COOKIE_NAME = 'auth_token';
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+const allowedOrigins = new Set([
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://localhost:3000',
+  'http://192.168.0.44:5173',
+  'http://192.168.0.44:5174',
+  'https://grassroots-scout-frontend.vercel.app',
+  process.env.FRONTEND_URL,
+  ...(process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+]);
+
+const parseCookies = (req) => {
+  const header = req.headers?.cookie;
+  if (!header) {
+    return {};
+  }
+
+  return header.split(';').reduce((cookies, pair) => {
+    const index = pair.indexOf('=');
+    if (index < 0) {
+      return cookies;
+    }
+
+    const key = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+};
+
+const getAuthTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  const cookieToken = cookies[AUTH_COOKIE_NAME];
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authHeader = req.headers['authorization'];
+  return authHeader && authHeader.split(' ')[1];
+};
+
+const getAuthCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  path: '/',
+  maxAge: 7 * 24 * 60 * 60 * 1000
+});
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:5173', 
-    'http://localhost:5174', 
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://localhost:3000',
-    'http://192.168.0.44:5173', // Your network IP
-    'http://192.168.0.44:5174', // Your network IP alternate port
-    process.env.FRONTEND_URL, // Environment variable for production deployment
-    'https://grassroots-scout-frontend.vercel.app', // Explicit Vercel URL
-    true // Allow all origins for local development
-  ],
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Session-Id']
 }));
 app.use(express.json());
+app.use(generalLimiter);
+app.use(sanitizeRequest);
 
 // Client-side error reporting (from ErrorBoundary)
 app.post('/api/client-error', async (req, res) => {
   try {
-    console.error('🚨 Client Error Report:', {
+    const errorReport = {
       message: req.body?.message,
-      stack: req.body?.stack,
-      componentStack: req.body?.componentStack,
       errorId: req.body?.errorId,
       url: req.body?.url,
-      userAgent: req.body?.userAgent,
       timestamp: req.body?.timestamp
-    });
+    };
+
+    if (!isProduction) {
+      errorReport.stack = req.body?.stack;
+      errorReport.componentStack = req.body?.componentStack;
+      errorReport.userAgent = req.body?.userAgent;
+    }
+
+    console.error('🚨 Client Error Report:', errorReport);
     res.json({ ok: true });
   } catch (error) {
     console.error('Failed to log client error:', error);
@@ -70,8 +144,7 @@ app.post('/api/engagement/track', (req, res) => {
       actionType: req.body?.actionType,
       targetType: req.body?.targetType,
       targetId: req.body?.targetId,
-      metadata: req.body?.metadata,
-      userAgent: req.headers['user-agent'],
+      metadataKeys: Object.keys(req.body?.metadata || {}),
       url: req.headers['referer'] || req.body?.metadata?.url
     });
     res.json({ ok: true });
@@ -468,40 +541,11 @@ const promoteNextWaitlistedRegistrant = async (eventId) => {
 // Send a brief email to a user when their open-training registration status changes
 const emailOpenTrainingStatusChange = async (userId, eventTitle, status) => {
   try {
-    if (!emailTransporter) return;
     const userResult = await db.query('SELECT email, firstName FROM users WHERE id = ?', [userId]);
     if (!userResult.rows?.length) return;
     const { email, firstName } = userResult.rows[0];
-
-    const subjects = {
-      confirmed: `You're confirmed for ${eventTitle}!`,
-      waitlisted: `You've been added to the waitlist for ${eventTitle}`,
-      pending_confirmation: `Registration received for ${eventTitle}`,
-      payment_overdue: `Spot released due to missed payment — ${eventTitle}`,
-      dropped_out: `Your registration for ${eventTitle} has been cancelled`,
-    };
-    const bodies = {
-      confirmed: `<p>Great news, ${firstName}! Your place on <strong>${eventTitle}</strong> has been confirmed. We look forward to seeing you there.</p>`,
-      waitlisted: `<p>Hi ${firstName}, you have been added to the waiting list for <strong>${eventTitle}</strong>. We will let you know as soon as a spot opens up.</p>`,
-      pending_confirmation: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been received and is awaiting coach confirmation.</p>`,
-      payment_overdue: `<p>Hi ${firstName}, your spot on <strong>${eventTitle}</strong> has been released because payment was not received by the deadline. Please re-register if you are still interested.</p>`,
-      dropped_out: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been cancelled. Contact the coach if this was unexpected.</p>`,
-    };
-
-    const subject = subjects[status] || `Registration update for ${eventTitle}`;
-    const body = bodies[status] || `<p>Hi ${firstName}, your registration status for <strong>${eventTitle}</strong> has been updated to "${status}".</p>`;
-
     await sendEmailWithTimeout(
-      emailTransporter.sendMail({
-        from: process.env.EMAIL_USER || 'thegrassrootsupp@gmail.com',
-        to: email,
-        subject,
-        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-          <h2 style="color:#2E7D32;">The Grassroots Hub</h2>
-          ${body}
-          <p style="color:#666;font-size:12px;">This is an automated message from The Grassroots Hub.</p>
-        </div>`
-      }),
+      emailService.sendOpenTrainingStatusChange(email, firstName, eventTitle, status),
       10000
     );
   } catch (err) {
@@ -583,14 +627,16 @@ const emailTransporter = nodemailer.createTransport({
   service: 'gmail', // Change to your email service
   auth: {
     user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASS || 'your-app-password'
+    pass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || 'your-app-password'
   }
 });
+
+const AUTH_EMAIL_HANDOFF_TIMEOUT_MS = Number(process.env.AUTH_EMAIL_HANDOFF_TIMEOUT_MS || 35000);
 
 // Check email configuration on startup
 if (process.env.EMAIL_USER === 'your-email@gmail.com' || !process.env.EMAIL_USER) {
   console.warn('⚠️  WARNING: Email credentials not configured! Password reset emails will not send.');
-  console.warn('⚠️  Set EMAIL_USER and EMAIL_PASS environment variables to enable email sending.');
+  console.warn('⚠️  Set EMAIL_USER and EMAIL_PASS or EMAIL_PASSWORD environment variables to enable email sending.');
 } else {
   console.log('✅ Email service configured for:', process.env.EMAIL_USER);
 }
@@ -610,7 +656,7 @@ const calculateAge = (dateOfBirth) => {
 };
 
 // Helper function to send email with timeout to prevent blocking
-const sendEmailWithTimeout = async (emailPromise, timeoutMs = 5000) => {
+const sendEmailWithTimeout = async (emailPromise, timeoutMs = AUTH_EMAIL_HANDOFF_TIMEOUT_MS) => {
   const timeoutPromise = new Promise((_, reject) => 
     setTimeout(() => reject(new Error(`Email service timeout after ${timeoutMs}ms`)), timeoutMs)
   );
@@ -886,8 +932,7 @@ app.post('/api/vacancies', [
 app.post('/api/analytics/track', async (req, res) => {
   try {
     // Check for authentication token (optional for anonymous users)
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = getAuthTokenFromRequest(req);
     
     let userId = null;
     if (token) {
@@ -976,7 +1021,7 @@ app.post('/api/analytics/track', async (req, res) => {
 });
 
 // Register endpoint
-app.post('/api/auth/register', [
+app.post('/api/auth/register', authLimiter, [
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('firstName').notEmpty().withMessage('First name is required'),
@@ -1044,7 +1089,7 @@ app.post('/api/auth/register', [
     const userId = result.rows[0].id;
 
     // Send verification email with timeout (don't block registration on email failure)
-    sendEmailWithTimeout(sendVerificationEmail(email, firstName, verificationToken), 5000)
+    sendEmailWithTimeout(sendVerificationEmail(email, firstName, verificationToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS)
       .then(() => {
         console.log(`✅ Verification email sent to ${email}`);
       })
@@ -1088,26 +1133,10 @@ app.post('/api/auth/register', [
       }
     }
 
-    // Generate JWT token for immediate login (email verification optional)
-    const token = jwt.sign(
-      { userId, email, role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     res.status(201).json({
       message: 'User created successfully. Please check your email to verify your account.',
       emailVerificationRequired: true,
-      token,
-      user: {
-        id: userId,
-        email,
-        firstName,
-        lastName,
-        role,
-        isEmailVerified: false,
-        createdAt: new Date().toISOString()
-      }
+      requiresVerification: true
     });
   } catch (error) {
     console.error('Registration error details:', error);
@@ -1154,7 +1183,7 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
 });
 
 // Resend verification email endpoint
-app.post('/api/auth/resend-verification', [
+app.post('/api/auth/resend-verification', authLimiter, [
   body('email').isEmail().withMessage('Valid email is required')
 ], async (req, res) => {
   try {
@@ -1184,21 +1213,17 @@ app.post('/api/auth/resend-verification', [
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Update user with new token
-    await db.query(
-      'UPDATE users SET emailVerificationToken = ?, emailVerificationExpires = ? WHERE id = ?',
-      [verificationToken, verificationExpires, user.id]
-    );
-
-    // Send verification email with timeout
-    sendEmailWithTimeout(sendVerificationEmail(email, user.firstName, verificationToken), 5000)
-      .then(() => {
-        console.log(`✅ Verification email resent to ${email}`);
-      })
-      .catch((emailError) => {
-        console.error(`Failed to resend verification email to ${email}:`, emailError.message);
-        // Still return success since the token was updated
-      });
+    // Keep existing token valid unless email handoff succeeds.
+    try {
+      await sendEmailWithTimeout(sendVerificationEmail(email, user.firstName, verificationToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
+      await db.query(
+        'UPDATE users SET emailVerificationToken = ?, emailVerificationExpires = ? WHERE id = ?',
+        [verificationToken, verificationExpires, user.id]
+      );
+      console.log(`✅ Verification email resent to user ${user.id}`);
+    } catch (emailError) {
+      console.error(`Failed to resend verification email for user ${user.id}:`, emailError.message);
+    }
 
     res.json(genericResponse);
   } catch (error) {
@@ -1208,15 +1233,12 @@ app.post('/api/auth/resend-verification', [
 });
 
 // Forgot password endpoint
-app.post('/api/auth/forgot-password', [
+app.post('/api/auth/forgot-password', authLimiter, [
   body('email').isEmail().withMessage('Valid email is required')
 ], async (req, res) => {
   try {
-    console.log('📧 Forgot password request for:', req.body.email);
-    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -1224,10 +1246,8 @@ app.post('/api/auth/forgot-password', [
 
     // Find user
     const userResult = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    console.log('📋 User lookup result rows:', userResult.rows?.length || 0);
-    
+
     if (!userResult.rows || userResult.rows.length === 0) {
-      console.log('⚠️  Email not found in database:', email);
       // Don't reveal if email exists or not for security
       return res.json({
         message: 'If an account with that email exists, a password reset link has been sent.'
@@ -1235,28 +1255,22 @@ app.post('/api/auth/forgot-password', [
     }
 
     const user = userResult.rows[0];
-    console.log('✅ User found:', user.id, user.email);
 
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    // Update user with reset token
-    await db.query(
-      'UPDATE users SET passwordResetToken = ?, passwordResetExpires = ? WHERE id = ?',
-      [resetToken, resetExpires, user.id]
-    );
-    console.log('💾 Token saved to database');
-
-    // Send reset email with timeout (don't block forgot password response)
-    console.log('📨 Sending reset email...');
-    sendEmailWithTimeout(sendPasswordResetEmail(email, user.firstName, resetToken), 5000)
-      .then(() => {
-        console.log(`✅ Password reset email sent to ${email}`);
-      })
-      .catch((emailError) => {
-        console.error(`Failed to send password reset email to ${email}:`, emailError.message);
-      });
+    // Keep existing reset token valid unless email handoff succeeds.
+    try {
+      await sendEmailWithTimeout(sendPasswordResetEmail(email, user.firstName, resetToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
+      await db.query(
+        'UPDATE users SET passwordResetToken = ?, passwordResetExpires = ? WHERE id = ?',
+        [resetToken, resetExpires, user.id]
+      );
+      console.log(`✅ Password reset email sent for user ${user.id}`);
+    } catch (emailError) {
+      console.error(`Failed to send password reset email for user ${user.id}:`, emailError.message);
+    }
 
     res.json({
       message: 'If an account with that email exists, a password reset link has been sent.'
@@ -1268,7 +1282,7 @@ app.post('/api/auth/forgot-password', [
 });
 
 // Reset password endpoint
-app.post('/api/auth/reset-password', [
+app.post('/api/auth/reset-password', authLimiter, [
   body('token').notEmpty().withMessage('Reset token is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
 ], async (req, res) => {
@@ -1346,7 +1360,7 @@ app.get('/api/auth/validate-reset-token/:token', async (req, res) => {
 });
 
 // Login endpoint
-app.post('/api/auth/login', [
+app.post('/api/auth/login', authLimiter, [
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required')
 ], async (req, res) => {
@@ -1383,6 +1397,14 @@ app.post('/api/auth/login', [
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    const isEmailVerified = Boolean(user.isEmailVerified ?? user.isemailverified);
+    if (!isEmailVerified) {
+      return res.status(403).json({
+        error: 'Please verify your email address before logging in.',
+        requiresVerification: true
+      });
+    }
+
     // Generate token
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -1390,16 +1412,17 @@ app.post('/api/auth/login', [
       { expiresIn: '7d' }
     );
 
+    res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+
     res.json({
       message: 'Login successful',
-      token,
       user: {
         id: user.id,
         email: user.email,
         firstName: user.firstName || user.firstname || '',
         lastName: user.lastName || user.lastname || '',
         role: user.role,
-        isEmailVerified: user.isEmailVerified,
+        isEmailVerified,
         betaAccess: Boolean(user.betaaccess)
       }
     });
@@ -1409,10 +1432,23 @@ app.post('/api/auth/login', [
   }
 });
 
+app.post('/api/auth/logout', (req, res) => {
+  try {
+    res.clearCookie(AUTH_COOKIE_NAME, {
+      ...getAuthCookieOptions(),
+      maxAge: undefined,
+      expires: new Date(0)
+    });
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Middleware to authenticate JWT tokens
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = getAuthTokenFromRequest(req);
 
   if (!token) {
     return res.sendStatus(401);
@@ -1558,6 +1594,55 @@ app.get('/api/analytics/user-activity', authenticateToken, requireAdmin, async (
   }
 });
 
+app.get('/api/admin/reports/admin-kpi/latest', authenticateToken, requireAdmin, async (_req, res) => {
+  try {
+    const latestJsonPath = path.join(__dirname, 'reports', 'admin-kpi', 'latest.json');
+
+    if (!fs.existsSync(latestJsonPath)) {
+      const generated = await adminKpiReportService.generateWeeklyReport();
+      return res.json({
+        report: generated.report,
+        source: 'generated',
+        paths: {
+          json: generated.latestJsonPath,
+          markdown: generated.latestMarkdownPath
+        }
+      });
+    }
+
+    const report = JSON.parse(fs.readFileSync(latestJsonPath, 'utf8'));
+    res.json({
+      report,
+      source: 'cached',
+      paths: {
+        json: latestJsonPath,
+        markdown: path.join(__dirname, 'reports', 'admin-kpi', 'latest.md')
+      }
+    });
+  } catch (error) {
+    console.error('Admin KPI latest report error:', error);
+    res.status(500).json({ error: 'Failed to load latest admin KPI report' });
+  }
+});
+
+app.post('/api/admin/reports/admin-kpi/regenerate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const anchorDate = req.body?.anchorDate || null;
+    const generated = await adminKpiReportService.generateWeeklyReport({ anchorDate });
+    res.json({
+      message: 'Admin KPI report regenerated successfully',
+      report: generated.report,
+      paths: {
+        json: generated.latestJsonPath,
+        markdown: generated.latestMarkdownPath
+      }
+    });
+  } catch (error) {
+    console.error('Admin KPI regenerate error:', error);
+    res.status(500).json({ error: 'Failed to regenerate admin KPI report' });
+  }
+});
+
 // Change password endpoint (for logged-in users)
 app.put('/api/change-password', [
   authenticateToken,
@@ -1629,32 +1714,41 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
       phone: dbProfile.phone
     });
     
-    // Map database camelCase columns to lowercase for frontend response
+    const getProfileValue = (camelCaseKey, lowercaseKey = camelCaseKey.toLowerCase()) => {
+      if (dbProfile[camelCaseKey] !== undefined) {
+        return dbProfile[camelCaseKey];
+      }
+
+      return dbProfile[lowercaseKey];
+    };
+
+    // PostgreSQL folds unquoted camelCase column names to lowercase, while SQLite preserves them.
+    // Normalize both forms here so the frontend gets a consistent response shape.
     const profile = {
-      phone: dbProfile.phone,
-      dateofbirth: dbProfile.dateOfBirth,
-      location: dbProfile.location,
-      bio: dbProfile.bio,
-      position: dbProfile.position,
-      preferredfoot: dbProfile.preferredFoot,
-      preferredteamgender: dbProfile.preferredTeamGender,
-      height: dbProfile.height,
-      weight: dbProfile.weight,
-      experiencelevel: dbProfile.experienceLevel,
-      availability: dbProfile.availability,
-      coachinglicense: dbProfile.coachingLicense,
-      yearsexperience: dbProfile.yearsExperience,
-      specializations: dbProfile.specializations,
-      traininglocation: dbProfile.trainingLocation,
-      matchlocation: dbProfile.matchLocation,
-      trainingdays: dbProfile.trainingDays,
-      agegroupscoached: dbProfile.ageGroupsCoached,
-      emergencycontact: dbProfile.emergencyContact,
-      emergencyphone: dbProfile.emergencyPhone,
-      medicalinfo: dbProfile.medicalInfo,
-      profilepicture: dbProfile.profilePicture,
-      isprofilecomplete: dbProfile.isProfileComplete,
-      lastupdated: dbProfile.lastUpdated
+      phone: getProfileValue('phone'),
+      dateofbirth: getProfileValue('dateOfBirth'),
+      location: getProfileValue('location'),
+      bio: getProfileValue('bio'),
+      position: getProfileValue('position'),
+      preferredfoot: getProfileValue('preferredFoot'),
+      preferredteamgender: getProfileValue('preferredTeamGender'),
+      height: getProfileValue('height'),
+      weight: getProfileValue('weight'),
+      experiencelevel: getProfileValue('experienceLevel'),
+      availability: getProfileValue('availability'),
+      coachinglicense: getProfileValue('coachingLicense'),
+      yearsexperience: getProfileValue('yearsExperience'),
+      specializations: getProfileValue('specializations'),
+      traininglocation: getProfileValue('trainingLocation'),
+      matchlocation: getProfileValue('matchLocation'),
+      trainingdays: getProfileValue('trainingDays'),
+      agegroupscoached: getProfileValue('ageGroupsCoached'),
+      emergencycontact: getProfileValue('emergencyContact'),
+      emergencyphone: getProfileValue('emergencyPhone'),
+      medicalinfo: getProfileValue('medicalInfo'),
+      profilepicture: getProfileValue('profilePicture'),
+      isprofilecomplete: getProfileValue('isProfileComplete'),
+      lastupdated: getProfileValue('lastUpdated')
     };
     
     // Return combined profile
@@ -3488,7 +3582,7 @@ app.get('/api/leagues', async (req, res) => {
 
     // If includePending is true and user is authenticated, include their pending league requests
     if (includePending === 'true') {
-      const token = req.headers.authorization?.split(' ')[1];
+      const token = getAuthTokenFromRequest(req);
       if (token) {
         try {
           const jwt = require('jsonwebtoken');
@@ -6270,8 +6364,18 @@ app.get('/api/admin/email-delivery-logs', authenticateToken, async (req, res) =>
     }
 
     if (recipient) {
-      query += ' AND LOWER(recipientEmail) LIKE ?';
-      params.push(`%${recipient}%`);
+      const normalizedRecipient = recipient.toLowerCase();
+      const recipientHash = normalizedRecipient.includes('@')
+        ? crypto.createHash('sha256').update(normalizedRecipient).digest('hex')
+        : null;
+
+      if (recipientHash) {
+        query += ' AND (LOWER(recipientEmail) LIKE ? OR metadata LIKE ?)';
+        params.push(`%${normalizedRecipient}%`, `%${recipientHash}%`);
+      } else {
+        query += ' AND LOWER(recipientEmail) LIKE ?';
+        params.push(`%${normalizedRecipient}%`);
+      }
     }
 
     query += ' ORDER BY createdAt DESC LIMIT ?';
@@ -10376,7 +10480,8 @@ app.post('/api/teams/:teamId/invite-coach', authenticateToken, [
 
     // Get inviter name
     const inviterResult = await db.query('SELECT firstName, lastName FROM users WHERE id = ?', [req.user.userId]);
-    const inviterName = inviterResult.rows ? `${inviterResult.rows[0].firstName} ${inviterResult.rows[0].lastName}` : 'A teammate';
+    const inviterRow = inviterResult.rows && inviterResult.rows.length > 0 ? inviterResult.rows[0] : null;
+    const inviterName = inviterRow ? `${inviterRow.firstName} ${inviterRow.lastName}` : 'A teammate';
 
     // Send invitation email
     const acceptLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invitations/${invitationToken}`;
@@ -10500,10 +10605,12 @@ app.post('/api/invitations/:invitationToken/accept', authenticateToken, async (r
     // Get team and inviter details for notification
     const teamResult = await db.query('SELECT teamName FROM teams WHERE id = ?', [inv.teamId]);
     const inviterResult = await db.query('SELECT firstName, lastName, email FROM users WHERE id = ?', [inv.invitedByUserId]);
-    
-    const teamName = teamResult.rows ? teamResult.rows[0].teamName : 'the team';
-    const inviterEmail = inviterResult.rows ? inviterResult.rows[0].email : null;
-    const inviterName = inviterResult.rows ? `${inviterResult.rows[0].firstName} ${inviterResult.rows[0].lastName}` : 'The team';
+
+    const teamRow = teamResult.rows && teamResult.rows.length > 0 ? teamResult.rows[0] : null;
+    const inviterRow = inviterResult.rows && inviterResult.rows.length > 0 ? inviterResult.rows[0] : null;
+    const teamName = teamRow ? teamRow.teamName : 'the team';
+    const inviterEmail = inviterRow ? inviterRow.email : null;
+    const inviterName = inviterRow ? `${inviterRow.firstName} ${inviterRow.lastName}` : 'The team';
 
     // Send acceptance notification to inviter
     let notificationDelivery = 'not_sent';
@@ -10557,10 +10664,12 @@ app.post('/api/invitations/:invitationToken/reject', authenticateToken, async (r
     // Get team and inviter details for notification
     const teamResult = await db.query('SELECT teamName FROM teams WHERE id = ?', [inv.teamId]);
     const inviterResult = await db.query('SELECT firstName, lastName, email FROM users WHERE id = ?', [inv.invitedByUserId]);
-    
-    const teamName = teamResult.rows ? teamResult.rows[0].teamName : 'the team';
-    const inviterEmail = inviterResult.rows ? inviterResult.rows[0].email : null;
-    const inviterName = inviterResult.rows ? `${inviterResult.rows[0].firstName} ${inviterResult.rows[0].lastName}` : 'The team';
+
+    const teamRow = teamResult.rows && teamResult.rows.length > 0 ? teamResult.rows[0] : null;
+    const inviterRow = inviterResult.rows && inviterResult.rows.length > 0 ? inviterResult.rows[0] : null;
+    const teamName = teamRow ? teamRow.teamName : 'the team';
+    const inviterEmail = inviterRow ? inviterRow.email : null;
+    const inviterName = inviterRow ? `${inviterRow.firstName} ${inviterRow.lastName}` : 'The team';
 
     // Send rejection notification to inviter
     let notificationDelivery = 'not_sent';

@@ -99,18 +99,13 @@ const LeagueRequestDialog: React.FC<LeagueRequestDialogProps> = ({
       if (!formData.name.trim()) {
         setError('League name is required');
         return;
-      }
-
-      const token = localStorage.getItem('token');
-      const requestData = {
+      }      const requestData = {
         ...formData
       };
       const response = await fetch('/api/league-requests', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
       });
 

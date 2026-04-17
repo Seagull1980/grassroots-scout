@@ -3,7 +3,11 @@ const http = require('http');
 const DatabaseUtils = require('./utils/dbUtils.js');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const shouldShowToken = process.argv.includes('--show-token');
 const db = new DatabaseUtils();
 
 async function testAnalyticsAPI() {
@@ -25,6 +29,11 @@ async function testAnalyticsAPI() {
     );
     
     console.log('✅ Generated admin token for:', adminUser.email);
+    if (shouldShowToken) {
+      console.log(token);
+    } else {
+      console.log('Token output hidden by default. Re-run with --show-token to print it.');
+    }
     
     // Test analytics endpoint
     const postData = JSON.stringify({});
@@ -64,7 +73,7 @@ async function testAnalyticsAPI() {
             console.log('\n📋 FINAL STEP - Update your browser local storage:');
             console.log('=====================================');
             console.log(`Key: token`);
-            console.log(`Value: ${token}`);
+            console.log('Value: [hidden by default; re-run with --show-token if you explicitly need it]');
             console.log(`\nKey: user`);
             console.log(`Value: ${JSON.stringify({
               id: adminUser.id,

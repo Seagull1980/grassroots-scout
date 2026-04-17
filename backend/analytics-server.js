@@ -6,7 +6,40 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+const parseCookies = (req) => {
+  const header = req.headers?.cookie;
+  if (!header) {
+    return {};
+  }
+
+  return header.split(';').reduce((cookies, pair) => {
+    const index = pair.indexOf('=');
+    if (index < 0) {
+      return cookies;
+    }
+
+    const key = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+};
+
+const getAuthTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  if (cookies.auth_token) {
+    return cookies.auth_token;
+  }
+
+  const authHeader = req.headers['authorization'];
+  return authHeader && authHeader.split(' ')[1];
+};
 
 // Middleware
 app.use(cors({
@@ -32,8 +65,7 @@ const db = new DatabaseUtils();
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = getAuthTokenFromRequest(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });

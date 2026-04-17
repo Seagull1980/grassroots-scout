@@ -27,8 +27,7 @@ import {
   Divider,
   Accordion,
   AccordionSummary,
-  AccordionDetails,
-} from '@mui/material';
+  AccordionDetails } from '@mui/material';
 import {
   Google,
   Microsoft,
@@ -36,8 +35,7 @@ import {
   Settings,
   ExpandMore,
   Add,
-  Delete,
-} from '@mui/icons-material';
+  Delete } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { calendarIntegrationService } from '../services/calendarIntegration';
 import { 
@@ -94,8 +92,7 @@ const CalendarIntegrationSettings: React.FC<CalendarIntegrationSettingsProps> = 
         preferredLocations: [],
         travelTime: 30,
         autoAcceptTrials: false,
-        conflictResolution: 'manual',
-      });
+        conflictResolution: 'manual' });
     }
   };
 

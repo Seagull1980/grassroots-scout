@@ -5,8 +5,7 @@ import {
   Typography,
   Avatar,
   useTheme,
-  useMediaQuery,
-} from '@mui/material';
+  useMediaQuery } from '@mui/material';
 
 interface PageHeaderProps {
   title: string;
@@ -21,8 +20,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   subtitle,
   icon,
   actions,
-  maxWidth = 'lg',
-}) => {
+  maxWidth = 'lg' }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -31,8 +29,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       sx={{
         background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
         borderRadius: 0,
-        mb: 2,
-      }}
+        mb: 2 }}
     >
       <Container maxWidth={maxWidth}>
         <Box
@@ -43,8 +40,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             alignItems: { xs: 'flex-start', sm: 'center' },
             justifyContent: 'space-between',
             flexDirection: { xs: 'column', sm: 'row' },
-            gap: 2,
-          }}
+            gap: 2 }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {icon && (
@@ -52,8 +48,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                 sx={{
                   bgcolor: 'rgba(255,255,255,0.2)',
                   width: isMobile ? 44 : 56,
-                  height: isMobile ? 44 : 56,
-                }}
+                  height: isMobile ? 44 : 56 }}
               >
                 {icon}
               </Avatar>
@@ -65,8 +60,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                 sx={{
                   fontWeight: 700,
                   color: 'white',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                }}
+                  textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
               >
                 {title}
               </Typography>
@@ -75,8 +69,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                   variant="body1"
                   sx={{
                     color: 'rgba(255,255,255,0.9)',
-                    fontWeight: 500,
-                  }}
+                    fontWeight: 500 }}
                 >
                   {subtitle}
                 </Typography>

@@ -31,8 +31,7 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
-  Collapse,
-} from '@mui/material';
+  Collapse } from '@mui/material';
 import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -128,8 +127,7 @@ const ProfilePage: React.FC = () => {
     teamName: '',
     currentAgeGroup: '',
     trainingTime: '',
-    matchDay: '',
-  });
+    matchDay: '' });
 
   // Options for dropdowns
   const positions = [
@@ -286,12 +284,13 @@ const ProfilePage: React.FC = () => {
       
       // Parse JSON fields and populate form
       const profileResponse = response.profile;
-      const normalizedDob = profileResponse.dateofbirth
-        ? new Date(profileResponse.dateofbirth).toISOString().split('T')[0]
+      const rawDateOfBirth = profileResponse.dateofbirth || (profileResponse as typeof profileResponse & { dateOfBirth?: string }).dateOfBirth;
+      const normalizedDob = rawDateOfBirth
+        ? new Date(rawDateOfBirth).toISOString().split('T')[0]
         : '';
 
       console.log('DOB load:', {
-        raw: profileResponse.dateofbirth,
+        raw: rawDateOfBirth,
         normalized: normalizedDob
       });
       
@@ -315,13 +314,12 @@ const ProfilePage: React.FC = () => {
         yearsExperience: profileResponse.yearsexperience,
         trainingLocation: profileResponse.traininglocation || '',
         matchLocation: profileResponse.matchlocation || '',
-        trainingDays: profileResponse.trainingDays || [],
-        ageGroupsCoached: profileResponse.ageGroupsCoached || [],
+        trainingDays: profileResponse.trainingdays || profileResponse.trainingDays || [],
+        ageGroupsCoached: profileResponse.agegroupscoached || profileResponse.ageGroupsCoached || [],
         teamName: profileResponse.teamname || '',
         currentAgeGroup: profileResponse.currentagegroup || '',
         trainingTime: profileResponse.trainingtime || '',
-        matchDay: profileResponse.matchday || '',
-      });
+        matchDay: profileResponse.matchday || '' });
     } catch (error) {
       console.error('Error loading profile:', error);
       setError('Failed to load profile data');
@@ -554,8 +552,7 @@ const ProfilePage: React.FC = () => {
           sx={{
             mb: 3,
             borderColor: completionPercentage < 50 ? 'error.light' : completionPercentage < 80 ? 'warning.light' : 'success.light',
-            overflow: 'hidden',
-          }}
+            overflow: 'hidden' }}
         >
           <Box
             sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
@@ -597,8 +594,7 @@ const ProfilePage: React.FC = () => {
                       primary={item?.label}
                       primaryTypographyProps={{
                         variant: 'body2',
-                        color: item?.completed ? 'text.primary' : 'text.secondary',
-                      }}
+                        color: item?.completed ? 'text.primary' : 'text.secondary' }}
                     />
                   </ListItem>
                 ))}
@@ -660,8 +656,7 @@ const ProfilePage: React.FC = () => {
                 onChange={handleInputChange('dateOfBirth')}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{
-                  max: new Date().toISOString().split('T')[0],
-                }}
+                  max: new Date().toISOString().split('T')[0] }}
                 required
                 error={!profileData.dateOfBirth}
                 helperText={!profileData.dateOfBirth ? 'Date of birth is required' : ''}
@@ -943,8 +938,7 @@ const ProfilePage: React.FC = () => {
                         {showCurrentPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
-                  ),
-                }}
+                  ) }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -966,8 +960,7 @@ const ProfilePage: React.FC = () => {
                         {showNewPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
-                  ),
-                }}
+                  ) }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -988,8 +981,7 @@ const ProfilePage: React.FC = () => {
                         {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
-                  ),
-                }}
+                  ) }}
               />
             </Grid>
             <Grid item xs={12}>

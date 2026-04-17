@@ -1,23 +1,53 @@
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const encryptionService = require('../utils/encryption.js');
+
+const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
+
+const normalizeUrl = (url) => (url || DEFAULT_FRONTEND_URL).replace(/\/+$/, '');
+const DEFAULT_SMTP_HOST = 'smtp.gmail.com';
+const DEFAULT_SMTP_PORT = 465;
+const SMTP_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 8000);
+
+const parseBooleanEnv = (value, fallback) => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+
+  if (value.toLowerCase() === 'true') {
+    return true;
+  }
+
+  if (value.toLowerCase() === 'false') {
+    return false;
+  }
+
+  return fallback;
+};
 
 class EmailService {
   constructor() {
     this.auditLogger = null;
+    this.frontendUrl = normalizeUrl(process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL);
+    this.resendApiKey = process.env.RESEND_API_KEY || '';
+    this.useResendFirst = parseBooleanEnv(process.env.EMAIL_USE_RESEND, Boolean(this.resendApiKey));
+    const smtpHost = process.env.SMTP_HOST || DEFAULT_SMTP_HOST;
+    const smtpPort = Number(process.env.SMTP_PORT || DEFAULT_SMTP_PORT);
+    const smtpSecure = parseBooleanEnv(process.env.SMTP_SECURE, smtpPort === 465);
+    const smtpUser = process.env.EMAIL_USER;
+    const smtpPass = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+
+    this.smtpConfig = {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser,
+      pass: smtpPass
+    };
 
     // Configure email transporter with timeout and retry settings
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587, // Use TLS port instead of SSL for better compatibility
-      secure: false, // use STARTTLS
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      connectionTimeout: 10000, // 10 second timeout
-      greetingTimeout: 10000,
-      socketTimeout: 10000
-    });
+    this.transporter = nodemailer.createTransport(this.createTransportConfig(this.smtpConfig));
+    this.fallbackTransporter = this.createFallbackTransporter();
 
     // Email templates
     this.templates = {
@@ -35,7 +65,7 @@ class EmailService {
               <p>Thanks for joining The Grassroots Hub! To complete your registration and access all features, please verify your email address by clicking the button below:</p>
               
               <div style="text-align: center; margin: 40px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}" 
+                <a href="${this.frontendUrl}/verify-email/${data.token}" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
                   Verify My Email
                 </a>
@@ -43,7 +73,7 @@ class EmailService {
               
               <p style="color: #666; font-size: 14px;">
                 If the button above doesn't work, copy and paste this link into your browser:<br>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}">${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${data.token}</a>
+                <a href="${this.frontendUrl}/verify-email/${data.token}">${this.frontendUrl}/verify-email/${data.token}</a>
               </p>
               
               <p style="color: #666; font-size: 14px; margin-top: 30px;">
@@ -77,7 +107,7 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/search?tab=vacancies&id=${data.vacancy.id}" 
+                <a href="${this.frontendUrl}/search?tab=vacancies&id=${data.vacancy.id}" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                   View Vacancy Details
                 </a>
@@ -85,7 +115,7 @@ class EmailService {
               
               <p style="font-size: 14px; color: #666; margin-top: 30px;">
                 You're receiving this because you have alerts enabled for similar opportunities. 
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile/alerts">Manage your alert preferences</a>
+                <a href="${this.frontendUrl}/alert-preferences">Manage your alert preferences</a>
               </p>
             </div>
           </div>
@@ -111,7 +141,7 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/search?tab=players&id=${data.player.id}" 
+                <a href="${this.frontendUrl}/search?tab=players&id=${data.player.id}" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                   View Player Profile
                 </a>
@@ -119,7 +149,7 @@ class EmailService {
               
               <p style="font-size: 14px; color: #666; margin-top: 30px;">
                 You're receiving this because you have alerts enabled for player availability. 
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile/alerts">Manage your alert preferences</a>
+                <a href="${this.frontendUrl}/alert-preferences">Manage your alert preferences</a>
               </p>
             </div>
           </div>
@@ -169,7 +199,7 @@ class EmailService {
               ` : ''}
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" 
+                <a href="${this.frontendUrl}/dashboard" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                   Visit Your Dashboard
                 </a>
@@ -200,7 +230,7 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/trials" 
+                <a href="${this.frontendUrl}/calendar" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin: 0 10px;">
                   View Trial Details
                 </a>
@@ -248,16 +278,15 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" 
+                <a href="${this.frontendUrl}/dashboard" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                   Welcome Back to The Hub!
                 </a>
               </div>
               
               <p style="font-size: 14px; color: #666; margin-top: 30px;">
-                If you no longer want to receive these emails, you can 
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/profile/alerts">update your email preferences</a> 
-                or <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe">unsubscribe</a>.
+                Manage these emails from your account settings:
+                <a href="${this.frontendUrl}/alert-preferences"> update your alert preferences</a>.
               </p>
             </div>
           </div>
@@ -273,13 +302,13 @@ class EmailService {
               <p>Hello ${data.firstName},</p>
               <p>We received a request to reset your password. Click the button below to choose a new one:</p>
               <div style="text-align: center; margin: 40px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}"
+                <a href="${this.frontendUrl}/reset-password/${data.token}"
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
                   Reset Password
                 </a>
               </div>
               <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:<br>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}">${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${data.token}</a>
+                <a href="${this.frontendUrl}/reset-password/${data.token}">${this.frontendUrl}/reset-password/${data.token}</a>
               </p>
               <p style="color: #666; font-size: 14px; margin-top: 20px;">This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.</p>
               <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; color: #999; font-size: 12px;">
@@ -302,7 +331,7 @@ class EmailService {
                 <h3 style="color: #2E7D32; margin-top: 0;">${data.trialTitle}</h3>
               </div>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/calendar"
+                <a href="${this.frontendUrl}/calendar"
                    style="background-color: #2E7D32; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                   View Your Calendar
                 </a>
@@ -333,17 +362,160 @@ class EmailService {
     }
   }
 
+  getFromAddress(fallbackName = 'The Grassroots Hub') {
+    return process.env.EMAIL_FROM || `"${fallbackName}" <${process.env.EMAIL_USER || 'noreply@grassrootshub.com'}>`;
+  }
+
+  normalizeRecipient(recipient) {
+    if (!recipient || typeof recipient !== 'string') {
+      return recipient;
+    }
+
+    const decrypted = encryptionService.decrypt(recipient);
+    return typeof decrypted === 'string' ? decrypted.trim() : recipient;
+  }
+
+  hashRecipient(recipient) {
+    if (!recipient || typeof recipient !== 'string') {
+      return null;
+    }
+
+    return crypto.createHash('sha256').update(recipient.toLowerCase().trim()).digest('hex');
+  }
+
+  maskRecipient(recipient) {
+    if (!recipient || typeof recipient !== 'string') {
+      return recipient;
+    }
+
+    const normalized = recipient.trim();
+    const atIndex = normalized.indexOf('@');
+    if (atIndex <= 0) {
+      return '[redacted]';
+    }
+
+    const localPart = normalized.slice(0, atIndex);
+    const domainPart = normalized.slice(atIndex + 1);
+    const first = localPart.charAt(0);
+    const last = localPart.length > 1 ? localPart.charAt(localPart.length - 1) : '';
+    const maskedLocal = `${first}***${last}`;
+
+    return `${maskedLocal}@${domainPart}`;
+  }
+
+  createTransportConfig(config) {
+    return {
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: {
+        user: config.user,
+        pass: config.pass
+      },
+      requireTLS: !config.secure,
+      connectionTimeout: SMTP_TIMEOUT_MS,
+      greetingTimeout: SMTP_TIMEOUT_MS,
+      socketTimeout: SMTP_TIMEOUT_MS
+    };
+  }
+
+  createFallbackTransporter() {
+    // Gmail sometimes fails on implicit TLS (465) in hosted environments.
+    // Retry once using STARTTLS on 587 when primary transport is Gmail+465.
+    if (this.smtpConfig.host !== 'smtp.gmail.com' || this.smtpConfig.port !== 465) {
+      return null;
+    }
+
+    return nodemailer.createTransport(this.createTransportConfig({
+      ...this.smtpConfig,
+      port: 587,
+      secure: false
+    }));
+  }
+
+  shouldRetryWithFallback(error) {
+    if (!error || !error.code) {
+      return false;
+    }
+
+    return ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(error.code);
+  }
+
+  async sendViaResend(mailOptions) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.resendApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: mailOptions.from,
+        to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+        text: mailOptions.text
+      })
+    });
+
+    if (!response.ok) {
+      let details = '';
+      try {
+        details = await response.text();
+      } catch (error) {
+        details = '';
+      }
+
+      const resendError = new Error(`Resend API error ${response.status}${details ? `: ${details}` : ''}`);
+      resendError.code = 'ERESEND';
+      throw resendError;
+    }
+
+    const result = await response.json();
+    return { messageId: result.id || null };
+  }
+
   async sendMailWithAudit(mailOptions, context = {}) {
+    const normalizedTo = this.normalizeRecipient(mailOptions.to);
+    const recipientHash = this.hashRecipient(normalizedTo);
+    const contextMetadata = context.metadata && typeof context.metadata === 'object'
+      ? context.metadata
+      : {};
+    const normalizedMailOptions = {
+      ...mailOptions,
+      to: normalizedTo
+    };
     const baseAudit = {
-      recipientEmail: mailOptions.to,
+      recipientEmail: this.maskRecipient(normalizedTo),
       templateName: context.templateName || 'custom',
-      subject: mailOptions.subject || null,
+      subject: normalizedMailOptions.subject || null,
       provider: 'smtp',
-      metadata: context.metadata || null
+      metadata: {
+        ...contextMetadata,
+        recipientEmailHash: recipientHash
+      }
     };
 
     try {
-      const result = await this.transporter.sendMail(mailOptions);
+      if (this.useResendFirst && this.resendApiKey) {
+        try {
+          const resendResult = await this.sendViaResend(normalizedMailOptions);
+
+          await this.recordAuditEntry({
+            ...baseAudit,
+            status: 'sent',
+            messageId: resendResult.messageId,
+            errorCode: null,
+            errorMessage: null,
+            provider: 'resend'
+          });
+
+          return resendResult;
+        } catch (resendError) {
+          console.warn(`⚠️ Resend delivery failed (${resendError.code || 'ERESEND'}). Falling back to SMTP.`);
+        }
+      }
+
+      const result = await this.transporter.sendMail(normalizedMailOptions);
 
       await this.recordAuditEntry({
         ...baseAudit,
@@ -355,6 +527,47 @@ class EmailService {
 
       return result;
     } catch (error) {
+      if (this.fallbackTransporter && this.shouldRetryWithFallback(error)) {
+        try {
+          console.warn(`⚠️ Primary SMTP transport failed (${error.code || 'unknown'}). Retrying with STARTTLS fallback on port 587.`);
+          const fallbackResult = await this.fallbackTransporter.sendMail(normalizedMailOptions);
+
+          await this.recordAuditEntry({
+            ...baseAudit,
+            status: 'sent',
+            messageId: fallbackResult.messageId || null,
+            errorCode: null,
+            errorMessage: null,
+            provider: 'smtp-fallback',
+            metadata: {
+              ...baseAudit.metadata,
+              fallbackUsed: true,
+              primaryErrorCode: error.code || null,
+              primaryErrorMessage: error.message || null
+            }
+          });
+
+          return fallbackResult;
+        } catch (fallbackError) {
+          await this.recordAuditEntry({
+            ...baseAudit,
+            status: 'failed',
+            messageId: null,
+            errorCode: fallbackError.code || null,
+            errorMessage: fallbackError.message || 'Unknown email delivery error',
+            provider: 'smtp-fallback',
+            metadata: {
+              ...baseAudit.metadata,
+              fallbackUsed: true,
+              primaryErrorCode: error.code || null,
+              primaryErrorMessage: error.message || null
+            }
+          });
+
+          throw fallbackError;
+        }
+      }
+
       await this.recordAuditEntry({
         ...baseAudit,
         status: 'failed',
@@ -377,8 +590,8 @@ class EmailService {
       }
 
       mailOptions = {
-        from: `"The Grassroots Hub" <${process.env.EMAIL_USER}>`,
-        to: to,
+        from: this.getFromAddress(),
+        to,
         subject: templateConfig.subject,
         html: templateConfig.html(data)
       };
@@ -389,7 +602,7 @@ class EmailService {
           dataKeys: data && typeof data === 'object' ? Object.keys(data) : []
         }
       });
-      console.log(`✅ Email sent successfully to ${to}: ${template}`);
+      console.log(`✅ Email sent successfully to ${this.maskRecipient(this.normalizeRecipient(to))}: ${template}`);
       return result;
     } catch (error) {
       if (mailOptions === null) {
@@ -408,13 +621,13 @@ class EmailService {
         });
       }
 
-      console.error(`❌ Failed to send email to ${to}:`, error);
+      console.error(`❌ Failed to send email to ${this.maskRecipient(this.normalizeRecipient(to))}:`, error);
       throw error;
     }
   }
 
   async sendVerificationEmail(email, firstName, token) {
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
+    const verificationUrl = `${this.frontendUrl}/verify-email/${token}`;
     console.log('📧 Sending verification email with URL:', verificationUrl);
     return this.sendEmail(email, 'emailVerification', {
       firstName,
@@ -456,7 +669,7 @@ class EmailService {
   async sendAdminMessage(userEmail, firstName, subject, message) {
     try {
       const mailOptions = {
-        from: `"The Grassroots Hub Admin" <${process.env.EMAIL_USER}>`,
+        from: this.getFromAddress('The Grassroots Hub Admin'),
         to: userEmail,
         subject: `[Admin Message] ${subject}`,
         html: `
@@ -506,7 +719,7 @@ class EmailService {
     try {
       const templateData = this.templates.trialResponse;
       const mailOptions = {
-        from: `"The Grassroots Hub" <${process.env.EMAIL_USER}>`,
+        from: this.getFromAddress(),
         to: coachEmail,
         subject: typeof templateData.subject === 'function'
           ? templateData.subject({ coachName, playerName, trialTitle, status })
@@ -528,7 +741,7 @@ class EmailService {
   async sendBetaAccessGranted(userEmail, firstName) {
     try {
       const mailOptions = {
-        from: `"The Grassroots Hub" <${process.env.EMAIL_USER}>`,
+        from: this.getFromAddress(),
         to: userEmail,
         subject: '🎉 Welcome to The Grassroots Hub Beta!',
         html: `
@@ -555,7 +768,7 @@ class EmailService {
               </div>
               
               <div style="text-align: center; margin: 40px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/login" 
+                <a href="${this.frontendUrl}/login" 
                    style="background-color: #2E7D32; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
                   Log In Now
                 </a>
@@ -585,7 +798,7 @@ class EmailService {
       if (error.code === 'ETIMEDOUT') {
         console.error('  ⏱️  SMTP Connection Timeout - Check firewall/network settings');
       } else if (error.code === 'EAUTH') {
-        console.error('  🔐 SMTP Authentication Failed - Check EMAIL_USER and EMAIL_PASS');
+        console.error('  🔐 SMTP Authentication Failed - Check EMAIL_USER and EMAIL_PASS/EMAIL_PASSWORD');
       } else if (error.code === 'ECONNECTION') {
         console.error('  🌐 Cannot connect to SMTP server - Check host/port');
       }
@@ -597,7 +810,7 @@ class EmailService {
   async sendTeamInvitation(invitedEmail, inviterName, teamName, acceptLink) {
     try {
       const mailOptions = {
-        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        from: this.getFromAddress(),
         to: invitedEmail,
         subject: `You're invited to join ${teamName}!`,
         html: `
@@ -637,7 +850,7 @@ class EmailService {
     try {
       const statusText = status === 'accepted' ? 'accepted' : 'declined';
       const mailOptions = {
-        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        from: this.getFromAddress(),
         to: inviterEmail,
         subject: `${coachName} ${statusText} your team invitation`,
         html: `
@@ -669,7 +882,7 @@ class EmailService {
   async sendCoachRemovalNotification(coachEmail, coachName, teamName, removedByName) {
     try {
       const mailOptions = {
-        from: process.env.EMAIL_USER || 'noreply@grassrootshub.com',
+        from: this.getFromAddress(),
         to: coachEmail,
         subject: `Team membership update for ${teamName}`,
         html: `
@@ -695,6 +908,46 @@ class EmailService {
       return { success: true, messageId: result.messageId };
     } catch (error) {
       console.error(`❌ Failed to send removal notification:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async sendOpenTrainingStatusChange(userEmail, firstName, eventTitle, status) {
+    const subjects = {
+      confirmed: `You're confirmed for ${eventTitle}!`,
+      waitlisted: `You've been added to the waitlist for ${eventTitle}`,
+      pending_confirmation: `Registration received for ${eventTitle}`,
+      payment_overdue: `Spot released due to missed payment - ${eventTitle}`,
+      dropped_out: `Your registration for ${eventTitle} has been cancelled`
+    };
+
+    const bodies = {
+      confirmed: `<p>Great news, ${firstName}! Your place on <strong>${eventTitle}</strong> has been confirmed. We look forward to seeing you there.</p>`,
+      waitlisted: `<p>Hi ${firstName}, you have been added to the waiting list for <strong>${eventTitle}</strong>. We will let you know as soon as a spot opens up.</p>`,
+      pending_confirmation: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been received and is awaiting coach confirmation.</p>`,
+      payment_overdue: `<p>Hi ${firstName}, your spot on <strong>${eventTitle}</strong> has been released because payment was not received by the deadline. Please re-register if you are still interested.</p>`,
+      dropped_out: `<p>Hi ${firstName}, your registration for <strong>${eventTitle}</strong> has been cancelled. Contact the coach if this was unexpected.</p>`
+    };
+
+    const mailOptions = {
+      from: this.getFromAddress(),
+      to: userEmail,
+      subject: subjects[status] || `Registration update for ${eventTitle}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <h2 style="color:#2E7D32;">The Grassroots Hub</h2>
+        ${bodies[status] || `<p>Hi ${firstName}, your registration status for <strong>${eventTitle}</strong> has been updated to "${status}".</p>`}
+        <p style="color:#666;font-size:12px;">This is an automated message from The Grassroots Hub.</p>
+      </div>`
+    };
+
+    try {
+      const result = await this.sendMailWithAudit(mailOptions, {
+        templateName: 'openTrainingStatusChange',
+        metadata: { eventTitle, status }
+      });
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('❌ Failed to send open training status email:', error);
       return { success: false, error: error.message };
     }
   }

@@ -6,6 +6,40 @@ const DatabaseUtils = require('./utils/dbUtils');
 
 const app = express();
 const PORT = process.env.PLAYING_HISTORY_PORT || 3003;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+const parseCookies = (req) => {
+  const header = req.headers?.cookie;
+  if (!header) {
+    return {};
+  }
+
+  return header.split(';').reduce((cookies, pair) => {
+    const index = pair.indexOf('=');
+    if (index < 0) {
+      return cookies;
+    }
+
+    const key = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+};
+
+const getAuthTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  if (cookies.auth_token) {
+    return cookies.auth_token;
+  }
+
+  const authHeader = req.headers['authorization'];
+  return authHeader && authHeader.split(' ')[1];
+};
 
 // Middleware
 app.use(cors());
@@ -16,14 +50,13 @@ const dbUtils = new DatabaseUtils();
 
 // JWT authentication middleware
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = getAuthTokenFromRequest(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired token' });
     }

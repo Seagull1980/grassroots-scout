@@ -161,9 +161,7 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
   const loadMetrics = async () => {
     try {
       const response = await fetch(`/api/analytics/overview`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       
       if (response.ok) {
@@ -256,24 +254,21 @@ const RealTimeAnalyticsDashboard: React.FC = () => {
           borderColor: theme.palette.primary.main,
           backgroundColor: alpha(theme.palette.primary.main, 0.1),
           fill: true,
-          tension: 0.4,
-        },
+          tension: 0.4 },
         {
           label: 'User Actions',
           data: userActionData,
           borderColor: theme.palette.secondary.main,
           backgroundColor: alpha(theme.palette.secondary.main, 0.1),
           fill: true,
-          tension: 0.4,
-        },
+          tension: 0.4 },
         {
           label: 'Conversions',
           data: conversionData,
           borderColor: theme.palette.success.main,
           backgroundColor: alpha(theme.palette.success.main, 0.1),
           fill: true,
-          tension: 0.4,
-        }
+          tension: 0.4 }
       ]
     });
   };

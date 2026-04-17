@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-04-12T17:09:21.182Z",
+  "period": {
+    "previous": {
+      "start": "2026-03-29",
+      "endExclusive": "2026-04-05"
+    },
+    "current": {
+      "start": "2026-04-05",
+      "endExclusive": "2026-04-12"
+    }
+  },
+  "currentWeek": {
+    "landingClicks": 0,
+    "authClicks": 0,
+    "landingRegisterIntent": 0,
+    "navbarSignupIntent": 0,
+    "totalRegisterIntent": 0,
+    "landingIntentRatePercent": 0,
+    "sectionCounts": {},
+    "roleIntentCounts": {},
+    "ctaTargetCounts": {},
+    "authPlacementCounts": {},
+    "authPlacementCtaCounts": {},
+    "heroSharePercent": 0,
+    "qaSampleSize": 0,
+    "qaMissing": 0,
+    "qaMissingPercent": 0
+  },
+  "previousWeek": {
+    "landingClicks": 0,
+    "authClicks": 0,
+    "landingRegisterIntent": 0,
+    "navbarSignupIntent": 0,
+    "totalRegisterIntent": 0,
+    "landingIntentRatePercent": 0,
+    "sectionCounts": {},
+    "roleIntentCounts": {},
+    "ctaTargetCounts": {},
+    "authPlacementCounts": {},
+    "authPlacementCtaCounts": {},
+    "heroSharePercent": 0,
+    "qaSampleSize": 0,
+    "qaMissing": 0,
+    "qaMissingPercent": 0
+  },
+  "flags": [
+    "Watch: hero CTA share is 0% and should remain above 40%."
+  ]
+}

@@ -4,15 +4,13 @@ import {
   Typography,
   Paper,
   Grid,
-  Chip,
-} from '@mui/material';
+  Chip } from '@mui/material';
 import {
   Person as PersonIcon,
   School as SchoolIcon,
   FamilyRestroom as FamilyIcon,
   AdminPanelSettings as AdminIcon,
-  StopCircle as StopIcon,
-} from '@mui/icons-material';
+  StopCircle as StopIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
 interface QuickUserSwitcherProps {
@@ -30,8 +28,7 @@ const QuickUserSwitcher = ({
   compact = false,
   showTitle = true,
   title = "Quick Test Modes",
-  showForTesting = false,
-}: QuickUserSwitcherProps) => {
+  showForTesting = false }: QuickUserSwitcherProps) => {
   // Declare all hooks first
   const { user, impersonateUser, stopImpersonation, isImpersonating } = useAuth();
 
@@ -46,22 +43,19 @@ const QuickUserSwitcher = ({
       label: 'Coach',
       icon: <SchoolIcon />,
       color: '#6366F1',
-      description: 'Team management',
-    },
+      description: 'Team management' },
     {
       type: 'Player' as const,
       label: 'Player',
       icon: <PersonIcon />,
       color: '#8B5CF6',
-      description: 'Player profile',
-    },
+      description: 'Player profile' },
     {
       type: 'Parent/Guardian' as const,
       label: 'Parent',
       icon: <FamilyIcon />,
       color: '#64748B',
-      description: 'Child management',
-    },
+      description: 'Child management' },
   ];
 
   const handleUserTypeSwitch = (userType: 'Coach' | 'Player' | 'Parent/Guardian') => {
@@ -95,8 +89,7 @@ const QuickUserSwitcher = ({
         p: { xs: 2, sm: 3 }, 
         mt: 2, 
         borderRadius: 2,
-        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%)',
-      }}
+        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%)' }}
     >
       {showTitle && (
         <Box sx={{ mb: 2, textAlign: 'center' }}>
@@ -142,16 +135,13 @@ const QuickUserSwitcher = ({
                   bgcolor: isImpersonating && user?.role === userType.type 
                     ? userType.color 
                     : `${userType.color}10`,
-                  borderColor: userType.color,
-                },
+                  borderColor: userType.color },
                 '&:disabled': {
                   bgcolor: userType.color,
-                  color: 'white',
-                },
+                  color: 'white' },
                 flexDirection: compact ? 'column' : 'row',
                 gap: compact ? 0.5 : 1,
-                minHeight: compact ? 80 : 48,
-              }}
+                minHeight: compact ? 80 : 48 }}
             >
               <Box sx={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', gap: compact ? 0.5 : 1 }}>
                 <Typography variant={compact ? "caption" : "button"} sx={{ fontWeight: 600 }}>

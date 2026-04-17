@@ -514,8 +514,7 @@ const ChildrenManagementPage: React.FC = () => {
                 value={formData.dateOfBirth}
                 onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
                 InputLabelProps={{
-                  shrink: true,
-                }}
+                  shrink: true }}
                 helperText="Child must be under 16 years old"
               />
             </Grid>

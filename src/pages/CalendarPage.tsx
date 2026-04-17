@@ -13,8 +13,7 @@ import {
   ListItem,
   Chip,
   Button,
-  Alert,
-} from '@mui/material';
+  Alert } from '@mui/material';
 import {
   CalendarMonth,
   Event,
@@ -23,8 +22,7 @@ import {
   Cancel,
   AccessTime,
   LocationOn,
-  Map as MapIcon,
-} from '@mui/icons-material';
+  Map as MapIcon } from '@mui/icons-material';
 import Calendar from '../components/Calendar';
 import TrainingMapView from '../components/TrainingMapView';
 import { useAuth } from '../contexts/AuthContext';
@@ -294,9 +292,7 @@ const CalendarPage: React.FC = () => {
                   transition: 'all 0.2s',
                   '&:hover': {
                     transform: 'translateY(-4px)',
-                    boxShadow: 4,
-                  },
-                }}
+                    boxShadow: 4 } }}
                 onClick={() => setTabValue(0)}
               >
                 <CardContent>

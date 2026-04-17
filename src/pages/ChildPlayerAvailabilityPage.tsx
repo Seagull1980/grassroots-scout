@@ -31,6 +31,7 @@ import {
   Visibility as ViewIcon,
   VisibilityOff as HideIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { Location } from '../types';
@@ -90,6 +91,7 @@ interface AvailabilityFormData {
 }
 
 const ChildPlayerAvailabilityPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [availabilities, setAvailabilities] = useState<ChildPlayerAvailability[]>([]);
@@ -379,15 +381,17 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       )}
 
       {children.length === 0 && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          You need to add children to your account before creating player availability.
-          <Button
-            href="/children"
-            sx={{ ml: 1 }}
-          >
-            Add Children
+        <Paper sx={{ p: 3, mb: 3, border: '1px solid', borderColor: 'info.light', backgroundColor: 'info.50' }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Add a child profile before posting availability
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Parent/Guardian accounts need at least one child profile before creating availability adverts.
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/children')}>
+            Go to Manage Children
           </Button>
-        </Alert>
+        </Paper>
       )}
 
       {loading ? (

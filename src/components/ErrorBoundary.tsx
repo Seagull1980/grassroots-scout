@@ -23,8 +23,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   public state: State = {
     hasError: false,
-    showContactModal: false,
-  };
+    showContactModal: false };
 
   public static getDerivedStateFromError(error: Error): State {
     console.error('🚨 ErrorBoundary caught an error:', error);

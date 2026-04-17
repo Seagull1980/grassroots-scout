@@ -22,8 +22,7 @@ import {
   Alert,
   CircularProgress,
   Tabs,
-  Tab,
-} from '@mui/material';
+  Tab } from '@mui/material';
 import { Visibility, Check, Message } from '@mui/icons-material';
 import axios from 'axios';
 import { API_URL } from '../services/api';
@@ -68,14 +67,11 @@ const AdminSupportPage: React.FC = () => {
   const fetchMessages = async () => {
     setLoading(true);
     setError('');
-    try {
-      const token = localStorage.getItem('token');
-      const params = statusFilter !== 'all' ? { status: statusFilter } : {};
+    try {      const params = statusFilter !== 'all' ? { status: statusFilter } : {};
       
       const response = await axios.get(`${API_URL}/admin/support`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params,
-      });
+        headers: {},
+        params });
 
       setMessages(response.data.messages || []);
     } catch (err: any) {
@@ -97,16 +93,13 @@ const AdminSupportPage: React.FC = () => {
     if (!selectedMessage) return;
 
     setUpdating(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(
+    try {      await axios.patch(
         `${API_URL}/admin/support/${selectedMessage.id}`,
         {
           status: updateStatus,
           priority: updatePriority,
-          adminNotes,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+          adminNotes },
+        { headers: {} }
       );
 
       setDetailsOpen(false);

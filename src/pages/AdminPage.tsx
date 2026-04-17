@@ -38,8 +38,7 @@ import {
   Checkbox,
   ListItemText,
   Chip,
-  FormHelperText,
-} from '@mui/material';
+  FormHelperText } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -62,8 +61,7 @@ import {
   Cancel as InactiveIcon,
   Science as ScienceIcon,
   Flag as FlagIcon,
-  Email as EmailIcon,
-} from '@mui/icons-material';
+  Email as EmailIcon } from '@mui/icons-material';
 import { leaguesAPI, League, adminAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -188,13 +186,12 @@ const AdminPage: React.FC = () => {
       if (!user || user.role !== 'Admin') return;
       setAnalyticsLoading(true);
       try {
-        const response = await fetch('/api/analytics/overview', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const response = await fetch('/api/analytics/overview', { headers: {} });
         if (!response.ok) throw new Error('Failed to fetch analytics');
         const data = await response.json();
         setAnalytics({
           totalUsers: data.overview?.totalUsers ?? 0,
-          totalMatches: data.overview?.totalMatches ?? 0,
-        });
+          totalMatches: data.overview?.totalMatches ?? 0 });
       } catch (err) {
         setAnalytics({ totalUsers: 0, totalMatches: 0 });
       } finally {
@@ -212,7 +209,7 @@ const AdminPage: React.FC = () => {
       try {
         // Fetch all teams to count unique clubs and total teams
         const teamsResponse = await fetch('/api/teams', { 
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } 
+          headers: {} 
         });
         if (teamsResponse.ok) {
           const teamsData = await teamsResponse.json();
@@ -269,8 +266,8 @@ const AdminPage: React.FC = () => {
           <Typography variant="body1">
             You do not have permission to access this page.
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/dashboard')} sx={{ mt: 2 }}>
-            Go to Dashboard
+          <Button variant="contained" onClick={() => navigate('/start')} sx={{ mt: 2 }}>
+            Go to Start Here
           </Button>
         </Box>
       </Container>
@@ -537,12 +534,6 @@ const AdminPage: React.FC = () => {
     setTestPlayerMessage(null);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setTestPlayerMessage({ type: 'error', text: 'No authentication token found' });
-        return;
-      }
-
       let successCount = 0;
       let failCount = 0;
 
@@ -567,9 +558,7 @@ const AdminPage: React.FC = () => {
           const response = await fetch('/api/player-availability', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+              'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
 
@@ -610,15 +599,9 @@ const AdminPage: React.FC = () => {
     setTestPlayerMessage(null);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setTestPlayerMessage({ type: 'error', text: 'No authentication token found' });
-        return;
-      }
-
       // Fetch all player availability
       const response = await fetch('/api/player-availability', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {}
       });
 
       if (!response.ok) {
@@ -645,7 +628,7 @@ const AdminPage: React.FC = () => {
         try {
           const deleteResponse = await fetch(`/api/player-availability/${player.id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: {}
           });
 
           if (deleteResponse.ok) {
@@ -680,11 +663,8 @@ const AdminPage: React.FC = () => {
 
   const fetchTestPlayerCount = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
       const response = await fetch('/api/player-availability', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {}
       });
 
       if (response.ok) {
@@ -706,18 +686,10 @@ const AdminPage: React.FC = () => {
     setTestTeamMessage(null);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setTestTeamMessage({ type: 'error', text: 'No authentication token found' });
-        return;
-      }
-
       const response = await fetch('/api/admin/test-team-vacancies', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json' }
       });
 
       if (!response.ok) {
@@ -743,15 +715,9 @@ const AdminPage: React.FC = () => {
     setTestTeamMessage(null);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setTestTeamMessage({ type: 'error', text: 'No authentication token found' });
-        return;
-      }
-
       const response = await fetch('/api/admin/test-team-vacancies', {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {}
       });
 
       if (!response.ok) {
@@ -774,11 +740,8 @@ const AdminPage: React.FC = () => {
 
   const fetchTestTeamCount = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
       const response = await fetch('/api/admin/test-team-vacancies/count', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {}
       });
 
       if (response.ok) {
@@ -804,10 +767,10 @@ const AdminPage: React.FC = () => {
       
       impersonateUser(userType);
       
-      console.log('✅ Impersonation successful, navigating to dashboard...');
-      // Navigate to dashboard to see the impersonated user's view
+      console.log('✅ Impersonation successful, navigating to start page...');
+      // Navigate to Start Here to see the impersonated user's view
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/start');
         setImpersonationLoading(false);
       }, 100);
     } catch (error) {
@@ -1177,6 +1140,35 @@ const AdminPage: React.FC = () => {
                     </Typography>
                   </Box>
                   <EmailIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} lg={3}>
+            <Card
+              sx={{
+                background: 'linear-gradient(135deg, #4338ca 0%, #3730a3 100%)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.3)'
+                }
+              }}
+              onClick={() => navigate('/admin/kpi-report')}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      KPI Report
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Weekly Conversion & QA Summary
+                    </Typography>
+                  </Box>
+                  <AnalyticsIcon sx={{ fontSize: 40, opacity: 0.8 }} />
                 </Box>
               </CardContent>
             </Card>

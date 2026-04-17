@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import {
   Container,
@@ -29,14 +29,12 @@ import {
   Step,
   StepLabel,
   Tooltip,
-  FormHelperText,
-} from '@mui/material';
+  FormHelperText } from '@mui/material';
 import {
   Visibility, VisibilityOff, CheckCircle, Cancel, Info,
   Person, Badge, MailOutline, Lock, CalendarToday, Group,
-  ArrowForward, ArrowBack,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+  ArrowForward, ArrowBack } from '@mui/icons-material';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PASSWORD_MIN_LENGTH, passwordRegex, getPasswordStrength, calculateAge } from '../utils/validation';
 
@@ -45,6 +43,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, isLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -54,12 +53,12 @@ const RegisterPage: React.FC = () => {
     password: '',
     confirmPassword: '',
     role: '' as 'Coach' | 'Player' | 'Parent/Guardian' | '',
-    dateOfBirth: '',
-  });
+    dateOfBirth: '' });
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [ageWarning, setAgeWarning] = useState('');
+  const [registeringUnder16, setRegisteringUnder16] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -99,6 +98,9 @@ const RegisterPage: React.FC = () => {
   const handleRoleChange = (e: SelectChangeEvent) => {
     const newRole = e.target.value as 'Coach' | 'Player' | 'Parent/Guardian';
     setFormData(prev => ({ ...prev, role: newRole }));
+    if (newRole !== 'Player') {
+      setRegisteringUnder16(false);
+    }
     setAgeWarning('');
     setFieldErrors(prev => ({ ...prev, role: '' }));
     if (newRole === 'Player' && formData.dateOfBirth && calculateAge(formData.dateOfBirth) < 16) {
@@ -108,8 +110,29 @@ const RegisterPage: React.FC = () => {
 
   const switchToParentGuardian = () => {
     setFormData(prev => ({ ...prev, role: 'Parent/Guardian' }));
+    setRegisteringUnder16(true);
     setAgeWarning('');
   };
+
+  useEffect(() => {
+    const roleParam = searchParams.get('role');
+    if (!roleParam) {
+      return;
+    }
+
+    const normalized = roleParam.toLowerCase();
+    if (normalized === 'coach') {
+      setFormData(prev => ({ ...prev, role: 'Coach' }));
+      setCurrentStep(1);
+    } else if (normalized === 'player') {
+      setFormData(prev => ({ ...prev, role: 'Player' }));
+      setCurrentStep(1);
+    } else if (normalized === 'parent' || normalized === 'guardian' || normalized === 'parent-guardian') {
+      setFormData(prev => ({ ...prev, role: 'Parent/Guardian' }));
+      setCurrentStep(1);
+      setRegisteringUnder16(true);
+    }
+  }, [searchParams]);
 
   const validateStep = (step: number): boolean => {
     const errors: Record<string, string> = {};
@@ -180,8 +203,7 @@ const RegisterPage: React.FC = () => {
       lastName: formData.lastName,
       email: formData.email,
       role: formData.role as 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin',
-      password: formData.password,
-    };
+      password: formData.password };
     if (formData.role === 'Player' && formData.dateOfBirth) {
       registrationData.dateOfBirth = formData.dateOfBirth;
     }
@@ -190,7 +212,7 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register(registrationData);
-      navigate('/start');
+      navigate('/email-verification-pending');
     } catch (error: any) {
       let general = 'Registration failed. Please try again.';
       const newFieldErrors: Record<string, string> = {};
@@ -289,8 +311,7 @@ const RegisterPage: React.FC = () => {
                         <InputAdornment position="start">
                           <Person sx={{ color: 'text.secondary' }} />
                         </InputAdornment>
-                      ),
-                    }}
+                      ) }}
                     error={!!fieldErrors.firstName}
                     helperText={fieldErrors.firstName}
                   />
@@ -309,8 +330,7 @@ const RegisterPage: React.FC = () => {
                         <InputAdornment position="start">
                           <Badge sx={{ color: 'text.secondary' }} />
                         </InputAdornment>
-                      ),
-                    }}
+                      ) }}
                     error={!!fieldErrors.lastName}
                     helperText={fieldErrors.lastName}
                   />
@@ -331,11 +351,33 @@ const RegisterPage: React.FC = () => {
                       <InputAdornment position="start">
                         <MailOutline sx={{ color: 'text.secondary' }} />
                       </InputAdornment>
-                    ),
-                  }}
+                    ) }}
                   error={!!fieldErrors.email}
                   helperText={fieldErrors.email}
                 />
+
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={
+                    <Checkbox
+                      checked={registeringUnder16}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setRegisteringUnder16(checked);
+                        if (checked) {
+                          setFormData(prev => ({ ...prev, role: 'Parent/Guardian', dateOfBirth: '' }));
+                        }
+                      }}
+                    />
+                  }
+                  label="I am registering on behalf of someone under 16"
+                />
+
+                {registeringUnder16 && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    Under-16 players need a Parent/Guardian account. We will guide you through that path.
+                  </Alert>
+                )}
               </>
             )}
 
@@ -364,7 +406,7 @@ const RegisterPage: React.FC = () => {
                     <MenuItem value="Coach">Coach</MenuItem>
                     <MenuItem
                       value="Player"
-                      disabled={!!formData.dateOfBirth && calculateAge(formData.dateOfBirth) < 16}
+                      disabled={registeringUnder16 || (!!formData.dateOfBirth && calculateAge(formData.dateOfBirth) < 16)}
                     >
                       Player
                     </MenuItem>
@@ -398,8 +440,7 @@ const RegisterPage: React.FC = () => {
                           <InputAdornment position="start">
                             <CalendarToday sx={{ color: 'text.secondary' }} />
                           </InputAdornment>
-                        ),
-                      }}
+                        ) }}
                       inputProps={{ max: new Date().toISOString().split('T')[0] }}
                       error={!!fieldErrors.dateOfBirth}
                       helperText={fieldErrors.dateOfBirth}
@@ -454,8 +495,7 @@ const RegisterPage: React.FC = () => {
                           {showPassword ? <VisibilityOff /> : <Visibility />}
                         </IconButton>
                       </InputAdornment>
-                    ),
-                  }}
+                    ) }}
                   error={!!fieldErrors.password}
                   helperText={fieldErrors.password}
                 />
@@ -471,9 +511,7 @@ const RegisterPage: React.FC = () => {
                           flex: 1, height: 6, borderRadius: 3,
                           backgroundColor: 'grey.300',
                           '& .MuiLinearProgress-bar': {
-                            backgroundColor: pwStrength < 40 ? 'error.main' : pwStrength < 80 ? 'warning.main' : 'success.main',
-                          },
-                        }}
+                            backgroundColor: pwStrength < 40 ? 'error.main' : pwStrength < 80 ? 'warning.main' : 'success.main' } }}
                       />
                       <Typography variant="caption" fontWeight={600}
                         color={pwStrength < 40 ? 'error' : pwStrength < 80 ? 'warning.main' : 'success.main'}>
@@ -534,16 +572,14 @@ const RegisterPage: React.FC = () => {
                           </IconButton>
                         </>
                       </InputAdornment>
-                    ),
-                  }}
+                    ) }}
                   error={!!fieldErrors.confirmPassword || passwordsMismatch}
                   helperText={
                     fieldErrors.confirmPassword ||
                     (passwordsMismatch ? 'Passwords do not match' : passwordsMatch ? '✓ Passwords match' : '')
                   }
                   FormHelperTextProps={{
-                    sx: { color: passwordsMatch && !fieldErrors.confirmPassword ? 'success.main' : undefined },
-                  }}
+                    sx: { color: passwordsMatch && !fieldErrors.confirmPassword ? 'success.main' : undefined } }}
                 />
 
                 <FormControlLabel

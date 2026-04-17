@@ -62,48 +62,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const warning = storage.getStorageWarning();
       setStorageWarning(warning);
       
-      const token = storage.getItem('token');
-      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Token found:', token ? 'Yes' : 'No');
-      
-      if (token) {
-        try {
-          // Use localStorage user data for mobile compatibility
-          const storedUserStr = storage.getItem('user');
-          if (storedUserStr) {
-            const storedUser = JSON.parse(storedUserStr);
-            if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] User restored from storage:', storedUser.email);
-            setUser(storedUser);
+      try {
+        // Hydrate quickly from local cache, then validate against server-backed session.
+        const storedUserStr = storage.getItem('user');
+        if (storedUserStr) {
+          const storedUser = JSON.parse(storedUserStr);
+          setUser(storedUser);
+        }
 
-            // Validate token/server session to avoid stale localStorage auth state.
-            try {
-              const response = await authAPI.getCurrentUser();
-              if (response?.user) {
-                setUser(response.user as User);
-                storage.setItem('user', JSON.stringify(response.user));
-              }
-            } catch (validationError) {
-              const status = isApiError(validationError) ? validationError.response?.status : undefined;
-              if (status === 401 || status === 403) {
-                if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Stored session invalid, clearing auth state');
-                setUser(null);
-                storage.removeItem('token');
-                storage.removeItem('user');
-              } else {
-                // Non-auth failures (network/server transient) should not force logout.
-                if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Session validation skipped due to transient error');
-              }
-            }
-          } else {
-            console.warn('[AuthContext] Token exists but no user data found');
-            storage.removeItem('token'); // Clean up orphaned token
-          }
-        } catch (error) {
-          console.error('[AuthContext] Failed to restore user session:', error);
+        const response = await authAPI.getCurrentUser();
+        if (response?.user) {
+          setUser(response.user as User);
+          storage.setItem('user', JSON.stringify(response.user));
+        }
+      } catch (validationError) {
+        const status = isApiError(validationError) ? validationError.response?.status : undefined;
+        if (status === 401 || status === 403 || status === 404) {
+          setUser(null);
           storage.removeItem('token');
           storage.removeItem('user');
+        } else {
+          if (process.env.NODE_ENV !== 'production') console.warn('[AuthContext] Session validation skipped due to transient error');
         }
-      } else {
-        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] No existing session found');
       }
 
       if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Initialization complete');
@@ -114,7 +94,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login attempt for:', email);
     setIsLoading(true);
     setLoginError(null);
     try {
@@ -122,11 +101,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authAPI.login(email, password);
       if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login API response received:', response);
       
-      if (response.user && response.token) {
-        if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login successful, user found:', response.user.email);
+      if (response.user) {
         const user = response.user as User;
         setUser(user);
-        storage.setItem('token', response.token);
+        if (response.token) {
+          storage.setItem('token', response.token);
+        } else {
+          storage.removeItem('token');
+        }
         storage.setItem('user', JSON.stringify(user));
         
         const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
@@ -179,11 +161,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw { ...error, requiresVerification: true };
       }
       
-      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] About to return false for login failure');
-      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Login failed due to error, returning false');
-      // Add visual indicator that would show in LoginPage (dev only)
-      if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] VISUAL INDICATOR: AuthContext returning false');
-      setLoginError('Invalid email or password. Please check your credentials and try again.');
+      const errorMessage = isApiError(error)
+        ? (error.response?.data?.error || 'Invalid email or password. Please check your credentials and try again.')
+        : 'Invalid email or password. Please check your credentials and try again.';
+      setLoginError(errorMessage);
       return false;
     } finally {
       setIsLoading(false);
@@ -203,8 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password: userData.password,
         firstName: userData.firstName,
         lastName: userData.lastName,
-        role: userData.role,
-      };
+        role: userData.role };
 
       // Include date of birth if provided
       if (userData.dateOfBirth) {
@@ -222,15 +202,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Sending registration data:', registerData);
       const response = await authAPI.register(registerData);
       if (process.env.NODE_ENV !== 'production') console.log('[AuthContext] Registration successful:', response);
-      
-      // Registration successful - log the user in directly (email verification disabled)
-      if (response.user && response.token) {
-        setUser(response.user);
-        storage.setItem('token', response.token);
-        storage.setItem('user', JSON.stringify(response.user));
-        // Store pending new user flag - will be converted to new_user flag on first successful login
-        localStorage.setItem('pending_new_user', 'true');
+
+      localStorage.setItem('pendingVerificationEmail', userData.email);
+
+      if (!response.emailVerificationRequired && !response.requiresVerification) {
+        throw new Error('Registration completed without a verification requirement. Please try again.');
       }
+
       return true;
     } catch (error: unknown) {
       console.error('[AuthContext] Registration error:', error);
@@ -255,6 +233,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    authAPI.logout().catch(() => {
+      // Best effort logout: local state clear below is the hard guarantee.
+    });
     setUser(null);
     setOriginalUser(null);
     setIsImpersonating(false);
@@ -302,8 +283,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         role: userType,
         firstName: `Test ${userType}`,
         lastName: `User`,
-        email: `test.${userType.toLowerCase().replace('/', '.').replace(' ', '.')}@example.com`,
-      };
+        email: `test.${userType.toLowerCase().replace('/', '.').replace(' ', '.')}@example.com` };
       
       if (process.env.NODE_ENV !== 'production') console.log('👤 Created mock user:', mockUser);
       
@@ -347,8 +327,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     originalUser,
     storageWarning,
     loginError,
-    setLoginError,
-  };
+    setLoginError };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

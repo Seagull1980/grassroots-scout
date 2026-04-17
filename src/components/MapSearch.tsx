@@ -31,8 +31,7 @@ import {
   Snackbar,
   Alert,
   Stack,
-  Autocomplete,
-} from '@mui/material';
+  Autocomplete } from '@mui/material';
 import {
   MyLocation as MyLocationIcon,
   Close as CloseIcon,
@@ -502,9 +501,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         return fetch('/api/messages', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
+            'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipientId: item.postedBy,
             subject: bulkContactForm.subject,
@@ -518,9 +515,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
         return fetch('/api/messages', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
+            'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipientId: item.postedBy, // Use postedBy for PlayerAvailability as well
             subject: bulkContactForm.subject,
@@ -2074,8 +2069,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
               position: 'relative', 
               zIndex: 1,
               '& > div': {
-                pointerEvents: 'auto',
-              }
+                pointerEvents: 'auto' }
             }}
           >
             <Map
@@ -2398,9 +2392,7 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
           PaperProps={{
             style: {
               maxHeight: 400,
-              width: '300px',
-            },
-          }}
+              width: '300px' } }}
         >
           <MenuItem disabled>
             <Typography variant="subtitle2">Saved Search Regions</Typography>

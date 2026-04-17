@@ -9,16 +9,14 @@ import {
   CardContent,
   Skeleton,
   Chip,
-  Alert,
-} from '@mui/material';
+  Alert } from '@mui/material';
 import {
   People,
   CheckCircle,
   Visibility,
   PersonAdd,
   Search,
-  Handshake,
-} from '@mui/icons-material';
+  Handshake } from '@mui/icons-material';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -75,8 +73,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
     newUsers: 0,
     searchesPerformed: 0,
     successfulMatches: 0,
-    activeListings: 0,
-  });
+    activeListings: 0 });
   const [trafficData, setTrafficData] = useState<TrafficData[]>([]);
   const [matchData, setMatchData] = useState<{ month: string; matches: number }[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -84,7 +81,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
   useEffect(() => {
     // Redirect non-admin users
     if (user && user.role !== 'Admin') {
-      navigate('/dashboard');
+      navigate('/start');
       return;
     }
     
@@ -111,8 +108,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
         newUsers: statsRes.data?.newUsers || 0,
         searchesPerformed: statsRes.data?.searchesPerformed || 0,
         successfulMatches: statsRes.data?.successfulMatches || 0,
-        activeListings: statsRes.data?.activeListings || 0,
-      });
+        activeListings: statsRes.data?.activeListings || 0 });
       setTrafficData(trafficRes.data || []);
       setMatchData(matchesRes.data || []);
     } catch (err) {
@@ -123,8 +119,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
         newUsers: 0,
         searchesPerformed: 0,
         successfulMatches: 0,
-        activeListings: 0,
-      });
+        activeListings: 0 });
       setTrafficData([]);
       setMatchData([]);
       setDataError('Live analytics could not be loaded. The values below are unavailable until the API responds.');
@@ -304,16 +299,14 @@ const PerformanceAnalyticsPage: React.FC = () => {
           borderColor: '#667eea',
           backgroundColor: 'rgba(102, 126, 234, 0.1)',
           fill: true,
-          tension: 0.4,
-        },
+          tension: 0.4 },
         {
           label: 'Unique Visitors',
           data: safeTrafficData.map(d => d.uniqueUsers),
           borderColor: '#764ba2',
           backgroundColor: 'rgba(118, 75, 162, 0.1)',
           fill: true,
-          tension: 0.4,
-        }
+          tension: 0.4 }
       ]
     };
 
@@ -334,8 +327,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: { position: 'top' },
-                },
+                  legend: { position: 'top' } },
                 scales: {
                   y: { beginAtZero: true }
                 }
@@ -357,8 +349,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
           data: safeMatchData.map(d => d.matches),
           backgroundColor: 'rgba(75, 192, 192, 0.6)',
           borderColor: 'rgba(75, 192, 192, 1)',
-          borderWidth: 2,
-        }
+          borderWidth: 2 }
       ]
     };
 
@@ -382,8 +373,7 @@ const PerformanceAnalyticsPage: React.FC = () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: { display: false },
-                },
+                  legend: { display: false } },
                 scales: {
                   y: { beginAtZero: true }
                 }

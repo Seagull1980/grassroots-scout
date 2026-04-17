@@ -27,8 +27,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Tooltip,
-  Badge,
-} from '@mui/material';
+  Badge } from '@mui/material';
 import {
   Person,
   SportsSoccer,
@@ -44,8 +43,7 @@ import {
   Warning,
   CheckCircle,
   Star,
-  StarBorder,
-} from '@mui/icons-material';
+  StarBorder } from '@mui/icons-material';
 import { Line, Radar } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { advancedAnalyticsService } from '../services/advancedAnalytics';
@@ -55,8 +53,7 @@ import {
   InjuryRecord,
   PerformanceTrend,
   ComparisonData,
-  AnalyticsPeriod,
-} from '../types/analytics';
+  AnalyticsPeriod } from '../types/analytics';
 
 interface PlayerPerformanceProps {
   playerId?: string;
@@ -278,8 +275,7 @@ const PlayerPerformanceComponent: React.FC<PlayerPerformanceProps> = ({
           borderColor: '#1976d2',
           backgroundColor: 'rgba(25, 118, 210, 0.1)',
           fill: true,
-          tension: 0.4,
-        }
+          tension: 0.4 }
       ]
     };
 
@@ -293,8 +289,7 @@ const PlayerPerformanceComponent: React.FC<PlayerPerformanceProps> = ({
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
-                legend: { display: false },
-              },
+                legend: { display: false } },
               scales: {
                 y: { min: 0, max: 10 }
               }
@@ -416,10 +411,7 @@ const PlayerPerformanceComponent: React.FC<PlayerPerformanceProps> = ({
                 r: {
                   angleLines: { display: true },
                   suggestedMin: 0,
-                  suggestedMax: 10,
-                },
-              },
-            }}
+                  suggestedMax: 10 } } }}
           />
         </Box>
       </Paper>

@@ -31,10 +31,8 @@ const ForgotPasswordPage: React.FC = () => {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+          'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }) });
 
       const data = await response.json();
 
@@ -62,8 +60,7 @@ const ForgotPasswordPage: React.FC = () => {
               p: 4,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-            }}
+              alignItems: 'center' }}
           >
             <Email sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
             <Typography component="h1" variant="h4" align="center" gutterBottom>
@@ -114,8 +111,7 @@ const ForgotPasswordPage: React.FC = () => {
             p: 4,
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-          }}
+            alignItems: 'center' }}
         >
           <Box sx={{ alignSelf: 'flex-start', mb: 2 }}>
             <Button

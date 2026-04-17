@@ -13,13 +13,11 @@ import {
   ListItemText,
   ListItemIcon,
   CircularProgress,
-  Alert,
-} from '@mui/material';
+  Alert } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
   Work as WorkIcon,
-  CheckCircle as CheckCircleIcon,
-} from '@mui/icons-material';
+  CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
@@ -45,8 +43,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
   const [stats, setStats] = useState({
     active: 0,
     filled: 0,
-    expiring: 0,
-  });
+    expiring: 0 });
 
   useEffect(() => {
     loadVacancies();
@@ -70,8 +67,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
       setStats({
         active: active.length,
         expiring: expiring.length,
-        filled: filled.length,
-      });
+        filled: filled.length });
 
       setVacancies([...active, ...expiring].map((v: any) => ({
         id: v.id,
@@ -82,8 +78,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
         enquiryCount: v.inquiries_count || 0,
         daysOld: Math.floor(
           (Date.now() - new Date(v.createdAt).getTime()) / (24 * 60 * 60 * 1000)
-        ),
-      })));
+        ) })));
       
       setError('');
     } catch (err: any) {
@@ -100,8 +95,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
     const colors: Record<VacancyStatus['status'], 'primary' | 'success' | 'warning' | 'error'> = {
       active: 'success',
       expiring_soon: 'warning',
-      filled: 'primary',
-    };
+      filled: 'primary' };
     return colors[status];
   };
 
@@ -109,8 +103,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
     const icons = {
       active: <CheckCircleIcon />,
       expiring_soon: <TrendingUpIcon />,
-      filled: <CheckCircleIcon />,
-    };
+      filled: <CheckCircleIcon /> };
     return icons[status];
   };
 
@@ -199,8 +192,7 @@ const VacancyStatusWidget: React.FC<VacancyStatusWidgetProps> = ({ compact = fal
                     py: 1,
                     px: 0,
                     borderBottom: index < vacancies.length - 1 ? 1 : 0,
-                    borderColor: 'divider',
-                  }}
+                    borderColor: 'divider' }}
                 >
                   <ListItemIcon sx={{ minWidth: 32, color: getStatusColor(vacancy.status) }}>
                     {getStatusIcon(vacancy.status)}

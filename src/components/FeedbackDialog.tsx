@@ -14,8 +14,7 @@ import {
   Box,
   Typography,
   Tabs,
-  Tab,
-} from '@mui/material';
+  Tab } from '@mui/material';
 import { BugReport, Lightbulb } from '@mui/icons-material';
 import axios from 'axios';
 import { ROSTER_API_URL } from '../services/api';
@@ -52,8 +51,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onClose, defaultT
       platform: navigator.platform,
       language: navigator.language,
       screenResolution: `${window.screen.width}x${window.screen.height}`,
-      viewport: `${window.innerWidth}x${window.innerHeight}`,
-    };
+      viewport: `${window.innerWidth}x${window.innerHeight}` };
   };
 
   const handleSubmit = async () => {
@@ -65,9 +63,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onClose, defaultT
     setSubmitting(true);
     setError('');
 
-    try {
-      const token = localStorage.getItem('token');
-      const browserInfo = getBrowserInfo();
+    try {      const browserInfo = getBrowserInfo();
       const pageUrl = window.location.href;
 
       await axios.post(
@@ -78,11 +74,9 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onClose, defaultT
           description: description.trim(),
           category,
           browserInfo: JSON.stringify(browserInfo),
-          pageUrl,
-        },
+          pageUrl },
         {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+          headers: {} }
       );
 
       setSuccess(true);

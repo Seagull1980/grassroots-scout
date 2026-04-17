@@ -195,12 +195,8 @@ export const OnboardingFlow: React.FC = () => {
   // Search for existing clubs
   const searchClubs = async (searchTerm: string) => {
     try {
-      setLoadingClubs(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL || ''}/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      setLoadingClubs(true);      const response = await axios.get(`${API_URL || ''}/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+        headers: {}
       });
       const clubResults = Array.isArray(response.data.clubs) ? response.data.clubs : [];
       setClubs(clubResults.filter(Boolean));
@@ -339,9 +335,7 @@ export const OnboardingFlow: React.FC = () => {
           }
         }
 
-        // Save profile data to backend
-        const token = localStorage.getItem('token');
-        const profileData: any = {};
+        // Save profile data to backend        const profileData: any = {};
 
         // Add profile fields if they exist
         if (userData.location) profileData.location = userData.location;
@@ -357,7 +351,7 @@ export const OnboardingFlow: React.FC = () => {
             `${API_URL}/profile`,
             profileData,
             {
-              headers: { Authorization: `Bearer ${token}` }
+              headers: {}
             }
           );
           console.log('✅ Profile data saved from onboarding');
@@ -394,7 +388,7 @@ export const OnboardingFlow: React.FC = () => {
               `${API_URL}/teams`,
               teamData,
               {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {}
               }
             );
             console.log('✅ Team created from onboarding');

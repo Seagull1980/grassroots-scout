@@ -65,13 +65,8 @@ const MyLeagueRequests: React.FC = () => {
   const fetchMyRequests = async () => {
     try {
       setLoading(true);
-      setError('');
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/league-requests/my-requests', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      setError('');      const response = await fetch('/api/league-requests/my-requests', {
+        headers: {}
       });
 
       const data = await response.json();

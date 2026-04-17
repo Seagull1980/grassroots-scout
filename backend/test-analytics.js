@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const shouldShowToken = process.argv.includes('--show-token');
 
 // Create admin token
 const adminToken = jwt.sign(
@@ -15,7 +19,11 @@ const adminToken = jwt.sign(
 );
 
 console.log('Testing analytics endpoint...');
-console.log('Admin Token:', adminToken);
+if (shouldShowToken) {
+  console.log(adminToken);
+} else {
+  console.log('Admin token generated but hidden by default. Re-run with --show-token to print it.');
+}
 
 // Test the analytics endpoint
 async function testAnalytics() {

@@ -9,22 +9,22 @@ import {
   Card,
   CardContent,
   CardActions,
-  Paper,
-} from '@mui/material';
+  Paper } from '@mui/material';
 import {
   Group,
   Search,
   Notifications,
-  Psychology,
-} from '@mui/icons-material';
+  Psychology } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsive, useResponsiveSpacing } from '../hooks/useResponsive';
+import { useAnalytics } from '../hooks/useAnalytics';
 import Footer from '../components/Footer';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { trackUserAction, trackConversion } = useAnalytics();
   const { isMobile } = useResponsive();
   const { containerSpacing } = useResponsiveSpacing();
 
@@ -42,9 +42,20 @@ const HomePage: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           setSiteStats(data);
+          localStorage.setItem('site_stats_cache', JSON.stringify(data));
+        } else {
+          throw new Error('Failed to fetch stats');
         }
       } catch (error) {
         console.error('Failed to fetch site stats:', error);
+        const cached = localStorage.getItem('site_stats_cache');
+        if (cached) {
+          try {
+            setSiteStats(JSON.parse(cached));
+          } catch {
+            setSiteStats({ activeTeams: 0, registeredPlayers: 0, successfulMatches: 0 });
+          }
+        }
       } finally {
         setStatsLoading(false);
       }
@@ -53,35 +64,56 @@ const HomePage: React.FC = () => {
     fetchSiteStats();
   }, []);
 
+  const trackLandingCta = (ctaName: string, destination: string, section: string, roleIntent?: string) => {
+    trackUserAction('landing_cta_click', ctaName, {
+      section,
+      destination,
+      roleIntent: roleIntent || null,
+      isLoggedIn: !!user,
+      page: 'home'
+    });
+
+    if (!user && destination.startsWith('/register')) {
+      trackConversion('landing_register_intent', 1);
+    }
+  };
+
+  const navigateWithTracking = (ctaName: string, destination: string, section: string, roleIntent?: string) => {
+    trackLandingCta(ctaName, destination, section, roleIntent);
+    navigate(destination);
+  };
+
   const features = [
     {
       icon: <Psychology fontSize="large" color="primary" />,
       title: 'For Coaches',
       description: 'Post team vacancies and find talented players for your grassroots football team.',
-      action: 'Post Vacancy',
-      path: '/post-vacancy',
-    },
+      action: user ? 'Post Vacancy' : 'Start as Coach',
+      path: user ? '/post-vacancy' : '/register?role=coach' },
     {
       icon: <Group fontSize="large" color="primary" />,
-      title: 'For Players & Parents',
-      description: 'Find the perfect team that matches your playing style and aspirations.',
-      action: 'Find Teams',
-      path: '/search',
-    },
+      title: 'For Players',
+      description: 'Find teams that match your position, age group, and ambitions.',
+      action: user ? 'Find Teams' : 'Start as Player',
+      path: user ? '/search' : '/register?role=player' },
+    {
+      icon: <Group fontSize="large" color="secondary" />,
+      title: 'For Parents/Guardians',
+      description: 'Create child profiles, manage opportunities, and keep every next step organised.',
+      action: user ? 'Manage Children' : 'Start as Parent',
+      path: user ? '/children' : '/register?role=parent' },
     {
       icon: <Search fontSize="large" color="primary" />,
       title: 'Smart Search',
       description: 'Filter by league, age group, position, and location to find exactly what you need.',
-      action: 'Start Searching',
-      path: '/search',
-    },
+      action: user ? 'Start Searching' : 'See How Matching Works',
+      path: user ? '/search' : '/register?role=player' },
     {
       icon: <Notifications fontSize="large" color="primary" />,
       title: 'Alert System',
       description: 'Set up alerts and get notified when new opportunities match your criteria.',
-      action: 'Set Alerts',
-      path: user ? '/maps' : '/register',
-    },
+      action: user ? 'Set Alerts' : 'Set Up Alerts',
+      path: user ? '/maps' : '/register?role=coach' },
   ];
 
   return (
@@ -113,9 +145,7 @@ const HomePage: React.FC = () => {
             left: 0,
             right: 0,
             height: '4px',
-            background: 'linear-gradient(90deg, #0066FF 0%, #FF6B35 100%)',
-          },
-        }}
+            background: 'linear-gradient(90deg, #0066FF 0%, #FF6B35 100%)' } }}
       >
         {/* Decorative circles */}
         <Box sx={{ 
@@ -126,8 +156,7 @@ const HomePage: React.FC = () => {
           height: 200, 
           borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(0, 102, 255, 0.1) 0%, transparent 70%)',
-          display: isMobile ? 'none' : 'block',
-        }} />
+          display: isMobile ? 'none' : 'block' }} />
         <Box sx={{ 
           position: 'absolute', 
           bottom: -80, 
@@ -136,8 +165,7 @@ const HomePage: React.FC = () => {
           height: 250, 
           borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(255, 107, 53, 0.08) 0%, transparent 70%)',
-          display: isMobile ? 'none' : 'block',
-        }} />
+          display: isMobile ? 'none' : 'block' }} />
         
         <Box sx={{ mb: 3, position: 'relative', zIndex: 1 }} />
         
@@ -154,8 +182,7 @@ const HomePage: React.FC = () => {
             textAlign: 'center',
             fontSize: isMobile ? '2.5rem' : '3.5rem',
             position: 'relative',
-            zIndex: 1,
-          }}
+            zIndex: 1 }}
         >
           The Grassroots Scout
         </Typography>
@@ -172,8 +199,7 @@ const HomePage: React.FC = () => {
             fontStyle: 'italic',
             fontSize: isMobile ? '1.5rem' : '2rem',
             position: 'relative',
-            zIndex: 1,
-          }}
+            zIndex: 1 }}
         >
           Discover. Connect. Develop
         </Typography>
@@ -190,8 +216,7 @@ const HomePage: React.FC = () => {
             fontSize: isMobile ? '1.1rem' : '1.3rem',
             lineHeight: 1.8,
             position: 'relative',
-            zIndex: 1,
-          }}
+            zIndex: 1 }}
         >
           Scouting the perfect match between football players and grassroots teams
         </Typography>
@@ -201,20 +226,19 @@ const HomePage: React.FC = () => {
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigateWithTracking('hero_open_start_here', '/start', 'hero')}
                 sx={{ 
                   px: 6, 
                   py: 2, 
                   fontSize: '1.1rem',
-                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
-                }}
+                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)' }}
               >
-                Open Dashboard
+                Open Start Here
               </Button>
               <Button
                 variant="outlined"
                 size="large"
-                onClick={() => navigate('/search')}
+                onClick={() => navigateWithTracking('hero_search_now', '/search', 'hero')}
                 sx={{ px: 6, py: 2, fontSize: '1.1rem' }}
               >
                 Search Now
@@ -225,21 +249,20 @@ const HomePage: React.FC = () => {
               <Button
                 variant="contained"
                 size="large"
-                onClick={() => navigate('/register')}
+                onClick={() => navigateWithTracking('hero_create_account', '/register', 'hero')}
                 sx={{ 
                   px: 6, 
                   py: 2, 
                   fontSize: '1.1rem',
-                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)',
-                }}
+                  boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)' }}
               >
-                Get Started
+                Create Free Account
               </Button>
               <Button
                 variant="outlined"
                 size="large"
                 color="secondary"
-                onClick={() => navigate('/login')}
+                onClick={() => navigateWithTracking('hero_sign_in', '/login', 'hero')}
                 sx={{ px: 6, py: 2, fontSize: '1.1rem' }}
               >
                 Sign In
@@ -247,6 +270,25 @@ const HomePage: React.FC = () => {
             </>
           )}
         </Box>
+
+        {!user && (
+          <Box sx={{ mt: 3, position: 'relative', zIndex: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Choose your path to get started faster:
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button size="small" variant="text" onClick={() => navigateWithTracking('hero_role_start_coach', '/register?role=coach', 'hero_role_links', 'Coach')}>
+                Start as Coach
+              </Button>
+              <Button size="small" variant="text" onClick={() => navigateWithTracking('hero_role_start_player', '/register?role=player', 'hero_role_links', 'Player')}>
+                Start as Player
+              </Button>
+              <Button size="small" variant="text" onClick={() => navigateWithTracking('hero_role_start_parent', '/register?role=parent', 'hero_role_links', 'Parent/Guardian')}>
+                Start as Parent
+              </Button>
+            </Box>
+          </Box>
+        )}
       </Box>
 
       {/* Features Section */}
@@ -287,9 +329,7 @@ const HomePage: React.FC = () => {
                     width: '4px',
                     height: '100%',
                     background: index % 2 === 0 ? '#0066FF' : '#FF6B35',
-                    borderRadius: '20px 0 0 20px',
-                  },
-                }}
+                    borderRadius: '20px 0 0 20px' } }}
               >
                 <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 4 }}>
                   <Box 
@@ -301,8 +341,7 @@ const HomePage: React.FC = () => {
                         ? 'linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 102, 255, 0.2) 100%)' 
                         : 'linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(255, 107, 53, 0.2) 100%)',
                       display: 'inline-flex',
-                      color: index % 2 === 0 ? '#0066FF' : '#FF6B35',
-                    }}
+                      color: index % 2 === 0 ? '#0066FF' : '#FF6B35' }}
                   >
                     {feature.icon}
                   </Box>
@@ -316,7 +355,12 @@ const HomePage: React.FC = () => {
                 <CardActions sx={{ justifyContent: 'center', pb: 3 }}>
                   <Button
                     size="medium"
-                    onClick={() => navigate(feature.path)}
+                    onClick={() => navigateWithTracking(
+                      `feature_${feature.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+                      feature.path,
+                      'feature_cards',
+                      feature.title
+                    )}
                     variant="contained"
                     color={index % 2 === 0 ? 'primary' : 'secondary'}
                     sx={{ borderRadius: 3 }}
@@ -339,8 +383,7 @@ const HomePage: React.FC = () => {
           color: 'white', 
           mb: 8,
           borderRadius: 6,
-          boxShadow: '0 8px 32px rgba(0, 102, 255, 0.25)',
-        }}
+          boxShadow: '0 8px 32px rgba(0, 102, 255, 0.25)' }}
       >
         <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>
           Join Our Growing Community
@@ -355,10 +398,9 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                color: 'white',
-              }}
+                color: 'white' }}
             >
-              {statsLoading ? '...' : `${siteStats.activeTeams}+`}
+              {statsLoading ? '...' : siteStats.activeTeams > 0 ? `${siteStats.activeTeams}+` : '...'}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Active Teams
@@ -370,10 +412,9 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                color: 'white',
-              }}
+                color: 'white' }}
             >
-              {statsLoading ? '...' : `${siteStats.registeredPlayers}+`}
+              {statsLoading ? '...' : siteStats.registeredPlayers > 0 ? `${siteStats.registeredPlayers}+` : '...'}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Registered Players
@@ -385,10 +426,9 @@ const HomePage: React.FC = () => {
               component="div" 
               sx={{ 
                 fontWeight: 800,
-                color: 'white',
-              }}
+                color: 'white' }}
             >
-              {statsLoading ? '...' : `${siteStats.successfulMatches}+`}
+              {statsLoading ? '...' : siteStats.successfulMatches > 0 ? `${siteStats.successfulMatches}+` : '...'}
             </Typography>
             <Typography variant="h6" sx={{ mt: 1 }}>
               Successful Matches
@@ -400,20 +440,39 @@ const HomePage: React.FC = () => {
       {/* Call to Action */}
       {!user && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography variant="h4" component="h2" gutterBottom>
-            Ready to Get Started?
+          <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 700 }}>
+            Built for Safe, Structured Grassroots Recruitment
           </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
-            Join The Grassroots Scout today and let us find your perfect match
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 4, maxWidth: 760, mx: 'auto' }}>
+            Role-specific onboarding, under-16 parent/guardian pathways, and clear next steps help reduce drop-off and keep conversations moving.
           </Typography>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={() => navigate('/register')}
-            sx={{ px: 6, py: 2 }}
-          >
-            Sign Up Now
-          </Button>
+          <Grid container spacing={2} justifyContent="center" sx={{ maxWidth: 920, mx: 'auto' }}>
+            {[
+              {
+                title: 'Child-first safeguarding flow',
+                description: 'Parent/Guardian journeys prioritize creating a child profile before availability posting.'
+              },
+              {
+                title: 'Clear role-based onboarding',
+                description: 'Coach, Player, and Parent routes are separated early to prevent confusion and wrong-signup drop-off.'
+              },
+              {
+                title: 'Action-focused next steps',
+                description: 'Start Here and application tracking keep users moving with fewer dead ends and less backtracking.'
+              }
+            ].map((item) => (
+              <Grid item xs={12} md={4} key={item.title}>
+                <Paper sx={{ p: 2.5, height: '100%', border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+                    {item.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {item.description}
+                  </Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
         </Box>
       )}
     </Container>

@@ -4,21 +4,21 @@ const jwt = require('jsonwebtoken');
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
+  const jwtSecret = process.env.JWT_SECRET;
 
   if (!token) {
-    console.log('❌ No token provided in request');
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
-  console.log('🔐 Verifying JWT token with secret length:', JWT_SECRET.length);
+  if (!jwtSecret) {
+    console.error('JWT_SECRET environment variable is required');
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, jwtSecret, (err, user) => {
     if (err) {
-      console.log('❌ JWT verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid token' });
     }
-    console.log('✅ JWT verified successfully, user:', { userId: user.userId, email: user.email, role: user.role });
     req.user = user;
     next();
   });

@@ -28,8 +28,7 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Switch,
-} from '@mui/material';
+  Switch } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Block as BlockIcon,
@@ -39,12 +38,10 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   ArrowBack as ArrowBackIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
+  Refresh as RefreshIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL, ngrokHeaders } from '../services/api';
-import { storage } from '../utils/storage';
 
 interface User {
   id: number;
@@ -68,8 +65,7 @@ const normalizeAdminUser = (user: any): User => ({
   lastName: user.lastName ?? user.lastname ?? '',
   betaAccess: toBoolean(user.betaAccess ?? user.betaaccess),
   isEmailVerified: toBoolean(user.isEmailVerified ?? user.isemailverified),
-  isBlocked: toBoolean(user.isBlocked ?? user.isblocked),
-});
+  isBlocked: toBoolean(user.isBlocked ?? user.isblocked) });
 
 const UserAdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -113,14 +109,12 @@ const UserAdminPage: React.FC = () => {
     setError('');
     
     try {
-      const token = storage.getItem('token');
       const url = adminUsersBaseUrl;
       console.log('[UserAdminPage] Fetching users from URL:', url);
       console.log('[UserAdminPage] API_URL is:', API_URL);
       
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
-      });
+        headers: {  ...ngrokHeaders } });
       
       console.log('[UserAdminPage] Response received:', response.data);
       const normalizedUsers = Array.isArray(response.data?.users)
@@ -140,11 +134,10 @@ const UserAdminPage: React.FC = () => {
   const toggleBetaAccess = async (userId: number, current: boolean) => {
     try {
       setUpdatingBeta(userId);
-      const token = storage.getItem('token');
       const response = await axios.patch(
         `${adminUsersBaseUrl}/${userId}/beta-access`,
         { betaAccess: !current },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
       setUsers(prev =>
         prev.map(u =>
@@ -196,10 +189,8 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      const token = storage.getItem('token');
       await axios.delete(`${adminUsersBaseUrl}/${selectedUser.id}`, {
-        headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders },
-      });
+        headers: {  ...ngrokHeaders } });
       
       setSuccess(`User ${selectedUser.email} deleted successfully`);
       setDeleteDialogOpen(false);
@@ -213,11 +204,10 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      const token = storage.getItem('token');
       await axios.post(
         `${adminUsersBaseUrl}/${selectedUser.id}/block`,
         { blocked: !selectedUser.isBlocked },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
       
       setSuccess(
@@ -237,14 +227,13 @@ const UserAdminPage: React.FC = () => {
     }
     
     try {
-      const token = storage.getItem('token');
       await axios.post(
         `${adminUsersBaseUrl}/${selectedUser.id}/message`,
         {
           subject: messageSubject,
           message: messageBody
         },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
       
       setSuccess(`Message sent to ${selectedUser.email} successfully`);
@@ -260,11 +249,10 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      const token = storage.getItem('token');
       await axios.post(
         `${adminUsersBaseUrl}/${selectedUser.id}/promote`,
         { role: 'Admin' },
-        { headers: { Authorization: `Bearer ${token}`, ...ngrokHeaders } }
+        { headers: {  ...ngrokHeaders } }
       );
       
       setSuccess(`User ${selectedUser.email} promoted to Admin successfully`);
@@ -325,8 +313,7 @@ const UserAdminPage: React.FC = () => {
   const betaStats = {
     total: users.length,
     withAccess: users.filter(u => u.betaAccess || u.role === 'Admin').length,
-    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length,
-  };
+    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length };
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
@@ -386,8 +373,7 @@ const UserAdminPage: React.FC = () => {
                 <InputAdornment position="start">
                   <SearchIcon />
                 </InputAdornment>
-              ),
-            }}
+              ) }}
           />
           <FormControl sx={{ minWidth: 200 }}>
             <InputLabel>Role</InputLabel>

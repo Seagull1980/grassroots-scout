@@ -25,8 +25,7 @@ import {
   Divider,
   List,
   ListItem,
-  ListItemText,
-} from '@mui/material';
+  ListItemText } from '@mui/material';
 import {
   BugReport,
   Lightbulb,
@@ -35,8 +34,7 @@ import {
   Comment,
   Close,
   FilterList,
-  TrendingUp,
-} from '@mui/icons-material';
+  TrendingUp } from '@mui/icons-material';
 import axios from 'axios';
 import { ROSTER_API_URL } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -109,9 +107,7 @@ const AdminFeedbackDashboard: React.FC = () => {
   const fetchFeedback = async () => {
     setLoading(true);
     setError('');
-    try {
-      const token = localStorage.getItem('token');
-      const params: any = {};
+    try {      const params: any = {};
       
       if (activeTab !== 'all') {
         params.feedbackType = activeTab === 'bugs' ? 'bug' : 'improvement';
@@ -121,9 +117,8 @@ const AdminFeedbackDashboard: React.FC = () => {
       if (categoryFilter) params.category = categoryFilter;
 
       const response = await axios.get(`${ROSTER_API_URL}/api/admin/feedback`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params,
-      });
+        headers: {},
+        params });
 
       setFeedback(response.data.feedback);
       setStats(response.data.stats);
@@ -135,11 +130,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   };
 
   const fetchFeedbackDetails = async (feedbackId: number) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${ROSTER_API_URL}/feedback/${feedbackId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    try {      const response = await axios.get(`${ROSTER_API_URL}/feedback/${feedbackId}`, {
+        headers: {} });
 
       setComments(response.data.comments);
     } catch (err: any) {
@@ -161,12 +153,10 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleUpdateFeedback = async (updates: Partial<Feedback>) => {
     if (!selectedFeedback) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(
+    try {      await axios.put(
         `${ROSTER_API_URL}/api/admin/feedback/${selectedFeedback.id}`,
         updates,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
 
       await fetchFeedback();
@@ -184,12 +174,10 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleAddComment = async () => {
     if (!selectedFeedback || !newComment.trim()) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(
+    try {      await axios.post(
         `${ROSTER_API_URL}/feedback/${selectedFeedback.id}/comments`,
         { comment: newComment.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: {} }
       );
 
       setNewComment('');
@@ -203,11 +191,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleDeleteFeedback = async (feedbackId: number) => {
     if (!confirm('Are you sure you want to delete this feedback?')) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${ROSTER_API_URL}/api/admin/feedback/${feedbackId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    try {      await axios.delete(`${ROSTER_API_URL}/api/admin/feedback/${feedbackId}`, {
+        headers: {} });
 
       await fetchFeedback();
       handleCloseDetails();
@@ -599,8 +584,7 @@ const AdminFeedbackDashboard: React.FC = () => {
                           sx={{
                             bgcolor: comment.isAdminComment ? 'primary.50' : 'grey.50',
                             mb: 1,
-                            borderRadius: 1,
-                          }}
+                            borderRadius: 1 }}
                         >
                           <ListItemText
                             primary={

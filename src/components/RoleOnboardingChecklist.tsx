@@ -14,16 +14,16 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Typography,
-} from '@mui/material';
+  Typography } from '@mui/material';
 import {
   ArrowForward as ArrowForwardIcon,
   CheckCircle as CheckCircleIcon,
   Close as CloseIcon,
   RadioButtonUnchecked as RadioButtonUncheckedIcon,
-  TaskAlt as TaskAltIcon,
-} from '@mui/icons-material';
+  TaskAlt as TaskAltIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 type SupportedRole = 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
 
@@ -51,24 +51,20 @@ const CHECKLISTS: Record<SupportedRole, { title: string; subtitle: string; items
         label: 'Complete your coach profile',
         description: 'Add your experience and contact details so players know who they are speaking to.',
         action: '/profile',
-        actionLabel: 'Open Profile',
-      },
+        actionLabel: 'Open Profile' },
       {
         id: 'vacancy',
         label: 'Post your first vacancy',
         description: 'Get in front of players by publishing a live role for your team.',
         action: '/post-vacancy',
-        actionLabel: 'Post Vacancy',
-      },
+        actionLabel: 'Post Vacancy' },
       {
         id: 'applications',
         label: 'Review your applications hub',
         description: 'Keep interest, trials, and next steps in one place so nobody gets missed.',
         action: '/coach-applications',
-        actionLabel: 'Open Hub',
-      },
-    ],
-  },
+        actionLabel: 'Open Hub' },
+    ] },
   Player: {
     title: 'Player launch plan',
     subtitle: 'Show coaches what you offer, then keep your follow-ups organised.',
@@ -78,24 +74,20 @@ const CHECKLISTS: Record<SupportedRole, { title: string; subtitle: string; items
         label: 'Complete your player profile',
         description: 'Add position, experience, and location so recommendations improve.',
         action: '/profile',
-        actionLabel: 'Open Profile',
-      },
+        actionLabel: 'Open Profile' },
       {
         id: 'availability',
         label: 'Post your availability',
         description: 'Create a player advert so coaches can find you without extra back-and-forth.',
         action: '/post-availability',
-        actionLabel: 'Post Availability',
-      },
+        actionLabel: 'Post Availability' },
       {
         id: 'tracker',
         label: 'Track your active applications',
         description: 'See replies, trials, and outstanding next actions in one tracker.',
         action: '/my-applications',
-        actionLabel: 'Open Tracker',
-      },
-    ],
-  },
+        actionLabel: 'Open Tracker' },
+    ] },
   'Parent/Guardian': {
     title: 'Family launch plan',
     subtitle: 'Set up each child clearly so you can manage opportunities without confusion.',
@@ -105,24 +97,20 @@ const CHECKLISTS: Record<SupportedRole, { title: string; subtitle: string; items
         label: 'Add your first child profile',
         description: 'Create the child record first so age, position, and medical details are stored properly.',
         action: '/children',
-        actionLabel: 'Manage Children',
-      },
+        actionLabel: 'Manage Children' },
       {
         id: 'availability',
         label: 'Post child availability',
         description: 'Publish a child availability advert only after the profile details are ready.',
         action: '/child-player-availability',
-        actionLabel: 'Open Availability',
-      },
+        actionLabel: 'Open Availability' },
       {
         id: 'tracker',
         label: 'Track coach replies',
         description: 'Keep child-related conversations and decisions visible in one place.',
         action: '/my-applications',
-        actionLabel: 'Open Tracker',
-      },
-    ],
-  },
+        actionLabel: 'Open Tracker' },
+    ] },
   Admin: {
     title: 'Admin launch plan',
     subtitle: 'Start with the operational views that keep the platform healthy.',
@@ -132,36 +120,52 @@ const CHECKLISTS: Record<SupportedRole, { title: string; subtitle: string; items
         label: 'Open moderation tools',
         description: 'Review flagged content and unresolved safety signals first.',
         action: '/admin/moderation',
-        actionLabel: 'Open Moderation',
-      },
+        actionLabel: 'Open Moderation' },
       {
         id: 'users',
         label: 'Review user admin',
         description: 'Check access, roles, and approval queues before making broader changes.',
         action: '/admin/users',
-        actionLabel: 'Open Users',
-      },
+        actionLabel: 'Open Users' },
       {
         id: 'analytics',
         label: 'Review performance analytics',
         description: 'Use the live metrics page as your shared view of platform health.',
         action: '/performance-analytics',
-        actionLabel: 'Open Analytics',
-      },
-    ],
-  },
-};
+        actionLabel: 'Open Analytics' },
+    ] } };
 
 const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [dismissOpen, setDismissOpen] = useState(false);
+  const [hasChildren, setHasChildren] = useState(false);
 
   const roleKey = getRoleKey(role);
   const dismissedKey = `onboarding_dismissed_${roleKey}`;
   const progressKey = `onboarding_progress_${roleKey}`;
 
   const checklist = CHECKLISTS[role];
+
+  useEffect(() => {
+    const loadChildrenStatus = async () => {
+      if (role !== 'Parent/Guardian' || !user) {
+        setHasChildren(false);
+        return;
+      }
+
+      try {
+        const response = await api.get('/children');
+        const children = response.data?.children || [];
+        setHasChildren(Array.isArray(children) && children.length > 0);
+      } catch {
+        setHasChildren(false);
+      }
+    };
+
+    loadChildrenStatus();
+  }, [role, user]);
 
   useEffect(() => {
     const saved = localStorage.getItem(progressKey);
@@ -210,8 +214,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
         sx={{
           mb: 3,
           color: 'white',
-          background: 'linear-gradient(135deg, #0b5fff 0%, #0e8f68 100%)',
-        }}
+          background: 'linear-gradient(135deg, #0b5fff 0%, #0e8f68 100%)' }}
       >
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
@@ -238,9 +241,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
                   borderRadius: 999,
                   bgcolor: 'rgba(255,255,255,0.2)',
                   '& .MuiLinearProgress-bar': {
-                    bgcolor: 'white',
-                  },
-                }}
+                    bgcolor: 'white' } }}
               />
             </Box>
             <Button sx={{ color: 'white', minWidth: 'auto' }} onClick={() => setDismissOpen(true)}>
@@ -251,6 +252,12 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
           <List sx={{ mt: 2, p: 0 }}>
             {checklist.items.map((item, index) => {
               const completed = completedIds.includes(item.id);
+              const isBlockedParentAvailability = role === 'Parent/Guardian' && item.id === 'availability' && !hasChildren;
+              const actionPath = isBlockedParentAvailability ? '/children' : item.action;
+              const actionLabel = isBlockedParentAvailability ? 'Add Child First' : item.actionLabel;
+              const itemDescription = isBlockedParentAvailability
+                ? 'This step unlocks after you add your first child profile.'
+                : item.description;
               return (
                 <ListItem
                   key={item.id}
@@ -258,8 +265,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
                     px: 0,
                     py: 1.5,
                     alignItems: 'flex-start',
-                    borderBottom: index < checklist.items.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                  }}
+                    borderBottom: index < checklist.items.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none' }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: 'white', mt: 0.25 }}>
                     {completed ? <CheckCircleIcon sx={{ color: '#d6ffea' }} /> : <RadioButtonUncheckedIcon />}
@@ -272,7 +278,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
                     }
                     secondary={
                       <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.78)' }}>
-                        {item.description}
+                        {itemDescription}
                       </Typography>
                     }
                   />
@@ -282,14 +288,15 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
                       size="small"
                       sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.72)' }}
                       endIcon={<ArrowForwardIcon />}
-                      onClick={() => navigate(item.action)}
+                      onClick={() => navigate(actionPath)}
                     >
-                      {item.actionLabel}
+                      {actionLabel}
                     </Button>
                     <Button
                       variant="text"
                       size="small"
                       sx={{ color: 'white' }}
+                      disabled={isBlockedParentAvailability}
                       onClick={() => toggleComplete(item.id)}
                     >
                       {completed ? 'Mark not done' : 'Mark done'}

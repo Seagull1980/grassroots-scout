@@ -196,8 +196,7 @@ const TouchSafeButton = ({
     msUserSelect: 'none',
     // Pointer events optimization
     pointerEvents: disabled ? 'none' : 'auto',
-    ...sx,
-  };
+    ...sx };
 
   return (
     <Component

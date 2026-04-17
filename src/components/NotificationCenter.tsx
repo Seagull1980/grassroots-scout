@@ -190,12 +190,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ showButton = tr
         onClose={handleClose}
         anchorOrigin={{
           vertical: 'bottom',
-          horizontal: 'right',
-        }}
+          horizontal: 'right' }}
         transformOrigin={{
           vertical: 'top',
-          horizontal: 'right',
-        }}
+          horizontal: 'right' }}
         PaperProps={{
           sx: { width: 400, maxHeight: 600 }
         }}

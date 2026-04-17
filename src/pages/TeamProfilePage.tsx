@@ -142,9 +142,7 @@ const TeamProfilePage: React.FC = () => {
 
       try {
         const response = await fetch(`/api/teams/${teamId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: {}
         });
 
         if (!response.ok) {
@@ -166,12 +164,8 @@ const TeamProfilePage: React.FC = () => {
 
   const searchClubs = async (searchTerm: string) => {
     try {
-      setLoadingClubs(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      setLoadingClubs(true);      const response = await fetch(`/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+        headers: {}
       });
       const data = await response.json();
       const clubResults = Array.isArray(data.clubs) ? data.clubs : [];
@@ -187,9 +181,7 @@ const TeamProfilePage: React.FC = () => {
   const fetchProfile = async () => {
     try {
       const response = await fetch('/api/team-profile', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (response.status === 404) {
@@ -224,9 +216,7 @@ const TeamProfilePage: React.FC = () => {
       const response = await fetch('/api/team-profile', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
@@ -260,9 +250,7 @@ const TeamProfilePage: React.FC = () => {
     try {
       const response = await fetch('/api/team-profile', {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (response.ok) {

@@ -10,13 +10,13 @@ const TeamRosterPage = () => {
       <Breadcrumbs sx={{ mb: 3 }}>
         <Link 
           component={RouterLink} 
-          to="/dashboard" 
+          to="/start" 
           sx={{ display: 'flex', alignItems: 'center' }}
           color="inherit"
           underline="hover"
         >
           <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-          Dashboard
+          Start Here
         </Link>
         <Typography 
           color="text.primary" 

@@ -22,8 +22,7 @@ const GoogleMapsApiTest: React.FC = () => {
     placeAutocomplete: false,
     placeAutocompleteElement: false,
     geometry: false,
-    drawing: false,
-  });
+    drawing: false });
 
   useEffect(() => {
     const checkAPIs = () => {
@@ -35,8 +34,7 @@ const GoogleMapsApiTest: React.FC = () => {
         placeAutocomplete: !!window.google?.maps?.places?.Autocomplete,
         placeAutocompleteElement: !!window.google?.maps?.places?.PlaceAutocompleteElement,
         geometry: !!window.google?.maps?.geometry,
-        drawing: !!window.google?.maps?.drawing,
-      };
+        drawing: !!window.google?.maps?.drawing };
 
       setApiStatus(status);
     };

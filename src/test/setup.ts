@@ -11,9 +11,7 @@ Object.defineProperty(window, 'matchMedia', {
     removeListener: () => {},
     addEventListener: () => {},
     removeEventListener: () => {},
-    dispatchEvent: () => {},
-  }),
-});
+    dispatchEvent: () => {} }) });
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
@@ -58,14 +56,11 @@ const createMockStorage = () => {
     get length() {
       return Object.keys(storage).length;
     },
-    key: (index: number) => Object.keys(storage)[index] || null,
-  };
+    key: (index: number) => Object.keys(storage)[index] || null };
 };
 
 Object.defineProperty(window, 'localStorage', {
-  value: createMockStorage(),
-});
+  value: createMockStorage() });
 
 Object.defineProperty(window, 'sessionStorage', {
-  value: createMockStorage(),
-});
+  value: createMockStorage() });

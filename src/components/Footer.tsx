@@ -3,8 +3,7 @@ import {
   Container,
   Typography,
   Grid,
-  Link,
-} from '@mui/material';
+  Link } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 const Footer: React.FC = () => {
@@ -18,8 +17,7 @@ const Footer: React.FC = () => {
         color: 'white',
         py: 8,
         mt: 10,
-        borderTop: '1px solid rgba(0, 102, 255, 0.1)',
-      }}
+        borderTop: '1px solid rgba(0, 102, 255, 0.1)' }}
     >
       <Container maxWidth="lg">
         <Grid container spacing={6} alignItems="flex-start">
@@ -36,8 +34,7 @@ const Footer: React.FC = () => {
                     width: 50,
                     borderRadius: '8px',
                     objectFit: 'cover',
-                    mr: 2,
-                  }}
+                    mr: 2 }}
                 />
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
@@ -226,8 +223,7 @@ const Footer: React.FC = () => {
             borderTop: '1px solid rgba(0, 102, 255, 0.1)',
             mt: 6,
             pt: 4,
-            textAlign: 'center',
-          }}
+            textAlign: 'center' }}
         >
           <Typography
             variant="body2"

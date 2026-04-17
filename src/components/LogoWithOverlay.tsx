@@ -68,8 +68,7 @@ const LogoWithOverlay: React.FC<LogoWithOverlayProps> = ({
             borderRadius: '16px',
             objectFit: 'cover',
             border: '3px solid rgba(30, 58, 138, 0.2)',
-            boxShadow: '0 8px 32px rgba(30, 58, 138, 0.15)',
-          }}
+            boxShadow: '0 8px 32px rgba(30, 58, 138, 0.15)' }}
         />
         
         {/* Overlay to cover "Hub" and show "Scout" */}

@@ -72,8 +72,7 @@ const TextLogo: React.FC<TextLogoProps> = ({
             background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
+            WebkitTextFillColor: 'transparent' }}
         >
           Scout
         </Box>

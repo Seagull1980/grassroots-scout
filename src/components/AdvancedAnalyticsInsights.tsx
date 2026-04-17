@@ -137,7 +137,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          
           ...ngrokHeaders
         },
         body: JSON.stringify({
@@ -166,7 +166,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          
           ...ngrokHeaders
         },
         body: JSON.stringify({
@@ -200,7 +200,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          
           ...ngrokHeaders
         },
         body: JSON.stringify({
@@ -228,7 +228,7 @@ const AdvancedAnalyticsInsights: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          
           ...ngrokHeaders
         },
         body: JSON.stringify({

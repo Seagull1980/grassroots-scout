@@ -3,7 +3,11 @@ const bcrypt = require('bcryptjs');
 const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const shouldShowToken = process.argv.includes('--show-token');
 const db = new sqlite3.Database('./database.sqlite');
 
 // Function to create a fresh admin token
@@ -41,13 +45,17 @@ const createAdminToken = async (email) => {
         { expiresIn: '24h' }
       );
       
-      console.log('\n=== ADMIN TOKEN ===');
-      console.log('Token:', token);
-      console.log('\nTo use this token:');
+      console.log('\n=== ADMIN TOKEN GENERATED ===');
+      if (shouldShowToken) {
+        console.log('Token:', token);
+      } else {
+        console.log('Token output hidden by default. Re-run with --show-token to print it.');
+      }
+      console.log('\nLegacy localStorage instructions:');
       console.log('1. Open browser developer tools (F12)');
       console.log('2. Go to Application/Storage tab');
       console.log('3. Find localStorage for localhost:5173');
-      console.log('4. Set token =', token);
+      console.log('4. Token storage is no longer the primary auth path. Prefer normal login/session cookies.');
       console.log('5. Set user =', JSON.stringify({
         id: user.id,
         email: user.email,

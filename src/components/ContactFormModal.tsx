@@ -9,8 +9,7 @@ import {
   Alert,
   CircularProgress,
   Box,
-  Typography,
-} from '@mui/material';
+  Typography } from '@mui/material';
 import axios from 'axios';
 import { API_URL } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,8 +27,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   onClose,
   defaultSubject = '',
   defaultMessage = '',
-  pageUrl,
-}) => {
+  pageUrl }) => {
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -63,8 +61,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
         message: message.trim(),
         userId: userId ? parseInt(userId) : null,
         userAgent,
-        pageUrl: pageUrl || window.location.href,
-      });
+        pageUrl: pageUrl || window.location.href });
 
       setSuccess(true);
       setTimeout(() => {

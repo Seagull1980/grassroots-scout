@@ -16,8 +16,7 @@ import {
   Divider,
   Menu,
   MenuItem,
-  Snackbar,
-} from '@mui/material';
+  Snackbar } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Person as PersonIcon,
@@ -25,8 +24,7 @@ import {
   MoreVert as MoreVertIcon,
   Reply as ReplyIcon,
   Lock as LockIcon,
-  Flag as FlagIcon,
-} from '@mui/icons-material';
+  Flag as FlagIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost, ForumReply } from '../types';
 
@@ -128,9 +126,7 @@ const ForumPostDetail: React.FC = () => {
           user_role: user.role,
           author_name: `${user.firstName} ${user.lastName}`,
           content: replyContent,
-          parent_reply_id: replyingTo?.id || null,
-        }),
-      });
+          parent_reply_id: replyingTo?.id || null }) });
 
       let data;
       try {
@@ -172,8 +168,7 @@ const ForumPostDetail: React.FC = () => {
         body: JSON.stringify({ 
           user_id: parseInt(user.id),
           user_role: user.role 
-        }),
-      });
+        }) });
 
       if (!response.ok) {
         const data = await response.json();
@@ -220,9 +215,7 @@ const ForumPostDetail: React.FC = () => {
           content_id: contentId,
           user_id: parseInt(user.id),
           user_name: `${user.firstName} ${user.lastName}`,
-          reason: reason.trim() || 'No reason provided',
-        }),
-      });
+          reason: reason.trim() || 'No reason provided' }) });
 
       let data;
       try {
@@ -385,8 +378,7 @@ const ForumPostDetail: React.FC = () => {
             sx={{
               ml: reply.parent_reply_id ? 4 : 0,
               borderLeft: reply.parent_reply_id ? '3px solid' : 'none',
-              borderLeftColor: reply.parent_reply_id ? 'primary.main' : 'transparent',
-            }}
+              borderLeftColor: reply.parent_reply_id ? 'primary.main' : 'transparent' }}
           >
             <CardContent>
               {reply.parent_author_name && (
@@ -398,8 +390,7 @@ const ForumPostDetail: React.FC = () => {
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 0.5,
-                  }}
+                    gap: 0.5 }}
                 >
                   <ReplyIcon fontSize="small" color="action" />
                   <Typography variant="caption" color="text.secondary">
@@ -481,8 +472,7 @@ const ForumPostDetail: React.FC = () => {
                 borderRadius: 1,
                 borderLeft: '3px solid',
                 borderLeftColor: 'primary.main',
-                position: 'relative',
-              }}
+                position: 'relative' }}
             >
               <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                 Replying to:

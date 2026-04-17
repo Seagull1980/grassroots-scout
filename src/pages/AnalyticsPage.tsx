@@ -141,9 +141,7 @@ const AnalyticsPage: React.FC = () => {
 
       // Fetch overview data
       const overviewResponse = await fetch('/api/analytics/overview', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (!overviewResponse.ok) {
@@ -163,9 +161,7 @@ const AnalyticsPage: React.FC = () => {
 
       // Fetch daily stats
       const dailyStatsResponse = await fetch(`/api/analytics/daily-stats?days=${timeRange}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (!dailyStatsResponse.ok) {
@@ -183,9 +179,7 @@ const AnalyticsPage: React.FC = () => {
 
       // Fetch user activity
       const userActivityResponse = await fetch('/api/analytics/user-activity', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
 
       if (!userActivityResponse.ok) {
@@ -221,7 +215,7 @@ const AnalyticsPage: React.FC = () => {
     const pageNames: { [key: string]: string } = {
       '/': 'Home',
       '/start': 'Start Here',
-      '/dashboard': 'Dashboard',
+      '/dashboard': 'Start Here',
       '/search': 'Search',
       '/post-advert': 'Post Advert',
       '/post-vacancy': 'Post Vacancy',

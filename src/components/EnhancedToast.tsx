@@ -6,15 +6,13 @@ import {
   Box,
   Typography,
   Slide,
-  SlideProps,
-} from '@mui/material';
+  SlideProps } from '@mui/material';
 import {
   Close as CloseIcon,
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
   Warning as WarningIcon,
-  Info as InfoIcon,
-} from '@mui/icons-material';
+  Info as InfoIcon } from '@mui/icons-material';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -121,9 +119,7 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
       sx={{
         top: { xs: 70, sm: 80 },
         '& .MuiSnackbarContent-root': {
-          padding: 0,
-        },
-      }}
+          padding: 0 } }}
     >
       <Alert
         severity={message.type}
@@ -143,13 +139,10 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
           '@keyframes slideInScale': {
             from: {
               opacity: 0,
-              transform: 'translateY(-20px) scale(0.95)',
-            },
+              transform: 'translateY(-20px) scale(0.95)' },
             to: {
               opacity: 1,
-              transform: 'translateY(0) scale(1)',
-            },
-          },
+              transform: 'translateY(0) scale(1)' } },
           '&::before': {
             content: '""',
             position: 'absolute',
@@ -158,9 +151,7 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
             bottom: 0,
             width: 6,
             bgcolor: colors.border,
-            borderRadius: '3px 0 0 3px',
-          },
-        }}
+            borderRadius: '3px 0 0 3px' } }}
         action={
           <IconButton
             size="small"
@@ -168,9 +159,7 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
             sx={{
               color: 'text.secondary',
               '&:hover': {
-                bgcolor: 'rgba(0, 0, 0, 0.04)',
-              },
-            }}
+                bgcolor: 'rgba(0, 0, 0, 0.04)' } }}
           >
             <CloseIcon fontSize="small" />
           </IconButton>
@@ -187,8 +176,7 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
                 sx={{
                   fontWeight: 600,
                   color: colors.text,
-                  mb: message.message ? 0.5 : 0,
-                }}
+                  mb: message.message ? 0.5 : 0 }}
               >
                 {message.title}
               </Typography>
@@ -197,8 +185,7 @@ const EnhancedToast: React.FC<EnhancedToastProps> = ({ message, onClose }) => {
               variant="body2"
               sx={{
                 color: 'text.secondary',
-                lineHeight: 1.6,
-              }}
+                lineHeight: 1.6 }}
             >
               {message.message}
             </Typography>
@@ -226,8 +213,7 @@ export const useToast = () => {
       type,
       title,
       message,
-      duration: duration || 5000,
-    });
+      duration: duration || 5000 });
   };
 
   const showSuccess = (message: string, title?: string) => {
@@ -257,6 +243,5 @@ export const useToast = () => {
     showError,
     showWarning,
     showInfo,
-    closeToast,
-  };
+    closeToast };
 };

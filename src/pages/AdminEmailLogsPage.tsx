@@ -18,8 +18,7 @@ import {
   TableRow,
   TextField,
   Typography,
-  CircularProgress,
-} from '@mui/material';
+  CircularProgress } from '@mui/material';
 import { ArrowBack, Refresh } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +53,20 @@ interface EmailDeliveryResponse {
   };
 }
 
+const maskEmail = (email: string) => {
+  const [localPart = '', domain = ''] = email.split('@');
+
+  if (!localPart || !domain) {
+    return email;
+  }
+
+  if (localPart.length <= 2) {
+    return `${localPart[0] || '*'}*@${domain}`;
+  }
+
+  return `${localPart.slice(0, 2)}${'*'.repeat(Math.max(localPart.length - 2, 2))}@${domain}`;
+};
+
 const AdminEmailLogsPage: React.FC = () => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<EmailDeliveryLog[]>([]);
@@ -74,17 +87,13 @@ const AdminEmailLogsPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get<EmailDeliveryResponse>(`${API_URL}/admin/email-delivery-logs`, {
-        headers: { Authorization: `Bearer ${token}` },
+    try {      const response = await axios.get<EmailDeliveryResponse>(`${API_URL}/admin/email-delivery-logs`, {
+        headers: {},
         params: {
           status: statusFilter,
           days: daysFilter,
           recipient: recipientFilter || undefined,
-          limit: 200,
-        },
-      });
+          limit: 200 } });
 
       setLogs(response.data.logs || []);
       setSummary(response.data.summary || { sent: 0, failed: 0 });
@@ -201,7 +210,7 @@ const AdminEmailLogsPage: React.FC = () => {
                 {logs.map((log) => (
                   <TableRow key={log.id} hover>
                     <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
-                    <TableCell>{log.recipientEmail}</TableCell>
+                    <TableCell>{maskEmail(log.recipientEmail)}</TableCell>
                     <TableCell>{log.templateName || '-'}</TableCell>
                     <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {log.subject || '-'}

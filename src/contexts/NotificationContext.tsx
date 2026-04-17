@@ -97,15 +97,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       return;
     }
 
-    const token = storage.getItem('token');
-    if (!token) {
-      console.log('🔑 No token available for WebSocket connection');
-      return;
-    }
-
     try {
       setConnectionStatus('connecting');
-      const websocket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+      const websocket = new WebSocket(`${WS_URL}`);
 
       websocket.onopen = () => {
         console.log('🔔 Connected to notification server');
@@ -139,7 +133,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         setConnectionStatus('disconnected');
         setWs(null);
 
-        // Authentication failed - likely expired token
+        // Authentication failed - likely expired session/cookie
         // Code 1006: Abnormal closure (connection failed before handshake)
         // Code 1008: Policy violation (authentication failed)
         if (event.code === 1006 || event.code === 1008) {
@@ -293,8 +287,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     markAllAsRead,
     clearNotifications,
     subscribeToArea,
-    subscribeToLeague,
-  };
+    subscribeToLeague };
 
   return (
     <NotificationContext.Provider value={value}>

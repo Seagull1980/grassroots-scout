@@ -56,9 +56,7 @@ const SocialShare: React.FC<SocialShareProps> = ({
       await fetch('/api/social/share', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           shareType: shareType === 'player_availability' ? 'player' : shareType,
           targetId,

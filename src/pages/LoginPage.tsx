@@ -11,8 +11,7 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
-  Alert,
-} from '@mui/material';
+  Alert } from '@mui/material';
 import { Visibility, VisibilityOff, MailOutline, Lock } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,8 +22,7 @@ const LoginPage: React.FC = () => {
   const { login, isLoading, loginError, setLoginError } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-  });
+    password: '' });
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -37,8 +35,7 @@ const LoginPage: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
-    });
+      [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,6 +60,11 @@ const LoginPage: React.FC = () => {
         setLoginError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error: any) {
+      if (error?.requiresVerification || error?.response?.data?.requiresVerification) {
+        navigate('/email-verification-pending');
+        return;
+      }
+
       // Defensive: handle unexpected errors (network, server, etc.)
       let message = 'An unexpected error occurred. Please try again.';
       if (error?.response?.status === 401 || error?.response?.data?.error === 'Invalid email or password') {
@@ -84,8 +86,7 @@ const LoginPage: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          mt: 8,
-        }}
+          mt: 8 }}
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
@@ -115,8 +116,7 @@ const LoginPage: React.FC = () => {
               onChange={handleChange}
               variant="outlined"
               InputLabelProps={{
-                shrink: true,
-              }}
+                shrink: true }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -138,8 +138,7 @@ const LoginPage: React.FC = () => {
               onChange={handleChange}
               variant="outlined"
               InputLabelProps={{
-                shrink: true,
-              }}
+                shrink: true }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -156,8 +155,7 @@ const LoginPage: React.FC = () => {
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
-                ),
-              }}
+                ) }}
             />
             <Button
               type="submit"

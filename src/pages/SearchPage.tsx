@@ -49,8 +49,7 @@ import {
   Divider,
   Autocomplete,
   useMediaQuery,
-  useTheme,
-} from '@mui/material';
+  useTheme } from '@mui/material';
 import {
   Search,
   LocationOn,
@@ -65,8 +64,7 @@ import {
   Send,
   Folder,
   Add,
-  Clear,
-} from '@mui/icons-material';
+  Clear } from '@mui/icons-material';
 import api, { leaguesAPI, League } from '../services/api';
 import { useDebounce } from '../utils/performance';
 import QuickMatchCompletion from '../components/QuickMatchCompletion';
@@ -181,8 +179,7 @@ const defaultFilters: SearchFiltersState = {
   coachingLicense: '',
   hasMatchRecording: false,
   hasPathwayToSenior: false,
-  playingTimePolicy: [],
-};
+  playingTimePolicy: [] };
 
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
@@ -253,6 +250,7 @@ const SearchPage: React.FC = () => {
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [quickMatchMode, setQuickMatchMode] = useState(true);
   const [page, setPage] = useState(1);
   const [vacancies, setVacancies] = useState<TeamVacancy[]>([]);
   const [playerAvailability, setPlayerAvailability] = useState<PlayerAvailability[]>([]);
@@ -380,8 +378,7 @@ const SearchPage: React.FC = () => {
         location,
         createdAt,
         contactUserId,
-        contactName,
-      },
+        contactName },
       ...prev,
     ]);
   };
@@ -534,40 +531,35 @@ const SearchPage: React.FC = () => {
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters({
       ...filters,
-      [e.target.name]: e.target.value,
-    });
+      [e.target.name]: e.target.value });
     setPage(1);
   };
 
   const handleSelectChange = (e: SelectChangeEvent) => {
     setFilters({
       ...filters,
-      [e.target.name]: e.target.value,
-    });
+      [e.target.name]: e.target.value });
     setPage(1);
   };
 
   const handleMultiSelectChange = (name: string, value: string[]) => {
     setFilters({
       ...filters,
-      [name]: value,
-    });
+      [name]: value });
     setPage(1);
   };
 
   const handleSliderChange = (name: string, value: number) => {
     setFilters({
       ...filters,
-      [name]: value,
-    });
+      [name]: value });
     setPage(1);
   };
 
   const resetFilterValue = (name: keyof typeof filters, value: string | number | boolean | string[]) => {
     setFilters((prev) => ({
       ...prev,
-      [name]: value,
-    }));
+      [name]: value }));
     setPage(1);
   };
 
@@ -598,71 +590,61 @@ const SearchPage: React.FC = () => {
       chips.push({
         key: 'search',
         label: `Search: ${filters.search}`,
-        onDelete: () => resetFilterValue('search', ''),
-      });
+        onDelete: () => resetFilterValue('search', '') });
     }
     if (filters.league) {
       chips.push({
         key: 'league',
         label: `League: ${filters.league}`,
-        onDelete: () => resetFilterValue('league', ''),
-      });
+        onDelete: () => resetFilterValue('league', '') });
     }
     if (filters.ageGroup) {
       chips.push({
         key: 'ageGroup',
         label: `Age: ${filters.ageGroup}`,
-        onDelete: () => resetFilterValue('ageGroup', ''),
-      });
+        onDelete: () => resetFilterValue('ageGroup', '') });
     }
     if (filters.position) {
       chips.push({
         key: 'position',
         label: `Position: ${filters.position}`,
-        onDelete: () => resetFilterValue('position', ''),
-      });
+        onDelete: () => resetFilterValue('position', '') });
     }
     if (filters.region) {
       chips.push({
         key: 'region',
         label: `Region: ${filters.region}`,
-        onDelete: () => resetFilterValue('region', ''),
-      });
+        onDelete: () => resetFilterValue('region', '') });
     }
     if (filters.location) {
       chips.push({
         key: 'location',
         label: `Location: ${filters.location}`,
-        onDelete: () => resetFilterValue('location', ''),
-      });
+        onDelete: () => resetFilterValue('location', '') });
     }
     if (filters.teamGender) {
       chips.push({
         key: 'teamGender',
         label: `Team: ${filters.teamGender}`,
-        onDelete: () => resetFilterValue('teamGender', ''),
-      });
+        onDelete: () => resetFilterValue('teamGender', '') });
     }
     if (filters.experienceLevel) {
       chips.push({
         key: 'experienceLevel',
         label: `Experience: ${filters.experienceLevel}`,
-        onDelete: () => resetFilterValue('experienceLevel', ''),
-      });
+        onDelete: () => resetFilterValue('experienceLevel', '') });
     }
     if (filters.trainingFrequency) {
       chips.push({
         key: 'trainingFrequency',
         label: `Training: ${filters.trainingFrequency}`,
-        onDelete: () => resetFilterValue('trainingFrequency', ''),
-      });
+        onDelete: () => resetFilterValue('trainingFrequency', '') });
     }
     if (filters.coachingLicense) {
       chips.push({
         key: 'coachingLicense',
         label: `License: ${filters.coachingLicense}`,
-        onDelete: () => resetFilterValue('coachingLicense', ''),
-      });
+        onDelete: () => resetFilterValue('coachingLicense', '') });
     }
     if (filters.availability.length > 0) {
       filters.availability.forEach((value) => {
@@ -673,8 +655,7 @@ const SearchPage: React.FC = () => {
             resetFilterValue(
               'availability',
               filters.availability.filter((item) => item !== value)
-            ),
-        });
+            ) });
       });
     }
     if (filters.playingTimePolicy.length > 0) {
@@ -686,30 +667,26 @@ const SearchPage: React.FC = () => {
             resetFilterValue(
               'playingTimePolicy',
               filters.playingTimePolicy.filter((item) => item !== value)
-            ),
-        });
+            ) });
       });
     }
     if (filters.hasMatchRecording) {
       chips.push({
         key: 'hasMatchRecording',
         label: 'Match Recording',
-        onDelete: () => resetFilterValue('hasMatchRecording', false),
-      });
+        onDelete: () => resetFilterValue('hasMatchRecording', false) });
     }
     if (filters.hasPathwayToSenior) {
       chips.push({
         key: 'hasPathwayToSenior',
         label: 'Pathway to Senior',
-        onDelete: () => resetFilterValue('hasPathwayToSenior', false),
-      });
+        onDelete: () => resetFilterValue('hasPathwayToSenior', false) });
     }
     if (filters.travelDistance !== 25) {
       chips.push({
         key: 'travelDistance',
         label: `Distance: ${filters.travelDistance}km`,
-        onDelete: () => resetFilterValue('travelDistance', 25),
-      });
+        onDelete: () => resetFilterValue('travelDistance', 25) });
     }
 
     return chips;
@@ -920,8 +897,7 @@ const SearchPage: React.FC = () => {
         experience: player.experience || 'Unknown',
         description: player.description || player.title || '',
         title: player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available',
-        createdAt: player.createdAt || player.created_at,
-      })) : [];
+        createdAt: player.createdAt || player.created_at })) : [];
       
       setPlayerAvailability(transformedPlayers);
     } catch (err) {
@@ -942,8 +918,7 @@ const SearchPage: React.FC = () => {
           experience: '8 years',
           title: 'Looking for competitive team',
           description: 'Experienced central midfielder with excellent passing and vision.',
-          createdAt: new Date().toISOString(),
-        },
+          createdAt: new Date().toISOString() },
         {
           id: 2,
           playerId: 2,
@@ -958,8 +933,7 @@ const SearchPage: React.FC = () => {
           experience: '3 years',
           title: 'Seeking striker position',
           description: 'Fast and aggressive striker seeking opportunities in competitive league.',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-        },
+          createdAt: new Date(Date.now() - 86400000).toISOString() },
       ]);
     } finally {
       setLoading(false);
@@ -1171,16 +1145,14 @@ const SearchPage: React.FC = () => {
       tabValue,
       filters: {
         ...filters,
-        search: debouncedSearch,
-      }
+        search: debouncedSearch }
     });
   }, [tabValue, filters, debouncedSearch]);
 
   useEffect(() => {
     const hasFilters = Object.values({
       ...filters,
-      search: debouncedSearch,
-    }).some((value) => Array.isArray(value) ? value.length > 0 : !!value);
+      search: debouncedSearch }).some((value) => Array.isArray(value) ? value.length > 0 : !!value);
 
     if (!hasFilters) return;
     if (recentSearchSignature === recentSearchKeyRef.current) return;
@@ -1203,9 +1175,7 @@ const SearchPage: React.FC = () => {
         [key]: {
           ...current,
           views: current.views + 1,
-          lastViewedAt: new Date().toISOString(),
-        },
-      };
+          lastViewedAt: new Date().toISOString() } };
     });
   };
 
@@ -1217,9 +1187,7 @@ const SearchPage: React.FC = () => {
         [key]: {
           ...current,
           contacts: current.contacts + 1,
-          lastContactedAt: new Date().toISOString(),
-        },
-      };
+          lastContactedAt: new Date().toISOString() } };
     });
   };
 
@@ -1231,8 +1199,7 @@ const SearchPage: React.FC = () => {
       }
       return {
         ...prev,
-        [key]: nextValue,
-      };
+        [key]: nextValue };
     });
   };
 
@@ -1340,8 +1307,7 @@ const SearchPage: React.FC = () => {
     const newCollection: SavedCollection = {
       id: Date.now().toString(),
       name: collectionName.trim(),
-      createdAt: new Date().toISOString(),
-    };
+      createdAt: new Date().toISOString() };
     setCollections((prev) => [newCollection, ...prev]);
     setCollectionName('');
   };
@@ -1417,8 +1383,7 @@ const SearchPage: React.FC = () => {
               sx={{
                 borderColor: 'rgba(255,255,255,0.6)',
                 color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
-              }}
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
             >
               Saved Searches
             </Button>
@@ -1429,8 +1394,7 @@ const SearchPage: React.FC = () => {
               sx={{
                 borderColor: 'rgba(255,255,255,0.6)',
                 color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
-              }}
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
             >
               Saved Ads
             </Button>
@@ -1441,8 +1405,7 @@ const SearchPage: React.FC = () => {
               sx={{
                 borderColor: 'rgba(255,255,255,0.6)',
                 color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' },
-              }}
+                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
             >
               Map Search
             </Button>
@@ -1584,8 +1547,7 @@ const SearchPage: React.FC = () => {
                       <Clear fontSize="small" />
                     </IconButton>
                   </InputAdornment>
-                ) : undefined,
-              }}
+                ) : undefined }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3} sx={{ display: showMoreFilters ? 'block' : 'none' }}>
@@ -1605,14 +1567,12 @@ const SearchPage: React.FC = () => {
                 } else if (typeof newValue === 'object' && newValue?.name) {
                   setFilters({
                     ...filters,
-                    league: newValue.name,
-                  });
+                    league: newValue.name });
                   setPage(1);
                 } else if (typeof newValue === 'string') {
                   setFilters({
                     ...filters,
-                    league: newValue,
-                  });
+                    league: newValue });
                   setPage(1);
                 }
               }}
@@ -1621,8 +1581,7 @@ const SearchPage: React.FC = () => {
                 if (reason === 'input') {
                   setFilters({
                     ...filters,
-                    league: inputValue,
-                  });
+                    league: inputValue });
                 }
               }}
               freeSolo={true}
@@ -1650,8 +1609,7 @@ const SearchPage: React.FC = () => {
                         {loadingLeagues ? <CircularProgress color="inherit" size={20} /> : null}
                         {params.InputProps.endAdornment}
                       </>
-                    ),
-                  }}
+                    ) }}
                 />
               )}
               renderOption={(props, option) => {
@@ -1852,8 +1810,7 @@ const SearchPage: React.FC = () => {
                       <Clear fontSize="small" />
                     </IconButton>
                   </InputAdornment>
-                ) : undefined,
-              }}
+                ) : undefined }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -1871,13 +1828,24 @@ const SearchPage: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Button
               fullWidth
+              variant={quickMatchMode ? 'contained' : 'outlined'}
+              onClick={() => setQuickMatchMode(!quickMatchMode)}
+              sx={{ height: '56px' }}
+            >
+              {quickMatchMode ? 'Quick Match' : 'Full Search'}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
               variant="outlined"
               startIcon={(
                 <Badge color="primary" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
-                  <FilterList />
+                  <FilterList /> && !quickMatchMode
                 </Badge>
               )}
               onClick={() => setShowMoreFilters(!showMoreFilters)}
+              disabled={quickMatchMode}
               sx={{ height: '56px' }}
             >
               {showMoreFilters ? 'Hide' : 'Show'} More Filters
@@ -1949,8 +1917,7 @@ const SearchPage: React.FC = () => {
                   const fallbackAgeGroup = user?.role === 'Player' ? 'Under 16' : 'Adult (18+)';
                   setFilters({
                     ...filters,
-                    ageGroup: filters.ageGroup || fallbackAgeGroup,
-                  });
+                    ageGroup: filters.ageGroup || fallbackAgeGroup });
                 }}
                 variant="outlined"
               />
@@ -1960,8 +1927,7 @@ const SearchPage: React.FC = () => {
                 onClick={() => {
                   setFilters({
                     ...filters,
-                    position: filters.position || 'Striker',
-                  });
+                    position: filters.position || 'Striker' });
                 }}
                 variant="outlined"
               />
@@ -1986,8 +1952,7 @@ const SearchPage: React.FC = () => {
                         ...filters,
                         ...search.filters,
                         hasMatchRecording: search.filters.hasMatchRecording || false,
-                        hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
-                      });
+                        hasPathwayToSenior: search.filters.hasPathwayToSenior || false });
                       setTabValue(search.tabIndex);
                     }}
                   />
@@ -2244,9 +2209,7 @@ const SearchPage: React.FC = () => {
           sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
-            maxHeight: '86vh',
-          },
-        }}
+            maxHeight: '86vh' } }}
       >
         <Box sx={{ p: 2, pb: 11, overflowY: 'auto' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 0.5 }}>
@@ -2397,8 +2360,7 @@ const SearchPage: React.FC = () => {
             py: 1.5,
             borderTop: '1px solid',
             borderColor: 'divider',
-            bgcolor: 'background.paper',
-          }}
+            bgcolor: 'background.paper' }}
         >
           <Stack direction="row" spacing={1.5}>
             <Button fullWidth variant="text" startIcon={<Clear />} onClick={clearMobileDraftFilters}>
@@ -3331,8 +3293,7 @@ const SearchPage: React.FC = () => {
             ...filters,
             ...search.filters,
             hasMatchRecording: search.filters.hasMatchRecording || false,
-            hasPathwayToSenior: search.filters.hasPathwayToSenior || false,
-          });
+            hasPathwayToSenior: search.filters.hasPathwayToSenior || false });
           setTabValue(search.tabIndex);
         }}
         currentFilters={filters}

@@ -15,8 +15,7 @@ export const useSmartNavigation = () => {
   const stateRef = useRef<NavigationState>({
     isNavigating: false,
     lastNavigationTime: 0,
-    pendingNavigations: new Set(),
-  });
+    pendingNavigations: new Set() });
 
   const canNavigate = useCallback((path: string) => {
     const now = Date.now();
@@ -104,6 +103,5 @@ export const useSmartNavigation = () => {
     navigate: safeNavigate,
     isNavigating: stateRef.current.isNavigating,
     canNavigate,
-    clearNavigationState,
-  };
+    clearNavigationState };
 };

@@ -59,8 +59,7 @@ class CalendarIntegrationService {
       accessToken: authResponse.access_token,
       refreshToken: authResponse.refresh_token || '',
       isActive: true,
-      syncEnabled: true,
-    };
+      syncEnabled: true };
 
     const response = await axios.post(`${API_URL}/calendar/integrations`, integration);
     return response.data.integration;
@@ -93,8 +92,7 @@ class CalendarIntegrationService {
       accountEmail: response.account.username,
       accessToken: response.accessToken,
       isActive: true,
-      syncEnabled: true,
-    };
+      syncEnabled: true };
 
     const apiResponse = await axios.post(`${API_URL}/calendar/integrations`, integration);
     return apiResponse.data.integration;

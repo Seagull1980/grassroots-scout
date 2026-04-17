@@ -57,9 +57,7 @@ const MessagesSummary: React.FC<MessagesSummaryProps> = ({ maxItems = 3 }) => {
   const loadConversations = async () => {
     try {
       const response = await fetch(`${API_URL}/conversations`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -212,9 +210,7 @@ export const MatchProgressSummary: React.FC<MatchProgressSummaryProps> = ({ maxI
   const loadMatchProgress = async () => {
     try {
       const response = await fetch('/api/match-progress', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (response.ok) {
         const data = await response.json();

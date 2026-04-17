@@ -136,9 +136,7 @@ const SuccessStoriesPage: React.FC = () => {
       const response = await fetch('/api/success-stories/submit', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           story: submitData.story,
           rating: submitData.rating,

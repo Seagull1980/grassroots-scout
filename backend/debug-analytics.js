@@ -2,7 +2,10 @@ const jwt = require('jsonwebtoken');
 const DatabaseUtils = require('./utils/dbUtils.js');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'grassroots-hub-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 const db = new DatabaseUtils();
 
 async function debugAnalytics() {

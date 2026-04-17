@@ -155,9 +155,7 @@ const TrainingMapView: React.FC<TrainingMapViewProps> = ({
     setLoading(true);
     setError(null);
 
-    try {
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    try {      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       const response = await axios.get(`${apiUrl}/calendar/training-locations`, {
         params: {
           latitude: userLocation.latitude,
@@ -166,7 +164,7 @@ const TrainingMapView: React.FC<TrainingMapViewProps> = ({
           hasVacancies: showVacanciesOnly ? 'true' : undefined,
           locationType
         },
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {}
       });
 
       setLocations(response.data.trainingLocations || []);

@@ -440,9 +440,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   // Fetch data based on search type
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
       setIsLoading(true);
       setError(null);
 
@@ -452,7 +449,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         if (searchType === 'vacancies' || searchType === 'both') {
           endpoints.push(
             fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/vacancies`, {
-              headers: token ? { Authorization: `Bearer ${token}` } : {}
+              headers: {}
             }).then(async r => {
               if (!r.ok) throw new Error(`Vacancies endpoint failed: ${r.status}`);
               const data = await r.json();
@@ -464,7 +461,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         if (searchType === 'players' || searchType === 'both') {
           endpoints.push(
             fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/player-availability?sort=recent`, {
-              headers: { Authorization: `Bearer ${token}` }
+              headers: {}
             }).then(async r => {
               if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);
               const data = await r.json();
@@ -935,9 +932,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         const response = await fetch(`${API_URL}/messages`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
+            'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
 

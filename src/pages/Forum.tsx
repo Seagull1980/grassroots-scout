@@ -25,8 +25,7 @@ import {
   Tab,
   Select,
   FormControl,
-  InputLabel,
-} from '@mui/material';
+  InputLabel } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -34,8 +33,7 @@ import {
   MoreVert as MoreVertIcon,
   Person as PersonIcon,
   Lock as LockIcon,
-  LockOpen as LockOpenIcon,
-} from '@mui/icons-material';
+  LockOpen as LockOpenIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { ForumPost } from '../types';
 
@@ -158,8 +156,7 @@ const Forum: React.FC = () => {
             ...formData,
             user_id: parseInt(user.id),
             user_role: user.role,
-            author_name: `${user.firstName} ${user.lastName}`,
-          };
+            author_name: `${user.firstName} ${user.lastName}` };
 
       console.log('🟢 Frontend: Sending forum post request:', {
         url,
@@ -171,8 +168,7 @@ const Forum: React.FC = () => {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+        body: JSON.stringify(body) });
 
       console.log('🟢 Frontend: Received response:', {
         status: response.status,
@@ -235,8 +231,7 @@ const Forum: React.FC = () => {
         body: JSON.stringify({ 
           user_id: parseInt(user.id),
           user_role: user.role 
-        }),
-      });
+        }) });
 
       if (!response.ok) {
         let data;
@@ -276,8 +271,7 @@ const Forum: React.FC = () => {
           user_id: parseInt(user.id),
           user_role: user.role,
           is_locked: !currentlyLocked
-        }),
-      });
+        }) });
 
       if (!response.ok) {
         let data;
@@ -423,8 +417,7 @@ const Forum: React.FC = () => {
                 transition: 'transform 0.2s, box-shadow 0.2s',
                 '&:hover': {
                   transform: 'translateY(-2px)',
-                  boxShadow: 4,
-                }
+                  boxShadow: 4 }
               }}
             >
               <CardContent>

@@ -35,8 +35,7 @@ import {
   Badge,
   Stack,
   Tooltip,
-  Autocomplete,
-} from '@mui/material';
+  Autocomplete } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,

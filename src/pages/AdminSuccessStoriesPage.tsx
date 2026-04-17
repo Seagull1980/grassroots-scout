@@ -36,9 +36,7 @@ const AdminSuccessStoriesPage: React.FC = () => {
       setLoading(true);
       setError('');
       const response = await fetch(`/api/admin/success-story-submissions?status=${targetStatus}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: {}
       });
       if (!response.ok) {
         setError('Failed to load submissions');
@@ -72,9 +70,7 @@ const AdminSuccessStoriesPage: React.FC = () => {
       const response = await fetch(`/api/admin/success-story-submissions/${selectedSubmission.id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: actionType,
           adminNotes: adminNotes.trim() || undefined

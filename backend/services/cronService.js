@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const alertService = require('./alertService.js');
+const adminKpiReportService = require('./adminKpiReportService.cjs');
 
 class CronService {
   constructor(db = null) {
@@ -9,6 +10,7 @@ class CronService {
 
   setDatabase(db) {
     this.db = db;
+    adminKpiReportService.setDatabase(db);
   }
 
   // Initialize all cron jobs
@@ -54,10 +56,30 @@ class CronService {
       scheduled: false
     });
 
+    const adminKpiCronExpression = process.env.ADMIN_KPI_REPORT_CRON || '0 8 * * 1';
+    const adminKpiAutomationEnabled = process.env.ENABLE_ADMIN_KPI_AUTOMATION !== 'false';
+
+    const weeklyAdminKpiJob = cron.schedule(adminKpiCronExpression, async () => {
+      if (!adminKpiAutomationEnabled) {
+        return;
+      }
+
+      console.log('📈 Running weekly admin KPI report job...');
+      try {
+        const result = await adminKpiReportService.generateWeeklyReport();
+        console.log(`✅ Weekly admin KPI report completed: ${result.latestMarkdownPath}`);
+      } catch (error) {
+        console.error('❌ Weekly admin KPI report job failed:', error);
+      }
+    }, {
+      scheduled: false
+    });
+
     this.jobs = [
       { name: 'weeklyDigest', job: weeklyDigestJob },
       { name: 'cleanup', job: cleanupJob },
-      { name: 'reengagement', job: reengagementJob }
+      { name: 'reengagement', job: reengagementJob },
+      { name: 'weeklyAdminKpiReport', job: weeklyAdminKpiJob }
     ];
 
     console.log('✅ Cron jobs initialized');
@@ -222,6 +244,11 @@ class CronService {
   async triggerReengagement() {
     console.log('🧪 Manually triggering re-engagement...');
     await this.sendReengagementEmails();
+  }
+
+  async triggerWeeklyAdminKpiReport(anchorDate = null) {
+    console.log('🧪 Manually triggering weekly admin KPI report...');
+    return adminKpiReportService.generateWeeklyReport({ anchorDate });
   }
 }
 

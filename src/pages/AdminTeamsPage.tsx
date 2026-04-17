@@ -16,13 +16,11 @@ import {
   Alert,
   CircularProgress,
   TextField,
-  InputAdornment,
-} from '@mui/material';
+  InputAdornment } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Search as SearchIcon,
-  Sports as SportsIcon,
-} from '@mui/icons-material';
+  Sports as SportsIcon } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -63,11 +61,9 @@ const AdminTeamsPage: React.FC = () => {
     setLoading(true);
     setError('');
     
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/teams', {
+    try {      const response = await fetch('/api/teams', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          
           'Content-Type': 'application/json'
         }
       });
@@ -170,8 +166,7 @@ const AdminTeamsPage: React.FC = () => {
                   <InputAdornment position="start">
                     <SearchIcon />
                   </InputAdornment>
-                ),
-              }}
+                ) }}
               sx={{ mb: 2 }}
             />
 
@@ -205,8 +200,7 @@ const AdminTeamsPage: React.FC = () => {
                       <TableRow 
                         key={team.id}
                         sx={{ 
-                          '&:hover': { backgroundColor: '#f9fafb' },
-                        }}
+                          '&:hover': { backgroundColor: '#f9fafb' } }}
                       >
                         <TableCell>
                           <Typography variant="body2" fontWeight={500}>

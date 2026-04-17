@@ -18,8 +18,7 @@ window.addEventListener('error', (event) => {
     filename: event.filename,
     lineno: event.lineno,
     colno: event.colno,
-    error: event.error,
-  });
+    error: event.error });
 });
 
 // Global unhandled rejection handler
@@ -33,8 +32,7 @@ window.addEventListener('unhandledrejection', (event) => {
   
   console.error('[Unhandled Rejection]', {
     reason: event.reason,
-    promise: event.promise,
-  });
+    promise: event.promise });
 });
 
 const root = document.getElementById('root');

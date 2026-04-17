@@ -20,13 +20,13 @@ const config = {
     },
     server: {
       port: process.env.PORT || 3001,
-      jwtSecret: process.env.JWT_SECRET || 'grassroots-hub-secret-key'
+      jwtSecret: process.env.JWT_SECRET
     },
     email: {
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
       port: process.env.EMAIL_PORT || 587,
       user: process.env.EMAIL_USER,
-      password: process.env.EMAIL_PASSWORD
+      password: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD
     },
     maps: {
       apiKey: process.env.GOOGLE_MAPS_API_KEY
@@ -55,7 +55,7 @@ const config = {
       host: process.env.EMAIL_HOST,
       port: process.env.EMAIL_PORT || 587,
       user: process.env.EMAIL_USER,
-      password: process.env.EMAIL_PASSWORD
+      password: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD
     },
     maps: {
       apiKey: process.env.GOOGLE_MAPS_API_KEY

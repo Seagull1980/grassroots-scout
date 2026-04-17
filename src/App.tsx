@@ -30,7 +30,6 @@ import BetaAccessDenied from './pages/BetaAccessDenied';
 import './services/analyticsTracking';
 
 // Optimized imports - Core pages loaded immediately
-import DashboardPage from './pages/DashboardPage.tsx';
 import PostAdvertPage from './pages/PostAdvertPage.tsx';
 import EditAdvertPage from './pages/EditAdvertPage.tsx';
 import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
@@ -54,6 +53,7 @@ import AdminClubsPage from './pages/AdminClubsPage';
 import AdminTeamsPage from './pages/AdminTeamsPage';
 import AdminModerationDashboard from './pages/AdminModerationDashboard';
 import AdminEmailLogsPage from './pages/AdminEmailLogsPage';
+import AdminKpiReportPage from './pages/AdminKpiReportPage';
 
 // Heavy features - lazy loaded
 const {
@@ -97,7 +97,7 @@ const RouteTitleManager = () => {
     const getTitle = () => {
       if (path === '/') return 'The Grassroots Scout';
       if (path.startsWith('/start')) return 'Start Here | The Grassroots Scout';
-      if (path.startsWith('/dashboard')) return 'Dashboard | The Grassroots Scout';
+      if (path.startsWith('/dashboard')) return 'Start Here | The Grassroots Scout';
       if (path.startsWith('/search')) return 'Search | The Grassroots Scout';
       if (path.startsWith('/messages')) return 'Messages | The Grassroots Scout';
       if (path.startsWith('/maps')) return 'Maps | The Grassroots Scout';
@@ -164,7 +164,7 @@ const AppRoutes = () => {
         } />
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <DashboardPage />
+            <Navigate to="/start" replace />
           </ProtectedRoute>
         } />
         <Route path="/start" element={
@@ -341,6 +341,11 @@ const AppRoutes = () => {
             <AdminEmailLogsPage />
           </ProtectedRoute>
         } />
+        <Route path="/admin/kpi-report" element={
+          <ProtectedRoute>
+            <AdminKpiReportPage />
+          </ProtectedRoute>
+        } />
         <Route path="/admin/success-stories" element={
           <ProtectedRoute>
             <AdminSuccessStoriesPage />
@@ -376,6 +381,9 @@ const AppRoutes = () => {
             <AlertPreferencesPage />
           </ProtectedRoute>
         } />
+        <Route path="/profile/alerts" element={<Navigate to="/alert-preferences" replace />} />
+        <Route path="/unsubscribe" element={<Navigate to="/alert-preferences" replace />} />
+        <Route path="/trials" element={<Navigate to="/calendar" replace />} />
         <Route path="/recommendations" element={
           <ProtectedRoute>
             <RecommendationsPage />

@@ -67,10 +67,8 @@ const AdminFrozenAdvertsPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/admin/frozen-adverts`, {
-        headers: { Authorization: `Bearer ${token}` },
+    try {      const response = await axios.get(`${API_URL}/admin/frozen-adverts`, {
+        headers: {},
         params: {
           search: search.trim() || undefined
         }
@@ -90,10 +88,8 @@ const AdminFrozenAdvertsPage: React.FC = () => {
       return;
     }
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/admin/adverts/${type}/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+    try {      await axios.delete(`${API_URL}/admin/adverts/${type}/${id}`, {
+        headers: {}
       });
 
       fetchFrozenAdverts();

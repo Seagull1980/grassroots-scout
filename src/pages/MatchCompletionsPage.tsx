@@ -26,8 +26,7 @@ import {
   Autocomplete,
   FormControl,
   InputLabel,
-  Select,
-} from '@mui/material';
+  Select } from '@mui/material';
 import {
   Add as AddIcon,
   CheckCircle as CheckCircleIcon,
@@ -119,12 +118,8 @@ const MatchCompletionsPage: React.FC = () => {
   };
 
   const fetchCompletions = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/match-completions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+    try {      const response = await fetch('/api/match-completions', {
+        headers: {}
       });
 
       if (response.ok) {
@@ -138,14 +133,10 @@ const MatchCompletionsPage: React.FC = () => {
     }
   };
   const handleCreateCompletion = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/match-completions', {
+    try {      const response = await fetch('/api/match-completions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
@@ -172,14 +163,10 @@ const MatchCompletionsPage: React.FC = () => {
   };
 
   const handleConfirmMatch = async (completionId: string, confirmed: boolean) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/match-completions/${completionId}/confirm`, {
+    try {      const response = await fetch(`/api/match-completions/${completionId}/confirm`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmed })
       });
 
@@ -199,14 +186,10 @@ const MatchCompletionsPage: React.FC = () => {
   const handleUpdateStory = async () => {
     if (!selectedCompletion) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/match-completions/${selectedCompletion.id}/story`, {
+    try {      const response = await fetch(`/api/match-completions/${selectedCompletion.id}/story`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify(storyData)
       });
 

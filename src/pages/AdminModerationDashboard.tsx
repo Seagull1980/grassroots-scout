@@ -25,8 +25,7 @@ import {
   Alert,
   Tabs,
   Tab,
-  Pagination,
-} from '@mui/material';
+  Pagination } from '@mui/material';
 import {
   Flag as FlagIcon,
   Edit as EditIcon
@@ -99,9 +98,7 @@ const AdminModerationDashboard: React.FC = () => {
       const response = await fetch(
         `${API_URL}/admin/message-reports?status=${reportStatus}&limit=${itemsPerPage}&offset=${offset}`,
         {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: {}
         }
       );
 
@@ -123,9 +120,7 @@ const AdminModerationDashboard: React.FC = () => {
       const response = await fetch(
         `${API_URL}/admin/message-alerts?status=${alertStatus}&limit=${itemsPerPage}&offset=${offset}`,
         {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: {}
         }
       );
 
@@ -154,9 +149,7 @@ const AdminModerationDashboard: React.FC = () => {
       const response = await fetch(`${API_URL}/admin/message-reports/${editingReport.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+          'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: editStatus,
           moderatorNotes: editNotes,

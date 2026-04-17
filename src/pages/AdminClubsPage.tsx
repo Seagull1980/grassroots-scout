@@ -16,13 +16,11 @@ import {
   Alert,
   CircularProgress,
   TextField,
-  InputAdornment,
-} from '@mui/material';
+  InputAdornment } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Search as SearchIcon,
-  Group as GroupIcon,
-} from '@mui/icons-material';
+  Group as GroupIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -56,11 +54,9 @@ const AdminClubsPage: React.FC = () => {
     setLoading(true);
     setError('');
     
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/teams', {
+    try {      const response = await fetch('/api/teams', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          
           'Content-Type': 'application/json'
         }
       });
@@ -169,8 +165,7 @@ const AdminClubsPage: React.FC = () => {
                   <InputAdornment position="start">
                     <SearchIcon />
                   </InputAdornment>
-                ),
-              }}
+                ) }}
               sx={{ mb: 2 }}
             />
 

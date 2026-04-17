@@ -13,8 +13,7 @@ import {
   SelectChangeEvent,
   Alert,
   Grid,
-  CircularProgress,
-} from '@mui/material';
+  CircularProgress } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -54,8 +53,7 @@ const EditAdvertPage: React.FC = () => {
     ageGroup: '',
     position: '',
     positions: [] as string[],
-    location: '',
-  });
+    location: '' });
 
   const [locationData, setLocationData] = useState<Location | null>(null);
 
@@ -98,8 +96,7 @@ const EditAdvertPage: React.FC = () => {
         ageGroup: advertData.ageGroup || '',
         position: advertData.position || '',
         positions: advertData.positions || [],
-        location: advertData.location || '',
-      });
+        location: advertData.location || '' });
       
       if (advertData.locationData) {
         setLocationData(advertData.locationData);
@@ -158,8 +155,7 @@ const EditAdvertPage: React.FC = () => {
         position: user?.role === 'Coach' ? formData.position : undefined,
         positions: (user?.role === 'Player' || user?.role === 'Parent/Guardian') ? formData.positions : undefined,
         location: formData.location,
-        locationData: locationData,
-      };
+        locationData: locationData };
 
       await api.put(`/adverts/${id}`, updateData);
       setSuccess('Advert updated successfully!');
