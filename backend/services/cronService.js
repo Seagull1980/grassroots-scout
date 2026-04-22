@@ -113,32 +113,32 @@ class CronService {
     try {
       // Delete old page views (older than 6 months)
       await this.db.query(
-        "DELETE FROM page_views WHERE timestamp < datetime('now', '-6 months')"
+        "DELETE FROM page_views WHERE timestamp < NOW() - INTERVAL '6 months'"
       );
 
       // Delete old user sessions (older than 3 months)
       await this.db.query(
-        "DELETE FROM user_sessions WHERE startTime < datetime('now', '-3 months')"
+        "DELETE FROM user_sessions WHERE startTime < NOW() - INTERVAL '3 months'"
       );
 
       // Delete old search history (older than 1 year)
       await this.db.query(
-        "DELETE FROM user_search_history WHERE searchedAt < datetime('now', '-1 year')"
+        "DELETE FROM user_search_history WHERE searchedAt < NOW() - INTERVAL '1 year'"
       );
 
       // Delete processed notification queue items (older than 1 month)
       await this.db.query(
-        "DELETE FROM notification_queue WHERE status = 'processed' AND processedAt < datetime('now', '-1 month')"
+        "DELETE FROM notification_queue WHERE status = 'processed' AND processedAt < NOW() - INTERVAL '1 month'"
       );
 
       // Delete old alert logs (older than 1 year)
       await this.db.query(
-        "DELETE FROM alert_logs WHERE sentAt < datetime('now', '-1 year')"
+        "DELETE FROM alert_logs WHERE sentAt < NOW() - INTERVAL '1 year'"
       );
 
       // Delete old email delivery audit logs (older than 90 days)
       await this.db.query(
-        "DELETE FROM email_delivery_logs WHERE createdAt < datetime('now', '-90 days')"
+        "DELETE FROM email_delivery_logs WHERE createdAt < NOW() - INTERVAL '90 days'"
       );
 
       console.log('✅ Old data cleanup completed');
@@ -164,10 +164,10 @@ class CronService {
         SELECT DISTINCT u.id, u.email, u.firstName, u.role
         FROM users u
         JOIN user_alert_preferences uap ON u.id = uap.userId
-        LEFT JOIN page_views pv ON u.id = pv.userId AND pv.timestamp > datetime('now', '-30 days')
+        LEFT JOIN page_views pv ON u.id = pv.userId AND pv.timestamp > NOW() - INTERVAL '30 days'
         WHERE uap.emailNotifications = 1
         AND pv.userId IS NULL
-        AND u.createdAt < datetime('now', '-7 days')
+        AND u.createdAt < NOW() - INTERVAL '7 days'
       `);
 
       for (const user of inactiveUsers.rows) {
@@ -179,7 +179,7 @@ class CronService {
             const vacancies = await this.db.query(`
               SELECT title, league, position, ageGroup, createdAt
               FROM team_vacancies 
-              WHERE createdAt > datetime('now', '-7 days') AND status = 'active'
+              WHERE createdAt > NOW() - INTERVAL '7 days' AND status = 'active'
               ORDER BY createdAt DESC 
               LIMIT 3
             `);
@@ -192,7 +192,7 @@ class CronService {
             const players = await this.db.query(`
               SELECT title, preferredLeagues, ageGroup, createdAt
               FROM player_availability 
-              WHERE createdAt > datetime('now', '-7 days') AND status = 'active'
+              WHERE createdAt > NOW() - INTERVAL '7 days' AND status = 'active'
               ORDER BY createdAt DESC 
               LIMIT 3
             `);
