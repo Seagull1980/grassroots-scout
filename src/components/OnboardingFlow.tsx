@@ -195,7 +195,8 @@ export const OnboardingFlow: React.FC = () => {
   // Search for existing clubs
   const searchClubs = async (searchTerm: string) => {
     try {
-      setLoadingClubs(true);      const response = await axios.get(`${API_URL || ''}/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+      setLoadingClubs(true);
+      const response = await axios.get(`${API_URL || ''}/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
         headers: {}
       });
       const clubResults = Array.isArray(response.data.clubs) ? response.data.clubs : [];
@@ -282,16 +283,6 @@ export const OnboardingFlow: React.FC = () => {
         return;
       }
 
-      const hasBetaAccess =
-        user.betaAccess === true ||
-        user.betaAccess === 1 ||
-        user.betaAccess === '1';
-
-      if (!hasBetaAccess) {
-        setOpen(false);
-        return;
-      }
-
       const hasCompletedOnboarding = storage.getItem(`onboarding_completed_${user.id}`);
       const hasSeenOnboarding = storage.getItem(`seen_onboarding_${user.id}`);
 
@@ -335,7 +326,8 @@ export const OnboardingFlow: React.FC = () => {
           }
         }
 
-        // Save profile data to backend        const profileData: any = {};
+        // Save profile data to backend
+        const profileData: any = {};
 
         // Add profile fields if they exist
         if (userData.location) profileData.location = userData.location;

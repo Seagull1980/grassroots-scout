@@ -165,9 +165,11 @@ class AlertService {
         const ageGroups = this.normalizeList(user.ageGroups);
         const positions = this.normalizeList(user.positions);
 
-        return this.hasOverlap(preferredLeagues, vacancyLeague ? [vacancyLeague] : [])
-          && this.hasOverlap(ageGroups, vacancyAgeGroup ? [vacancyAgeGroup] : [])
-          && this.hasOverlap(positions, vacancyPositions);
+        // Empty preference list = wildcard (match anything)
+        const leagueMatch = preferredLeagues.length === 0 || this.hasOverlap(preferredLeagues, vacancyLeague ? [vacancyLeague] : []);
+        const ageMatch = ageGroups.length === 0 || this.hasOverlap(ageGroups, vacancyAgeGroup ? [vacancyAgeGroup] : []);
+        const positionMatch = positions.length === 0 || vacancyPositions.length === 0 || this.hasOverlap(positions, vacancyPositions);
+        return leagueMatch && ageMatch && positionMatch;
       });
       
       const emailPromises = matchingUsers.map(async (user) => {
@@ -218,9 +220,11 @@ class AlertService {
         const coachAgeGroups = this.normalizeList(coach.ageGroups);
         const coachPositions = this.normalizeList(coach.positions);
 
-        return this.hasOverlap(coachLeagues, preferredLeagues)
-          && this.hasOverlap(coachAgeGroups, ageGroups)
-          && this.hasOverlap(coachPositions, positions);
+        // Empty preference list = wildcard (match anything)
+        const leagueMatch = coachLeagues.length === 0 || preferredLeagues.length === 0 || this.hasOverlap(coachLeagues, preferredLeagues);
+        const ageMatch = coachAgeGroups.length === 0 || ageGroups.length === 0 || this.hasOverlap(coachAgeGroups, ageGroups);
+        const positionMatch = coachPositions.length === 0 || positions.length === 0 || this.hasOverlap(coachPositions, positions);
+        return leagueMatch && ageMatch && positionMatch;
       });
       
       const emailPromises = matchingCoaches.map(async (coach) => {
