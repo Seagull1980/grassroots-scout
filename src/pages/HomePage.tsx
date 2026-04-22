@@ -14,7 +14,8 @@ import {
   Group,
   Search,
   Notifications,
-  Psychology } from '@mui/icons-material';
+  Psychology,
+  EmojiEvents } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsive, useResponsiveSpacing } from '../hooks/useResponsive';
@@ -436,6 +437,19 @@ const HomePage: React.FC = () => {
           </Grid>
         </Grid>
       </Paper>
+
+      {/* Call to Action */}
+      {/* Success Stories Teaser */}
+      <Box sx={{ textAlign: 'center', py: 5, mb: 2 }}>
+        <EmojiEvents sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Real connections. Real stories.</Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 560, mx: 'auto' }}>
+          Players who found their club, and coaches who found their player. Browse success stories from the Grassroots Hub community.
+        </Typography>
+        <Button variant="outlined" size="large" onClick={() => navigate('/success-stories')}>
+          Read Success Stories
+        </Button>
+      </Box>
 
       {/* Call to Action */}
       {!user && (

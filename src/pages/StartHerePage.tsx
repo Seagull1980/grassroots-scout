@@ -19,7 +19,8 @@ import {
   Map,
   Dashboard,
   FamilyRestroom,
-  Email } from '@mui/icons-material';
+  Email,
+  EmojiEvents } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAnalytics } from '../hooks/useAnalytics';
@@ -411,6 +412,19 @@ const StartHerePage: React.FC = () => {
             </Button>
           </Box>
         )}
+
+        <Paper variant="outlined" sx={{ p: 2.5, mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <EmojiEvents color="warning" />
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>See real success stories</Typography>
+              <Typography variant="body2" color="text.secondary">Read how other players and coaches found their match on The Grassroots Hub.</Typography>
+            </Box>
+          </Stack>
+          <Button variant="outlined" size="small" onClick={() => navigate('/success-stories')}>
+            Read Stories
+          </Button>
+        </Paper>
       </Container>
     </Box>
   );
