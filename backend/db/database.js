@@ -189,6 +189,16 @@ class Database {
     pgSql = pgSql.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/gi, 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
     pgSql = pgSql.replace(/BOOLEAN DEFAULT 0/gi, 'BOOLEAN DEFAULT FALSE');
     pgSql = pgSql.replace(/BOOLEAN DEFAULT 1/gi, 'BOOLEAN DEFAULT TRUE');
+
+    // Convert common SQLite date/time expressions used throughout the backend.
+    pgSql = pgSql.replace(/datetime\(\s*'now'\s*,\s*'-(\d+)\s+(day|days|month|months|year|years|hour|hours)'\s*\)/gi, "NOW() - INTERVAL '$1 $2'");
+    pgSql = pgSql.replace(/date\(\s*'now'\s*,\s*'-(\d+)\s+(day|days|month|months|year|years)'\s*\)/gi, "(CURRENT_DATE - INTERVAL '$1 $2')::date");
+    pgSql = pgSql.replace(/date\(\s*'now'\s*\)/gi, 'CURRENT_DATE');
+    pgSql = pgSql.replace(/date\(\s*'now'\s*,\s*'start of month'\s*,\s*'-(\d+)\s+months'\s*\)/gi, "(date_trunc('month', CURRENT_DATE) - INTERVAL '$1 months')::date");
+    pgSql = pgSql.replace(/strftime\(\s*'%Y-%m'\s*,\s*DATE\(([^)]+)\)\s*\)/gi, "TO_CHAR(DATE($1), 'YYYY-MM')");
+    pgSql = pgSql.replace(/strftime\(\s*'%H'\s*,\s*([^)]+)\)/gi, "TO_CHAR($1, 'HH24')");
+    pgSql = pgSql.replace(/\(julianday\(([^)]+)\)\s*-\s*julianday\(([^)]+)\)\)\s*\*\s*24\s*\*\s*60/gi, "EXTRACT(EPOCH FROM (($1) - ($2))) / 60.0");
+    pgSql = pgSql.replace(/datetime\(\s*'now'\s*,\s*\$(\d+)\s*\)/gi, "NOW() + ($1::text)::interval");
     
     return pgSql;
   }
