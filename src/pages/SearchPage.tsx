@@ -290,6 +290,7 @@ const SearchPage: React.FC = () => {
       return false;
     }
   });
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
 
   const [collections, setCollections] = useState<SavedCollection[]>(() => {
     try {
@@ -1301,6 +1302,61 @@ const SearchPage: React.FC = () => {
     });
     return suggestions.slice(0, 4);
   }, [filters, clearFilters]);
+
+  const buildQuickSearchName = () => {
+    const typeLabel = tabValue === 0 ? 'Teams' : 'Players';
+    const parts = [
+      filters.ageGroup,
+      filters.position,
+      filters.location || filters.region,
+      typeLabel
+    ].filter(Boolean);
+
+    return parts.length > 0 ? `${parts.join(' ')} Search` : `${typeLabel} Search`;
+  };
+
+  const saveSearchAndEnableAlerts = async () => {
+    try {
+      const stored = localStorage.getItem('grassroots_saved_searches');
+      const existing = stored ? JSON.parse(stored) : [];
+      const safeExisting = Array.isArray(existing) ? existing : [];
+      const searchKey = JSON.stringify({ filters, tabValue });
+      const alreadyExists = safeExisting.some((entry) => JSON.stringify({ filters: entry.filters, tabValue: entry.tabIndex }) === searchKey);
+
+      if (!alreadyExists) {
+        const next = [
+          ...safeExisting,
+          {
+            id: Date.now().toString(),
+            name: buildQuickSearchName(),
+            filters,
+            tabIndex: tabValue,
+            createdAt: new Date().toISOString()
+          }
+        ];
+        localStorage.setItem('grassroots_saved_searches', JSON.stringify(next));
+      }
+
+      if (!alertsEnabled) {
+        const granted = await requestNotificationPermission();
+        if (granted) {
+          setAlertsEnabled(true);
+        }
+      }
+
+      setRecoveryNotice(alreadyExists
+        ? 'Search already saved. Alerts are ready so you will hear about new matches.'
+        : 'Search saved. You will be notified when new matching adverts are posted.');
+    } catch {
+      setRecoveryNotice('We could not save this search right now. You can still use Manage Alerts below.');
+    }
+  };
+
+  const widenRadiusForRecovery = () => {
+    setShowAdvancedFilters(true);
+    handleSliderChange('travelDistance', Math.max(filters.travelDistance, 50));
+    setRecoveryNotice('Expanded your travel radius to 50km to uncover nearby options.');
+  };
 
   const handleCreateCollection = () => {
     if (!collectionName.trim()) return;
@@ -2476,9 +2532,20 @@ const SearchPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Try adjusting your filters or explore recent postings below.
               </Typography>
+              {recoveryNotice && (
+                <Alert severity="success" sx={{ mb: 2, textAlign: 'left' }}>
+                  {recoveryNotice}
+                </Alert>
+              )}
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
                 <Button variant="outlined" onClick={clearFilters}>
                   Clear Filters
+                </Button>
+                <Button variant="outlined" color="secondary" onClick={widenRadiusForRecovery}>
+                  Show Nearby Results
+                </Button>
+                <Button variant="contained" color="secondary" onClick={saveSearchAndEnableAlerts}>
+                  Save Search + Alerts
                 </Button>
                 <Button variant="contained" onClick={() => navigate(user?.role === 'Coach' ? '/post-vacancy' : '/post-availability')}>
                   Post Advert

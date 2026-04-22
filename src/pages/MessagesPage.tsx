@@ -151,6 +151,27 @@ const MessagesPage: React.FC = () => {
     return conversationsWithPriority;
   }, [conversationFilter, conversations]);
 
+  const buildFirstMessageDraft = (recipientName?: string, context?: string) => {
+    const recipient = recipientName || 'there';
+    const contextLine = context ? `Regarding ${context}, ` : '';
+
+    if (user?.role === 'Coach') {
+      return `Hi ${recipient},\n\n${contextLine}I think you could be a strong fit for our setup. Would you be open to a short chat about availability and next steps?\n\nThanks!`;
+    }
+
+    return `Hi ${recipient},\n\n${contextLine}I am interested in this opportunity and would love to learn more about expectations and training schedule.\n\nThanks!`;
+  };
+
+  const newMessagePlaceholder = useMemo(() => {
+    if (newMessageRecipients.length > 1) {
+      return 'Introduce yourself, share relevant context, and ask for one clear next step.';
+    }
+
+    return user?.role === 'Coach'
+      ? 'Start with what stood out in their profile, then ask for availability this week.'
+      : 'Share your interest, mention fit, and ask for trial or next-step details.';
+  }, [newMessageRecipients.length, user?.role]);
+
   useEffect(() => {
     if (user) {
       loadConversations();
@@ -168,25 +189,27 @@ const MessagesPage: React.FC = () => {
     if (state.bulkRecipients && Array.isArray(state.bulkRecipients) && state.bulkRecipients.length > 0) {
       setNewMessageRecipients(state.bulkRecipients);
       setNewMessageRecipient(null);
-      setNewMessageText(state.context ? `Regarding ${state.context}:\n\n` : '');
+      const firstRecipient = state.bulkRecipients[0]?.name;
+      setNewMessageText(buildFirstMessageDraft(firstRecipient, state.context));
       setNewMessageOpen(true);
       return;
     }
 
     if (state.recipientId) {
+      const recipientName = state.recipientName || 'User';
       setNewMessageRecipient({
         id: state.recipientId,
-        name: state.recipientName || 'User',
+        name: recipientName,
         context: state.context,
         relatedVacancyId: state.relatedVacancyId,
         relatedPlayerAvailabilityId: state.relatedPlayerAvailabilityId,
         messageType: state.messageType
       });
       setNewMessageRecipients([]);
-      setNewMessageText(state.context ? `${state.context}\n\n` : '');
+      setNewMessageText(buildFirstMessageDraft(recipientName, state.context));
       setNewMessageOpen(true);
     }
-  }, [location.state]);
+  }, [location.state, user?.role]);
 
   useEffect(() => {
     const state = location.state as any;
@@ -902,6 +925,14 @@ const MessagesPage: React.FC = () => {
                       </Box>
                     )}
 
+                    {selectedConversation.unreadCount > 0 && (
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          A quick reply within 24 hours usually keeps momentum and improves response rates.
+                        </Typography>
+                      </Alert>
+                    )}
+
                     {selectedConversation.unreadCount > 0 && daysSince(selectedConversation.updatedAt) >= 2 && (
                       <Alert severity="warning" sx={{ mt: 2 }}>
                         <Typography variant="body2" sx={{ mb: 1 }}>
@@ -1186,7 +1217,7 @@ const MessagesPage: React.FC = () => {
             rows={6}
             value={newMessageText}
             onChange={(e) => setNewMessageText(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={newMessagePlaceholder}
             autoFocus
             sx={{ mt: 1 }}
           />
