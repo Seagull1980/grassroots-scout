@@ -103,6 +103,31 @@ class CronService {
     });
   }
 
+  async tableExists(tableName) {
+    if (!this.db) {
+      return false;
+    }
+
+    if (this.db.dbType === 'postgresql') {
+      const result = await this.db.query(
+        `SELECT EXISTS(
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = ?
+        )`,
+        [tableName]
+      );
+
+      return Boolean(result.rows[0]?.exists);
+    }
+
+    const result = await this.db.query(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName]
+    );
+
+    return result.rows.length > 0;
+  }
+
   // Clean up old data to maintain database performance
   async cleanupOldData() {
     if (!this.db) {
@@ -122,19 +147,25 @@ class CronService {
       );
 
       // Delete old search history (older than 1 year)
-      await this.db.query(
-        "DELETE FROM user_search_history WHERE searchedAt < NOW() - INTERVAL '1 year'"
-      );
+      if (await this.tableExists('user_search_history')) {
+        await this.db.query(
+          "DELETE FROM user_search_history WHERE searchedAt < NOW() - INTERVAL '1 year'"
+        );
+      }
 
       // Delete processed notification queue items (older than 1 month)
-      await this.db.query(
-        "DELETE FROM notification_queue WHERE status = 'processed' AND processedAt < NOW() - INTERVAL '1 month'"
-      );
+      if (await this.tableExists('notification_queue')) {
+        await this.db.query(
+          "DELETE FROM notification_queue WHERE status = 'processed' AND processedAt < NOW() - INTERVAL '1 month'"
+        );
+      }
 
       // Delete old alert logs (older than 1 year)
-      await this.db.query(
-        "DELETE FROM alert_logs WHERE sentAt < NOW() - INTERVAL '1 year'"
-      );
+      if (await this.tableExists('alert_logs')) {
+        await this.db.query(
+          "DELETE FROM alert_logs WHERE sentAt < NOW() - INTERVAL '1 year'"
+        );
+      }
 
       // Delete old email delivery audit logs (older than 90 days)
       await this.db.query(
