@@ -4134,13 +4134,9 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
         COUNT(CASE WHEN m1.recipientId = ? AND m1.isRead = false THEN 1 END) as unreadCount
       FROM messages m1
       WHERE m1.senderId = ? OR m1.recipientId = ?
-      GROUP BY
-        CASE
-          WHEN m1.senderId = ? THEN m1.recipientId
-          ELSE m1.senderId
-        END
+      GROUP BY 1
       ORDER BY lastMessageTime DESC
-    `, [userId, userId, userId, userId, userId]);
+    `, [userId, userId, userId, userId]);
 
     const conversations = [];
     

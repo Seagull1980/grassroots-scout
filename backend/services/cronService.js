@@ -196,7 +196,7 @@ class CronService {
         FROM users u
         JOIN user_alert_preferences uap ON u.id = uap.userId
         LEFT JOIN page_views pv ON u.id = pv.userId AND pv.timestamp > NOW() - INTERVAL '10 days'
-        WHERE uap.emailNotifications = 1
+        WHERE uap.emailNotifications = TRUE
         AND pv.userId IS NULL
         AND u.createdAt < NOW() - INTERVAL '7 days'
       `);

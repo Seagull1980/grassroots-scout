@@ -155,8 +155,8 @@ class AlertService {
         FROM users u
         JOIN user_alert_preferences uap ON u.id = uap.userId
         WHERE u.role IN ('Player', 'Parent/Guardian')
-        AND uap.emailNotifications = 1
-        AND uap.newVacancyAlerts = 1
+        AND uap.emailNotifications = TRUE
+        AND uap.newVacancyAlerts = TRUE
       `;
 
       const users = await this.db.query(query);
@@ -210,8 +210,8 @@ class AlertService {
         FROM users u
         JOIN user_alert_preferences uap ON u.id = uap.userId
         WHERE u.role = 'Coach'
-        AND uap.emailNotifications = 1
-        AND uap.newPlayerAlerts = 1
+        AND uap.emailNotifications = TRUE
+        AND uap.newPlayerAlerts = TRUE
       `;
 
       const coaches = await this.db.query(query);
@@ -266,7 +266,7 @@ class AlertService {
       if (userResult.rows.length === 0) return;
       
       const user = userResult.rows[0];
-      const shouldSendEmail = user.trialInvitations !== 0 && user.emailNotifications !== 0;
+      const shouldSendEmail = user.trialInvitations !== false && user.emailNotifications !== false;
 
       if (shouldSendEmail) {
         const email = encryptionService.decrypt(user.email);
@@ -301,8 +301,8 @@ class AlertService {
         SELECT u.id, u.email, u.firstName, u.role
         FROM users u
         LEFT JOIN user_alert_preferences uap ON u.id = uap.userId
-        WHERE (uap.emailNotifications IS NULL OR uap.emailNotifications = 1)
-          AND (uap.weeklyDigest IS NULL OR uap.weeklyDigest = 1)
+        WHERE (uap.emailNotifications IS NULL OR uap.emailNotifications = TRUE)
+          AND (uap.weeklyDigest IS NULL OR uap.weeklyDigest = TRUE)
       `);
 
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
