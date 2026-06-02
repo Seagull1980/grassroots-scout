@@ -1632,20 +1632,22 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
     
     // Get conversations where user is a participant
     const conversationsResult = await db.query(`
-      SELECT DISTINCT 
-        m1.senderId, 
-        m1.recipientId,
-        CASE 
-          WHEN m1.senderId = ? THEN m1.recipientId 
-          ELSE m1.senderId 
+      SELECT
+        CASE
+          WHEN m1.senderId = ? THEN m1.recipientId
+          ELSE m1.senderId
         END as otherUserId,
         MAX(m1.createdAt) as lastMessageTime,
         COUNT(CASE WHEN m1.recipientId = ? AND m1.isRead = false THEN 1 END) as unreadCount
       FROM messages m1
       WHERE m1.senderId = ? OR m1.recipientId = ?
-      GROUP BY otherUserId
+      GROUP BY
+        CASE
+          WHEN m1.senderId = ? THEN m1.recipientId
+          ELSE m1.senderId
+        END
       ORDER BY lastMessageTime DESC
-    `, [userId, userId, userId, userId]);
+    `, [userId, userId, userId, userId, userId]);
 
     const conversations = [];
     
@@ -1671,7 +1673,7 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
         let matchProgressStage = 'initial_interest';
         if (latestMessage.messageType === 'training_invitation') {
           matchProgressStage = 'trial_invited';
-        } else if (latestMessage.message.toLowerCase().includes('trial')) {
+        } else if (typeof latestMessage.message === 'string' && latestMessage.message.toLowerCase().includes('trial')) {
           matchProgressStage = 'trial_scheduled';
         }
 
