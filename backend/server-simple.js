@@ -1632,16 +1632,21 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
     
     // Get conversations where user is a participant
     const conversationsResult = await db.query(`
+      WITH participant_pairs AS (
+        SELECT
+          CASE WHEN m1.senderId < m1.recipientId THEN m1.senderId ELSE m1.recipientId END as participantA,
+          CASE WHEN m1.senderId < m1.recipientId THEN m1.recipientId ELSE m1.senderId END as participantB,
+          MAX(m1.createdAt) as lastMessageTime,
+          COUNT(CASE WHEN m1.recipientId = ? AND m1.isRead = false THEN 1 END) as unreadCount
+        FROM messages m1
+        WHERE m1.senderId = ? OR m1.recipientId = ?
+        GROUP BY 1, 2
+      )
       SELECT
-        CASE
-          WHEN m1.senderId = ? THEN m1.recipientId
-          ELSE m1.senderId
-        END as otherUserId,
-        MAX(m1.createdAt) as lastMessageTime,
-        COUNT(CASE WHEN m1.recipientId = ? AND m1.isRead = false THEN 1 END) as unreadCount
-      FROM messages m1
-      WHERE m1.senderId = ? OR m1.recipientId = ?
-      GROUP BY 1
+        CASE WHEN participantA = ? THEN participantB ELSE participantA END as otherUserId,
+        lastMessageTime,
+        unreadCount
+      FROM participant_pairs
       ORDER BY lastMessageTime DESC
     `, [userId, userId, userId, userId]);
 
