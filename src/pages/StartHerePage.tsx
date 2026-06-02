@@ -48,18 +48,18 @@ const StartHerePage: React.FC = () => {
 
   useEffect(() => {
     const loadSignals = async () => {
-      try {
-        const childrenRequest = user.role === 'Parent/Guardian'
-          ? api.get('/children')
-          : Promise.resolve({ data: { children: [] } });
+      const childrenRequest = user.role === 'Parent/Guardian'
+        ? api.get('/children')
+        : Promise.resolve({ data: { children: [] } });
 
-        const [profileResponse, conversationsResponse, childrenResponse] = await Promise.all([
-          profileAPI.get(),
-          api.get('/conversations'),
-          childrenRequest,
-        ]);
+      const [profileResult, conversationsResult, childrenResult] = await Promise.allSettled([
+        profileAPI.get(),
+        api.get('/conversations'),
+        childrenRequest,
+      ]);
 
-        const profile: UserProfile = profileResponse.profile;
+      if (profileResult.status === 'fulfilled') {
+        const profile: UserProfile = profileResult.value.profile;
         const baseFields = [profile.firstname, profile.lastname, profile.dateofbirth, profile.location, profile.bio];
         const roleFields =
           user.role === 'Player'
@@ -69,18 +69,26 @@ const StartHerePage: React.FC = () => {
               : [];
         const allFields = [...baseFields, ...roleFields];
         const filledFields = allFields.filter((field) => field !== undefined && field !== null && field !== '').length;
-        setProfileCompletion(Math.round((filledFields / allFields.length) * 100));
+        const completion = Math.round((filledFields / allFields.length) * 100);
+        setProfileCompletion(completion);
+        localStorage.setItem('profile_completion', String(completion));
+      } else {
+        const fallbackCompletion = Number(localStorage.getItem('profile_completion') || 0);
+        setProfileCompletion(Number.isFinite(fallbackCompletion) ? fallbackCompletion : 0);
+      }
 
-        const conversations = conversationsResponse.data?.conversations || [];
+      if (conversationsResult.status === 'fulfilled') {
+        const conversations = conversationsResult.value.data?.conversations || [];
         const unread = conversations.reduce((sum: number, conversation: any) => sum + (conversation.unreadCount || 0), 0);
         setUnreadMessages(unread);
-
-        const children = childrenResponse.data?.children || [];
-        setChildrenCount(Array.isArray(children) ? children.length : 0);
-      } catch {
-        const fallbackCompletion = Number(localStorage.getItem('profile_completion') || 30);
-        setProfileCompletion(Number.isFinite(fallbackCompletion) ? fallbackCompletion : 30);
+      } else {
         setUnreadMessages(0);
+      }
+
+      if (childrenResult.status === 'fulfilled') {
+        const children = childrenResult.value.data?.children || [];
+        setChildrenCount(Array.isArray(children) ? children.length : 0);
+      } else {
         setChildrenCount(0);
       }
     };
