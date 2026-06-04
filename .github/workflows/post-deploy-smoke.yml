@@ -28,12 +28,49 @@ jobs:
       - name: Wait for Vercel & Railway deploy propagation
         run: sleep 120
 
-      - name: Run team management smoke tests
+      - name: Resolve smoke configuration
+        id: smoke-config
+        shell: bash
         env:
-           SMOKE_BASE_URL: ${{ inputs.smoke_base_url || vars.SMOKE_BASE_URL }}
+          INPUT_SMOKE_BASE_URL: ${{ inputs.smoke_base_url }}
+          VAR_SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL }}
+          SECRET_SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          BASE_URL="${INPUT_SMOKE_BASE_URL:-}"
+          if [[ -z "$BASE_URL" ]]; then
+            BASE_URL="${VAR_SMOKE_BASE_URL:-}"
+          fi
+
+          BASE_URL="${BASE_URL%/}"
+
+          if [[ -z "$BASE_URL" ]]; then
+            echo "::warning::Skipping post-deploy smoke tests because SMOKE_BASE_URL is not configured (workflow input or repository variable)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "${SECRET_SMOKE_TOKEN:-}" ]]; then
+            echo "::warning::Skipping post-deploy smoke tests because secret SMOKE_TOKEN is not configured."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Run team management smoke tests
+        if: ${{ steps.smoke-config.outputs.enabled == 'true' }}
+        env:
+          SMOKE_BASE_URL: ${{ steps.smoke-config.outputs.base_url }}
           SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
           SMOKE_TIMEOUT_MS: '20000'
         run: node backend/scripts/smoke-team-management.js
+
+      - name: Smoke tests skipped
+        if: ${{ steps.smoke-config.outputs.enabled != 'true' }}
+        run: echo "::notice::Post-deploy smoke checks were skipped due to missing smoke configuration."
 
       - name: Notify on failure
         if: failure()

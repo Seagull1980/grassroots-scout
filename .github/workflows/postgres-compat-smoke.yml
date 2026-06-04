@@ -10,21 +10,42 @@ jobs:
   postgres-compat:
     runs-on: ubuntu-latest
     steps:
+      - name: Check Postgres compatibility configuration
+        id: pg-config
+        shell: bash
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [[ -z "${DATABASE_URL_SECRET:-}" ]]; then
+            echo "::warning::Skipping Postgres compatibility smoke test because secret DATABASE_URL is not configured."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
+        if: ${{ steps.pg-config.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
 
       - name: Set up Node.js
+        if: ${{ steps.pg-config.outputs.enabled == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install backend dependencies
+        if: ${{ steps.pg-config.outputs.enabled == 'true' }}
         run: npm ci
         working-directory: backend
 
       - name: Run Postgres compatibility checks
+        if: ${{ steps.pg-config.outputs.enabled == 'true' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PGSSLMODE: require
         run: npm run test:postgres-compat
         working-directory: backend
+
+      - name: Postgres smoke tests skipped
+        if: ${{ steps.pg-config.outputs.enabled != 'true' }}
+        run: echo "::notice::Postgres compatibility smoke test skipped (missing DATABASE_URL secret)."
