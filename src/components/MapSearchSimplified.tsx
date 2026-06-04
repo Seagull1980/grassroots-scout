@@ -448,7 +448,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         
         if (searchType === 'vacancies' || searchType === 'both') {
           endpoints.push(
-            fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/vacancies`, {
+            fetch(`${API_URL}/vacancies`, {
               headers: {}
             }).then(async r => {
               if (!r.ok) throw new Error(`Vacancies endpoint failed: ${r.status}`);
@@ -460,7 +460,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
         if (searchType === 'players' || searchType === 'both') {
           endpoints.push(
-            fetch(`${import.meta.env.VITE_API_URL || 'https://grassroots-scout-backend-production-7b21.up.railway.app'}/api/player-availability?sort=recent`, {
+            fetch(`${API_URL}/player-availability?sort=recent`, {
               headers: {}
             }).then(async r => {
               if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);

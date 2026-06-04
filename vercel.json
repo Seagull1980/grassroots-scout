@@ -24,7 +24,6 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production",
-    "VITE_API_URL": "https://grassroots-scout-backend-production-7b21.up.railway.app"
+    "NODE_ENV": "production"
   }
 }
