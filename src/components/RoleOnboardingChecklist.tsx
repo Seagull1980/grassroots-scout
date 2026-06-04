@@ -35,6 +35,12 @@ interface ChecklistItem {
   actionLabel: string;
 }
 
+const toBoolean = (value: unknown): boolean =>
+  value === true || value === 1 || value === '1' || value === 'true';
+
+const pluralize = (count: number, singular: string, plural?: string) =>
+  `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
+
 interface RoleOnboardingChecklistProps {
   role: SupportedRole;
 }
@@ -141,6 +147,8 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [dismissOpen, setDismissOpen] = useState(false);
   const [hasChildren, setHasChildren] = useState(false);
+  const [adminAttentionItems, setAdminAttentionItems] = useState<ChecklistItem[]>([]);
+  const [adminSignalsLoading, setAdminSignalsLoading] = useState(false);
 
   const roleKey = getRoleKey(role);
   const dismissedKey = `onboarding_dismissed_${roleKey}`;
@@ -168,6 +176,88 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
   }, [role, user]);
 
   useEffect(() => {
+    if (role !== 'Admin' || !user) {
+      setAdminAttentionItems([]);
+      setAdminSignalsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadAdminAttentionItems = async () => {
+      setAdminSignalsLoading(true);
+
+      try {
+        const [reportsResult, alertsResult, flagsResult, usersResult] = await Promise.allSettled([
+          api.get('/admin/message-reports?status=open&limit=1&offset=0'),
+          api.get('/admin/message-alerts?status=open&limit=1&offset=0'),
+          api.get(`/forum/flags?user_role=${encodeURIComponent(user.role)}&status=pending`),
+          api.get('/admin/users'),
+        ]);
+
+        const openReports = reportsResult.status === 'fulfilled'
+          ? Number(reportsResult.value.data?.total ?? reportsResult.value.data?.reports?.length ?? 0)
+          : 0;
+        const openAlerts = alertsResult.status === 'fulfilled'
+          ? Number(alertsResult.value.data?.total ?? alertsResult.value.data?.alerts?.length ?? 0)
+          : 0;
+        const pendingFlags = flagsResult.status === 'fulfilled' && Array.isArray(flagsResult.value.data)
+          ? flagsResult.value.data.length
+          : 0;
+        const pendingUsers = usersResult.status === 'fulfilled' && Array.isArray(usersResult.value.data?.users)
+          ? usersResult.value.data.users.filter((candidate: any) => {
+            const roleValue = candidate.role ?? candidate.userRole;
+            return roleValue !== 'Admin' && !toBoolean(candidate.betaAccess ?? candidate.betaaccess);
+          }).length
+          : 0;
+
+        const moderationParts = [
+          pendingFlags > 0 ? pluralize(pendingFlags, 'flagged post', 'flagged posts') : null,
+          openReports > 0 ? pluralize(openReports, 'message report') : null,
+          openAlerts > 0 ? pluralize(openAlerts, 'keyword alert') : null,
+        ].filter(Boolean) as string[];
+
+        const nextItems: ChecklistItem[] = [];
+
+        if (moderationParts.length > 0) {
+          nextItems.push({
+            id: 'moderation',
+            label: `Review moderation queue (${openReports + openAlerts + pendingFlags})`,
+            description: `Pending moderation needs attention: ${moderationParts.join(', ')}.`,
+            action: '/admin/moderation',
+            actionLabel: 'Open Moderation' });
+        }
+
+        if (pendingUsers > 0) {
+          nextItems.push({
+            id: 'users',
+            label: `Review user approvals (${pendingUsers})`,
+            description: `${pluralize(pendingUsers, 'user')} ${pendingUsers === 1 ? 'is' : 'are'} waiting for beta access review.`,
+            action: '/admin/users',
+            actionLabel: 'Open Users' });
+        }
+
+        if (isActive) {
+          setAdminAttentionItems(nextItems);
+        }
+      } catch {
+        if (isActive) {
+          setAdminAttentionItems([]);
+        }
+      } finally {
+        if (isActive) {
+          setAdminSignalsLoading(false);
+        }
+      }
+    };
+
+    loadAdminAttentionItems();
+    return () => {
+      isActive = false;
+    };
+  }, [role, user]);
+
+  useEffect(() => {
     const saved = localStorage.getItem(progressKey);
     if (!saved) {
       setCompletedIds([]);
@@ -182,12 +272,34 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
     }
   }, [progressKey]);
 
-  const completionPercentage = useMemo(() => {
-    if (checklist.items.length === 0) return 0;
-    return Math.round((completedIds.length / checklist.items.length) * 100);
-  }, [checklist.items.length, completedIds.length]);
+  const checklistItems = useMemo(() => {
+    if (role === 'Admin') {
+      return adminAttentionItems;
+    }
 
-  const allComplete = completedIds.length === checklist.items.length;
+    return checklist.items;
+  }, [adminAttentionItems, checklist.items, role]);
+
+  useEffect(() => {
+    const allowedIds = new Set(checklistItems.map((item) => item.id));
+
+    setCompletedIds((previous) => {
+      const next = previous.filter((id) => allowedIds.has(id));
+
+      if (next.length !== previous.length) {
+        localStorage.setItem(progressKey, JSON.stringify(next));
+      }
+
+      return next;
+    });
+  }, [checklistItems, progressKey]);
+
+  const completionPercentage = useMemo(() => {
+    if (checklistItems.length === 0) return 0;
+    return Math.round((completedIds.length / checklistItems.length) * 100);
+  }, [checklistItems.length, completedIds.length]);
+
+  const allComplete = checklistItems.length > 0 && completedIds.length === checklistItems.length;
 
   const toggleComplete = (itemId: string) => {
     const next = completedIds.includes(itemId)
@@ -205,6 +317,10 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
   };
 
   if (localStorage.getItem(dismissedKey)) {
+    return null;
+  }
+
+  if (role === 'Admin' && (adminSignalsLoading || checklistItems.length === 0)) {
     return null;
   }
 
@@ -250,7 +366,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
           </Box>
 
           <List sx={{ mt: 2, p: 0 }}>
-            {checklist.items.map((item, index) => {
+            {checklistItems.map((item, index) => {
               const completed = completedIds.includes(item.id);
               const isBlockedParentAvailability = role === 'Parent/Guardian' && item.id === 'availability' && !hasChildren;
               const actionPath = isBlockedParentAvailability ? '/children' : item.action;
@@ -265,7 +381,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
                     px: 0,
                     py: 1.5,
                     alignItems: 'flex-start',
-                    borderBottom: index < checklist.items.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none' }}
+                    borderBottom: index < checklistItems.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none' }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: 'white', mt: 0.25 }}>
                     {completed ? <CheckCircleIcon sx={{ color: '#d6ffea' }} /> : <RadioButtonUncheckedIcon />}
