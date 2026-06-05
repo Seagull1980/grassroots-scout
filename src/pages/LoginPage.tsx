@@ -79,7 +79,7 @@ const LoginPage: React.FC = () => {
       <Helmet>
         <title>Sign In | The Grassroots Scout</title>
         <meta name="description" content="Sign in to The Grassroots Scout to browse team vacancies, manage your player profile, and connect with grassroots football clubs." />
-        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/login" />
+        <link rel="canonical" href="https://www.grassroots-scout.co.uk/login" />
       </Helmet>
       <Box
         sx={{

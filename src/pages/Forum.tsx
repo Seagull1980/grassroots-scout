@@ -358,9 +358,9 @@ const Forum: React.FC = () => {
       <Helmet>
         <title>Community Forum | The Grassroots Scout</title>
         <meta name="description" content="Join the grassroots football community forum. Share advice, ask questions, and connect with coaches, players, and parents across the UK." />
-        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/forum" />
+        <link rel="canonical" href="https://www.grassroots-scout.co.uk/forum" />
         <meta property="og:title" content="Community Forum | The Grassroots Scout" />
-        <meta property="og:url" content="https://www.thegrassrootshub.co.uk/forum" />
+        <meta property="og:url" content="https://www.grassroots-scout.co.uk/forum" />
       </Helmet>
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" component="h1" fontWeight="bold">

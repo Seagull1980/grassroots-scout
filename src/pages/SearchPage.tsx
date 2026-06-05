@@ -1422,9 +1422,9 @@ const SearchPage: React.FC = () => {
       <Helmet>
         <title>Search Teams &amp; Players | The Grassroots Scout</title>
         <meta name="description" content="Search grassroots football team vacancies and player availability across the UK. Filter by position, age group, location, and league." />
-        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/search" />
+        <link rel="canonical" href="https://www.grassroots-scout.co.uk/search" />
         <meta property="og:title" content="Search Teams &amp; Players | The Grassroots Scout" />
-        <meta property="og:url" content="https://www.thegrassrootshub.co.uk/search" />
+        <meta property="og:url" content="https://www.grassroots-scout.co.uk/search" />
       </Helmet>
       <PageHeader
         title={user?.role === 'Coach' ? 'Find Players' : user?.role ? 'Find a Team' : 'Search Adverts'}

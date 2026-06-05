@@ -4,8 +4,8 @@ This project is now prepared to stop exposing the raw Railway backend in the bro
 
 ## Target Shape
 
-- Frontend: Vercel on your main site domain, for example `https://www.yourdomain.com`
-- API: Cloudflare-proxied custom hostname, for example `https://api.yourdomain.com`
+- Frontend: Vercel on `https://www.grassroots-scout.co.uk`
+- API: Cloudflare-proxied custom hostname `https://api.grassroots-scout.co.uk`
 - Origin server: Railway backend service hidden behind Cloudflare
 
 ## What Changed In Code
@@ -19,7 +19,7 @@ This project is now prepared to stop exposing the raw Railway backend in the bro
 1. Create or choose your zone in Cloudflare.
 2. Add a DNS record for `api` that points to your Railway backend custom domain target.
 3. Enable the proxy for that DNS record so it shows the orange cloud.
-4. Turn on rate limiting and managed WAF rules for `api.yourdomain.com`.
+4. Turn on rate limiting and managed WAF rules for `api.grassroots-scout.co.uk`.
 5. If available on your plan, enable bot protection for the API hostname.
 
 ## Railway Setup
@@ -29,8 +29,8 @@ This project is now prepared to stop exposing the raw Railway backend in the bro
 3. Set backend environment variables:
 
 ```env
-FRONTEND_URL=https://www.yourdomain.com
-CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+FRONTEND_URL=https://www.grassroots-scout.co.uk
+CORS_ALLOWED_ORIGINS=https://grassroots-scout.co.uk,https://www.grassroots-scout.co.uk
 ```
 
 4. Redeploy the Railway service after updating env vars.
@@ -40,7 +40,7 @@ CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 Set the frontend build environment variable in the Vercel project:
 
 ```env
-VITE_API_URL=https://api.yourdomain.com
+VITE_API_URL=https://api.grassroots-scout.co.uk
 ```
 
 After setting the variable, redeploy Vercel.
@@ -58,7 +58,7 @@ Cloudflare helps only if clients stop using the raw origin. After cutover, avoid
 ## Verification Checklist
 
 1. Open the app in production.
-2. Confirm API requests go to `https://api.yourdomain.com` in the browser network tab.
+2. Confirm API requests go to `https://api.grassroots-scout.co.uk` in the browser network tab.
 3. Confirm no browser requests go directly to `*.up.railway.app`.
 4. Confirm login, profile loading, messages, maps, and admin pages still work.
 5. Confirm email links point to `FRONTEND_URL`.

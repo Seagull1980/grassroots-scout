@@ -266,7 +266,7 @@ const RegisterPage: React.FC = () => {
       <Helmet>
         <title>Create Account | The Grassroots Scout</title>
         <meta name="description" content="Join The Grassroots Scout for free. Register as a coach, player, or parent to connect with grassroots football opportunities across the UK." />
-        <link rel="canonical" href="https://www.thegrassrootshub.co.uk/register" />
+        <link rel="canonical" href="https://www.grassroots-scout.co.uk/register" />
       </Helmet>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
         <Paper elevation={3} sx={{ p: 3, width: '100%' }}>

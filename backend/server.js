@@ -47,6 +47,8 @@ const allowedOrigins = new Set([
   'http://192.168.0.44:5173',
   'http://192.168.0.44:5174',
   'https://grassroots-scout-frontend.vercel.app',
+  'https://grassroots-scout.co.uk',
+  'https://www.grassroots-scout.co.uk',
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')

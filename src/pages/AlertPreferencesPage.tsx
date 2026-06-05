@@ -258,7 +258,7 @@ const AlertPreferencesPage: React.FC = () => {
                 <Card variant="outlined" sx={{ maxWidth: 420, bgcolor: 'grey.50' }}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                      From: noreply@thegrassrootshub.co.uk
+                      From: noreply@grassroots-scout.co.uk
                     </Typography>
                     <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>
                       {preferences.newVacancyAlerts
