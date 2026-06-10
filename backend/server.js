@@ -46,7 +46,6 @@ const allowedOrigins = new Set([
   'http://localhost:3000',
   'http://192.168.0.44:5173',
   'http://192.168.0.44:5174',
-  'https://grassroots-scout-frontend.vercel.app',
   'https://grassroots-scout.co.uk',
   'https://www.grassroots-scout.co.uk',
   process.env.FRONTEND_URL,
@@ -1217,7 +1216,7 @@ app.post('/api/auth/resend-verification', authLimiter, [
 
     // Keep existing token valid unless email handoff succeeds.
     try {
-      await sendEmailWithTimeout(sendVerificationEmail(email, user.firstName, verificationToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
+      await sendEmailWithTimeout(sendVerificationEmail(email, user.firstName || user.firstname || 'there', verificationToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
       await db.query(
         'UPDATE users SET emailVerificationToken = ?, emailVerificationExpires = ? WHERE id = ?',
         [verificationToken, verificationExpires, user.id]
@@ -1264,7 +1263,7 @@ app.post('/api/auth/forgot-password', authLimiter, [
 
     // Keep existing reset token valid unless email handoff succeeds.
     try {
-      await sendEmailWithTimeout(sendPasswordResetEmail(email, user.firstName, resetToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
+      await sendEmailWithTimeout(sendPasswordResetEmail(email, user.firstName || user.firstname || 'there', resetToken), AUTH_EMAIL_HANDOFF_TIMEOUT_MS);
       await db.query(
         'UPDATE users SET passwordResetToken = ?, passwordResetExpires = ? WHERE id = ?',
         [resetToken, resetExpires, user.id]
