@@ -32,7 +32,6 @@ app.use(cors({
     'http://192.168.0.44:5173', // Your network IP
     'http://192.168.0.44:5174', // Your network IP alternate port
     process.env.FRONTEND_URL, // Environment variable for production deployment
-    'https://grassroots-scout-frontend.vercel.app', // Explicit Vercel URL
     true // Allow all origins for local development
   ],
   credentials: true,

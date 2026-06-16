@@ -5,8 +5,8 @@ This project is now prepared to stop exposing the raw Railway backend in the bro
 ## Target Shape
 
 - Frontend: Vercel on `https://www.grassroots-scout.co.uk`
-- API: Cloudflare-proxied custom hostname `https://api.grassroots-scout.co.uk`
-- Origin server: Railway backend service hidden behind Cloudflare
+- API: Cloudflare-proxied hostname `https://api.grassroots-scout.co.uk`
+- Origin server: Railway backend service, using the healthy Railway service domain as the origin
 
 ## What Changed In Code
 
@@ -17,23 +17,25 @@ This project is now prepared to stop exposing the raw Railway backend in the bro
 ## Cloudflare Setup
 
 1. Create or choose your zone in Cloudflare.
-2. Add a DNS record for `api` that points to your Railway backend custom domain target.
+2. Add a DNS record for `api` that points to the Railway service domain: `grassroots-scout-backend-production-7b21.up.railway.app`.
 3. Enable the proxy for that DNS record so it shows the orange cloud.
 4. Turn on rate limiting and managed WAF rules for `api.grassroots-scout.co.uk`.
 5. If available on your plan, enable bot protection for the API hostname.
+6. If you already created a Railway custom domain and it still returns a Railway `502` or `Application failed to respond`, do not rely on it for the Cloudflare cutover.
 
 ## Railway Setup
 
-1. In Railway, add a custom domain for the backend service.
-2. Use a hostname that Cloudflare can target as the origin.
-3. Set backend environment variables:
+1. In Railway, confirm the backend service is healthy on the Railway service domain.
+2. Set backend environment variables:
 
 ```env
 FRONTEND_URL=https://www.grassroots-scout.co.uk
 CORS_ALLOWED_ORIGINS=https://grassroots-scout.co.uk,https://www.grassroots-scout.co.uk
 ```
 
-4. Redeploy the Railway service after updating env vars.
+3. Redeploy the Railway service after updating env vars.
+
+If you do want to keep a Railway custom domain for convenience, make sure it resolves cleanly on its own before pointing Cloudflare at it. The safer production setup is to proxy Cloudflare directly to the working Railway service domain.
 
 ## Vercel Setup
 
