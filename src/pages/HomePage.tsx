@@ -7,16 +7,11 @@ import {
   Button,
   Grid,
   Card,
-  CardContent,
-  Paper,
-  Divider
+  Paper
 } from '@mui/material';
 import {
   Group,
-  Search,
-  Notifications,
   Sports,
-  EmojiEvents,
   ArrowForward
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
