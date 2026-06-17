@@ -1500,6 +1500,16 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Legacy frontend path fallback: redirect to homepage to avoid users being stuck
+app.get('/beta-access-denied', (req, res) => {
+  try {
+    return res.redirect('/');
+  } catch (err) {
+    console.error('Error redirecting /beta-access-denied:', err);
+    return res.status(500).send('Server error');
+  }
+});
+
 // Analytics endpoints
 app.get('/api/analytics/overview', authenticateToken, requireAdmin, async (req, res) => {
   try {
