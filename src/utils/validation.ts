@@ -1,7 +1,7 @@
 export const PASSWORD_MIN_LENGTH = 8;
 
 export const passwordRegex = new RegExp(
-  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).{${PASSWORD_MIN_LENGTH} }$`
+  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).{${PASSWORD_MIN_LENGTH},}$`
 );
 
 export const getPasswordStrength = (password: string) => {
