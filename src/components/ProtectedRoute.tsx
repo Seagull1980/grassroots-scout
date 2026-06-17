@@ -65,31 +65,7 @@ const ProtectedRoute = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check beta access for logged-in users (except on beta-access-denied page and admin routes)
-  if (requireAuth && user) {
-    const isBetaAccessDeniedPage = location.pathname === '/beta-access-denied';
-    const isAdmin = user.role === 'Admin';
-    const hasBetaAccess = user.betaAccess === true || user.betaAccess === 1 || user.betaAccess === '1' || isAdmin;
-
-    if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Beta access check:', {
-      betaAccess: user.betaAccess,
-      betaAccessType: typeof user.betaAccess,
-      isAdmin,
-      hasBetaAccess
-    });
-
-    // Redirect to beta access denied if user doesn't have access
-    if (!isBetaAccessDeniedPage && !hasBetaAccess) {
-      if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to beta-access-denied - no beta access');
-      return <Navigate to="/beta-access-denied" replace />;
-    }
-
-    // Redirect from beta-access-denied if user now has access
-    if (isBetaAccessDeniedPage && hasBetaAccess) {
-      if (process.env.NODE_ENV !== 'production') console.log('[ProtectedRoute] Redirecting to start - beta access granted');
-      return <Navigate to="/start" replace />;
-    }
-  }
+  // No beta gating on production build — allow all authenticated users access
 
   // If user is logged in but trying to access login/register pages, redirect to start
   if (!requireAuth && user && (location.pathname === '/login' || location.pathname === '/register')) {

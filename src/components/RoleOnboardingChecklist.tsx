@@ -207,7 +207,7 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
         const pendingUsers = usersResult.status === 'fulfilled' && Array.isArray(usersResult.value.data?.users)
           ? usersResult.value.data.users.filter((candidate: any) => {
             const roleValue = candidate.role ?? candidate.userRole;
-            return roleValue !== 'Admin' && !toBoolean(candidate.betaAccess ?? candidate.betaaccess);
+            return roleValue !== 'Admin';
           }).length
           : 0;
 
@@ -231,8 +231,8 @@ const RoleOnboardingChecklist: React.FC<RoleOnboardingChecklistProps> = ({ role 
         if (pendingUsers > 0) {
           nextItems.push({
             id: 'users',
-            label: `Review user approvals (${pendingUsers})`,
-            description: `${pluralize(pendingUsers, 'user')} ${pendingUsers === 1 ? 'is' : 'are'} waiting for beta access review.`,
+            label: `Review user queue (${pendingUsers})`,
+            description: `${pluralize(pendingUsers, 'user')} ${pendingUsers === 1 ? 'is' : 'are'} waiting for manual review.`,
             action: '/admin/users',
             actionLabel: 'Open Users' });
         }

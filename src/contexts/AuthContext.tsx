@@ -119,22 +119,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
         const isRecentlyCreated = hoursSinceCreation < 24;
         
-        // Check if beta access was granted in the last 24 hours
-        let isBetaAccessRecent = false;
-        if (user.betaAccessGrantedAt) {
-          const betaGrantedAt = new Date(user.betaAccessGrantedAt);
-          const hoursSinceBetaGrant = (now.getTime() - betaGrantedAt.getTime()) / (1000 * 60 * 60);
-          isBetaAccessRecent = hoursSinceBetaGrant < 24;
-        }
-        
-        // Mark as new user if:
-        // 1. They have the pending flag from registration (normal flow), OR
-        // 2. Account is less than 24 hours old AND they haven't completed onboarding, OR
-        // 3. Beta access was granted in the last 24 hours AND they haven't completed onboarding
-        if (!hasCompletedOnboarding && (isRecentlyCreated || isBetaAccessRecent)) {
+        // Mark as new user if account is recently created and onboarding not completed
+        if (!hasCompletedOnboarding && isRecentlyCreated) {
           storage.setItem(`new_user_${user.id}`, 'true');
           localStorage.removeItem('pending_new_user');
-        } else if (!isRecentlyCreated && !isBetaAccessRecent) {
+        } else if (!isRecentlyCreated) {
           // Clean up stale flags for old accounts
           localStorage.removeItem('pending_new_user');
           storage.removeItem(`new_user_${user.id}`);

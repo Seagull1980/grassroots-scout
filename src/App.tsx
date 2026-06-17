@@ -23,7 +23,6 @@ import EmailVerificationPendingPage from './pages/EmailVerificationPendingPage.t
 import EmailVerificationPage from './pages/EmailVerificationPage.tsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.tsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.tsx';
-import BetaAccessDenied from './pages/BetaAccessDenied';
 // import BetaAccessPage from './pages/BetaAccessPage'; // merged into UserAdminPage
 
 // Initialize analytics tracking
@@ -237,17 +236,12 @@ const AppRoutes = () => {
             <AdminTeamsPage />
           </ProtectedRoute>
         } />
-        <Route path="/admin/beta-access" element={
-          <ProtectedRoute>
-            <UserAdminPage />
-          </ProtectedRoute>
-        } />
         <Route path="/admin/about" element={
           <ProtectedRoute>
             <AboutManagementPage />
           </ProtectedRoute>
         } />
-        <Route path="/beta-access-denied" element={<BetaAccessDenied />} />
+        
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />

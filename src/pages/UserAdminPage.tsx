@@ -82,8 +82,6 @@ const UserAdminPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
-  // Beta toggling
-  const [updatingBeta, setUpdatingBeta] = useState<number | null>(null);
   
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -131,25 +129,7 @@ const UserAdminPage: React.FC = () => {
     }
   };
 
-  const toggleBetaAccess = async (userId: number, current: boolean) => {
-    try {
-      setUpdatingBeta(userId);
-      const response = await axios.patch(
-        `${adminUsersBaseUrl}/${userId}/beta-access`,
-        { betaAccess: !current },
-        { headers: {  ...ngrokHeaders } }
-      );
-      setUsers(prev =>
-        prev.map(u =>
-          u.id === userId ? { ...u, betaAccess: response.data.betaAccess ?? !current } : u
-        )
-      );
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update beta access');
-    } finally {
-      setUpdatingBeta(null);
-    }
-  };
+  // Beta access removed for go-live; admin toggles disabled
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, user: User) => {
     setAnchorEl(event.currentTarget);
@@ -310,11 +290,6 @@ const UserAdminPage: React.FC = () => {
     );
   }
 
-  const betaStats = {
-    total: users.length,
-    withAccess: users.filter(u => u.betaAccess || u.role === 'Admin').length,
-    pending: users.filter(u => !u.betaAccess && u.role !== 'Admin').length };
-
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -333,21 +308,7 @@ const UserAdminPage: React.FC = () => {
         </Button>
       </Box>
 
-      {/* beta stats */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h4">{betaStats.total}</Typography>
-          <Typography variant="body2" color="text.secondary">Total Users</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h4" color="success.main">{betaStats.withAccess}</Typography>
-          <Typography variant="body2" color="text.secondary">With Beta Access</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h4" color="warning.main">{betaStats.pending}</Typography>
-          <Typography variant="body2" color="text.secondary">Pending</Typography>
-        </Paper>
-      </Box>
+      {/* Beta access removed for go-live; stats hidden */}
 
       {error && (
         <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>
@@ -403,7 +364,6 @@ const UserAdminPage: React.FC = () => {
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
-                <TableCell align="center">Beta Access</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Created</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -425,17 +385,6 @@ const UserAdminPage: React.FC = () => {
                       color={getRoleColor(user.role)}
                       size="small"
                     />
-                  </TableCell>
-                  <TableCell align="center">
-                    {user.role === 'Admin' ? (
-                      <Chip label="Always" size="small" color="primary" />
-                    ) : (
-                      <Switch
-                        checked={!!user.betaAccess}
-                        onChange={() => toggleBetaAccess(user.id, !!user.betaAccess)}
-                        disabled={updatingBeta === user.id}
-                      />
-                    )}
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
