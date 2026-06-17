@@ -53,7 +53,10 @@ const RegisterPage: React.FC = () => {
     password: '',
     confirmPassword: '',
     role: '' as 'Coach' | 'Player' | 'Parent/Guardian' | '',
-    dateOfBirth: '' });
+    // For players this is the player's DOB. For parent/guardian flows we capture both parent and child DOBs.
+    dateOfBirth: '',
+    parentDateOfBirth: '',
+    childDateOfBirth: '' });
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -85,6 +88,12 @@ const RegisterPage: React.FC = () => {
     if (name === 'dateOfBirth' && formData.role === 'Player' && value) {
       if (calculateAge(value) < 16) {
         setAgeWarning(`Under 16? A parent or guardian needs to register on your behalf — tap "Switch role" below to continue as Parent/Guardian.`);
+      }
+    }
+    // If entering a child's DOB while registering as Parent/Guardian, show the same guidance
+    if (name === 'childDateOfBirth' && (formData.role === 'Parent/Guardian' || registeringUnder16) && value) {
+      if (calculateAge(value) >= 16) {
+        setAgeWarning('The child appears to be 16 or older — consider registering them directly as a Player.');
       }
     }
   };
@@ -144,11 +153,20 @@ const RegisterPage: React.FC = () => {
     }
     if (step === 1) {
       if (!formData.role) errors.role = 'Please select a role';
-      if (formData.role === 'Player' && !formData.dateOfBirth) {
-        errors.dateOfBirth = 'Date of birth is required for player registration';
+      if (formData.role === 'Player') {
+        if (!formData.dateOfBirth) {
+          errors.dateOfBirth = 'Date of birth is required for player registration';
+        } else if (calculateAge(formData.dateOfBirth) < 16) {
+          errors.dateOfBirth = 'Players under 16 must be registered by a parent or guardian';
+        }
       }
-      if (formData.role === 'Player' && formData.dateOfBirth && calculateAge(formData.dateOfBirth) < 16) {
-        errors.dateOfBirth = 'Players under 16 must be registered by a parent or guardian';
+      if (formData.role === 'Parent/Guardian') {
+        if (!formData.parentDateOfBirth) {
+          errors.parentDateOfBirth = 'Your date of birth is required';
+        }
+        if (registeringUnder16 && !formData.childDateOfBirth) {
+          errors.childDateOfBirth = "Child's date of birth is required";
+        }
       }
     }
     if (step === 2) {
@@ -198,6 +216,7 @@ const RegisterPage: React.FC = () => {
       role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
       password: string;
       dateOfBirth?: string;
+      childDateOfBirth?: string;
     } = {
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -206,6 +225,12 @@ const RegisterPage: React.FC = () => {
       password: formData.password };
     if (formData.role === 'Player' && formData.dateOfBirth) {
       registrationData.dateOfBirth = formData.dateOfBirth;
+    }
+    if (formData.role === 'Parent/Guardian') {
+      // Send parent's DOB as the account dateOfBirth
+      if (formData.parentDateOfBirth) registrationData.dateOfBirth = formData.parentDateOfBirth;
+      // Include child DOB if provided so onboarding can pick it up
+      if (formData.childDateOfBirth) registrationData.childDateOfBirth = formData.childDateOfBirth;
     }
 
 
@@ -458,6 +483,55 @@ const RegisterPage: React.FC = () => {
                         {ageWarning}
                       </Alert>
                     )}
+                  </>
+                )}
+
+                {formData.role === 'Parent/Guardian' && (
+                  <>
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      name="parentDateOfBirth"
+                      label="Your date of birth"
+                      type="date"
+                      id="parentDateOfBirth"
+                      autoComplete="bday"
+                      value={formData.parentDateOfBirth}
+                      onChange={handleChange}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarToday sx={{ color: 'text.secondary' }} />
+                          </InputAdornment>
+                        ) }}
+                      inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                      error={!!fieldErrors.parentDateOfBirth}
+                      helperText={fieldErrors.parentDateOfBirth}
+                    />
+
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      name="childDateOfBirth"
+                      label="Child's date of birth"
+                      type="date"
+                      id="childDateOfBirth"
+                      autoComplete="bday"
+                      value={formData.childDateOfBirth}
+                      onChange={handleChange}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarToday sx={{ color: 'text.secondary' }} />
+                          </InputAdornment>
+                        ) }}
+                      inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                      error={!!fieldErrors.childDateOfBirth}
+                      helperText={fieldErrors.childDateOfBirth || (registeringUnder16 ? 'Required for under-16 registrations' : 'Optional')}
+                    />
                   </>
                 )}
 

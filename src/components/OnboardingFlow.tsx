@@ -146,7 +146,6 @@ export const OnboardingFlow: React.FC = () => {
     searchRadius: 10,
     playingTimePolicy: '' as string,
     dateOfBirth: '',
-    phone: '',
     bio: '',
     position: '',
     experienceLevel: '',
@@ -221,7 +220,6 @@ export const OnboardingFlow: React.FC = () => {
         searchRadius: 10,
         playingTimePolicy: '' as string,
         dateOfBirth: '',
-        phone: '',
         bio: '',
         position: '',
         experienceLevel: '',
@@ -332,7 +330,6 @@ export const OnboardingFlow: React.FC = () => {
         // Add profile fields if they exist
         if (userData.location) profileData.location = userData.location;
         if (userData.dateOfBirth) profileData.dateofbirth = userData.dateOfBirth;
-        if (userData.phone) profileData.phone = userData.phone;
         if (userData.bio) profileData.bio = userData.bio;
         if (userData.position) profileData.position = userData.position;
         if (userData.experienceLevel) profileData.experiencelevel = userData.experienceLevel;
@@ -554,15 +551,7 @@ export const OnboardingFlow: React.FC = () => {
               })()}
             </Box>
 
-            <TextField
-              fullWidth
-              label="Phone Number"
-              type="tel"
-              value={userData.phone}
-              onChange={(e) => setUserData(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder="e.g., 07123 456789"
-              helperText="For contact purposes (optional)"
-            />
+            {/* Phone number removed from onboarding - not required at registration */}
 
             {user?.role === 'Player' && (
               <FormControl fullWidth>
