@@ -141,6 +141,8 @@ const AppRoutes = () => {
             <RegisterPage />
           </ProtectedRoute>
         } />
+        {/* Backwards-compatible redirect: catch legacy beta access denial path and send to home */}
+        <Route path="/beta-access-denied" element={<Navigate to="/" replace />} />
         <Route path="/email-verification-pending" element={
           <ProtectedRoute requireAuth={false}>
             <EmailVerificationPendingPage />
