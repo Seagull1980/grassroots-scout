@@ -27,8 +27,7 @@ import {
   InputAdornment,
   Select,
   FormControl,
-  InputLabel,
-  Switch } from '@mui/material';
+  InputLabel } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Block as BlockIcon,

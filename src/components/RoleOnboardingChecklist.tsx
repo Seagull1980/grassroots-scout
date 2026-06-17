@@ -35,8 +35,6 @@ interface ChecklistItem {
   actionLabel: string;
 }
 
-const toBoolean = (value: unknown): boolean =>
-  value === true || value === 1 || value === '1' || value === 'true';
 
 const pluralize = (count: number, singular: string, plural?: string) =>
   `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
