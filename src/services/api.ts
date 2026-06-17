@@ -149,6 +149,7 @@ const handleAuthError = (error: any) => {
     
     // treat 403 as an expired/invalid token - same flow as 401
     const isNonCriticalEndpoint = 
+      requestUrl.includes('/auth/me') || // 401 here means "not logged in", not a session failure
       requestUrl.includes('/clubs/search') ||
       requestUrl.includes('/teams/search') ||
       requestUrl.includes('/coaches/search') ||
@@ -156,14 +157,6 @@ const handleAuthError = (error: any) => {
       requestUrl.includes('/email-alerts') ||
       requestUrl.includes('/player-availability') ||
       requestUrl.includes('/team-vacancies');
-       requestUrl.includes('/auth/me') ||       // 401 here means "not logged in", not a session failure
-  requestUrl.includes('/clubs/search') ||
-  requestUrl.includes('/teams/search') ||
-  requestUrl.includes('/coaches/search') ||
-  requestUrl.includes('/team-profile') ||
-  requestUrl.includes('/email-alerts') ||
-  requestUrl.includes('/player-availability') ||
-  requestUrl.includes('/team-vacancies');
     
     if (isNonCriticalEndpoint) {
       console.warn(`${error.response?.status} on non-critical endpoint ${requestUrl} - not redirecting`);
