@@ -65,9 +65,7 @@ interface ChildFormData {
   preferredPosition: string;
   preferredTeamGender: string;
   medicalInfo: string;
-  emergencyContact: string;
-  emergencyPhone: string;
-  schoolName: string;
+  // emergency and school fields intentionally omitted for parent-created child profiles
 }
 
 const ChildrenManagementPage: React.FC = () => {
@@ -87,9 +85,7 @@ const ChildrenManagementPage: React.FC = () => {
     preferredPosition: '',
     preferredTeamGender: 'Mixed',
     medicalInfo: '',
-    emergencyContact: '',
-    emergencyPhone: '',
-    schoolName: ''
+    // emergency and school fields intentionally omitted
   });
 
   const positions = [
@@ -222,9 +218,7 @@ const ChildrenManagementPage: React.FC = () => {
       preferredPosition: '',
       preferredTeamGender: 'Mixed',
       medicalInfo: '',
-      emergencyContact: '',
-      emergencyPhone: '',
-      schoolName: ''
+      // emergency and school fields intentionally omitted
     });
   };
 
@@ -237,10 +231,7 @@ const ChildrenManagementPage: React.FC = () => {
       gender: child.gender || '',
       preferredPosition: child.preferredPosition || '',
       preferredTeamGender: child.preferredTeamGender || 'Mixed',
-      medicalInfo: child.medicalInfo || '',
-      emergencyContact: child.emergencyContact || '',
-      emergencyPhone: child.emergencyPhone || '',
-      schoolName: child.schoolName || ''
+      medicalInfo: child.medicalInfo || ''
     });
   };
 
@@ -566,32 +557,7 @@ const ChildrenManagementPage: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="School Name"
-                fullWidth
-                value={formData.schoolName}
-                onChange={(e) => handleInputChange('schoolName', e.target.value)}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Emergency Contact Name"
-                fullWidth
-                value={formData.emergencyContact}
-                onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Emergency Contact Phone"
-                fullWidth
-                value={formData.emergencyPhone}
-                onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
-              />
-            </Grid>
+            {/* School and emergency contact fields intentionally omitted for parent-created child profiles */}
 
             <Grid item xs={12}>
               <TextField

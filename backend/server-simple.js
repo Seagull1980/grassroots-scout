@@ -860,7 +860,9 @@ app.get('/api/child-player-availability', authenticateToken, async (req, res) =>
       preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
       positions: row.positions ? JSON.parse(row.positions) : [],
       locationData: row.locationData ? JSON.parse(row.locationData) : null,
-      availability: row.availability ? JSON.parse(row.availability) : null
+      availability: row.availability ? JSON.parse(row.availability) : null,
+      shareName: !!row.shareName,
+      displayName: row.shareName ? `${row.firstName} ${row.lastName}` : 'Anonymous Player'
     }));
 
     res.json({ availability });
@@ -899,7 +901,8 @@ app.post('/api/child-player-availability', [
       location,
       locationData,
       contactInfo,
-      availability
+      availability,
+      shareName
     } = req.body;
 
     // Verify child belongs to this parent
@@ -915,8 +918,8 @@ app.post('/api/child-player-availability', [
     const result = await db.query(
       `INSERT INTO child_player_availability 
        (childId, parentId, title, description, preferredLeagues, ageGroup, positions, 
-        preferredTeamGender, location, locationData, contactInfo, availability) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        preferredTeamGender, location, locationData, contactInfo, availability, shareName) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         childId,
         req.user.userId,
@@ -929,7 +932,8 @@ app.post('/api/child-player-availability', [
         location,
         JSON.stringify(locationData),
         contactInfo,
-        JSON.stringify(availability)
+        JSON.stringify(availability),
+        !!shareName
       ]
     );
 
@@ -950,6 +954,8 @@ app.post('/api/child-player-availability', [
         locationData,
         contactInfo,
         availability,
+        shareName: !!shareName,
+        displayName: !!shareName ? `${childResult.rows[0].firstName} ${childResult.rows[0].lastName}` : 'Anonymous Player',
         status: 'active',
         createdAt: new Date().toISOString()
       }
@@ -1095,11 +1101,25 @@ app.get('/api/public/child-player-availability', async (req, res) => {
     const availabilityResult = await db.query(query, params);
 
     const availability = (availabilityResult.rows || []).map(row => ({
-      ...row,
+      id: row.id,
+      childId: row.childId,
+      parentId: row.parentId,
+      title: row.title,
+      description: row.description,
       preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
+      ageGroup: row.ageGroup,
       positions: row.positions ? JSON.parse(row.positions) : [],
+      preferredTeamGender: row.preferredTeamGender,
+      location: row.location,
       locationData: row.locationData ? JSON.parse(row.locationData) : null,
-      availability: row.availability ? JSON.parse(row.availability) : null
+      contactInfo: row.contactInfo,
+      availability: row.availability ? JSON.parse(row.availability) : null,
+      status: row.status,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      // privacy: do not return firstName/lastName/parentEmail in public listing
+      shareName: !!row.shareName,
+      displayName: row.shareName ? `${row.firstName} ${row.lastName}` : 'Anonymous Player'
     }));
 
     res.json({ availability });

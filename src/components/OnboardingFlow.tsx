@@ -322,6 +322,11 @@ export const OnboardingFlow: React.FC = () => {
             });
             return;
           }
+          // Parents must be adults (18+)
+          if (user.role === 'Parent/Guardian' && dobValidation.age !== undefined && dobValidation.age < 18) {
+            setSnackbar({ open: true, message: 'Parent accounts must be 18 years or older', severity: 'error' });
+            return;
+          }
         }
 
         // Save profile data to backend
@@ -532,6 +537,8 @@ export const OnboardingFlow: React.FC = () => {
                   const validation = validateDateOfBirth(newDob);
                   if (!validation.valid && newDob) {
                     setDobError(validation.error || '');
+                  } else if (user?.role === 'Parent/Guardian' && validation.age !== undefined && validation.age < 18) {
+                    setDobError('Parents must be at least 18 years old');
                   } else {
                     setDobError('');
                   }

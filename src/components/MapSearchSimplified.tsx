@@ -1078,9 +1078,15 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       return null;
     }
 
+    // Prefer an explicit displayName from the result (populated by API),
+    // then fall back to parentName/fullName/name/title. If none available,
+    // return an anonymous placeholder to avoid leaking child names.
+    const nameFallback = result.parentName || result.fullName || result.name || result.title;
+    const displayName = result.displayName || (result.shareName ? `${result.firstName || ''} ${result.lastName || ''}`.trim() : undefined) || nameFallback || 'Anonymous Player';
+
     return {
       id: normalizedId,
-      name: result.parentName || result.fullName || result.name || result.title || 'Player/Guardian'
+      name: displayName
     };
   };
 

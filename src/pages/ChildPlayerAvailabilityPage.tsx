@@ -69,8 +69,10 @@ interface ChildPlayerAvailability {
   status: string;
   createdAt: string;
   updatedAt: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  shareName?: boolean;
+  displayName?: string;
 }
 
 interface AvailabilityFormData {
@@ -83,6 +85,7 @@ interface AvailabilityFormData {
   preferredTeamGender: string;
   location: string;
   contactInfo: string;
+  shareName: boolean;
   availability: {
     days: string[];
     timeSlots: string[];
@@ -110,6 +113,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     preferredTeamGender: 'Mixed',
     location: '',
     contactInfo: '',
+    shareName: false,
     availability: {
       days: [],
       timeSlots: [],
@@ -214,7 +218,9 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
         childId,
         ageGroup: suggestedAgeGroup,
         positions: suggestedPositions,
-        title: `${selectedChild.firstName} ${selectedChild.lastName} - Player Available`
+        // Default to a neutral title and do not expose child's name unless parent opts in
+        title: `${selectedChild.preferredPosition || 'Player'} - Player Available`,
+        shareName: false
       }));
     }
   };
@@ -452,7 +458,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                   <Stack spacing={2}>
                     <Box>
                       <Typography variant="subtitle2" color="primary" gutterBottom>
-                        {availability.firstName} {availability.lastName}
+                        {availability.displayName ?? (availability.shareName ? `${availability.firstName || ''} ${availability.lastName || ''}`.trim() : 'Anonymous Player')}
                       </Typography>
                       <Chip 
                         label={availability.status.toUpperCase()} 
@@ -580,6 +586,18 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="e.g., Talented Midfielder Seeking Team"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!formData.shareName}
+                    onChange={(e) => handleInputChange('shareName', e.target.checked)}
+                  />
+                }
+                label="Share child's name in adverts and messages"
               />
             </Grid>
 

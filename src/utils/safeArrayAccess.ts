@@ -1,4 +1,4 @@
-/**
+ /**
  * Safe array access utilities to prevent "Cannot read properties of null" errors
  * These utilities help ensure we never try to access properties on null/undefined values
  */

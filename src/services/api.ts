@@ -490,6 +490,10 @@ export interface PlayerAvailability {
     longitude: number;
     placeId?: string;
   };
+  // Privacy control: whether the child's real name may be shared
+  shareName?: boolean;
+  // Computed display name returned by the API (either real name or anonymous placeholder)
+  displayName?: string;
 }
 
 export interface TrainingSession {
