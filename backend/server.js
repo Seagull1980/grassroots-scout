@@ -2027,7 +2027,7 @@ app.post('/api/children', [
       dateOfBirth,
       gender,
       preferredPosition,
-      medicalInfo,
+      bio,
       emergencyContact,
       emergencyPhone,
       schoolName
@@ -2045,10 +2045,10 @@ app.post('/api/children', [
 
     const result = await db.query(
       `INSERT INTO children (parentId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
-       medicalInfo, emergencyContact, emergencyPhone, schoolName) 
+       bio, emergencyContact, emergencyPhone, schoolName) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.user.userId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
-       medicalInfo, emergencyContact, emergencyPhone, schoolName]
+       bio, emergencyContact, emergencyPhone, schoolName]
     );
 
     const childId = result.lastID;
@@ -2063,7 +2063,7 @@ app.post('/api/children', [
         dateOfBirth,
         gender,
         preferredPosition,
-        medicalInfo,
+        bio,
         emergencyContact,
         emergencyPhone,
         schoolName,
@@ -2852,13 +2852,34 @@ app.get('/api/child-player-availability', authenticateToken, async (req, res) =>
         availability = null;
       }
       
-      return {
-        ...row,
+      const shareFlag = row.shareName || row.share_name || row.sharename || false;
+      const childFirst = row.firstName || row.firstname || '';
+      const childLast = row.lastName || row.lastname || '';
+      const displayName = shareFlag ? `${childFirst} ${childLast}`.trim() : 'Anonymous Player';
+
+      // Expose privacy-safe fields only
+      const safeRow = {
+        id: row.id,
+        childId: row.childId,
+        parentId: row.parentId,
+        title: row.title,
+        description: row.description,
         preferredLeagues,
+        ageGroup: row.ageGroup,
         positions,
+        preferredTeamGender: row.preferredTeamGender,
+        location: row.location,
         locationData,
-        availability
+        contactInfo: row.contactInfo,
+        availability,
+        shareName: !!shareFlag,
+        displayName,
+        status: row.status,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
       };
+
+      return safeRow;
     });
 
     res.json({ availability });
@@ -2897,7 +2918,8 @@ app.post('/api/child-player-availability', [
       location,
       locationData,
       contactInfo,
-      availability
+      availability,
+      shareName
     } = req.body;
 
     // Verify child belongs to this parent
@@ -2913,8 +2935,8 @@ app.post('/api/child-player-availability', [
     const result = await db.query(
       `INSERT INTO child_player_availability 
        (childId, parentId, title, description, preferredLeagues, ageGroup, positions, 
-        preferredTeamGender, location, locationData, contactInfo, availability) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        preferredTeamGender, location, locationData, contactInfo, availability, shareName) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         childId,
         req.user.userId,
@@ -2927,7 +2949,8 @@ app.post('/api/child-player-availability', [
         location,
         JSON.stringify(locationData),
         contactInfo,
-        JSON.stringify(availability)
+        JSON.stringify(availability),
+        !!shareName
       ]
     );
 
@@ -2948,6 +2971,8 @@ app.post('/api/child-player-availability', [
         locationData,
         contactInfo,
         availability,
+        shareName: !!shareName,
+        displayName: !!shareName ? `${childResult.rows[0].firstName} ${childResult.rows[0].lastName}` : 'Anonymous Player',
         status: 'active',
         createdAt: new Date().toISOString()
       }
@@ -4242,7 +4267,8 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
 
     const messages = messagesResult.rows.map(msg => ({
       ...msg,
-      senderName: `${msg.senderFirstName} ${msg.senderLastName}`
+      senderName: `${msg.senderFirstName} ${msg.senderLastName}`,
+      relatedChildDisplayName: msg.relatedChildDisplayName || null
     }));
 
     res.json({ messages });
@@ -4319,11 +4345,27 @@ app.post('/api/messages', authenticateToken, messageLimiter, [
       return res.status(400).json({ error: contentValidation.violation });
     }
 
-    // Insert the message
+    // If this message relates to a child availability, snapshot the current displayName
+    let relatedChildDisplayName = null;
+    if (relatedPlayerAvailabilityId) {
+      const availRow = await db.query(
+        `SELECT cpa.*, c.firstName, c.lastName FROM child_player_availability cpa JOIN children c ON cpa.childId = c.id WHERE cpa.id = ?`,
+        [relatedPlayerAvailabilityId]
+      );
+      if (availRow.rows && availRow.rows.length > 0) {
+        const r = availRow.rows[0];
+        const shareFlag = r.shareName || r.share_name || r.sharename || false;
+        const childFirst = r.firstName || r.firstname || '';
+        const childLast = r.lastName || r.lastname || '';
+        relatedChildDisplayName = shareFlag ? `${childFirst} ${childLast}`.trim() : 'Anonymous Player';
+      }
+    }
+
+    // Insert the message (including snapshot if present)
     const result = await db.query(
-      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, relatedPlayerAvailabilityId, isRead)
-       VALUES (?, ?, ?, ?, ?, ?, false)`,
-      [senderId, actualRecipientId, subject || 'Message', message, messageType, relatedPlayerAvailabilityId || null]
+      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, relatedPlayerAvailabilityId, relatedChildDisplayName, isRead)
+       VALUES (?, ?, ?, ?, ?, ?, ?, false)`,
+      [senderId, actualRecipientId, subject || 'Message', message, messageType, relatedPlayerAvailabilityId || null, relatedChildDisplayName]
     );
 
     const messageId = result.lastID;

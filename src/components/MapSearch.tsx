@@ -1630,7 +1630,8 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
                 console.log('Selected result type:', selectedResult.type);
                 console.log('Item ID:', item.id, 'Type:', typeof item.id);
                 setSelectedResult(null);
-                const recipientDisplayName = item.displayName || (item.shareName ? `${item.firstName || ''} ${item.lastName || ''}`.trim() : 'Anonymous Player');
+                const i: any = item;
+                const recipientDisplayName = i.displayName || (i.shareName ? `${i.firstName || ''} ${i.lastName || ''}`.trim() : 'Anonymous Player');
                 navigate('/messages', { 
                   state: { 
                     recipientId: String(item.postedBy),

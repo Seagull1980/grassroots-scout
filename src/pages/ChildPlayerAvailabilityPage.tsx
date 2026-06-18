@@ -21,7 +21,7 @@ import {
   Stack,
   IconButton,
   Autocomplete
-} from '@mui/material';
+  , FormControlLabel, Checkbox } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -309,6 +309,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       preferredTeamGender: 'Mixed',
       location: '',
       contactInfo: '',
+      shareName: false,
       availability: {
         days: [],
         timeSlots: [],
@@ -329,10 +330,11 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       preferredTeamGender: availability.preferredTeamGender || 'Mixed',
       location: availability.location || '',
       contactInfo: availability.contactInfo || '',
+      shareName: availability.shareName ?? false,
       availability: availability.availability ? {
-        days: [],
-        timeSlots: [],
-        notes: ''
+        days: (availability.availability as any).days || [],
+        timeSlots: (availability.availability as any).timeSlots || [],
+        notes: (availability.availability as any).notes || ''
       } : {
         days: [],
         timeSlots: [],
@@ -594,7 +596,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                 control={
                   <Checkbox
                     checked={!!formData.shareName}
-                    onChange={(e) => handleInputChange('shareName', e.target.checked)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('shareName', e.target.checked)}
                   />
                 }
                 label="Share child's name in adverts and messages"

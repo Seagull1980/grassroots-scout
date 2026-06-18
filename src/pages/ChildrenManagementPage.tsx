@@ -29,7 +29,7 @@ import {
   Person as PersonIcon,
   Cake as CakeIcon,
   School as SchoolIcon,
-  MedicalServices as MedicalIcon,
+  Info as InfoIcon,
   Phone as PhoneIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -51,6 +51,7 @@ interface Child {
   emergencyContact?: string;
   emergencyPhone?: string;
   schoolName?: string;
+  bio?: string;
   profilePicture?: string;
   isActive: boolean;
   createdAt: string;
@@ -64,7 +65,7 @@ interface ChildFormData {
   gender: string;
   preferredPosition: string;
   preferredTeamGender: string;
-  medicalInfo: string;
+  bio: string;
   // emergency and school fields intentionally omitted for parent-created child profiles
 }
 
@@ -84,7 +85,7 @@ const ChildrenManagementPage: React.FC = () => {
     gender: '',
     preferredPosition: '',
     preferredTeamGender: 'Mixed',
-    medicalInfo: '',
+    bio: '',
     // emergency and school fields intentionally omitted
   });
 
@@ -217,13 +218,15 @@ const ChildrenManagementPage: React.FC = () => {
       gender: '',
       preferredPosition: '',
       preferredTeamGender: 'Mixed',
-      medicalInfo: '',
+      bio: '',
       // emergency and school fields intentionally omitted
     });
   };
 
   const openEditDialog = (child: Child) => {
+    // Ensure dialog opens in add/edit modal state and pre-fill the form with the child's data
     setEditingChild(child);
+    setShowAddDialog(true);
     setFormData({
       firstName: child.firstName,
       lastName: child.lastName,
@@ -231,7 +234,7 @@ const ChildrenManagementPage: React.FC = () => {
       gender: child.gender || '',
       preferredPosition: child.preferredPosition || '',
       preferredTeamGender: child.preferredTeamGender || 'Mixed',
-      medicalInfo: child.medicalInfo || ''
+      bio: child.bio || ''
     });
   };
 
@@ -252,9 +255,9 @@ const ChildrenManagementPage: React.FC = () => {
     );
   }
 
-  const profilesWithMedicalInfo = children.filter((child) => Boolean(child.medicalInfo?.trim())).length;
+  const profilesWithBio = children.filter((child) => Boolean(child.bio?.trim())).length;
   const profilesWithEmergencyContact = children.filter((child) => Boolean(child.emergencyContact?.trim()) && Boolean(child.emergencyPhone?.trim())).length;
-  const profilesNeedingAttention = children.filter((child) => !child.medicalInfo?.trim() || !child.emergencyContact?.trim() || !child.emergencyPhone?.trim()).length;
+  const profilesNeedingAttention = children.filter((child) => !child.bio?.trim() || !child.emergencyContact?.trim() || !child.emergencyPhone?.trim()).length;
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
@@ -295,7 +298,7 @@ const ChildrenManagementPage: React.FC = () => {
           description="Add the first child profile here so family football activity stays organised around the right child record."
           suggestions={[
             'Start with the child who is actively looking for a team first.',
-            'Add emergency and medical details during setup so you do not need to chase them later.',
+            'Add an emergency contact and a short bio during setup so you do not need to chase them later.',
             'Use child availability once the profile is complete.',
           ]}
           primaryAction={{ label: 'Add Your First Child', onClick: () => setShowAddDialog(true) }}
@@ -306,7 +309,7 @@ const ChildrenManagementPage: React.FC = () => {
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
               { label: 'Children', value: children.length, helper: 'Active child profiles' },
-              { label: 'Medical info ready', value: profilesWithMedicalInfo, helper: 'Profiles with medical notes' },
+              { label: 'Bio added', value: profilesWithBio, helper: 'Profiles with short bio' },
               { label: 'Emergency contacts ready', value: profilesWithEmergencyContact, helper: 'Profiles with contact and phone' },
               { label: 'Needs attention', value: profilesNeedingAttention, helper: 'Profiles missing critical details' },
             ].map((stat) => (
@@ -337,7 +340,7 @@ const ChildrenManagementPage: React.FC = () => {
             </Typography>
             {profilesNeedingAttention > 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
-                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing medical or emergency details. Tighten those before sending coaches to them.
+                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing a bio or emergency details. Tighten those before sending coaches to them.
               </Alert>
             )}
           </Paper>
@@ -377,7 +380,7 @@ const ChildrenManagementPage: React.FC = () => {
                   <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
                     <Chip label={`Age ${calculateAge(child.dateOfBirth)}`} size="small" />
                     <Chip label={child.preferredPosition || 'Position missing'} size="small" variant="outlined" color={child.preferredPosition ? 'default' : 'warning'} />
-                    <Chip label={child.medicalInfo ? 'Medical ready' : 'Medical needed'} size="small" color={child.medicalInfo ? 'success' : 'warning'} variant="outlined" />
+                    <Chip label={child.bio ? 'Bio added' : 'Bio needed'} size="small" color={child.bio ? 'success' : 'warning'} variant="outlined" />
                   </Stack>
 
                   <Stack spacing={1}>
@@ -422,13 +425,13 @@ const ChildrenManagementPage: React.FC = () => {
                       </Box>
                     )}
 
-                    {child.medicalInfo && (
+                    {child.bio && (
                       <Box display="flex" alignItems="flex-start">
-                        <MedicalIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary', mt: 0.5 }} />
+                        <InfoIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary', mt: 0.5 }} />
                         <Typography variant="body2" color="text.secondary">
-                          Medical: {(child.medicalInfo?.length || 0) > 50 
-                            ? `${child.medicalInfo.substring(0, 50)}...` 
-                            : child.medicalInfo}
+                          Bio: {(child.bio?.length || 0) > 100 
+                            ? `${child.bio.substring(0, 100)}...` 
+                            : child.bio}
                         </Typography>
                       </Box>
                     )}
@@ -561,13 +564,13 @@ const ChildrenManagementPage: React.FC = () => {
 
             <Grid item xs={12}>
               <TextField
-                label="Medical Information"
+                label="Player Bio"
                 fullWidth
                 multiline
                 rows={3}
-                value={formData.medicalInfo}
-                onChange={(e) => handleInputChange('medicalInfo', e.target.value)}
-                placeholder="Any medical conditions, allergies, medications, or special requirements..."
+                value={formData.bio}
+                onChange={(e) => handleInputChange('bio', e.target.value)}
+                placeholder="Brief bio: football experience, development centre, academy, or key strengths..."
               />
             </Grid>
           </Grid>
