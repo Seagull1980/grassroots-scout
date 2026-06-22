@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const DatabaseUtils = require('./db/database');
 const leagueRequestsRouter = require('./routes/league-requests');
+const { requireAdmin } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,6 +19,43 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
+
+const AUTH_COOKIE_NAME = 'auth_token';
+
+const parseCookies = (req) => {
+  const header = req.headers?.cookie;
+  if (!header) return {};
+  return header.split(';').reduce((cookies, pair) => {
+    const index = pair.indexOf('=');
+    if (index < 0) return cookies;
+    const key = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+};
+
+const getAuthTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  const cookieToken = cookies[AUTH_COOKIE_NAME];
+  if (cookieToken) return cookieToken;
+  const authHeader = req.headers['authorization'];
+  return authHeader && authHeader.split(' ')[1];
+};
+
+const getAuthCookieOptions = () => {
+  const base = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+  if (process.env.NODE_ENV === 'production') {
+    base.domain = process.env.COOKIE_DOMAIN || '.grassroots-scout.co.uk';
+  }
+  return base;
+};
 
 // Middleware
 app.use(cors({
@@ -601,6 +639,14 @@ app.post('/api/auth/login', [
       { expiresIn: '7d' }
     );
 
+    // Set auth cookie (for browsers) and return token for API clients
+    try {
+      res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+    } catch (e) {
+      // Ignore cookie set errors in environments without cookie support
+      console.warn('Failed to set auth cookie:', e && e.message ? e.message : e);
+    }
+
     res.json({
       message: 'Login successful',
       token,
@@ -628,8 +674,7 @@ app.listen(PORT, () => {
 
 // Middleware to authenticate JWT tokens
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = getAuthTokenFromRequest(req);
 
   if (!token) {
     return res.sendStatus(401);

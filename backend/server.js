@@ -85,13 +85,22 @@ const getAuthTokenFromRequest = (req) => {
   return authHeader && authHeader.split(' ')[1];
 };
 
-const getAuthCookieOptions = () => ({
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? 'none' : 'lax',
-  path: '/',
-  maxAge: 7 * 24 * 60 * 60 * 1000
-});
+const getAuthCookieOptions = () => {
+  const base = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+
+  // In production, set a cookie domain so cookies are sent across subdomains
+  if (isProduction) {
+    base.domain = process.env.COOKIE_DOMAIN || '.grassroots-scout.co.uk';
+  }
+
+  return base;
+};
 
 // Middleware
 app.use(cors({
