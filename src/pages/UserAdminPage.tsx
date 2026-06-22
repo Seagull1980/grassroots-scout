@@ -40,7 +40,7 @@ import {
   Refresh as RefreshIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { API_URL, ngrokHeaders } from '../services/api';
+import { API_URL, ngrokHeaders, api } from '../services/api';
 
 interface User {
   id: number;
@@ -110,8 +110,7 @@ const UserAdminPage: React.FC = () => {
       console.log('[UserAdminPage] Fetching users from URL:', url);
       console.log('[UserAdminPage] API_URL is:', API_URL);
       
-      const response = await axios.get(url, {
-        headers: {  ...ngrokHeaders } });
+      const response = await api.get('/admin/users');
       
       console.log('[UserAdminPage] Response received:', response.data);
       const normalizedUsers = Array.isArray(response.data?.users)
@@ -168,8 +167,7 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      await axios.delete(`${adminUsersBaseUrl}/${selectedUser.id}`, {
-        headers: {  ...ngrokHeaders } });
+      await api.delete(`/admin/users/${selectedUser.id}`);
       
       setSuccess(`User ${selectedUser.email} deleted successfully`);
       setDeleteDialogOpen(false);
@@ -183,11 +181,7 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      await axios.post(
-        `${adminUsersBaseUrl}/${selectedUser.id}/block`,
-        { blocked: !selectedUser.isBlocked },
-        { headers: {  ...ngrokHeaders } }
-      );
+      await api.post(`/admin/users/${selectedUser.id}/block`, { blocked: !selectedUser.isBlocked });
       
       setSuccess(
         `User ${selectedUser.email} ${selectedUser.isBlocked ? 'unblocked' : 'blocked'} successfully`
@@ -206,14 +200,7 @@ const UserAdminPage: React.FC = () => {
     }
     
     try {
-      await axios.post(
-        `${adminUsersBaseUrl}/${selectedUser.id}/message`,
-        {
-          subject: messageSubject,
-          message: messageBody
-        },
-        { headers: {  ...ngrokHeaders } }
-      );
+      await api.post(`/admin/users/${selectedUser.id}/message`, { subject: messageSubject, message: messageBody });
       
       setSuccess(`Message sent to ${selectedUser.email} successfully`);
       setMessageDialogOpen(false);
@@ -228,11 +215,7 @@ const UserAdminPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      await axios.post(
-        `${adminUsersBaseUrl}/${selectedUser.id}/promote`,
-        { role: 'Admin' },
-        { headers: {  ...ngrokHeaders } }
-      );
+      await api.post(`/admin/users/${selectedUser.id}/promote`, { role: 'Admin' });
       
       setSuccess(`User ${selectedUser.email} promoted to Admin successfully`);
       setPromoteDialogOpen(false);
