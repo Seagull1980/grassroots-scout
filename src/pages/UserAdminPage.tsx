@@ -39,8 +39,7 @@ import {
   ArrowBack as ArrowBackIcon,
   Refresh as RefreshIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { API_URL, ngrokHeaders, api } from '../services/api';
+import { api } from '../services/api';
 
 interface User {
   id: number;
@@ -95,7 +94,6 @@ const UserAdminPage: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [menuUser, setMenuUser] = useState<User | null>(null);
 
-  const adminUsersBaseUrl = API_URL ? `${API_URL}/admin/users` : '/api/admin/users';
 
   useEffect(() => {
     fetchUsers();
@@ -106,10 +104,6 @@ const UserAdminPage: React.FC = () => {
     setError('');
     
     try {
-      const url = adminUsersBaseUrl;
-      console.log('[UserAdminPage] Fetching users from URL:', url);
-      console.log('[UserAdminPage] API_URL is:', API_URL);
-      
       const response = await api.get('/admin/users');
       
       console.log('[UserAdminPage] Response received:', response.data);
