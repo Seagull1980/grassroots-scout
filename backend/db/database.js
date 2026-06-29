@@ -1115,6 +1115,36 @@ class Database {
 
     // Create indexes for better performance
     await this.createIndexes();
+
+    // Postgres: ensure registration_number_seq exists and set default on users.registrationNumber
+    if (this.dbType === 'postgresql') {
+      try {
+        await this.query("CREATE SEQUENCE IF NOT EXISTS registration_number_seq START 1");
+        // Set default for registrationNumber column (if column exists)
+        const checkRegCol = await this.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'registrationnumber'`);
+        if (checkRegCol.rows.length > 0) {
+          try {
+            await this.query("ALTER TABLE users ALTER COLUMN registrationNumber SET DEFAULT nextval('registration_number_seq')");
+          } catch (err) {
+            // Ignore if already set or unsupported
+          }
+          // Sync sequence to current max registrationNumber
+          const maxRow = await this.query('SELECT COALESCE(MAX(registrationnumber), 0) AS maxreg FROM users');
+          const maxVal = maxRow.rows && maxRow.rows[0] && (maxRow.rows[0].maxreg ?? 0);
+          const setVal = Number(maxVal) || 0;
+          if (setVal >= 0) {
+            try {
+              await this.query('SELECT setval(''registration_number_seq'', $1, true)', [setVal]);
+            } catch (err) {
+              // setval may fail if sequence not owned - ignore
+            }
+          }
+        }
+        console.log('✅ registration_number_seq ensured for Postgres');
+      } catch (err) {
+        console.warn('⚠️  Could not ensure registration number sequence:', err.message);
+      }
+    }
     } catch (error) {
       console.error('❌ CRITICAL: Table creation failed:', error);
       console.error('Server will continue with existing tables...');

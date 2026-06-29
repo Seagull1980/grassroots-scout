@@ -1090,28 +1090,43 @@ app.post('/api/auth/register', authLimiter, [
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Determine registrationNumber: ensure cgill1980@hotmail.com is 1, otherwise incremental
+    // Determine registrationNumber: ensure cgill1980@hotmail.com is 1, otherwise incremental for SQLite fallback.
     let nextRegistrationNumber = 1;
-    if (email.toLowerCase().trim() !== 'cgill1980@hotmail.com') {
-      try {
-        const maxRow = await db.query('SELECT MAX(registrationNumber) as maxReg FROM users');
-        const maxVal = maxRow.rows && maxRow.rows[0] && (maxRow.rows[0].maxreg ?? maxRow.rows[0].maxReg);
-        nextRegistrationNumber = (Number(maxVal) || 0) + 1;
-      } catch (err) {
-        // If table/column doesn't exist yet, default to 1
+    try {
+      if (email.toLowerCase().trim() === 'cgill1980@hotmail.com') {
         nextRegistrationNumber = 1;
+      } else if (db.dbType === 'sqlite') {
+        // For SQLite, compute next registration number in-app
+        try {
+          const maxRow = await db.query('SELECT MAX(registrationNumber) as maxReg FROM users');
+          const maxVal = maxRow.rows && maxRow.rows[0] && (maxRow.rows[0].maxreg ?? maxRow.rows[0].maxReg);
+          nextRegistrationNumber = (Number(maxVal) || 0) + 1;
+        } catch (err) {
+          nextRegistrationNumber = 1;
+        }
+      } else {
+        // For PostgreSQL, prefer DB-managed sequence - don't supply registrationNumber so default applies
+        nextRegistrationNumber = null;
       }
-    } else {
+    } catch (err) {
       nextRegistrationNumber = 1;
     }
 
-    const registrationDate = new Date();
+    // Build insert dynamically so we omit registrationNumber for Postgres (allow sequence default)
+    const baseCols = ['email','emailHash','password','firstName','lastName','role','isEmailVerified','emailVerificationToken','emailVerificationExpires'];
+    const baseParams = [email, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires];
 
-    // Insert user with email verification and registration fields
-    const result = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires, registrationNumber, registrationDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
-      [email, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires, nextRegistrationNumber, registrationDate]
-    );
+    if (nextRegistrationNumber !== null) {
+      baseCols.push('registrationNumber');
+      baseParams.push(nextRegistrationNumber);
+      // registrationDate will be set by DB default; only include if explicitly provided
+      baseCols.push('registrationDate');
+      baseParams.push(new Date());
+    }
+
+    const placeholders = baseCols.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO users (${baseCols.join(', ')}) VALUES (${placeholders}) RETURNING id`;
+    const result = await db.query(insertSql, baseParams);
 
     const userId = result.rows[0].id;
 
