@@ -1090,10 +1090,27 @@ app.post('/api/auth/register', authLimiter, [
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Insert user with email verification fields
+    // Determine registrationNumber: ensure cgill1980@hotmail.com is 1, otherwise incremental
+    let nextRegistrationNumber = 1;
+    if (email.toLowerCase().trim() !== 'cgill1980@hotmail.com') {
+      try {
+        const maxRow = await db.query('SELECT MAX(registrationNumber) as maxReg FROM users');
+        const maxVal = maxRow.rows && maxRow.rows[0] && (maxRow.rows[0].maxreg ?? maxRow.rows[0].maxReg);
+        nextRegistrationNumber = (Number(maxVal) || 0) + 1;
+      } catch (err) {
+        // If table/column doesn't exist yet, default to 1
+        nextRegistrationNumber = 1;
+      }
+    } else {
+      nextRegistrationNumber = 1;
+    }
+
+    const registrationDate = new Date();
+
+    // Insert user with email verification and registration fields
     const result = await db.query(
-      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
-      [email, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires]
+      'INSERT INTO users (email, emailHash, password, firstName, lastName, role, isEmailVerified, emailVerificationToken, emailVerificationExpires, registrationNumber, registrationDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      [email, emailHash, hashedPassword, firstName, lastName, role, false, verificationToken, verificationExpires, nextRegistrationNumber, registrationDate]
     );
 
     const userId = result.rows[0].id;
@@ -4942,6 +4959,8 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
         role,
         betaaccess as "betaAccess",
         createdat as "createdAt",
+        registrationnumber as "registrationNumber",
+        registrationdate as "registrationDate",
         isemailverified as "isEmailVerified",
         isblocked as "isBlocked"
       FROM users

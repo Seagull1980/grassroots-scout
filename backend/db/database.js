@@ -290,6 +290,8 @@ class Database {
         emailVerificationExpires TIMESTAMP,
         passwordResetToken VARCHAR,
         passwordResetExpires TIMESTAMP,
+        registrationNumber INTEGER UNIQUE,
+        registrationDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
 

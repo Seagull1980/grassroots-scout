@@ -44,11 +44,13 @@ import { api } from '../services/api';
 interface User {
   id: number;
   email: string;
+  registrationNumber?: number;
   firstName: string;
   lastName: string;
   role: 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin';
   betaAccess?: boolean;
   createdAt: string;
+  registrationDate?: string;
   isEmailVerified: boolean;
   isBlocked?: boolean;
   lastLogin?: string;
@@ -59,6 +61,7 @@ const toBoolean = (value: unknown): boolean =>
 
 const normalizeAdminUser = (user: any): User => ({
   ...user,
+  registrationNumber: user.registrationNumber ?? user.registrationnumber,
   firstName: user.firstName ?? user.firstname ?? '',
   lastName: user.lastName ?? user.lastname ?? '',
   betaAccess: toBoolean(user.betaAccess ?? user.betaaccess),
@@ -336,18 +339,22 @@ const UserAdminPage: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>Reg #</TableCell>
                 <TableCell>ID</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Created</TableCell>
+                <TableCell>Registered</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
+                  <TableCell>
+                    {user.registrationNumber ?? '—'}
+                  </TableCell>
                   <TableCell>
                     <Chip label={user.id} size="small" variant="outlined" />
                   </TableCell>
@@ -379,7 +386,7 @@ const UserAdminPage: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                    {user.registrationDate ? new Date(user.registrationDate).toLocaleDateString() : (user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A')}
                   </TableCell>
                   <TableCell align="right">
                     <IconButton
