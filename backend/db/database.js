@@ -199,6 +199,30 @@ class Database {
     pgSql = pgSql.replace(/strftime\(\s*'%H'\s*,\s*([^)]+)\)/gi, "TO_CHAR($1, 'HH24')");
     pgSql = pgSql.replace(/\(julianday\(([^)]+)\)\s*-\s*julianday\(([^)]+)\)\)\s*\*\s*24\s*\*\s*60/gi, "EXTRACT(EPOCH FROM (($1) - ($2))) / 60.0");
     pgSql = pgSql.replace(/datetime\(\s*'now'\s*,\s*\$(\d+)\s*\)/gi, "NOW() + ($1::text)::interval");
+
+    // Convert SQLite "INSERT OR REPLACE INTO table (cols) VALUES (vals)" to
+    // PostgreSQL "INSERT INTO table (cols) VALUES (vals) ON CONFLICT (conflict_col) DO UPDATE SET ..."
+    // This uses a best-effort heuristic: use the first listed column as the conflict target
+    // and update other columns from EXCLUDED. It's primarily intended to handle
+    // analytics/user_sessions statements created for SQLite.
+    pgSql = pgSql.replace(/INSERT\s+OR\s+REPLACE\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/gi,
+      (match, table, cols, vals) => {
+        try {
+          const colList = cols.split(',').map(c => c.trim());
+          if (colList.length === 0) return match;
+          const conflictTarget = colList[0];
+          // Build update list excluding the conflict column itself
+          const updates = colList
+            .filter(c => c.toLowerCase() !== conflictTarget.toLowerCase())
+            .map(c => `${c} = EXCLUDED.${c}`)
+            .join(', ');
+          const updateClause = updates.length ? ` ON CONFLICT (${conflictTarget}) DO UPDATE SET ${updates}` : ` ON CONFLICT (${conflictTarget}) DO NOTHING`;
+          return `INSERT INTO ${table} (${cols}) VALUES (${vals})${updateClause}`;
+        } catch (e) {
+          return match;
+        }
+      }
+    );
     
     return pgSql;
   }
