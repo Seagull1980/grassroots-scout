@@ -171,7 +171,7 @@ const HomePage: React.FC = () => {
               boxShadow: '0 4px 20px rgba(0, 102, 255, 0.25)'
             }}
           >
-            I'm a Player
+            I'm a Player (or Parent/Guardian)
           </Button>
           <Button
             variant="contained"
