@@ -143,6 +143,24 @@ const RegisterPage: React.FC = () => {
     }
   }, [searchParams]);
 
+  // Ensure users can't land on the Password step (2) without completing name/email step (0).
+  useEffect(() => {
+    if (currentStep === 2) {
+      const missingFirst = !formData.firstName;
+      const missingLast = !formData.lastName;
+      const missingEmail = !formData.email;
+      if (missingFirst || missingLast || missingEmail) {
+        setFieldErrors(prev => ({
+          ...prev,
+          firstName: missingFirst ? 'First name is required' : prev.firstName,
+          lastName: missingLast ? 'Last name is required' : prev.lastName,
+          email: missingEmail ? 'Email is required' : prev.email
+        }));
+        setCurrentStep(0);
+      }
+    }
+  }, [currentStep, formData.firstName, formData.lastName, formData.email]);
+
   const validateStep = (step: number): boolean => {
     const errors: Record<string, string> = {};
     if (step === 0) {
