@@ -223,6 +223,30 @@ class Database {
         }
       }
     );
+    // Convert plain SQLite REPLACE INTO statements to Postgres INSERT ... ON CONFLICT
+    pgSql = pgSql.replace(/REPLACE\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/gi,
+      (match, table, cols, vals) => {
+        try {
+          const colList = cols.split(',').map(c => c.trim());
+          if (colList.length === 0) return match;
+          const conflictTarget = colList[0];
+          const updates = colList
+            .filter(c => c.toLowerCase() !== conflictTarget.toLowerCase())
+            .map(c => `${c} = EXCLUDED.${c}`)
+            .join(', ');
+          const updateClause = updates.length ? ` ON CONFLICT (${conflictTarget}) DO UPDATE SET ${updates}` : ` ON CONFLICT (${conflictTarget}) DO NOTHING`;
+          return `INSERT INTO ${table} (${cols}) VALUES (${vals})${updateClause}`;
+        } catch (e) {
+          return match;
+        }
+      }
+    );
+
+    // Convert IFNULL(x,y) to COALESCE(x,y)
+    pgSql = pgSql.replace(/IFNULL\s*\(/gi, 'COALESCE(');
+
+    // Convert plain datetime('now') to NOW()
+    pgSql = pgSql.replace(/datetime\(\s*'now'\s*\)/gi, 'NOW()');
     
     return pgSql;
   }
