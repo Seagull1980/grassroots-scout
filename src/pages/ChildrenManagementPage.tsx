@@ -478,6 +478,10 @@ const ChildrenManagementPage: React.FC = () => {
             </Alert>
           )}
 
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Your child's name is private by default and will not be shown in adverts. You can choose to show it later when creating a child availability advert by enabling the "Share child's name in adverts and messages" option.
+          </Alert>
+
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField

@@ -2052,6 +2052,29 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
 
 // Children Management Endpoints
 
+let childrenColumnCache = null;
+let childrenColumnCacheAt = 0;
+
+const getChildrenTableColumns = async () => {
+  const now = Date.now();
+  if (childrenColumnCache && now - childrenColumnCacheAt < 5 * 60 * 1000) {
+    return childrenColumnCache;
+  }
+
+  if (db.dbType === 'postgresql') {
+    const result = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'children'"
+    );
+    childrenColumnCache = new Set((result.rows || []).map((row) => String(row.column_name).toLowerCase()));
+  } else {
+    const result = await db.query('PRAGMA table_info(children)');
+    childrenColumnCache = new Set((result.rows || []).map((row) => String(row.name).toLowerCase()));
+  }
+
+  childrenColumnCacheAt = now;
+  return childrenColumnCache;
+};
+
 // Get all children for a parent
 app.get('/api/children', authenticateToken, async (req, res) => {
   try {
@@ -2113,12 +2136,30 @@ app.post('/api/children', [
       });
     }
 
+    const availableColumns = await getChildrenTableColumns();
+    const columnData = {
+      parentId: req.user.userId,
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      preferredPosition,
+      bio,
+      emergencyContact,
+      emergencyPhone,
+      schoolName
+    };
+
+    const insertColumns = Object.entries(columnData)
+      .filter(([key, value]) => value !== undefined && availableColumns.has(key.toLowerCase()))
+      .map(([key]) => key);
+
+    const insertValues = insertColumns.map((key) => columnData[key]);
+    const placeholders = insertColumns.map(() => '?').join(', ');
+
     const result = await db.query(
-      `INSERT INTO children (parentId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
-       bio, emergencyContact, emergencyPhone, schoolName) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.userId, firstName, lastName, dateOfBirth, gender, preferredPosition, 
-       bio, emergencyContact, emergencyPhone, schoolName]
+      `INSERT INTO children (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+      insertValues
     );
 
     const childId = result.lastID;
@@ -2177,11 +2218,12 @@ app.put('/api/children/:childId', [
       return res.status(404).json({ error: 'Child not found or access denied' });
     }
 
+    const availableColumns = await getChildrenTableColumns();
     const updateFields = [];
     const updateValues = [];
-    
+
     Object.keys(req.body).forEach(key => {
-      if (req.body[key] !== undefined) {
+      if (req.body[key] !== undefined && availableColumns.has(key.toLowerCase())) {
         updateFields.push(`${key} = ?`);
         updateValues.push(req.body[key]);
       }
