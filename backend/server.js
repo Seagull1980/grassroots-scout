@@ -55,6 +55,40 @@ const allowedOrigins = new Set([
     .filter(Boolean)
 ]);
 
+const isAllowedOrigin = (origin) => {
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  // Allow production subdomains and Vercel preview URLs when explicitly needed.
+  if (/^https:\/\/[a-zA-Z0-9-]+\.grassroots-scout\.co\.uk$/.test(origin)) {
+    return true;
+  }
+
+  if (/^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+
+  return false;
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Session-Id']
+};
+
 const parseCookies = (req) => {
   const header = req.headers?.cookie;
   if (!header) {
@@ -103,25 +137,20 @@ const getAuthCookieOptions = () => {
 };
 
 // Middleware
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.has(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('Origin not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Session-Id']
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(generalLimiter);
 app.use(sanitizeRequest);
+
+// Return a clean response for blocked CORS origins instead of an unhandled error.
+app.use((err, req, res, next) => {
+  if (err && err.message === 'Origin not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
+  return next(err);
+});
 
 // Client-side error reporting (from ErrorBoundary)
 app.post('/api/client-error', async (req, res) => {
