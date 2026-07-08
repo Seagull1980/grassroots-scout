@@ -92,24 +92,6 @@ const validateDateOfBirth = (dob: string): { valid: boolean; error?: string; age
   return { valid: true, age };
 };
 
-// Helper function to calculate age from date of birth
-const calculateAge = (dob: string): number | null => {
-  if (!dob) return null;
-  
-  const birthDate = new Date(dob);
-  const today = new Date();
-  
-  if (isNaN(birthDate.getTime())) return null;
-  
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age;
-};
-
 export const OnboardingFlow: React.FC = () => {
   const { user } = useAuth();
   const { subscribeToArea, subscribeToLeague } = useNotifications();
@@ -135,7 +117,6 @@ export const OnboardingFlow: React.FC = () => {
   const [loadingLeagues, setLoadingLeagues] = useState(false);
   const [leagueRequestOpen, setLeagueRequestOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
-  const [dobError, setDobError] = useState<string>('');
   const [clubs, setClubs] = useState<string[]>([]);
   const [loadingClubs, setLoadingClubs] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -451,71 +432,6 @@ export const OnboardingFlow: React.FC = () => {
       )
     },
     {
-      id: 'role-setup',
-      title: 'Tell us about yourself',
-      description: 'Help us customize your experience based on your role',
-      component: (
-        <Box py={2}>
-          <Typography variant="h6" gutterBottom>
-            What are you most interested in?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Select all that apply (you can change this later)
-          </Typography>
-          
-          <Grid container spacing={2}>
-            {[
-              { id: 'finding-teams', label: 'Finding a team to join', icon: <GroupIcon /> },
-              { id: 'recruiting-players', label: 'Recruiting players for my team', icon: <PersonIcon /> },
-              { id: 'coaching-opportunities', label: 'Coaching opportunities', icon: <SportsIcon /> },
-              { id: 'youth-football', label: 'Youth football (under 18)', icon: <PersonIcon /> },
-              { id: 'match-results', label: 'Recording match results', icon: <CheckCircleIcon /> },
-              { id: 'local-leagues', label: 'Following local leagues', icon: <MapIcon /> }
-            ].filter(Boolean).map((interest) => (
-              <Grid item xs={12} sm={6} key={interest.id}>
-                <Card 
-                  sx={{ 
-                    cursor: 'pointer',
-                    border: userData.interests.includes(interest.id) ? 2 : 1,
-                    borderColor: userData.interests.includes(interest.id) ? 'primary.main' : 'divider',
-                    '&:hover': { borderColor: 'primary.main' },
-                    '&:focus': { borderColor: 'primary.main', outline: '2px solid', outlineColor: 'primary.main' }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-pressed={userData.interests.includes(interest.id)}
-                  onClick={() => {
-                    setUserData(prev => ({
-                      ...prev,
-                      interests: prev.interests.includes(interest.id)
-                        ? prev.interests.filter(i => i !== interest.id)
-                        : [...prev.interests, interest.id]
-                    }));
-                  }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setUserData(prev => ({
-                        ...prev,
-                        interests: prev.interests.includes(interest.id)
-                          ? prev.interests.filter(i => i !== interest.id)
-                          : [...prev.interests, interest.id]
-                      }));
-                    }
-                  }}
-                >
-                  <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
-                    {interest?.icon}
-                    <Typography variant="body2">{interest?.label || 'Interest'}</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )
-    },
-    {
       id: 'profile-details',
       title: 'Complete Your Profile',
       description: 'Help others learn more about you',
@@ -529,40 +445,11 @@ export const OnboardingFlow: React.FC = () => {
           </Typography>
           
           <Stack spacing={3}>
-            <Box>
-              <TextField
-                fullWidth
-                label="Date of Birth *"
-                type="date"
-                value={userData.dateOfBirth}
-                onChange={(e) => {
-                  const newDob = e.target.value;
-                  setUserData(prev => ({ ...prev, dateOfBirth: newDob }));
-                  
-                  // Validate on change
-                  const validation = validateDateOfBirth(newDob);
-                  if (!validation.valid && newDob) {
-                    setDobError(validation.error || '');
-                  } else if (user?.role === 'Parent/Guardian' && validation.age !== undefined && validation.age < 18) {
-                    setDobError('Parents must be at least 18 years old');
-                  } else {
-                    setDobError('');
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-                helperText={dobError || 'Required for age verification and appropriate team matching'}
-                error={!!dobError}
-                required
-              />
-              {userData.dateOfBirth && !dobError && (() => {
-                const age = calculateAge(userData.dateOfBirth);
-                return age !== null ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Age: {age} years old
-                  </Typography>
-                ) : null;
-              })()}
-            </Box>
+            <Alert severity="info">
+              <Typography variant="body2">
+                Date of birth is already captured during registration, so you do not need to enter it again here.
+              </Typography>
+            </Alert>
 
             {/* Phone number removed from onboarding - not required at registration */}
 
