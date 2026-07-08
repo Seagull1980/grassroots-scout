@@ -256,7 +256,7 @@ const trackPageView = async (req, res, next) => {
     if (!req.path.startsWith('/api/')) {
       const pageViewData = {
         sessionId,
-        userId: req.user?.id || null,
+        userId: req.user?.userId || null,
         page: req.path,
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip || req.connection.remoteAddress,
@@ -273,12 +273,26 @@ const trackPageView = async (req, res, next) => {
              pageViewData.userAgent, pageViewData.ipAddress, pageViewData.referrer]
           );
 
-          // Update or create user session
-          await db.query(
-            `INSERT OR REPLACE INTO user_sessions (sessionId, userId, ipAddress, userAgent, lastActivity) 
-             VALUES (?, ?, ?, ?, datetime('now'))`,
-            [pageViewData.sessionId, pageViewData.userId, pageViewData.ipAddress, pageViewData.userAgent]
-          );
+          // Update or create user session (DB-specific upsert syntax).
+          if (db.dbType === 'postgresql') {
+            await db.query(
+              `INSERT INTO user_sessions (sessionId, userId, ipAddress, userAgent, lastActivity)
+               VALUES (?, ?, ?, ?, NOW())
+               ON CONFLICT (sessionId)
+               DO UPDATE SET
+                 userId = EXCLUDED.userId,
+                 ipAddress = EXCLUDED.ipAddress,
+                 userAgent = EXCLUDED.userAgent,
+                 lastActivity = NOW()`,
+              [pageViewData.sessionId, pageViewData.userId, pageViewData.ipAddress, pageViewData.userAgent]
+            );
+          } else {
+            await db.query(
+              `INSERT OR REPLACE INTO user_sessions (sessionId, userId, ipAddress, userAgent, lastActivity)
+               VALUES (?, ?, ?, ?, datetime('now'))`,
+              [pageViewData.sessionId, pageViewData.userId, pageViewData.ipAddress, pageViewData.userAgent]
+            );
+          }
         } catch (error) {
           console.error('Error tracking page view:', error);
         }
