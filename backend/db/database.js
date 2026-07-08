@@ -1134,7 +1134,7 @@ class Database {
           const setVal = Number(maxVal) || 0;
           if (setVal >= 0) {
             try {
-              await this.query('SELECT setval(''registration_number_seq'', $1, true)', [setVal]);
+              await this.query("SELECT setval('registration_number_seq', $1, true)", [setVal]);
             } catch (err) {
               // setval may fail if sequence not owned - ignore
             }
