@@ -70,6 +70,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(storedUser);
         }
 
+        const currentPath = window.location.pathname;
+        const isAuthPage =
+          currentPath === '/login' ||
+          currentPath === '/register' ||
+          currentPath === '/forgot-password' ||
+          currentPath.startsWith('/reset-password') ||
+          currentPath.startsWith('/verify-email') ||
+          currentPath === '/email-verification-pending';
+
+        // Avoid noisy auth probe calls on public auth pages when no local session exists.
+        if (isAuthPage && !storedUserStr) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[AuthContext] Skipping session validation on auth page without local session');
+          }
+          setIsLoading(false);
+          return;
+        }
+
         const response = await authAPI.getCurrentUser();
         if (response?.user) {
           setUser(response.user as User);

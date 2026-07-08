@@ -65,6 +65,7 @@ const RegisterPage: React.FC = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [pendingStep, setPendingStep] = useState<number | null>(null);
 
   const getRoleGuidance = (role: string) => {
     switch (role) {
@@ -156,6 +157,8 @@ const RegisterPage: React.FC = () => {
           lastName: missingLast ? 'Last name is required' : prev.lastName,
           email: missingEmail ? 'Email is required' : prev.email
         }));
+        // Remember the intended destination so users can continue naturally after details.
+        setPendingStep(2);
         setCurrentStep(0);
       }
     }
@@ -213,7 +216,15 @@ const RegisterPage: React.FC = () => {
 
   const handleNext = () => {
     setError('');
-    if (validateStep(currentStep)) setCurrentStep(s => s + 1);
+    if (!validateStep(currentStep)) return;
+
+    if (currentStep === 0 && pendingStep !== null) {
+      setCurrentStep(pendingStep);
+      setPendingStep(null);
+      return;
+    }
+
+    setCurrentStep(s => s + 1);
   };
 
   const handleBack = () => {
@@ -255,6 +266,7 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register(registrationData);
+      setPendingStep(null);
       navigate('/email-verification-pending');
     } catch (error: any) {
       let general = 'Registration failed. Please try again.';

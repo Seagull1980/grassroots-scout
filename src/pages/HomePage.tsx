@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useResponsive, useResponsiveSpacing } from '../hooks/useResponsive';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { API_URL } from '../services/api';
 import Footer from '../components/Footer';
 
 const HomePage: React.FC = () => {
@@ -37,7 +38,7 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const fetchSiteStats = async () => {
       try {
-        const response = await fetch('/api/public/site-stats');
+        const response = await fetch(`${API_URL}/public/site-stats`);
         if (response.ok) {
           const data = await response.json();
           setSiteStats(data);
@@ -176,7 +177,7 @@ const HomePage: React.FC = () => {
           <Button
             variant="contained"
             size="large"
-            onClick={() => navigateWithTracking('hero_im_club', '/register?role=coach', 'hero_primary_cta', 'Club')}
+            onClick={() => navigateWithTracking('hero_im_club', '/register?role=coach', 'hero_primary_cta', 'Coach')}
             sx={{
               px: 6,
               py: 2.5,
@@ -186,7 +187,7 @@ const HomePage: React.FC = () => {
               boxShadow: '0 4px 20px rgba(255, 107, 53, 0.25)'
             }}
           >
-            I'm a Club
+            I'm a Coach
           </Button>
         </Box>
 
@@ -508,8 +509,8 @@ const HomePage: React.FC = () => {
           <Box>Strengthen your team quickly</Box>
         </Typography>
       </Box>
-
-      <Button
+        
+        <Button
         variant="contained"
         size="large"
         onClick={() => navigateWithTracking('club_section_join', '/register?role=coach', 'club_section')}
@@ -519,8 +520,8 @@ const HomePage: React.FC = () => {
           py: 1.5,
           fontWeight: 700
         }}
-      >
-        Join as a Club <ArrowForward sx={{ ml: 1 }} />
+        >
+        Join as a Coach <ArrowForward sx={{ ml: 1 }} />
       </Button>
     </Paper>
   );
@@ -711,7 +712,7 @@ const HomePage: React.FC = () => {
         <Button
           variant="contained"
           size="large"
-          onClick={() => navigateWithTracking('final_cta_club', '/register?role=coach', 'final_cta', 'Club')}
+          onClick={() => navigateWithTracking('final_cta_club', '/register?role=coach', 'final_cta', 'Coach')}
           sx={{
             background: 'linear-gradient(135deg, #FF6B35 0%, #FF4500 100%)',
             px: 6,
@@ -720,7 +721,7 @@ const HomePage: React.FC = () => {
             boxShadow: '0 4px 20px rgba(255, 107, 53, 0.25)'
           }}
         >
-          Join as a Club
+          Join as a Coach
         </Button>
       </Box>
     </Box>

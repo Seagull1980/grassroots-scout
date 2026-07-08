@@ -165,8 +165,14 @@ export const OnboardingFlow: React.FC = () => {
     teamGender: 'Mixed'
   });
 
-  // Load available leagues from database
+  // Load available leagues from database only for authenticated users.
   useEffect(() => {
+    if (!user) {
+      setAvailableLeagues([]);
+      setLoadingLeagues(false);
+      return;
+    }
+
     const loadLeagues = async () => {
       setLoadingLeagues(true);
       try {
@@ -189,7 +195,7 @@ export const OnboardingFlow: React.FC = () => {
     };
 
     loadLeagues();
-  }, []);
+  }, [user]);
 
   // Search for existing clubs
   const searchClubs = async (searchTerm: string) => {
