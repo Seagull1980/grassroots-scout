@@ -328,8 +328,8 @@ const ChildrenManagementPage: React.FC = () => {
   }
 
   const profilesWithBio = children.filter((child) => Boolean(child.bio?.trim())).length;
-  const profilesWithEmergencyContact = children.filter((child) => Boolean(child.emergencyContact?.trim()) && Boolean(child.emergencyPhone?.trim())).length;
-  const profilesNeedingAttention = children.filter((child) => !child.bio?.trim() || !child.emergencyContact?.trim() || !child.emergencyPhone?.trim()).length;
+  const profilesWithGender = children.filter((child) => Boolean(child.gender?.trim())).length;
+  const profilesNeedingAttention = children.filter((child) => !child.bio?.trim()).length;
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
@@ -370,7 +370,7 @@ const ChildrenManagementPage: React.FC = () => {
           description="Add the first child profile here so family football activity stays organised around the right child record."
           suggestions={[
             'Start with the child who is actively looking for a team first.',
-            'Add an emergency contact and a short bio during setup so you do not need to chase them later.',
+            'Add a short bio during setup so coaches quickly understand the child profile.',
             'Use child availability once the profile is complete.',
           ]}
           primaryAction={{ label: 'Add Your First Child', onClick: () => setShowAddDialog(true) }}
@@ -382,7 +382,7 @@ const ChildrenManagementPage: React.FC = () => {
             {[
               { label: 'Children', value: children.length, helper: 'Active child profiles' },
               { label: 'Bio added', value: profilesWithBio, helper: 'Profiles with short bio' },
-              { label: 'Emergency contacts ready', value: profilesWithEmergencyContact, helper: 'Profiles with contact and phone' },
+              { label: 'Gender set', value: profilesWithGender, helper: 'Profiles with gender recorded' },
               { label: 'Needs attention', value: profilesNeedingAttention, helper: 'Profiles missing critical details' },
             ].map((stat) => (
               <Grid item xs={12} sm={6} md={3} key={stat.label}>
@@ -412,7 +412,7 @@ const ChildrenManagementPage: React.FC = () => {
             </Typography>
             {profilesNeedingAttention > 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
-                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing a bio or emergency details. Tighten those before sending coaches to them.
+                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing a bio. Add one to give coaches better context.
               </Alert>
             )}
           </Paper>
@@ -513,9 +513,9 @@ const ChildrenManagementPage: React.FC = () => {
                       </Box>
                     )}
 
-                    {!child.emergencyContact || !child.emergencyPhone ? (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
-                        Add a complete emergency contact before sharing this profile with more coaches.
+                    {!child.bio?.trim() ? (
+                      <Alert severity="info" sx={{ mt: 1 }}>
+                        Add a short bio to help coaches understand this child profile.
                       </Alert>
                     ) : null}
                   </Stack>
