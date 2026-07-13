@@ -329,7 +329,7 @@ const ChildrenManagementPage: React.FC = () => {
 
   const profilesWithBio = children.filter((child) => Boolean(child.bio?.trim())).length;
   const profilesWithGender = children.filter((child) => Boolean(child.gender?.trim())).length;
-  const profilesNeedingAttention = children.filter((child) => !child.bio?.trim()).length;
+  const profilesWithPosition = children.filter((child) => Boolean(child.preferredPosition?.trim())).length;
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
@@ -383,7 +383,7 @@ const ChildrenManagementPage: React.FC = () => {
               { label: 'Children', value: children.length, helper: 'Active child profiles' },
               { label: 'Bio added', value: profilesWithBio, helper: 'Profiles with short bio' },
               { label: 'Gender set', value: profilesWithGender, helper: 'Profiles with gender recorded' },
-              { label: 'Needs attention', value: profilesNeedingAttention, helper: 'Profiles missing critical details' },
+              { label: 'Position set', value: profilesWithPosition, helper: 'Profiles with preferred position' },
             ].map((stat) => (
               <Grid item xs={12} sm={6} md={3} key={stat.label}>
                 <Card sx={{ height: '100%' }}>
@@ -410,11 +410,6 @@ const ChildrenManagementPage: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Use this page as the control centre for each child. The aim is to make it obvious which profiles are ready for coaches and which still need information.
             </Typography>
-            {profilesNeedingAttention > 0 && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                {profilesNeedingAttention} child profile{profilesNeedingAttention !== 1 ? 's are' : ' is'} missing a bio. Add one to give coaches better context.
-              </Alert>
-            )}
           </Paper>
 
           <Grid container spacing={3}>
