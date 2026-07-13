@@ -35,6 +35,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { Location } from '../types';
+import LocationInput from '../components/LocationInput';
 
 interface Child {
   id: number;
@@ -84,6 +85,7 @@ interface AvailabilityFormData {
   positions: string[];
   preferredTeamGender: string;
   location: string;
+  locationData: Location | null;
   contactInfo: string;
   shareName: boolean;
   availability: {
@@ -112,6 +114,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     positions: [],
     preferredTeamGender: 'Mixed',
     location: '',
+    locationData: null,
     contactInfo: '',
     shareName: false,
     availability: {
@@ -161,7 +164,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
         api.get('/child-player-availability')
       ]);
       
-      setChildren(childrenResponse.data.children);
+      setChildren(normalizeChildren(childrenResponse.data.children));
       setAvailabilities(availabilityResponse.data.availability);
     } catch (err: any) {
       console.error('Error loading data:', err);
@@ -171,9 +174,45 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
+  const pickFirst = <T,>(source: Record<string, unknown>, keys: string[], fallback: T): T => {
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null && value !== '') {
+        return value as T;
+      }
+    }
+    return fallback;
+  };
+
+  const normalizeDate = (value: unknown): string => {
+    if (!value) return '';
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  const normalizeChild = (rawChild: Record<string, unknown>): Child => ({
+    id: Number(pickFirst(rawChild, ['id'], 0)),
+    firstName: String(pickFirst(rawChild, ['firstName', 'firstname', 'first_name'], '')),
+    lastName: String(pickFirst(rawChild, ['lastName', 'lastname', 'last_name'], '')),
+    dateOfBirth: normalizeDate(pickFirst(rawChild, ['dateOfBirth', 'dateofbirth', 'date_of_birth'], '')),
+    preferredPosition: pickFirst(rawChild, ['preferredPosition', 'preferredposition', 'preferred_position'], undefined)
+  });
+
+  const normalizeChildren = (rawChildren: unknown): Child[] => {
+    if (!Array.isArray(rawChildren)) return [];
+    return rawChildren.map((child) => normalizeChild(child as Record<string, unknown>));
+  };
+
+  const calculateAge = (dateOfBirth: string): number | null => {
+    if (!dateOfBirth) return null;
+
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
+    if (Number.isNaN(birthDate.getTime())) return null;
+
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     
@@ -186,6 +225,9 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
 
   const getAgeGroupFromBirthDate = (dateOfBirth: string): string => {
     const age = calculateAge(dateOfBirth);
+    if (age === null) {
+      return '';
+    }
     return `Under ${age + 1}`;
   };
 
@@ -216,7 +258,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       setFormData(prev => ({
         ...prev,
         childId,
-        ageGroup: suggestedAgeGroup,
+        ageGroup: suggestedAgeGroup || prev.ageGroup,
         positions: suggestedPositions,
         // Default to a neutral title and do not expose child's name unless parent opts in
         title: `${selectedChild.preferredPosition || 'Player'} - Player Available`,
@@ -308,6 +350,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       positions: [],
       preferredTeamGender: 'Mixed',
       location: '',
+      locationData: null,
       contactInfo: '',
       shareName: false,
       availability: {
@@ -329,6 +372,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       positions: availability.positions || [],
       preferredTeamGender: availability.preferredTeamGender || 'Mixed',
       location: availability.location || '',
+        locationData: availability.locationData || null,
       contactInfo: availability.contactInfo || '',
       shareName: availability.shareName ?? false,
       availability: availability.availability ? {
@@ -572,7 +616,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                   >
                     {children.map((child) => (
                       <MenuItem key={child.id} value={child.id}>
-                        {child.firstName} {child.lastName} (Age: {calculateAge(child.dateOfBirth)})
+                          {child.firstName} {child.lastName}{calculateAge(child.dateOfBirth) !== null ? ` (Age: ${calculateAge(child.dateOfBirth)})` : ''}
                       </MenuItem>
                     ))}
                   </Select>
@@ -679,12 +723,18 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
             </Grid>
 
             <Grid item xs={12}>
-              <TextField
+              <LocationInput
                 label="Location"
                 fullWidth
                 value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                placeholder="e.g., Manchester, Greater Manchester"
+                onChange={(location) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    location: location?.address || '',
+                    locationData: location
+                  }));
+                }}
+                placeholder="Start typing an address or postcode..."
               />
             </Grid>
 
