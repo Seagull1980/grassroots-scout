@@ -2068,6 +2068,8 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
 
 let childrenColumnCache = null;
 let childrenColumnCacheAt = 0;
+let childAvailabilityColumnCache = null;
+let childAvailabilityColumnCacheAt = 0;
 
 const getChildrenTableColumns = async () => {
   const now = Date.now();
@@ -2087,6 +2089,26 @@ const getChildrenTableColumns = async () => {
 
   childrenColumnCacheAt = now;
   return childrenColumnCache;
+};
+
+const getChildAvailabilityTableColumns = async () => {
+  const now = Date.now();
+  if (childAvailabilityColumnCache && now - childAvailabilityColumnCacheAt < 5 * 60 * 1000) {
+    return childAvailabilityColumnCache;
+  }
+
+  if (db.dbType === 'postgresql') {
+    const result = await db.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'child_player_availability'"
+    );
+    childAvailabilityColumnCache = new Set((result.rows || []).map((row) => String(row.column_name).toLowerCase()));
+  } else {
+    const result = await db.query('PRAGMA table_info(child_player_availability)');
+    childAvailabilityColumnCache = new Set((result.rows || []).map((row) => String(row.name).toLowerCase()));
+  }
+
+  childAvailabilityColumnCacheAt = now;
+  return childAvailabilityColumnCache;
 };
 
 // Get all children for a parent
@@ -3058,26 +3080,30 @@ app.post('/api/child-player-availability', [
       return res.status(404).json({ error: 'Child not found or access denied' });
     }
 
+    const availableColumns = await getChildAvailabilityTableColumns();
+    const columnData = {
+      childId,
+      parentId: req.user.userId,
+      title,
+      description,
+      preferredLeagues: JSON.stringify(preferredLeagues || []),
+      ageGroup,
+      positions: JSON.stringify(positions),
+      preferredTeamGender: preferredTeamGender || 'Mixed',
+      location,
+      locationData: JSON.stringify(locationData || null),
+      contactInfo,
+      availability: JSON.stringify(availability || null),
+      shareName: !!shareName
+    };
+
+    const insertColumns = Object.keys(columnData).filter((key) => availableColumns.has(key.toLowerCase()));
+    const insertValues = insertColumns.map((key) => columnData[key]);
+    const placeholders = insertColumns.map(() => '?').join(', ');
+
     const result = await db.query(
-      `INSERT INTO child_player_availability 
-       (childId, parentId, title, description, preferredLeagues, ageGroup, positions, 
-        preferredTeamGender, location, locationData, contactInfo, availability, shareName) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        childId,
-        req.user.userId,
-        title,
-        description,
-        JSON.stringify(preferredLeagues || []),
-        ageGroup,
-        JSON.stringify(positions),
-        preferredTeamGender || 'Mixed',
-        location,
-        JSON.stringify(locationData),
-        contactInfo,
-        JSON.stringify(availability),
-        !!shareName
-      ]
+      `INSERT INTO child_player_availability (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+      insertValues
     );
 
     const availabilityId = result.lastID;
@@ -3151,11 +3177,12 @@ app.put('/api/child-player-availability/:availabilityId', [
       return res.status(404).json({ error: 'Player availability not found or access denied' });
     }
 
+    const availableColumns = await getChildAvailabilityTableColumns();
     const updateFields = [];
     const updateValues = [];
     
     Object.keys(req.body).forEach(key => {
-      if (req.body[key] !== undefined) {
+      if (req.body[key] !== undefined && availableColumns.has(key.toLowerCase())) {
         if (['preferredLeagues', 'positions', 'locationData', 'availability'].includes(key)) {
           updateFields.push(`${key} = ?`);
           updateValues.push(JSON.stringify(req.body[key]));
