@@ -513,11 +513,6 @@ const ChildrenManagementPage: React.FC = () => {
                       </Box>
                     )}
 
-                    {!child.bio?.trim() ? (
-                      <Alert severity="info" sx={{ mt: 1 }}>
-                        Add a short bio to help coaches understand this child profile.
-                      </Alert>
-                    ) : null}
                   </Stack>
                 </CardContent>
                 <CardActions sx={{ px: 2, pb: 2, pt: 0, mt: 'auto', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
