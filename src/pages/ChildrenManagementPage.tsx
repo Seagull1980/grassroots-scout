@@ -69,6 +69,67 @@ interface ChildFormData {
   // emergency and school fields intentionally omitted for parent-created child profiles
 }
 
+const pickFirst = <T,>(source: Record<string, unknown>, keys: string[], fallback: T): T => {
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null) {
+      return value as T;
+    }
+  }
+  return fallback;
+};
+
+const normalizeDateInputValue = (value: unknown): string => {
+  if (!value) return '';
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString().split('T')[0];
+};
+
+const normalizeTimestampValue = (value: unknown): string => {
+  if (!value) return '';
+
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString();
+};
+
+const normalizeChild = (rawChild: Record<string, unknown>): Child => {
+  const createdAt = normalizeTimestampValue(pickFirst(rawChild, ['createdAt', 'createdat', 'created_at'], ''));
+  const updatedAt = normalizeTimestampValue(pickFirst(rawChild, ['updatedAt', 'updatedat', 'updated_at'], ''));
+
+  return {
+    id: Number(pickFirst(rawChild, ['id'], 0)),
+    parentId: Number(pickFirst(rawChild, ['parentId', 'parentid', 'parent_id'], 0)),
+    firstName: String(pickFirst(rawChild, ['firstName', 'firstname', 'first_name'], '')),
+    lastName: String(pickFirst(rawChild, ['lastName', 'lastname', 'last_name'], '')),
+    dateOfBirth: normalizeDateInputValue(pickFirst(rawChild, ['dateOfBirth', 'dateofbirth', 'date_of_birth'], '')),
+    gender: pickFirst(rawChild, ['gender'], undefined),
+    preferredPosition: pickFirst(rawChild, ['preferredPosition', 'preferredposition', 'preferred_position'], undefined),
+    preferredTeamGender: pickFirst(rawChild, ['preferredTeamGender', 'preferredteamgender', 'preferred_team_gender'], undefined),
+    medicalInfo: pickFirst(rawChild, ['medicalInfo', 'medicalinfo', 'medical_info'], undefined),
+    emergencyContact: pickFirst(rawChild, ['emergencyContact', 'emergencycontact', 'emergency_contact'], undefined),
+    emergencyPhone: pickFirst(rawChild, ['emergencyPhone', 'emergencyphone', 'emergency_phone'], undefined),
+    schoolName: pickFirst(rawChild, ['schoolName', 'schoolname', 'school_name'], undefined),
+    bio: pickFirst(rawChild, ['bio'], undefined),
+    profilePicture: pickFirst(rawChild, ['profilePicture', 'profilepicture', 'profile_picture'], undefined),
+    isActive: Boolean(pickFirst(rawChild, ['isActive', 'isactive', 'is_active'], true)),
+    createdAt: createdAt || new Date().toISOString(),
+    updatedAt: updatedAt || createdAt || new Date().toISOString()
+  };
+};
+
 const ChildrenManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -105,7 +166,10 @@ const ChildrenManagementPage: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/children');
-      setChildren(response.data.children || []);
+      const normalizedChildren = Array.isArray(response.data.children)
+        ? response.data.children.map((child: Record<string, unknown>) => normalizeChild(child))
+        : [];
+      setChildren(normalizedChildren);
     } catch (err: any) {
       console.error('Error loading children:', err);
       setError('Failed to load children information');
@@ -115,9 +179,17 @@ const ChildrenManagementPage: React.FC = () => {
     }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
+  const calculateAge = (dateOfBirth: string): number | null => {
+    if (!dateOfBirth) {
+      return null;
+    }
+
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
+    if (Number.isNaN(birthDate.getTime())) {
+      return null;
+    }
+
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     
@@ -147,7 +219,7 @@ const ChildrenManagementPage: React.FC = () => {
 
       // Check age restriction
       const age = calculateAge(formData.dateOfBirth);
-      if (age >= 16) {
+      if (age !== null && age >= 16) {
         setError(`Children must be under 16 years old. This child is ${age} years old and should register their own account.`);
         return;
       }
@@ -178,7 +250,7 @@ const ChildrenManagementPage: React.FC = () => {
 
       // Check age restriction
       const age = calculateAge(formData.dateOfBirth);
-      if (age >= 16) {
+      if (age !== null && age >= 16) {
         setError(`Children must be under 16 years old. This child is ${age} years old and should register their own account.`);
         return;
       }
@@ -346,7 +418,12 @@ const ChildrenManagementPage: React.FC = () => {
           </Paper>
 
           <Grid container spacing={3}>
-          {children.map((child) => (
+          {children.map((child) => {
+            const childAge = calculateAge(child.dateOfBirth);
+            const updatedDate = new Date(child.updatedAt);
+            const hasValidUpdatedDate = !Number.isNaN(updatedDate.getTime());
+
+            return (
             <Grid item xs={12} md={6} lg={4} key={child.id}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardContent>
@@ -356,7 +433,7 @@ const ChildrenManagementPage: React.FC = () => {
                         {child.firstName} {child.lastName}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Updated {new Date(child.updatedAt).toLocaleDateString()}
+                        Updated {hasValidUpdatedDate ? updatedDate.toLocaleDateString() : 'recently'}
                       </Typography>
                     </Box>
                     <Box>
@@ -378,7 +455,7 @@ const ChildrenManagementPage: React.FC = () => {
                   </Box>
 
                   <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
-                    <Chip label={`Age ${calculateAge(child.dateOfBirth)}`} size="small" />
+                    <Chip label={childAge !== null ? `Age ${childAge}` : 'Age unknown'} size="small" />
                     <Chip label={child.preferredPosition || 'Position missing'} size="small" variant="outlined" color={child.preferredPosition ? 'default' : 'warning'} />
                     <Chip label={child.bio ? 'Bio added' : 'Bio needed'} size="small" color={child.bio ? 'success' : 'warning'} variant="outlined" />
                   </Stack>
@@ -387,7 +464,7 @@ const ChildrenManagementPage: React.FC = () => {
                     <Box display="flex" alignItems="center">
                       <CakeIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">
-                        Age: {calculateAge(child.dateOfBirth)} years old
+                        Age: {childAge !== null ? `${childAge} years old` : 'Not available'}
                       </Typography>
                     </Box>
 
@@ -456,7 +533,8 @@ const ChildrenManagementPage: React.FC = () => {
                 </CardActions>
               </Card>
             </Grid>
-          ))}
+            );
+          })}
           </Grid>
         </>
       )}
