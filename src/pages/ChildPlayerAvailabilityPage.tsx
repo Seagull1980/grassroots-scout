@@ -33,9 +33,9 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import api, { leaguesAPI } from '../services/api';
 import { Location } from '../types';
-import LocationInput from '../components/LocationInput';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
 
 interface Child {
   id: number;
@@ -57,7 +57,6 @@ interface ChildPlayerAvailability {
   preferredTeamGender?: string;
   location?: string;
   locationData?: Location;
-  contactInfo?: string;
   availability?: {
     monday?: string[];
     tuesday?: string[];
@@ -86,7 +85,6 @@ interface AvailabilityFormData {
   preferredTeamGender: string;
   location: string;
   locationData: Location | null;
-  contactInfo: string;
   shareName: boolean;
   availability: {
     days: string[];
@@ -100,6 +98,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
   const { user } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [availabilities, setAvailabilities] = useState<ChildPlayerAvailability[]>([]);
+  const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -115,7 +114,6 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     preferredTeamGender: 'Mixed',
     location: '',
     locationData: null,
-    contactInfo: '',
     shareName: false,
     availability: {
       days: [],
@@ -129,12 +127,12 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     'Centre-Back', 'Full-Back', 'Wing-Back', 'Defensive Midfielder',
     'Central Midfielder', 'Attacking Midfielder', 'Winger', 'Striker'
   ];
-
-  const leagues = [
+  const defaultLeagues = [
     'Premier League Youth', 'Championship Youth', 'League One Youth',
     'National League Youth', 'County League', 'District League',
     'Local Sunday League', 'School Football League', 'Academy League'
   ];
+  const leagueOptions = ['All Leagues', ...(availableLeagues.length > 0 ? availableLeagues : defaultLeagues)];
 
   const ageGroups = [
     'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10',
@@ -145,10 +143,14 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
+  const allDayOptions = [...daysOfWeek, 'All Days'];
+
   const timeSlots = [
     'Morning (6:00-12:00)', 'Afternoon (12:00-18:00)', 'Evening (18:00-22:00)',
     'Weekday Evenings', 'Weekend Mornings', 'Weekend Afternoons'
   ];
+
+  const allTimeSlotOptions = [...timeSlots, 'All Times'];
 
   useEffect(() => {
     if (user?.role === 'Parent/Guardian') {
@@ -166,6 +168,18 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       
       setChildren(normalizeChildren(childrenResponse.data.children));
       setAvailabilities(availabilityResponse.data.availability);
+
+      try {
+        const leagues = await leaguesAPI.getForSearch(false);
+        const leagueNames = Array.from(new Set([
+          ...leagues.map((league) => league.name).filter(Boolean),
+          ...defaultLeagues
+        ]));
+        setAvailableLeagues(leagueNames);
+      } catch (leagueErr) {
+        console.warn('Failed to load leagues from API, using defaults:', leagueErr);
+        setAvailableLeagues(defaultLeagues);
+      }
     } catch (err: any) {
       console.error('Error loading data:', err);
       setError('Failed to load data');
@@ -351,7 +365,6 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       preferredTeamGender: 'Mixed',
       location: '',
       locationData: null,
-      contactInfo: '',
       shareName: false,
       availability: {
         days: [],
@@ -372,8 +385,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       positions: availability.positions || [],
       preferredTeamGender: availability.preferredTeamGender || 'Mixed',
       location: availability.location || '',
-        locationData: availability.locationData || null,
-      contactInfo: availability.contactInfo || '',
+      locationData: availability.locationData || null,
       shareName: availability.shareName ?? false,
       availability: availability.availability ? {
         days: (availability.availability as any).days || [],
@@ -704,9 +716,14 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
             <Grid item xs={12}>
               <Autocomplete
                 multiple
-                options={leagues}
+                options={leagueOptions}
                 value={formData.preferredLeagues}
-                onChange={(_, newValue) => handleInputChange('preferredLeagues', newValue)}
+                onChange={(_, newValue) => {
+                  const chosenLeagues = newValue.includes('All Leagues')
+                    ? (availableLeagues.length > 0 ? availableLeagues : defaultLeagues)
+                    : newValue;
+                  handleInputChange('preferredLeagues', chosenLeagues);
+                }}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
                     <Chip variant="outlined" label={option} {...getTagProps({ index })} />
@@ -723,28 +740,26 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
             </Grid>
 
             <Grid item xs={12}>
-              <LocationInput
+              <LocationAutocomplete
                 label="Location"
                 fullWidth
                 value={formData.location}
-                onChange={(location) => {
+                onChange={(value, placeDetails) => {
+                  const geometry = placeDetails?.geometry?.location;
                   setFormData((prev) => ({
                     ...prev,
-                    location: location?.address || '',
-                    locationData: location
+                    location: value,
+                    locationData: geometry
+                      ? {
+                          address: value,
+                          latitude: geometry.lat(),
+                          longitude: geometry.lng(),
+                          placeId: placeDetails?.place_id || undefined
+                        }
+                      : null,
                   }));
                 }}
                 placeholder="Start typing an address or postcode..."
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                label="Contact Information"
-                fullWidth
-                value={formData.contactInfo}
-                onChange={(e) => handleInputChange('contactInfo', e.target.value)}
-                placeholder="How coaches can contact you (email, phone, etc.)"
               />
             </Grid>
 
@@ -763,9 +778,16 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
             <Grid item xs={12} sm={6}>
               <Autocomplete
                 multiple
-                options={daysOfWeek}
+                options={allDayOptions}
                 value={formData.availability.days}
-                onChange={(_, newValue) => handleInputChange('availability.days', newValue)}
+                onChange={(_, newValue) => {
+                  if (newValue.includes('All Days')) {
+                    handleInputChange('availability.days', daysOfWeek);
+                    return;
+                  }
+
+                  handleInputChange('availability.days', newValue.filter((day) => day !== 'All Days'));
+                }}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
                     <Chip variant="outlined" label={option} {...getTagProps({ index })} />
@@ -784,9 +806,16 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
             <Grid item xs={12} sm={6}>
               <Autocomplete
                 multiple
-                options={timeSlots}
+                options={allTimeSlotOptions}
                 value={formData.availability.timeSlots}
-                onChange={(_, newValue) => handleInputChange('availability.timeSlots', newValue)}
+                onChange={(_, newValue) => {
+                  if (newValue.includes('All Times')) {
+                    handleInputChange('availability.timeSlots', timeSlots);
+                    return;
+                  }
+
+                  handleInputChange('availability.timeSlots', newValue.filter((slot) => slot !== 'All Times'));
+                }}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
                     <Chip variant="outlined" label={option} {...getTagProps({ index })} />
