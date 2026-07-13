@@ -88,7 +88,6 @@ interface AvailabilityFormData {
   shareName: boolean;
   availability: {
     days: string[];
-    timeSlots: string[];
     notes: string;
   };
 }
@@ -117,7 +116,6 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     shareName: false,
     availability: {
       days: [],
-      timeSlots: [],
       notes: ''
     }
   });
@@ -127,12 +125,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     'Centre-Back', 'Full-Back', 'Wing-Back', 'Defensive Midfielder',
     'Central Midfielder', 'Attacking Midfielder', 'Winger', 'Striker'
   ];
-  const defaultLeagues = [
-    'Premier League Youth', 'Championship Youth', 'League One Youth',
-    'National League Youth', 'County League', 'District League',
-    'Local Sunday League', 'School Football League', 'Academy League'
-  ];
-  const leagueOptions = ['All Leagues', ...(availableLeagues.length > 0 ? availableLeagues : defaultLeagues)];
+  const leagueOptions = ['All Leagues', ...availableLeagues];
 
   const ageGroups = [
     'Under 6', 'Under 7', 'Under 8', 'Under 9', 'Under 10',
@@ -143,14 +136,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
-  const allDayOptions = [...daysOfWeek, 'All Days'];
-
-  const timeSlots = [
-    'Morning (6:00-12:00)', 'Afternoon (12:00-18:00)', 'Evening (18:00-22:00)',
-    'Weekday Evenings', 'Weekend Mornings', 'Weekend Afternoons'
-  ];
-
-  const allTimeSlotOptions = [...timeSlots, 'All Times'];
+  const allDayOptions = ['All Days', ...daysOfWeek];
 
   useEffect(() => {
     if (user?.role === 'Parent/Guardian') {
@@ -171,14 +157,11 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
 
       try {
         const leagues = await leaguesAPI.getForSearch(false);
-        const leagueNames = Array.from(new Set([
-          ...leagues.map((league) => league.name).filter(Boolean),
-          ...defaultLeagues
-        ]));
+        const leagueNames = Array.from(new Set(leagues.map((league) => league.name).filter(Boolean)));
         setAvailableLeagues(leagueNames);
       } catch (leagueErr) {
-        console.warn('Failed to load leagues from API, using defaults:', leagueErr);
-        setAvailableLeagues(defaultLeagues);
+        console.warn('Failed to load leagues from API:', leagueErr);
+        setAvailableLeagues([]);
       }
     } catch (err: any) {
       console.error('Error loading data:', err);
@@ -368,7 +351,6 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       shareName: false,
       availability: {
         days: [],
-        timeSlots: [],
         notes: ''
       }
     });
@@ -389,11 +371,9 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       shareName: availability.shareName ?? false,
       availability: availability.availability ? {
         days: (availability.availability as any).days || [],
-        timeSlots: (availability.availability as any).timeSlots || [],
         notes: (availability.availability as any).notes || ''
       } : {
         days: [],
-        timeSlots: [],
         notes: ''
       }
     });
@@ -720,7 +700,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                 value={formData.preferredLeagues}
                 onChange={(_, newValue) => {
                   const chosenLeagues = newValue.includes('All Leagues')
-                    ? (availableLeagues.length > 0 ? availableLeagues : defaultLeagues)
+                    ? availableLeagues
                     : newValue;
                   handleInputChange('preferredLeagues', chosenLeagues);
                 }}
@@ -798,34 +778,6 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                     {...params}
                     label="Available Days"
                     placeholder="Select days..."
-                  />
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <Autocomplete
-                multiple
-                options={allTimeSlotOptions}
-                value={formData.availability.timeSlots}
-                onChange={(_, newValue) => {
-                  if (newValue.includes('All Times')) {
-                    handleInputChange('availability.timeSlots', timeSlots);
-                    return;
-                  }
-
-                  handleInputChange('availability.timeSlots', newValue.filter((slot) => slot !== 'All Times'));
-                }}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip variant="outlined" label={option} {...getTagProps({ index })} />
-                  ))
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Available Time Slots"
-                    placeholder="Select time slots..."
                   />
                 )}
               />
