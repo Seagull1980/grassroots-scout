@@ -2742,6 +2742,93 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
   }
 });
 
+// Get public player availability (for maps and discovery)
+app.get('/api/public/player-availability', async (req, res) => {
+  try {
+    const sort = String(req.query.sort || 'recent').toLowerCase();
+    const orderClause = sort === 'oldest' ? 'ASC' : 'DESC';
+
+    const availabilityResult = await db.query(
+      `SELECT * FROM player_availability
+       WHERE status = ?
+       ORDER BY createdAt ${orderClause}`,
+      ['active']
+    );
+
+    const availability = (availabilityResult.rows || []).map(row => {
+      let preferredLeagues = [];
+      let positions = [];
+
+      try {
+        preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+        if (!Array.isArray(preferredLeagues)) {
+          preferredLeagues = [row.preferredLeagues];
+        }
+      } catch (e) {
+        preferredLeagues = row.preferredLeagues ? [row.preferredLeagues] : [];
+      }
+
+      try {
+        positions = row.positions ? JSON.parse(row.positions) : [];
+        if (!Array.isArray(positions)) {
+          positions = [row.positions];
+        }
+      } catch (e) {
+        positions = row.positions ? [row.positions] : [];
+      }
+
+      const locationAddress =
+        row.locationAddress ??
+        row.locationaddress ??
+        row.location_address ??
+        row.location ??
+        '';
+
+      const latitudeRaw =
+        row.locationLatitude ??
+        row.locationlatitude ??
+        row.location_latitude ??
+        row.latitude;
+
+      const longitudeRaw =
+        row.locationLongitude ??
+        row.locationlongitude ??
+        row.location_longitude ??
+        row.longitude;
+
+      const latitude = latitudeRaw !== undefined && latitudeRaw !== null ? Number(latitudeRaw) : null;
+      const longitude = longitudeRaw !== undefined && longitudeRaw !== null ? Number(longitudeRaw) : null;
+
+      const hasValidCoordinates =
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+
+      return {
+        ...row,
+        preferredLeagues,
+        positions,
+        locationData: hasValidCoordinates
+          ? {
+              address: locationAddress,
+              latitude,
+              longitude,
+              placeId: row.locationPlaceId ?? row.locationplaceid ?? row.location_place_id ?? null
+            }
+          : null
+      };
+    });
+
+    res.json({ availability });
+  } catch (error) {
+    console.error('Get public player availability error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create new player availability
 app.post('/api/player-availability', [
   authenticateToken,

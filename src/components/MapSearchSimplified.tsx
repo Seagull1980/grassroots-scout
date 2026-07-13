@@ -460,7 +460,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
         if (searchType === 'players' || searchType === 'both') {
           endpoints.push(
-            fetch(`${API_URL}/player-availability?sort=recent`, {
+            fetch(`${API_URL}/public/player-availability?sort=recent`, {
               headers: {}
             }).then(async r => {
               if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);
