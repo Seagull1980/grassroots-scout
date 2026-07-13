@@ -20,8 +20,11 @@ import {
   Paper,
   Stack,
   IconButton,
-  Autocomplete
-  , FormControlLabel, Checkbox } from '@mui/material';
+  Autocomplete,
+  Tooltip,
+  FormControlLabel,
+  Checkbox
+} from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -153,7 +156,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
       ]);
       
       setChildren(normalizeChildren(childrenResponse.data.children));
-      setAvailabilities(availabilityResponse.data.availability);
+      setAvailabilities(normalizeAvailabilities(availabilityResponse.data.availability));
 
       try {
         const leagues = await leaguesAPI.getForSearch(false);
@@ -201,6 +204,37 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
   const normalizeChildren = (rawChildren: unknown): Child[] => {
     if (!Array.isArray(rawChildren)) return [];
     return rawChildren.map((child) => normalizeChild(child as Record<string, unknown>));
+  };
+
+  const normalizeTimestamp = (value: unknown): string => {
+    if (!value) return '';
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString();
+  };
+
+  const normalizeAvailability = (rawAvailability: Record<string, unknown>): ChildPlayerAvailability => {
+    const createdAt = normalizeTimestamp(pickFirst(rawAvailability, ['createdAt', 'createdat', 'created_at'], ''));
+    const updatedAt = normalizeTimestamp(pickFirst(rawAvailability, ['updatedAt', 'updatedat', 'updated_at'], ''));
+
+    return {
+      ...(rawAvailability as unknown as ChildPlayerAvailability),
+      createdAt: createdAt || new Date().toISOString(),
+      updatedAt: updatedAt || createdAt || new Date().toISOString()
+    };
+  };
+
+  const normalizeAvailabilities = (rawAvailabilities: unknown): ChildPlayerAvailability[] => {
+    if (!Array.isArray(rawAvailabilities)) return [];
+    return rawAvailabilities.map((availability) => normalizeAvailability(availability as Record<string, unknown>));
+  };
+
+  const formatDisplayDate = (value: string): string => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'recently';
+    }
+    return date.toLocaleDateString();
   };
 
   const calculateAge = (dateOfBirth: string): number | null => {
@@ -468,28 +502,34 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                       {availability.title}
                     </Typography>
                     <Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => toggleAvailabilityStatus(availability)}
-                        color={availability.status === 'active' ? 'success' : 'default'}
-                        sx={{ mr: 1 }}
-                      >
-                        {availability.status === 'active' ? <ViewIcon /> : <HideIcon />}
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => openEditDialog(availability)}
-                        sx={{ mr: 1 }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteAvailability(availability.id, availability.title)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      <Tooltip title={availability.status === 'active' ? 'Hide advert' : 'Show advert'}>
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleAvailabilityStatus(availability)}
+                          color={availability.status === 'active' ? 'success' : 'default'}
+                          sx={{ mr: 1 }}
+                        >
+                          {availability.status === 'active' ? <ViewIcon /> : <HideIcon />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Edit advert">
+                        <IconButton
+                          size="small"
+                          onClick={() => openEditDialog(availability)}
+                          sx={{ mr: 1 }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete advert">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteAvailability(availability.id, availability.title)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </Box>
 
@@ -569,7 +609,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                     )}
 
                     <Typography variant="caption" color="text.secondary">
-                      Created: {new Date(availability.createdAt).toLocaleDateString()}
+                      Created: {formatDisplayDate(availability.createdAt)}
                     </Typography>
                   </Stack>
                 </CardContent>
