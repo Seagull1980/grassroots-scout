@@ -3153,7 +3153,11 @@ app.put('/api/child-player-availability/:availabilityId', [
   authenticateToken,
   body('title').optional().notEmpty().withMessage('Title cannot be empty'),
   body('ageGroup').optional().notEmpty().withMessage('Age group cannot be empty'),
-  body('positions').optional().isArray({ min: 1 }).withMessage('At least one position is required')
+  body('positions').optional().isArray({ min: 1 }).withMessage('At least one position is required'),
+  body('status')
+    .optional()
+    .isIn(['active', 'paused', 'completed', 'inactive'])
+    .withMessage('Status must be active, paused, completed, or inactive')
 ], async (req, res) => {
   try {
     if (req.user.role !== 'Parent/Guardian') {

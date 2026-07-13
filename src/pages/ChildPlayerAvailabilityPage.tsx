@@ -32,7 +32,8 @@ import {
   Person as PersonIcon,
   LocationOn as LocationIcon,
   Visibility as ViewIcon,
-  VisibilityOff as HideIcon
+  VisibilityOff as HideIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -371,6 +372,28 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
     }
   };
 
+  const markAvailabilityCompleted = async (availability: ChildPlayerAvailability) => {
+    if (!confirm('Mark this advert as completed? This means your child has found a team and the advert will be closed.')) {
+      return;
+    }
+
+    try {
+      await api.put(`/child-player-availability/${availability.id}`, { status: 'completed' });
+      setSuccess('Player availability marked as completed successfully!');
+      loadData();
+    } catch (err: any) {
+      console.error('Error completing availability:', err);
+      setError(err.response?.data?.error || 'Failed to mark availability as completed');
+    }
+  };
+
+  const getStatusColor = (status: string): 'success' | 'warning' | 'info' | 'default' => {
+    if (status === 'active') return 'success';
+    if (status === 'paused') return 'warning';
+    if (status === 'completed') return 'info';
+    return 'default';
+  };
+
   const resetForm = () => {
     setFormData({
       childId: 0,
@@ -512,6 +535,18 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                           {availability.status === 'active' ? <ViewIcon /> : <HideIcon />}
                         </IconButton>
                       </Tooltip>
+                      {availability.status !== 'completed' && (
+                        <Tooltip title="Mark as completed">
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => markAvailabilityCompleted(availability)}
+                            sx={{ mr: 1 }}
+                          >
+                            <CheckCircleIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Edit advert">
                         <IconButton
                           size="small"
@@ -541,7 +576,7 @@ const ChildPlayerAvailabilityPage: React.FC = () => {
                       <Chip 
                         label={availability.status.toUpperCase()} 
                         size="small" 
-                        color={availability.status === 'active' ? 'success' : 'default'}
+                        color={getStatusColor(availability.status)}
                         sx={{ mb: 1 }}
                       />
                     </Box>
