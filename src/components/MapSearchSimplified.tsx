@@ -129,6 +129,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [hasActiveFilter, setHasActiveFilter] = useState(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [selectedLeague, setSelectedLeague] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortMode>('relevance');
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => localStorage.getItem('mapOnboardingDismissed') !== 'true');
@@ -457,7 +458,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         mapIdleListenerRef.current = null;
       }
     };
-  }, [results, selectedAgeGroup, selectedPositions, sortBy]);
+  }, [results, selectedAgeGroup, selectedPositions, selectedLeague, sortBy]);
 
   // Fetch data based on search type
   useEffect(() => {
@@ -836,6 +837,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const handleClearAll = () => {
     setSelectedAgeGroup('');
     setSelectedPositions([]);
+    setSelectedLeague('');
     setSortBy('relevance');
   };
 
@@ -1008,6 +1010,45 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     })
     .slice(0, 3);
 
+  const extractLeagues = (result: any): string[] => {
+    const leagues: string[] = [];
+
+    const pushLeague = (value: unknown) => {
+      const text = String(value ?? '').trim();
+      if (text) {
+        leagues.push(text);
+      }
+    };
+
+    if (Array.isArray(result.preferredLeagues)) {
+      result.preferredLeagues.forEach(pushLeague);
+    } else if (typeof result.preferredLeagues === 'string' && result.preferredLeagues.trim()) {
+      try {
+        const parsed = JSON.parse(result.preferredLeagues);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(pushLeague);
+        } else {
+          pushLeague(result.preferredLeagues);
+        }
+      } catch {
+        pushLeague(result.preferredLeagues);
+      }
+    }
+
+    pushLeague(result.league);
+    pushLeague(result.leagueName);
+
+    return Array.from(new Set(leagues));
+  };
+
+  const leagueOptions = Array.from(
+    new Set(
+      results
+        .filter((item) => item.itemType === 'vacancy' || item.itemType === 'team')
+        .flatMap((item) => extractLeagues(item))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
   // Apply additional filters (age group and position)
   const applyAdditionalFilters = (results: any[]) => {
     let filtered = [...results];
@@ -1036,6 +1077,19 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         return selectedPositions.some(selectedPos =>
           resultPositions.some(resultPos => positionMatches(selectedPos, resultPos))
         );
+      });
+    }
+
+    // Filter by league (mainly for team vacancies)
+    if (selectedLeague) {
+      filtered = filtered.filter((result) => {
+        if (searchType === 'vacancies' || result.itemType === 'vacancy' || result.itemType === 'team') {
+          const resultLeagues = extractLeagues(result).map((league) => league.toLowerCase());
+          return resultLeagues.includes(selectedLeague.toLowerCase());
+        }
+
+        // When viewing mixed results, leave player markers unaffected by vacancy league filtering.
+        return searchType === 'both' && result.itemType === 'player';
       });
     }
 
@@ -1187,7 +1241,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               My Location
             </Button>
 
-            {(selectedAgeGroup || selectedPositions.length > 0) && (
+            {(selectedAgeGroup || selectedPositions.length > 0 || selectedLeague) && (
               <Button
                 size="small"
                 onClick={handleClearAll}
@@ -1249,6 +1303,33 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 <TextField {...params} label="Position" placeholder="Any position" />
               )}
             />
+
+            {(searchType === 'vacancies' || searchType === 'both') && (
+              <FormControl size="small" sx={{ minWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' } }}>
+                <InputLabel>League</InputLabel>
+                <Select
+                  value={selectedLeague}
+                  onChange={(e) => {
+                    const leagueValue = e.target.value;
+                    startTransition(() => {
+                      setSelectedLeague(leagueValue);
+                    });
+                    analyticsTracking.track('map_filter_applied', {
+                      category: 'Map',
+                      action: 'league_filter',
+                      label: leagueValue || 'all',
+                      searchType
+                    });
+                  }}
+                  label="League"
+                >
+                  <MenuItem value=""><em>All Leagues</em></MenuItem>
+                  {leagueOptions.map((league) => (
+                    <MenuItem key={league} value={league}>{league}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
           </Stack>
 
           {results.length > 0 && (
@@ -1618,7 +1699,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* No Results Message */}
       {hasActiveFilter && filteredResults.length === 0 && (
         <Alert severity="warning" sx={{ mt: 2 }}>
-          {selectedAgeGroup || selectedPositions.length > 0
+          {selectedAgeGroup || selectedPositions.length > 0 || selectedLeague
             ? `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} match the current map filters in this area. Try clearing a filter, zooming out, or panning to a different location.`
             : `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.`}
         </Alert>
