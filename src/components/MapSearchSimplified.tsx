@@ -343,6 +343,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return cloned;
   };
 
+  const hasSameResultOrder = (previous: any[], next: any[]): boolean => {
+    if (previous.length !== next.length) return false;
+
+    for (let i = 0; i < previous.length; i += 1) {
+      if (getResultKey(previous[i]) !== getResultKey(next[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   // Initialize Google Maps
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -416,8 +428,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       const bounds = mapInstanceRef.current?.getBounds();
       const inView = filterResultsByMapArea(results, bounds);
       const finalFiltered = sortResults(applyAdditionalFilters(inView));
-      setDebugCounts({ total: results.length, inView: inView.length, filtered: finalFiltered.length });
-      setFilteredResults(finalFiltered);
+      setDebugCounts((previous) => {
+        const nextCounts = { total: results.length, inView: inView.length, filtered: finalFiltered.length };
+        return previous.total === nextCounts.total && previous.inView === nextCounts.inView && previous.filtered === nextCounts.filtered
+          ? previous
+          : nextCounts;
+      });
+      setFilteredResults((previous) => (hasSameResultOrder(previous, finalFiltered) ? previous : finalFiltered));
       setHasActiveFilter(true);
     });
 
@@ -425,8 +442,13 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const initialBounds = mapInstanceRef.current.getBounds();
     const inView = filterResultsByMapArea(results, initialBounds);
     const finalFiltered = sortResults(applyAdditionalFilters(inView));
-    setDebugCounts({ total: results.length, inView: inView.length, filtered: finalFiltered.length });
-    setFilteredResults(finalFiltered);
+    setDebugCounts((previous) => {
+      const nextCounts = { total: results.length, inView: inView.length, filtered: finalFiltered.length };
+      return previous.total === nextCounts.total && previous.inView === nextCounts.inView && previous.filtered === nextCounts.filtered
+        ? previous
+        : nextCounts;
+    });
+    setFilteredResults((previous) => (hasSameResultOrder(previous, finalFiltered) ? previous : finalFiltered));
     setHasActiveFilter(true);
 
     return () => {
