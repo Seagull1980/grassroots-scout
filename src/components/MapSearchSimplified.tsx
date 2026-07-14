@@ -52,7 +52,7 @@ const UK_CENTER = { lat: 54.0, lng: -2.5 };
 type SortMode = 'relevance' | 'distance' | 'age' | 'recent';
 
 interface MapSearchSimplifiedProps {
-  searchType: 'vacancies' | 'players' | 'both';
+  searchType: 'vacancies' | 'players' | 'both' | 'team-locations';
 }
 
 const getInitialMapCenter = (): google.maps.LatLngLiteral => {
@@ -493,6 +493,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           );
         }
 
+        if (searchType === 'team-locations') {
+          endpoints.push(
+            fetch(`${API_URL}/public/team-locations`, {
+              headers: {}
+            }).then(async r => {
+              if (!r.ok) throw new Error(`Team locations endpoint failed: ${r.status}`);
+              const data = await r.json();
+              return { type: 'team-location', items: data.teams || [] };
+            })
+          );
+        }
+
         const responses = await Promise.all(endpoints);
         const allResults: any[] = [];
 
@@ -653,7 +665,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         
         // Check if messaging is available for this item
         const recipient = getMessageRecipient(item);
-        const messageButton = recipient && type === 'Player' ? `
+        const canContactFromMap =
+          (type === 'Player') ||
+          (item.itemType === 'team-location' && item.allowMapContact === true);
+        const messageButton = recipient && canContactFromMap ? `
           <button 
             id="map-message-btn-${getResultKey(item)}"
             style="
@@ -994,9 +1009,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     user?.role === 'Admin';
   const canBulkMessageResult = (result: any) => {
     if (!isBulkMessagingEnabled) return false;
-    if (user?.role === 'Admin') return result.itemType === 'player' || result.itemType === 'team' || result.itemType === 'vacancy';
+    if (user?.role === 'Admin') return result.itemType === 'player' || result.itemType === 'team' || result.itemType === 'vacancy' || result.itemType === 'team-location';
     if (user?.role === 'Coach') return result.itemType === 'player';
-    return result.itemType === 'team' || result.itemType === 'vacancy';
+    return result.itemType === 'team' || result.itemType === 'vacancy' || result.itemType === 'team-location';
   };
   const selectedCount = Object.keys(selectedRecipients).length;
   const selectedTeamCount = Object.values(selectedRecipients).filter(r => r.relatedVacancyId).length;
@@ -1006,6 +1021,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     .filter(item => {
       if (searchType === 'players') return item.itemType === 'player';
       if (searchType === 'vacancies') return item.itemType === 'vacancy' || item.itemType === 'team';
+      if (searchType === 'team-locations') return item.itemType === 'team-location';
       return true;
     })
     .slice(0, 3);
@@ -1044,7 +1060,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const leagueOptions = Array.from(
     new Set(
       results
-        .filter((item) => item.itemType === 'vacancy' || item.itemType === 'team')
+        .filter((item) => item.itemType === 'vacancy' || item.itemType === 'team' || item.itemType === 'team-location')
         .flatMap((item) => extractLeagues(item))
     )
   ).sort((a, b) => a.localeCompare(b));
@@ -1083,7 +1099,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     // Filter by league (mainly for team vacancies)
     if (selectedLeague) {
       filtered = filtered.filter((result) => {
-        if (searchType === 'vacancies' || result.itemType === 'vacancy' || result.itemType === 'team') {
+        if (searchType === 'vacancies' || searchType === 'team-locations' || result.itemType === 'vacancy' || result.itemType === 'team' || result.itemType === 'team-location') {
           const resultLeagues = extractLeagues(result).map((league) => league.toLowerCase());
           return resultLeagues.includes(selectedLeague.toLowerCase());
         }
@@ -1131,6 +1147,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
   const getMessageRecipient = (result: any): { id: string; name: string } | null => {
     const candidateValues = [
+      result.contactUserId,
+      result.contactuserid,
       result.parentId,
       result.parentid,
       result.postedBy,
@@ -1195,7 +1213,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           {/* Compact Top Row: Results, Filters, Actions */}
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
             <Chip
-              icon={searchType === 'vacancies' ? <GroupsIcon /> : <PersonIcon />}
+              icon={searchType === 'players' ? <PersonIcon /> : <GroupsIcon />}
               label={`${filteredResults.length} result${filteredResults.length !== 1 ? 's' : ''}`}
               color="primary"
               variant="outlined"
@@ -1282,29 +1300,31 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               </Select>
             </FormControl>
 
-            <Autocomplete
-              multiple
-              size="small"
-              sx={{ minWidth: { sm: 200 }, flex: 1, width: { xs: '100%', sm: 'auto' } }}
-              options={positions}
-              value={selectedPositions}
-              onChange={(_, newValue) => {
-                startTransition(() => {
-                  setSelectedPositions(newValue);
-                });
-                analyticsTracking.track('map_filter_applied', {
-                  category: 'Map',
-                  action: 'position_filter',
-                  label: newValue.join(',') || 'all',
-                  searchType
-                });
-              }}
-              renderInput={(params) => (
-                <TextField {...params} label="Position" placeholder="Any position" />
-              )}
-            />
+            {searchType !== 'team-locations' && (
+              <Autocomplete
+                multiple
+                size="small"
+                sx={{ minWidth: { sm: 200 }, flex: 1, width: { xs: '100%', sm: 'auto' } }}
+                options={positions}
+                value={selectedPositions}
+                onChange={(_, newValue) => {
+                  startTransition(() => {
+                    setSelectedPositions(newValue);
+                  });
+                  analyticsTracking.track('map_filter_applied', {
+                    category: 'Map',
+                    action: 'position_filter',
+                    label: newValue.join(',') || 'all',
+                    searchType
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Position" placeholder="Any position" />
+                )}
+              />
+            )}
 
-            {(searchType === 'vacancies' || searchType === 'both') && (
+            {(searchType === 'vacancies' || searchType === 'both' || searchType === 'team-locations') && (
               <FormControl size="small" sx={{ minWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' } }}>
                 <InputLabel>League</InputLabel>
                 <Select
@@ -1456,7 +1476,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* No Filter Warning */}
       {!hasActiveFilter && results.length > 0 && (
         <Alert severity="info" sx={{ mt: 2 }}>
-          Move or zoom the map to view {searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} in the visible area.
+          Move or zoom the map to view {searchType === 'players' ? 'players' : searchType === 'vacancies' || searchType === 'team-locations' ? 'teams' : 'results'} in the visible area.
         </Alert>
       )}
 
@@ -1700,8 +1720,8 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {hasActiveFilter && filteredResults.length === 0 && (
         <Alert severity="warning" sx={{ mt: 2 }}>
           {selectedAgeGroup || selectedPositions.length > 0 || selectedLeague
-            ? `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} match the current map filters in this area. Try clearing a filter, zooming out, or panning to a different location.`
-            : `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.`}
+            ? `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' || searchType === 'team-locations' ? 'teams' : 'results'} match the current map filters in this area. Try clearing a filter, zooming out, or panning to a different location.`
+            : `No ${searchType === 'players' ? 'players' : searchType === 'vacancies' || searchType === 'team-locations' ? 'teams' : 'results'} found in the visible map area. Try zooming out or panning to a different location.`}
         </Alert>
       )}
 

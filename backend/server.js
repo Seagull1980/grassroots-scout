@@ -777,10 +777,35 @@ app.get('/api/debug/users', async (req, res) => {
 });
 
 // Initialize database tables on startup
+const ensureTeamLocationMapColumns = async () => {
+  const alterStatements = [
+    "ALTER TABLE teams ADD COLUMN showOnTeamLocationMap BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE teams ADD COLUMN allowMapContact BOOLEAN DEFAULT FALSE"
+  ];
+
+  for (const statement of alterStatements) {
+    try {
+      await db.query(statement);
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      const alreadyExists =
+        message.includes('duplicate column') ||
+        message.includes('already exists') ||
+        message.includes('duplicate_column') ||
+        message.includes('duplicate column name');
+
+      if (!alreadyExists) {
+        throw error;
+      }
+    }
+  }
+};
+
 (async () => {
   console.log('🚀 Starting server initialization with table order fix...');
   try {
     await db.createTables();
+    await ensureTeamLocationMapColumns();
 
     emailService.setAuditLogger(async (entry) => {
       const metadataJson = entry.metadata ? JSON.stringify(entry.metadata) : null;
@@ -10225,14 +10250,50 @@ app.post('/api/teams', authenticateToken, [
   }
 
   try {
-    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours } = req.body;
+    const {
+      teamName,
+      clubName,
+      ageGroup,
+      league,
+      teamGender,
+      playingTimePolicy,
+      location,
+      locationData,
+      contactEmail,
+      website,
+      socialMedia,
+      teamBio,
+      trainingLocation,
+      homePitchLocation,
+      honours,
+      showOnTeamLocationMap,
+      allowMapContact
+    } = req.body;
 
     // Create the team with RETURNING clause for PostgreSQL compatibility
     const teamResult = await db.query(`
-      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO teams (teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours, showOnTeamLocationMap, allowMapContact)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
-    `, [teamName, clubName || null, ageGroup, league, teamGender || 'Mixed', playingTimePolicy || null, location || null, locationData ? JSON.stringify(locationData) : null, contactEmail || null, website || null, socialMedia ? JSON.stringify(socialMedia) : null, teamBio || null, trainingLocation || null, homePitchLocation || null, honours || null]);
+    `, [
+      teamName,
+      clubName || null,
+      ageGroup,
+      league,
+      teamGender || 'Mixed',
+      playingTimePolicy || null,
+      location || null,
+      locationData ? JSON.stringify(locationData) : null,
+      contactEmail || null,
+      website || null,
+      socialMedia ? JSON.stringify(socialMedia) : null,
+      teamBio || null,
+      trainingLocation || null,
+      homePitchLocation || null,
+      honours || null,
+      !!showOnTeamLocationMap,
+      !!allowMapContact
+    ]);
 
     const teamId = teamResult.lastID || teamResult.rows?.[0]?.id;
     if (!teamId) {
@@ -10267,6 +10328,8 @@ app.post('/api/teams', authenticateToken, [
         ageGroup,
         league,
         teamGender: teamGender || 'Mixed',
+        showOnTeamLocationMap: !!showOnTeamLocationMap,
+        allowMapContact: !!allowMapContact,
         userRole: 'Head Coach'
       }
     });
@@ -10301,6 +10364,8 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
           t.traininglocation as "trainingLocation",
           t.homepitchlocation as "homePitchLocation",
           t.honours as "honours",
+          t.showonteamlocationmap as "showOnTeamLocationMap",
+          t.allowmapcontact as "allowMapContact",
           t.createdat as "createdAt",
           t.updatedat as "updatedAt",
           'Admin' as "userRole",
@@ -10325,6 +10390,8 @@ app.get('/api/teams', authenticateToken, async (req, res) => {
           t.traininglocation as "trainingLocation",
           t.homepitchlocation as "homePitchLocation",
           t.honours as "honours",
+          t.showonteamlocationmap as "showOnTeamLocationMap",
+          t.allowmapcontact as "allowMapContact",
           t.createdat as "createdAt",
           t.updatedat as "updatedAt",
           tm.role as "userRole",
@@ -10376,6 +10443,8 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
         t.traininglocation as "trainingLocation",
         t.homepitchlocation as "homePitchLocation",
         t.honours as "honours",
+        t.showonteamlocationmap as "showOnTeamLocationMap",
+        t.allowmapcontact as "allowMapContact",
         t.createdat as "createdAt",
         t.updatedat as "updatedAt"
       FROM team_members tm
@@ -10457,16 +10526,54 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this team' });
     }
 
-    const { teamName, clubName, ageGroup, league, teamGender, playingTimePolicy, location, locationData, contactEmail, website, socialMedia, teamBio, trainingLocation, homePitchLocation, honours } = req.body;
+    const {
+      teamName,
+      clubName,
+      ageGroup,
+      league,
+      teamGender,
+      playingTimePolicy,
+      location,
+      locationData,
+      contactEmail,
+      website,
+      socialMedia,
+      teamBio,
+      trainingLocation,
+      homePitchLocation,
+      honours,
+      showOnTeamLocationMap,
+      allowMapContact
+    } = req.body;
 
     await db.query(`
       UPDATE teams SET
         teamName = ?, clubName = ?, ageGroup = ?, league = ?, teamGender = ?, playingTimePolicy = ?,
         location = ?, locationData = ?, contactEmail = ?, website = ?, socialMedia = ?,
         teamBio = ?, trainingLocation = ?, homePitchLocation = ?, honours = ?,
+        showOnTeamLocationMap = ?, allowMapContact = ?,
         updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [teamName, clubName, ageGroup, league, teamGender, playingTimePolicy || null, location, locationData ? JSON.stringify(locationData) : null, contactEmail, website, socialMedia ? JSON.stringify(socialMedia) : null, teamBio || null, trainingLocation || null, homePitchLocation || null, honours || null, teamId]);
+    `, [
+      teamName,
+      clubName,
+      ageGroup,
+      league,
+      teamGender,
+      playingTimePolicy || null,
+      location,
+      locationData ? JSON.stringify(locationData) : null,
+      contactEmail,
+      website,
+      socialMedia ? JSON.stringify(socialMedia) : null,
+      teamBio || null,
+      trainingLocation || null,
+      homePitchLocation || null,
+      honours || null,
+      !!showOnTeamLocationMap,
+      !!allowMapContact,
+      teamId
+    ]);
 
     res.json({ message: 'Team updated successfully' });
   } catch (error) {
@@ -10498,6 +10605,66 @@ app.get('/api/team-profile', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching team profile:', error);
     res.status(500).json({ error: 'Failed to fetch team profile' });
+  }
+});
+
+// Public team locations for map discovery
+app.get('/api/public/team-locations', async (_req, res) => {
+  try {
+    const teamsResult = await db.query(`
+      SELECT
+        t.id,
+        t.teamname as "teamName",
+        t.clubname as "clubName",
+        t.agegroup as "ageGroup",
+        t.league,
+        t.teamgender as "teamGender",
+        t.location,
+        t.locationdata as "locationData",
+        t.showonteamlocationmap as "showOnTeamLocationMap",
+        t.allowmapcontact as "allowMapContact",
+        t.createdat as "createdAt",
+        tm.userid as "contactUserId"
+      FROM teams t
+      LEFT JOIN team_members tm ON tm.teamId = t.id AND tm.role = 'Head Coach'
+      WHERE t.showOnTeamLocationMap = ?
+      ORDER BY t.createdAt DESC
+    `, [true]);
+
+    const teams = (teamsResult.rows || []).map((row) => {
+      let locationData = null;
+
+      try {
+        locationData = row.locationData
+          ? (typeof row.locationData === 'string' ? JSON.parse(row.locationData) : row.locationData)
+          : null;
+      } catch (_error) {
+        locationData = null;
+      }
+
+      return {
+        id: row.id,
+        teamName: row.teamName,
+        clubName: row.clubName,
+        ageGroup: row.ageGroup,
+        league: row.league,
+        teamGender: row.teamGender,
+        location: row.location,
+        locationData,
+        allowMapContact: !!row.allowMapContact,
+        contactUserId: row.contactUserId,
+        createdAt: row.createdAt
+      };
+    }).filter((team) => {
+      const latitude = Number(team.locationData?.latitude);
+      const longitude = Number(team.locationData?.longitude);
+      return Number.isFinite(latitude) && Number.isFinite(longitude);
+    });
+
+    res.json({ teams });
+  } catch (error) {
+    console.error('Get public team locations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

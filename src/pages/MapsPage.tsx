@@ -60,6 +60,7 @@ const MapsPage: React.FC = () => {
             >
               <Tab label="Team Vacancies" />
               <Tab label="Available Players" />
+              <Tab label="Team Locations" />
               <Tab label="All Results" />
             </Tabs>
 
@@ -72,6 +73,10 @@ const MapsPage: React.FC = () => {
             </TabPanel>
 
             <TabPanel value={tabValue} index={2}>
+              <MapSearchSimplified key="team-locations-tab" searchType="team-locations" />
+            </TabPanel>
+
+            <TabPanel value={tabValue} index={3}>
               <MapSearchSimplified key="both-tab" searchType="both" />
             </TabPanel>
           </Paper>

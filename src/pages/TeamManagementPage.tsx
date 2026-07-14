@@ -24,7 +24,9 @@ import {
   Alert,
   Autocomplete,
   IconButton,
-  Snackbar
+  Snackbar,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,6 +39,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import api, { API_URL, leaguesAPI, League } from '../services/api';
 import { AGE_GROUP_OPTIONS, TEAM_GENDER_OPTIONS } from '../constants/options';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { Location } from '../types';
 
 interface Team {
   id: number;
@@ -47,10 +50,13 @@ interface Team {
   teamGender: string;
   playingTimePolicy?: string;
   location?: string;
+  locationData?: Location | null;
   teamBio?: string;
   trainingLocation?: string;
   homePitchLocation?: string;
   honours?: string;
+  showOnTeamLocationMap?: boolean;
+  allowMapContact?: boolean;
   userRole: string;
   permissions: {
     canPostVacancies: boolean;
@@ -116,11 +122,14 @@ const TeamManagement: React.FC = () => {
     league: '',
     teamGender: 'Mixed',
     location: '',
+    locationData: null as Location | null,
     playingTimePolicy: '',
     teamBio: '',
     trainingLocation: '',
     homePitchLocation: '',
-    honours: ''
+    honours: '',
+    showOnTeamLocationMap: false,
+    allowMapContact: false
   });
 
   const [editForm, setEditForm] = useState({
@@ -130,12 +139,30 @@ const TeamManagement: React.FC = () => {
     league: '',
     teamGender: 'Mixed',
     location: '',
+    locationData: null as Location | null,
     playingTimePolicy: '',
     teamBio: '',
     trainingLocation: '',
     homePitchLocation: '',
-    honours: ''
+    honours: '',
+    showOnTeamLocationMap: false,
+    allowMapContact: false
   });
+
+  const parseLocationData = (value: unknown): Location | null => {
+    if (!value) return null;
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed as Location;
+      } catch {
+        return null;
+      }
+    }
+
+    return value as Location;
+  };
 
   const [inviteForm, setInviteForm] = useState({
     coachId: null as number | null,
@@ -201,11 +228,14 @@ const TeamManagement: React.FC = () => {
         league: '',
         teamGender: 'Mixed',
         location: '',
+        locationData: null,
         playingTimePolicy: '',
         teamBio: '',
         trainingLocation: '',
         homePitchLocation: '',
-        honours: ''
+        honours: '',
+        showOnTeamLocationMap: false,
+        allowMapContact: false
       });
       loadTeams();
     } catch (error: any) {
@@ -315,11 +345,14 @@ const TeamManagement: React.FC = () => {
         league: fullTeam.league || '',
         teamGender: fullTeam.teamGender || 'Mixed',
         location: fullTeam.location || '',
+        locationData: parseLocationData(fullTeam.locationData),
         playingTimePolicy: fullTeam.playingTimePolicy || '',
         teamBio: fullTeam.teamBio || '',
         trainingLocation: fullTeam.trainingLocation || '',
         homePitchLocation: fullTeam.homePitchLocation || '',
-        honours: fullTeam.honours || ''
+        honours: fullTeam.honours || '',
+        showOnTeamLocationMap: !!fullTeam.showOnTeamLocationMap,
+        allowMapContact: !!fullTeam.allowMapContact
       });
       // Ensure any team-members dialog is dismissed when edit mode is activated.
       setSelectedTeam(null);
@@ -548,12 +581,52 @@ const TeamManagement: React.FC = () => {
                 Request League
               </Button>
             </Box>
-            <TextField
+            <LocationAutocomplete
               fullWidth
-              label="Location"
+              label="Home Location"
               value={editForm.location}
-              onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+              onChange={(value, placeDetails) => {
+                const geometry = placeDetails?.geometry?.location;
+                setEditForm({
+                  ...editForm,
+                  location: value,
+                  locationData: geometry
+                    ? {
+                        address: value,
+                        latitude: geometry.lat(),
+                        longitude: geometry.lng(),
+                        placeId: placeDetails?.place_id || undefined
+                      }
+                    : null
+                });
+              }}
               sx={{ mt: 2 }}
+            />
+            <FormControlLabel
+              sx={{ mt: 2 }}
+              control={
+                <Checkbox
+                  checked={!!editForm.showOnTeamLocationMap}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      showOnTeamLocationMap: e.target.checked,
+                      allowMapContact: e.target.checked ? editForm.allowMapContact : false
+                    })
+                  }
+                />
+              }
+              label="Show this team on the Team Locations map"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!editForm.allowMapContact}
+                  disabled={!editForm.showOnTeamLocationMap}
+                  onChange={(e) => setEditForm({ ...editForm, allowMapContact: e.target.checked })}
+                />
+              }
+              label="Allow players/parents to contact this team from map"
             />
             <TextField
               fullWidth
@@ -862,12 +935,52 @@ const TeamManagement: React.FC = () => {
               Request League
             </Button>
           </Box>
-          <TextField
+          <LocationAutocomplete
             fullWidth
-            label="Location"
+            label="Home Location"
             value={createForm.location}
-            onChange={(e) => setCreateForm({ ...createForm, location: e.target.value })}
+            onChange={(value, placeDetails) => {
+              const geometry = placeDetails?.geometry?.location;
+              setCreateForm({
+                ...createForm,
+                location: value,
+                locationData: geometry
+                  ? {
+                      address: value,
+                      latitude: geometry.lat(),
+                      longitude: geometry.lng(),
+                      placeId: placeDetails?.place_id || undefined
+                    }
+                  : null
+              });
+            }}
             sx={{ mt: 2 }}
+          />
+          <FormControlLabel
+            sx={{ mt: 2 }}
+            control={
+              <Checkbox
+                checked={!!createForm.showOnTeamLocationMap}
+                onChange={(e) =>
+                  setCreateForm({
+                    ...createForm,
+                    showOnTeamLocationMap: e.target.checked,
+                    allowMapContact: e.target.checked ? createForm.allowMapContact : false
+                  })
+                }
+              />
+            }
+            label="Show this team on the Team Locations map"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!createForm.allowMapContact}
+                disabled={!createForm.showOnTeamLocationMap}
+                onChange={(e) => setCreateForm({ ...createForm, allowMapContact: e.target.checked })}
+              />
+            }
+            label="Allow players/parents to contact this team from map"
           />
           <TextField
             fullWidth
