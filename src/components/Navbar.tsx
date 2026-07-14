@@ -173,12 +173,9 @@ const Navbar: React.FC = () => {
     return '/post-availability';
   };
 
-  const getPostLabel = () => {
-    if (user?.role === 'Coach') return 'Post Vacancy';
-    if (user?.role === 'Parent/Guardian') {
-      return childrenCount > 0 ? 'Post Child Availability' : 'Add Child First';
-    }
-    return 'Post Availability';
+  const getCompactPostLabel = () => {
+    if (user?.role === 'Parent/Guardian' && childrenCount === 0) return 'Add Child';
+    return 'Post';
   };
 
   const safeNavigate = (path: string) => {
@@ -254,7 +251,7 @@ const Navbar: React.FC = () => {
     { path: '/search', label: 'Search', icon: <Search /> },
     { path: '/messages', label: 'Messages', icon: <Message /> },
     { path: '/maps', label: 'Maps', icon: <Map /> },
-    ...(user?.role !== 'Admin' ? [{ path: getPostRoute(), label: getPostLabel(), icon: <PostAdd /> }] : []),
+    ...(user?.role !== 'Admin' ? [{ path: getPostRoute(), label: getCompactPostLabel(), icon: <PostAdd /> }] : []),
     ...(user?.role === 'Admin' ? [{ path: '/admin', label: 'Admin', icon: <AdminPanelSettings /> }] : []),
   ] : [
     { path: '/', label: 'Home', icon: <Home /> },
@@ -451,7 +448,7 @@ const Navbar: React.FC = () => {
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             boxShadow: scrolled ? '0 4px 12px rgba(0, 0, 0, 0.08)' : '0 1px 3px 0 rgba(0, 0, 0, 0.06)' }}
         >
-          <Toolbar>
+          <Toolbar sx={{ minHeight: 68, gap: 1 }}>
             <Typography
               variant="h6"
               component="div"
@@ -468,7 +465,20 @@ const Navbar: React.FC = () => {
             </Typography>
 
             {/* Primary Navigation */}
-            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1 }}>
+            <Box
+              sx={{
+                flexGrow: 1,
+                display: 'flex',
+                gap: 0.75,
+                minWidth: 0,
+                overflowX: 'auto',
+                pr: 1,
+                '&::-webkit-scrollbar': {
+                  display: 'none'
+                },
+                scrollbarWidth: 'none'
+              }}
+            >
               {primaryNavItems.filter(item => item != null && item.path && item.label).map((item) => (
                 <Button
                   key={item.path}
@@ -477,27 +487,17 @@ const Navbar: React.FC = () => {
                   sx={{
                     color: isActive(item.path) ? '#0066FF' : '#0f172a',
                     fontWeight: isActive(item.path) ? 600 : 500,
-                    bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.12)' : 'transparent',
+                    bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.1)' : 'transparent',
                     borderRadius: 999,
-                    px: 1.75,
-                    minHeight: 40,
-                    position: 'relative',
-                    overflow: 'visible',
+                    px: 1.4,
+                    minHeight: 36,
+                    flexShrink: 0,
                     transition: 'all 0.2s ease',
-                    '&::after': isActive(item.path) ? {
-                      content: '""',
-                      position: 'absolute',
-                      bottom: 0,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: '60%',
-                      height: '2px',
-                      bgcolor: '#0066FF',
-                      borderRadius: '2px 2px 0 0' } : {},
                     '&:hover': {
-                      bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
-                      color: '#0066FF',
-                      transform: 'translateY(-1px)' } }}
+                      bgcolor: isActive(item.path) ? 'rgba(0, 102, 255, 0.15)' : 'rgba(0, 102, 255, 0.08)',
+                      color: '#0066FF'
+                    }
+                  }}
                 >
                   {item.label}
                 </Button>
@@ -512,17 +512,19 @@ const Navbar: React.FC = () => {
                     sx={{ 
                       color: isSecondaryActive ? '#0066FF' : '#0f172a',
                       fontWeight: isSecondaryActive ? 600 : 500,
-                      bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.12)' : 'transparent',
+                      bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.1)' : 'transparent',
                       borderRadius: 999,
-                      px: 1.75,
-                      minHeight: 40,
+                      px: 1.4,
+                      minHeight: 36,
+                      flexShrink: 0,
                       transition: 'all 0.2s ease',
                       '&:hover': { 
-                        bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.18)' : 'rgba(0, 102, 255, 0.08)',
-                        color: '#0066FF',
-                        transform: 'translateY(-1px)' } }}
+                        bgcolor: isSecondaryActive ? 'rgba(0, 102, 255, 0.15)' : 'rgba(0, 102, 255, 0.08)',
+                        color: '#0066FF'
+                      }
+                    }}
                   >
-                    Utilities
+                    More
                   </Button>
                   <Menu
                     anchorEl={moreMenuAnchorEl}
@@ -576,6 +578,7 @@ const Navbar: React.FC = () => {
                     variant="outlined"
                     sx={{ 
                       mr: 1,
+                      display: { xs: 'none', lg: 'inline-flex' },
                       '& .MuiChip-label': {
                         color: 'text.primary',
                         fontWeight: 500 }
