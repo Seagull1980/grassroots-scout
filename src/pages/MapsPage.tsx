@@ -56,11 +56,14 @@ const MapsPage: React.FC = () => {
             <Tabs
               value={tabValue}
               onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
               sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
             >
               <Tab label="Team Vacancies" />
               <Tab label="Available Players" />
-              <Tab label="Team Locations" />
+              <Tab label="Team/Club Locations" />
               <Tab label="All Results" />
             </Tabs>
 
