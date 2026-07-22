@@ -805,6 +805,8 @@ const ensureTeamLocationMapColumns = async () => {
   console.log('🚀 Starting server initialization with table order fix...');
   try {
     await db.createTables();
+    await ensureAdvertExpiryColumns();
+    await ensureProfileEnhancementColumns();
     await ensureTeamLocationMapColumns();
 
     emailService.setAuditLogger(async (entry) => {
@@ -881,6 +883,7 @@ app.get('/api/vacancies', async (req, res) => {
     const frozenFilterClause = db.dbType === 'postgresql'
       ? '(tv.isFrozen = FALSE OR tv.isFrozen IS NULL)'
       : '(tv.isFrozen = 0 OR tv.isFrozen IS NULL)';
+    const expiryFilter = getExpiryComparison('tv.expiresAt');
 
     const result = await db.query(`
       SELECT 
@@ -897,6 +900,7 @@ app.get('/api/vacancies', async (req, res) => {
         tv.postedBy,
         tv.hasMatchRecording,
         tv.hasPathwayToSenior,
+        tv.expiresAt,
         tv.createdAt,
         tv.status,
         u.firstname as firstName,
@@ -904,6 +908,7 @@ app.get('/api/vacancies', async (req, res) => {
       FROM team_vacancies tv
       LEFT JOIN users u ON tv.postedBy = u.id
       WHERE tv.status = 'active'
+        AND (tv.expiresAt IS NULL OR ${expiryFilter})
         AND ${frozenFilterClause}
       ORDER BY tv.createdAt DESC
     `);
@@ -934,6 +939,7 @@ app.get('/api/vacancies', async (req, res) => {
         lastName: row.lastName,
         hasMatchRecording: row.hasMatchRecording,
         hasPathwayToSenior: row.hasPathwayToSenior,
+        expiresAt: row.expiresAt,
         createdAt: row.createdAt,
         status: row.status
       };
@@ -971,12 +977,14 @@ app.post('/api/vacancies', [
       hasMatchRecording, hasPathwayToSenior, teamId
     } = req.body;
 
+    const expiresAt = getDefaultAdvertExpiry();
+
     const result = await db.query(
       `INSERT INTO team_vacancies
          (title, description, league, ageGroup, position, teamGender,
           location, locationData, contactInfo, postedBy, teamId,
-          hasMatchRecording, hasPathwayToSenior, status, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', datetime('now'))`,
+          hasMatchRecording, hasPathwayToSenior, status, expiresAt, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, datetime('now'))`,
       [
         title, description, league, ageGroup, position,
         teamGender || 'Mixed',
@@ -986,7 +994,8 @@ app.post('/api/vacancies', [
         req.user.userId,
         teamId || null,
         hasMatchRecording ? 1 : 0,
-        hasPathwayToSenior ? 1 : 0
+        hasPathwayToSenior ? 1 : 0,
+        expiresAt
       ]
     );
 
@@ -1842,6 +1851,27 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
       return dbProfile[lowercaseKey];
     };
 
+    const parseJsonField = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return [];
+      }
+
+      if (Array.isArray(value)) {
+        return value;
+      }
+
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+
+      return [];
+    };
+
     // PostgreSQL folds unquoted camelCase column names to lowercase, while SQLite preserves them.
     // Normalize both forms here so the frontend gets a consistent response shape.
     const profile = {
@@ -1850,6 +1880,8 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
       location: getProfileValue('location'),
       bio: getProfileValue('bio'),
       position: getProfileValue('position'),
+      achievements: parseJsonField(getProfileValue('achievements')),
+      careerhistory: parseJsonField(getProfileValue('careerHistory')),
       preferredfoot: getProfileValue('preferredFoot'),
       preferredteamgender: getProfileValue('preferredTeamGender'),
       height: getProfileValue('height'),
@@ -1907,6 +1939,8 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       location: 'location',
       bio: 'bio',
       position: 'position',
+      achievements: 'achievements',
+      careerhistory: 'careerHistory',
       preferredfoot: 'preferredFoot',
       preferredteamgender: 'preferredTeamGender',
       height: 'height',
@@ -1968,7 +2002,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
             finalVal = mapExperience(value);
           }
           // Handle JSON fields
-          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
             insertValues.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
             insertValues.push(finalVal);
@@ -2019,7 +2053,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
             finalVal = mapExperience(value);
           }
           // Handle JSON fields
-          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
             values.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
             values.push(finalVal);
@@ -2065,7 +2099,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
           if (value !== undefined && columnMapping[key]) {
             const dbColName = columnMapping[key];
             updates.push(`${dbColName} = ?`);
-            if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached'].includes(dbColName)) {
+            if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
               values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
             } else {
               values.push(value);
@@ -2182,6 +2216,8 @@ app.post('/api/children', [
       gender,
       preferredPosition,
       bio,
+      achievements,
+      careerHistory,
       emergencyContact,
       emergencyPhone,
       schoolName
@@ -2206,6 +2242,8 @@ app.post('/api/children', [
       gender,
       preferredPosition,
       bio,
+      achievements,
+      careerHistory,
       emergencyContact,
       emergencyPhone,
       schoolName
@@ -2215,7 +2253,13 @@ app.post('/api/children', [
       .filter(([key, value]) => value !== undefined && availableColumns.has(key.toLowerCase()))
       .map(([key]) => key);
 
-    const insertValues = insertColumns.map((key) => columnData[key]);
+    const insertValues = insertColumns.map((key) => {
+      const value = columnData[key];
+      if (key.toLowerCase() === 'achievements' || key.toLowerCase() === 'careerhistory') {
+        return JSON.stringify(value);
+      }
+      return value;
+    });
     const placeholders = insertColumns.map(() => '?').join(', ');
 
     const result = await db.query(
@@ -2236,10 +2280,14 @@ app.post('/api/children', [
         gender,
         preferredPosition,
         bio,
+        achievements,
+        careerHistory,
         emergencyContact,
         emergencyPhone,
         schoolName,
         isActive: true,
+        achievements: achievements ? JSON.parse(JSON.stringify(achievements)) : [],
+        careerHistory: careerHistory ? JSON.parse(JSON.stringify(careerHistory)) : [],
         createdAt: new Date().toISOString()
       }
     });
@@ -2286,7 +2334,11 @@ app.put('/api/children/:childId', [
     Object.keys(req.body).forEach(key => {
       if (req.body[key] !== undefined && availableColumns.has(key.toLowerCase())) {
         updateFields.push(`${key} = ?`);
-        updateValues.push(req.body[key]);
+        if (key.toLowerCase() === 'achievements' || key.toLowerCase() === 'careerhistory') {
+          updateValues.push(JSON.stringify(req.body[key]));
+        } else {
+          updateValues.push(req.body[key]);
+        }
       }
     });
 
@@ -2673,9 +2725,11 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
       ? 'WHERE postedBy = ? AND status != \'inactive\''
       : 'WHERE status != \'inactive\'';
 
+    const expiryFilter = getExpiryComparison('expiresAt');
     const availabilityResult = await db.query(
       `SELECT * FROM player_availability 
        ${userQuery}
+         AND (expiresAt IS NULL OR ${expiryFilter})
        ORDER BY createdAt DESC`,
       req.user.role === 'Player' ? [req.user.userId] : []
     );
@@ -2739,6 +2793,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
         ...row,
         preferredLeagues,
         positions,
+        expiresAt: row.expiresAt,
         locationData: hasValidCoordinates
           ? {
               address: locationAddress,
@@ -2773,9 +2828,11 @@ app.get('/api/public/player-availability', async (req, res) => {
     const sort = String(req.query.sort || 'recent').toLowerCase();
     const orderClause = sort === 'oldest' ? 'ASC' : 'DESC';
 
+    const expiryFilter = getExpiryComparison('expiresAt');
     const availabilityResult = await db.query(
       `SELECT * FROM player_availability
        WHERE status = ?
+         AND (expiresAt IS NULL OR ${expiryFilter})
        ORDER BY createdAt ${orderClause}`,
       ['active']
     );
@@ -2836,6 +2893,7 @@ app.get('/api/public/player-availability', async (req, res) => {
         ...row,
         preferredLeagues,
         positions,
+        expiresAt: row.expiresAt,
         locationData: hasValidCoordinates
           ? {
               address: locationAddress,
@@ -2895,8 +2953,8 @@ app.post('/api/player-availability', [
       `INSERT INTO player_availability 
        (title, description, preferredLeagues, ageGroup, positions, 
         preferredTeamGender, location, locationAddress, locationLatitude, 
-        locationLongitude, locationPlaceId, postedBy, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+        locationLongitude, locationPlaceId, postedBy, status, expiresAt) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
       [
         title,
         description,
@@ -2909,7 +2967,8 @@ app.post('/api/player-availability', [
         locationLatitude,
         locationLongitude,
         locationPlaceId,
-        req.user.userId
+        req.user.userId,
+        getDefaultAdvertExpiry()
       ]
     );
 
@@ -2926,6 +2985,7 @@ app.post('/api/player-availability', [
       locationData: locationData || null,
       postedBy: req.user.userId,
       status: 'active',
+      expiresAt: getDefaultAdvertExpiry(),
       createdAt: new Date().toISOString()
     };
 
@@ -3206,7 +3266,8 @@ app.post('/api/child-player-availability', [
       locationData: JSON.stringify(locationData || null),
       contactInfo,
       availability: JSON.stringify(availability || null),
-      shareName: !!shareName
+      shareName: !!shareName,
+      expiresAt: getDefaultAdvertExpiry()
     };
 
     const insertColumns = Object.keys(columnData).filter((key) => availableColumns.has(key.toLowerCase()));
@@ -3238,6 +3299,7 @@ app.post('/api/child-player-availability', [
         shareName: !!shareName,
         displayName: !!shareName ? `${childResult.rows[0].firstName} ${childResult.rows[0].lastName}` : 'Anonymous Player',
         status: 'active',
+        expiresAt: columnData.expiresAt,
         createdAt: new Date().toISOString()
       }
     });
@@ -3365,12 +3427,13 @@ app.delete('/api/child-player-availability/:availabilityId', authenticateToken, 
 app.get('/api/public/child-player-availability', async (req, res) => {
   try {
     const { league, ageGroup, position, location } = req.query;
+    const expiryFilter = getExpiryComparison('cpa."expiresAt"');
     
     let query = `
       SELECT cpa.*, c."firstName", c."lastName", c."dateOfBirth"
       FROM child_player_availability cpa 
       JOIN children c ON cpa."childId" = c.id 
-      WHERE cpa.status = $1 AND c."isActive" = $2
+      WHERE cpa.status = $1 AND c."isActive" = $2 AND (cpa."expiresAt" IS NULL OR ${expiryFilter})
     `;
     const params = ['active', true];
     let paramIndex = 3;
@@ -3440,6 +3503,7 @@ app.get('/api/public/child-player-availability', async (req, res) => {
         preferredLeagues,
         positions,
         locationData,
+        expiresAt: row.expiresAt,
         availability
       };
     });
@@ -9410,6 +9474,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
             tv.teamGender,
             tv.location,
             tv.locationData,
+            tv.expiresAt,
             tv.createdAt,
             tv.status,
             tv.postedBy,
@@ -9425,7 +9490,9 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
           ORDER BY tv.createdAt DESC
         `, [userId]);
 
-        vacancies = (vacancyResult.rows || []).map(row => ({
+        vacancies = (vacancyResult.rows || []).map(row => {
+          const normalized = normalizeAdvertExpiry(row);
+          return ({
           id: row.id,
           title: row.title,
           description: row.description,
@@ -9436,14 +9503,16 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
           location: row.location,
           teamName: row.teamName,
           createdAt: row.createdAt,
-          status: row.status,
+          expiresAt: row.expiresAt,
+          status: normalized.status,
           postedBy: row.postedBy,
           paused: Boolean(row.paused),
           closed_reason: row.closed_reason,
           views: row.views || 0,
           saved_count: row.saved_count || 0,
           inquiries_count: row.inquiries_count || 0
-        }));
+        });
+        });
       } catch (error) {
         console.error('Error fetching user vacancies:', error);
       }
@@ -9463,6 +9532,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
               cpa.positions,
               cpa.preferredTeamGender,
               cpa.location,
+              cpa.expiresAt,
               cpa.createdAt,
               cpa.status,
               cpa.postedBy,
@@ -9485,6 +9555,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
               pa.positions,
               pa.preferredTeamGender,
               pa.location,
+              pa.expiresAt,
               pa.createdAt,
               pa.status,
               pa.postedBy,
@@ -9500,6 +9571,7 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
 
         const availResult = await db.query(query, [userId]);
         playerAvailabilities = (availResult.rows || []).map(row => {
+          const normalized = normalizeAdvertExpiry(row);
           let preferredLeagues = [];
           let positions = [];
           
@@ -9527,7 +9599,8 @@ app.get('/api/my-adverts', authenticateToken, async (req, res) => {
             preferredTeamGender: row.preferredTeamGender,
             location: row.location,
             createdAt: row.createdAt,
-            status: row.status,
+            expiresAt: row.expiresAt,
+            status: normalized.status,
             postedBy: row.postedBy,
             paused: Boolean(row.paused),
             closed_reason: row.closed_reason,
@@ -9858,6 +9931,44 @@ app.post('/api/adverts/:id/repost', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error reposting advert:', error);
     res.status(500).json({ error: 'Failed to repost advert' });
+  }
+});
+
+// Renew an advert for another 30 days
+app.put('/api/adverts/:id/renew', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const expiresAt = getDefaultAdvertExpiry();
+
+    const tables = [
+      'team_vacancies',
+      'player_availability',
+      'child_player_availability'
+    ];
+
+    for (const table of tables) {
+      const ownership = await db.query(`SELECT postedBy FROM ${table} WHERE id = ?`, [id]);
+      if (ownership.rows && ownership.rows.length > 0) {
+        if (Number(ownership.rows[0].postedBy) !== Number(userId)) {
+          return res.status(403).json({ error: 'Not authorized to renew this advert' });
+        }
+
+        await db.query(
+          `UPDATE ${table}
+           SET status = 'active', expiresAt = ?
+           WHERE id = ?`,
+          [expiresAt, id]
+        );
+
+        return res.json({ message: 'Advert renewed successfully', expiresAt });
+      }
+    }
+
+    return res.status(404).json({ error: 'Advert not found' });
+  } catch (error) {
+    console.error('Error renewing advert:', error);
+    res.status(500).json({ error: 'Failed to renew advert' });
   }
 });
 
@@ -10226,6 +10337,87 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
+
+const ADVERT_EXPIRY_DAYS = 30;
+
+const getDefaultAdvertExpiry = () => new Date(Date.now() + ADVERT_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+const getCurrentTimestampExpression = () => (db.dbType === 'postgresql' ? 'CURRENT_TIMESTAMP' : "datetime('now')");
+
+const getExpiryComparison = (columnReference) => (
+  db.dbType === 'postgresql'
+    ? `${columnReference} > CURRENT_TIMESTAMP`
+    : `datetime(${columnReference}) > datetime('now')`
+);
+
+const isAdvertExpired = (expiresAt) => {
+  if (!expiresAt) return false;
+  const parsed = new Date(expiresAt);
+  return !Number.isNaN(parsed.getTime()) && parsed.getTime() <= Date.now();
+};
+
+const normalizeAdvertExpiry = (row) => {
+  if (!row) return row;
+
+  const expiresAt = row.expiresAt || row.expiresat || row.expires_at || null;
+  return {
+    ...row,
+    expiresAt,
+    isExpired: isAdvertExpired(expiresAt),
+    status: row.status === 'active' && isAdvertExpired(expiresAt) ? 'expired' : row.status
+  };
+};
+
+const ensureAdvertExpiryColumns = async () => {
+  const tables = ['team_vacancies', 'player_availability', 'child_player_availability'];
+
+  for (const table of tables) {
+    try {
+      await db.query(`ALTER TABLE ${table} ADD COLUMN expiresAt TIMESTAMP`);
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      const alreadyExists = message.includes('duplicate column') || message.includes('already exists') || message.includes('duplicate column name');
+      if (!alreadyExists) {
+        throw error;
+      }
+    }
+
+    try {
+      const records = await db.query(`SELECT id, createdAt FROM ${table} WHERE expiresAt IS NULL`);
+      for (const record of records.rows || []) {
+        const createdDate = new Date(record.createdAt || new Date().toISOString());
+        const expiryDate = Number.isNaN(createdDate.getTime())
+          ? new Date(getDefaultAdvertExpiry())
+          : new Date(createdDate.getTime() + ADVERT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+        await db.query(`UPDATE ${table} SET expiresAt = ? WHERE id = ?`, [expiryDate.toISOString(), record.id]);
+      }
+    } catch (error) {
+      console.error(`Failed to backfill expiry dates for ${table}:`, error);
+    }
+  }
+};
+
+const ensureProfileEnhancementColumns = async () => {
+  const tableDefinitions = [
+    { table: 'user_profiles', columns: ['achievements', 'careerHistory'] },
+    { table: 'children', columns: ['achievements', 'careerHistory'] }
+  ];
+
+  for (const { table, columns } of tableDefinitions) {
+    for (const column of columns) {
+      try {
+        await db.query(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+      } catch (error) {
+        const message = String(error?.message || '').toLowerCase();
+        const alreadyExists = message.includes('duplicate column') || message.includes('already exists') || message.includes('duplicate column name');
+        if (!alreadyExists) {
+          throw error;
+        }
+      }
+    }
+  }
+};
 
 // Mount league requests router
 app.use('/api/league-requests', leagueRequestsRouter);

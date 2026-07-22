@@ -55,6 +55,7 @@ interface Advert {
   location: string;
   status: string;
   createdAt: string;
+  expiresAt?: string;
   postedBy?: number;
   teamId?: number;
   teamName?: string;
@@ -269,6 +270,17 @@ const MyAdvertsPage: React.FC = () => {
     }
   };
 
+  const handleRenew = async (advert: Advert) => {
+    try {
+      await api.put(`/adverts/${advert.id}/renew`);
+      setSuccess('Advert renewed for another month.');
+      loadAdverts();
+      handleMenuClose();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to renew advert');
+    }
+  };
+
   const handlePreview = (advert: Advert) => {
     setPreviewAdvert(advert);
     setPreviewOpen(true);
@@ -303,6 +315,13 @@ const MyAdvertsPage: React.FC = () => {
     }
   };
 
+  const isAdvertExpired = (advert: Advert) => {
+    if (advert.status === 'expired') return true;
+    if (!advert.expiresAt) return false;
+    const expiryDate = new Date(advert.expiresAt);
+    return !Number.isNaN(expiryDate.getTime()) && expiryDate.getTime() <= Date.now();
+  };
+
   const handleTrackView = async (advertId: number) => {
     try {
       await api.post(`/adverts/${advertId}/track-view`);
@@ -312,16 +331,16 @@ const MyAdvertsPage: React.FC = () => {
   };
 
   const getStatusColor = (advert: Advert): 'success' | 'warning' | 'error' | 'default' => {
+    if (isAdvertExpired(advert)) return 'error';
     if (advert.paused) return 'warning';
     if (advert.closed_reason) return 'error';
-    if (advert.status === 'expired') return 'error';
     return 'success';
   };
 
   const getStatusLabel = (advert: Advert): string => {
+    if (isAdvertExpired(advert)) return 'Expired';
     if (advert.paused) return 'Paused';
     if (advert.closed_reason) return 'Closed';
-    if (advert.status === 'expired') return 'Expired';
     return 'Active';
   };
 
@@ -373,6 +392,11 @@ const MyAdvertsPage: React.FC = () => {
               <strong>League:</strong> {advert.league}
             </Typography>
           )}
+
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            <strong>{isAdvertExpired(advert) ? 'Expired' : 'Expires'}:</strong>{' '}
+            {advert.expiresAt ? new Date(advert.expiresAt).toLocaleDateString() : 'Not set'}
+          </Typography>
 
           {(advert.position || (advert.positions && advert.positions.length > 0)) && (
             <Typography variant="body2" gutterBottom>
@@ -709,12 +733,17 @@ const MyAdvertsPage: React.FC = () => {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            menuAdvert && handleRepost(menuAdvert);
-            handleMenuClose();
+            if (!menuAdvert) return;
+            if (isAdvertExpired(menuAdvert)) {
+              handleRenew(menuAdvert);
+            } else {
+              handleRepost(menuAdvert);
+              handleMenuClose();
+            }
           }}
         >
           <TrendingUpIcon fontSize="small" sx={{ mr: 1 }} />
-          Repost
+          {menuAdvert && isAdvertExpired(menuAdvert) ? 'Renew' : 'Repost'}
         </MenuItem>
         <Divider />
         <MenuItem

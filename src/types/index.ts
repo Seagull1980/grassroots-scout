@@ -51,6 +51,7 @@ export interface TeamVacancy {
   hasMatchRecording?: boolean;
   hasPathwayToSenior?: boolean;
   createdAt: string;
+  expiresAt?: string;
   status: 'active' | 'filled' | 'expired';
 }
 
@@ -69,6 +70,7 @@ export interface PlayerAvailability {
   firstName?: string;
   lastName?: string;
   createdAt: string;
+  expiresAt?: string;
   status: 'active' | 'inactive';
 }
 

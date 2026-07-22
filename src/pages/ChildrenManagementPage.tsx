@@ -52,10 +52,22 @@ interface Child {
   emergencyPhone?: string;
   schoolName?: string;
   bio?: string;
+  achievements?: ChildAchievement[];
+  careerHistory?: ChildCareerEntry[];
   profilePicture?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ChildAchievement {
+  title: string;
+  year: string;
+}
+
+interface ChildCareerEntry {
+  teamName: string;
+  season: string;
 }
 
 interface ChildFormData {
@@ -66,6 +78,8 @@ interface ChildFormData {
   preferredPosition: string;
   preferredTeamGender: string;
   bio: string;
+  achievements: ChildAchievement[];
+  careerHistory: ChildCareerEntry[];
   // emergency and school fields intentionally omitted for parent-created child profiles
 }
 
@@ -105,6 +119,20 @@ const normalizeTimestampValue = (value: unknown): string => {
   return date.toISOString();
 };
 
+const normalizeListValue = <T,>(value: unknown): T[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 const normalizeChild = (rawChild: Record<string, unknown>): Child => {
   const createdAt = normalizeTimestampValue(pickFirst(rawChild, ['createdAt', 'createdat', 'created_at'], ''));
   const updatedAt = normalizeTimestampValue(pickFirst(rawChild, ['updatedAt', 'updatedat', 'updated_at'], ''));
@@ -123,6 +151,8 @@ const normalizeChild = (rawChild: Record<string, unknown>): Child => {
     emergencyPhone: pickFirst(rawChild, ['emergencyPhone', 'emergencyphone', 'emergency_phone'], undefined),
     schoolName: pickFirst(rawChild, ['schoolName', 'schoolname', 'school_name'], undefined),
     bio: pickFirst(rawChild, ['bio'], undefined),
+    achievements: normalizeListValue<ChildAchievement>(pickFirst(rawChild, ['achievements'], undefined)),
+    careerHistory: normalizeListValue<ChildCareerEntry>(pickFirst(rawChild, ['careerHistory', 'careerhistory', 'career_history'], undefined)),
     profilePicture: pickFirst(rawChild, ['profilePicture', 'profilepicture', 'profile_picture'], undefined),
     isActive: Boolean(pickFirst(rawChild, ['isActive', 'isactive', 'is_active'], true)),
     createdAt: createdAt || new Date().toISOString(),
@@ -147,6 +177,8 @@ const ChildrenManagementPage: React.FC = () => {
     preferredPosition: '',
     preferredTeamGender: 'Mixed',
     bio: '',
+    achievements: [],
+    careerHistory: [],
     // emergency and school fields intentionally omitted
   });
 
@@ -207,6 +239,62 @@ const ChildrenManagementPage: React.FC = () => {
     }));
   };
 
+  const updateAchievement = (index: number, field: keyof ChildAchievement, value: string) => {
+    setFormData((prev) => {
+      const achievements = [...prev.achievements];
+      achievements[index] = {
+        ...achievements[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        achievements
+      };
+    });
+  };
+
+  const addAchievement = () => {
+    setFormData((prev) => ({
+      ...prev,
+      achievements: [...prev.achievements, { title: '', year: String(new Date().getFullYear()) }]
+    }));
+  };
+
+  const removeAchievement = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      achievements: prev.achievements.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  };
+
+  const updateCareerEntry = (index: number, field: keyof ChildCareerEntry, value: string) => {
+    setFormData((prev) => {
+      const careerHistory = [...prev.careerHistory];
+      careerHistory[index] = {
+        ...careerHistory[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        careerHistory
+      };
+    });
+  };
+
+  const addCareerEntry = () => {
+    setFormData((prev) => ({
+      ...prev,
+      careerHistory: [...prev.careerHistory, { teamName: '', season: '' }]
+    }));
+  };
+
+  const removeCareerEntry = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      careerHistory: prev.careerHistory.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  };
+
   const handleAddChild = async () => {
     try {
       setError('');
@@ -224,7 +312,13 @@ const ChildrenManagementPage: React.FC = () => {
         return;
       }
 
-      await api.post('/children', formData);
+      const payload = {
+        ...formData,
+        achievements: formData.achievements.filter((achievement) => achievement.title.trim()),
+        careerHistory: formData.careerHistory.filter((entry) => entry.teamName.trim() || entry.season.trim())
+      };
+
+      await api.post('/children', payload);
       
       setSuccess('Child added successfully!');
       setShowAddDialog(false);
@@ -255,7 +349,13 @@ const ChildrenManagementPage: React.FC = () => {
         return;
       }
 
-      await api.put(`/children/${editingChild.id}`, formData);
+      const payload = {
+        ...formData,
+        achievements: formData.achievements.filter((achievement) => achievement.title.trim()),
+        careerHistory: formData.careerHistory.filter((entry) => entry.teamName.trim() || entry.season.trim())
+      };
+
+      await api.put(`/children/${editingChild.id}`, payload);
       
       setSuccess('Child information updated successfully!');
       setEditingChild(null);
@@ -291,6 +391,8 @@ const ChildrenManagementPage: React.FC = () => {
       preferredPosition: '',
       preferredTeamGender: 'Mixed',
       bio: '',
+      achievements: [],
+      careerHistory: [],
       // emergency and school fields intentionally omitted
     });
   };
@@ -306,7 +408,9 @@ const ChildrenManagementPage: React.FC = () => {
       gender: child.gender || '',
       preferredPosition: child.preferredPosition || '',
       preferredTeamGender: child.preferredTeamGender || 'Mixed',
-      bio: child.bio || ''
+      bio: child.bio || '',
+      achievements: child.achievements || [],
+      careerHistory: child.careerHistory || []
     });
   };
 
@@ -644,6 +748,109 @@ const ChildrenManagementPage: React.FC = () => {
                 onChange={(e) => handleInputChange('bio', e.target.value)}
                 placeholder="Brief bio: football experience, development centre, academy, or key strengths..."
               />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Achievements
+                </Typography>
+                <Button size="small" variant="outlined" onClick={addAchievement}>
+                  Add Achievement
+                </Button>
+              </Box>
+
+              <Stack spacing={1.5}>
+                {formData.achievements.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    Add awards or recognition such as player of the season, tournament wins, or selection honours.
+                  </Typography>
+                )}
+
+                {formData.achievements.map((achievement, index) => (
+                  <Paper key={`achievement-${index}`} variant="outlined" sx={{ p: 1.5 }}>
+                    <Grid container spacing={1.5} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Achievement"
+                          value={achievement.title}
+                          onChange={(event) => updateAchievement(index, 'title', event.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={5}>
+                        <FormControl fullWidth>
+                          <InputLabel>Year</InputLabel>
+                          <Select
+                            value={achievement.year}
+                            label="Year"
+                            onChange={(event) => updateAchievement(index, 'year', String(event.target.value))}
+                          >
+                            {Array.from({ length: 41 }, (_, yearIndex) => String(new Date().getFullYear() - yearIndex)).map((year) => (
+                              <MenuItem key={year} value={year}>
+                                {year}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} sm={1}>
+                        <IconButton onClick={() => removeAchievement(index)} aria-label="remove achievement">
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                ))}
+              </Stack>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Career
+                </Typography>
+                <Button size="small" variant="outlined" onClick={addCareerEntry}>
+                  Add Team
+                </Button>
+              </Box>
+
+              <Stack spacing={1.5}>
+                {formData.careerHistory.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    List the teams played for and the seasons involved.
+                  </Typography>
+                )}
+
+                {formData.careerHistory.map((careerEntry, index) => (
+                  <Paper key={`career-${index}`} variant="outlined" sx={{ p: 1.5 }}>
+                    <Grid container spacing={1.5} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Team"
+                          value={careerEntry.teamName}
+                          onChange={(event) => updateCareerEntry(index, 'teamName', event.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={5}>
+                        <TextField
+                          fullWidth
+                          label="Season"
+                          value={careerEntry.season}
+                          onChange={(event) => updateCareerEntry(index, 'season', event.target.value)}
+                          placeholder="2024/25"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={1}>
+                        <IconButton onClick={() => removeCareerEntry(index)} aria-label="remove career entry">
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                ))}
+              </Stack>
             </Grid>
           </Grid>
         </DialogContent>

@@ -26,6 +26,7 @@ import {
   List,
   ListItem,
   ListItemIcon,
+  Stack,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -35,7 +36,7 @@ import {
 import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { profileAPI, authAPI, UserProfile, ProfileUpdateData } from '../services/api';
+import { profileAPI, authAPI, UserProfile, ProfileUpdateData, ProfileAchievement } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
@@ -112,6 +113,7 @@ const ProfilePage: React.FC = () => {
     dateOfBirth: '',
     location: '',
     bio: '',
+    achievements: [],
     position: '',
     preferredFoot: undefined,
     height: undefined,
@@ -128,6 +130,36 @@ const ProfilePage: React.FC = () => {
     currentAgeGroup: '',
     trainingTime: '',
     matchDay: '' });
+
+  const achievementYears = Array.from({ length: 41 }, (_, index) => String(new Date().getFullYear() - index));
+
+  const createEmptyAchievement = (): ProfileAchievement => ({
+    title: '',
+    year: String(new Date().getFullYear())
+  });
+
+  const normalizeAchievements = (value: unknown): ProfileAchievement[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => ({
+          title: String((item as ProfileAchievement).title || ''),
+          year: String((item as ProfileAchievement).year || new Date().getFullYear())
+        }))
+        .filter((item) => item.title.trim());
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? normalizeAchievements(parsed) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  };
 
   // Options for dropdowns
   const positions = [
@@ -288,6 +320,9 @@ const ProfilePage: React.FC = () => {
       const normalizedDob = rawDateOfBirth
         ? new Date(rawDateOfBirth).toISOString().split('T')[0]
         : '';
+      const achievements = normalizeAchievements(
+        profileResponse.achievements || (profileResponse as typeof profileResponse & { achievements?: unknown }).achievements
+      );
 
       console.log('DOB load:', {
         raw: rawDateOfBirth,
@@ -300,6 +335,7 @@ const ProfilePage: React.FC = () => {
         dateOfBirth: normalizedDob,
         location: profileResponse.location || '',
         bio: profileResponse.bio || '',
+        achievements,
         position: profileResponse.position || '',
         preferredFoot: profileResponse.preferredfoot,
         height: profileResponse.height,
@@ -362,10 +398,48 @@ const ProfilePage: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
+  const updateAchievement = (index: number, field: keyof ProfileAchievement, value: string) => {
+    setProfileData((prev) => {
+      const achievements = [...(prev.achievements || [])];
+      achievements[index] = {
+        ...achievements[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        achievements
+      };
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const addAchievement = () => {
+    setProfileData((prev) => ({
+      ...prev,
+      achievements: [...(prev.achievements || []), createEmptyAchievement()]
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  const removeAchievement = (index: number) => {
+    setProfileData((prev) => ({
+      ...prev,
+      achievements: (prev.achievements || []).filter((_, itemIndex) => itemIndex !== index)
+    }));
+    setHasUnsavedChanges(true);
+  };
+
   const handleSaveProfile = async () => {
     try {
       setIsSaving(true);
       setError('');
+
+      const normalizedAchievements = (profileData.achievements || [])
+        .filter((achievement) => achievement.title.trim())
+        .map((achievement) => ({
+          title: achievement.title.trim(),
+          year: achievement.year
+        }));
       
       // Filter out empty strings and undefined values for optional fields only
       // Required fields: firstName, lastName, dateOfBirth
@@ -380,6 +454,9 @@ const ProfilePage: React.FC = () => {
           return true;
         })
       );
+      if (normalizedAchievements.length > 0) {
+        cleanedProfileData.achievements = normalizedAchievements;
+      }
       
       console.log('DOB save:', {
         value: profileData.dateOfBirth,
@@ -610,7 +687,7 @@ const ProfilePage: React.FC = () => {
             <Tab icon={<Person />} label="Basic Information" />
             {user?.role === 'Player' && <Tab icon={<Work />} label="Player Details" />}
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
-            {user?.role === 'Player' && <Tab icon={<History />} label="Playing History" />}
+            {user?.role === 'Player' && <Tab icon={<History />} label="Career" />}
             <Tab icon={<Lock />} label="Security" />
           </Tabs>
         </Box>
@@ -837,6 +914,60 @@ const ProfilePage: React.FC = () => {
                 </FormControl>
               </Grid>
             </Grid>
+
+            <Box sx={{ mt: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6">Achievements</Typography>
+                <Button variant="outlined" size="small" onClick={addAchievement}>
+                  Add Achievement
+                </Button>
+              </Box>
+
+              {(profileData.achievements || []).length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Add awards such as player of the season, top scorer, or tournament recognition.
+                </Alert>
+              ) : null}
+
+              <Stack spacing={2}>
+                {(profileData.achievements || []).map((achievement, index) => (
+                  <Paper key={`${achievement.title || 'achievement'}-${index}`} variant="outlined" sx={{ p: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Achievement"
+                          value={achievement.title}
+                          onChange={(event) => updateAchievement(index, 'title', event.target.value)}
+                          placeholder="End of season award, tournament medal, etc."
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={5}>
+                        <FormControl fullWidth>
+                          <InputLabel>Year</InputLabel>
+                          <Select
+                            value={achievement.year}
+                            label="Year"
+                            onChange={(event) => updateAchievement(index, 'year', String(event.target.value))}
+                          >
+                            {achievementYears.map((year) => (
+                              <MenuItem key={year} value={year}>
+                                {year}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} sm={1}>
+                        <IconButton aria-label="remove achievement" onClick={() => removeAchievement(index)}>
+                          <Close fontSize="small" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
           </TabPanel>
         )}
 

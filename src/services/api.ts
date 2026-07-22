@@ -252,6 +252,8 @@ export interface UserProfile {
   dateofbirth?: string;
   location?: string;
   bio?: string;
+  achievements?: ProfileAchievement[];
+  careerhistory?: ProfileCareerEntry[];
   // Player-specific fields
   position?: string;
   preferredfoot?: 'Left' | 'Right' | 'Both';
@@ -312,6 +314,8 @@ export interface ProfileUpdateData {
   dateOfBirth?: string;
   location?: string;
   bio?: string;
+  achievements?: ProfileAchievement[];
+  careerHistory?: ProfileCareerEntry[];
   position?: string;
   preferredFoot?: 'Left' | 'Right' | 'Both';
   height?: number;
@@ -329,6 +333,16 @@ export interface ProfileUpdateData {
   trainingTime?: string;
   matchDay?: string;
   profilePicture?: string;
+}
+
+export interface ProfileAchievement {
+  title: string;
+  year: string;
+}
+
+export interface ProfileCareerEntry {
+  teamName: string;
+  season: string;
 }
 
 export interface League {
@@ -470,6 +484,7 @@ export interface TeamVacancy {
     longitude: number;
     placeId?: string;
   };
+  expiresAt?: string;
 }
 
 export interface PlayerAvailability {
@@ -490,6 +505,7 @@ export interface PlayerAvailability {
     longitude: number;
     placeId?: string;
   };
+  expiresAt?: string;
   // Privacy control: whether the child's real name may be shared
   shareName?: boolean;
   // Computed display name returned by the API (either real name or anonymous placeholder)

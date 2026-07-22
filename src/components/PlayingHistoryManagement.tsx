@@ -148,7 +148,7 @@ const PlayingHistoryManagement: React.FC = () => {
       }
     } catch (err) {
       console.error('Error loading playing history:', err);
-      setError('Failed to load playing history');
+      setError('Failed to load career history');
     } finally {
       setLoading(false);
     }
@@ -211,32 +211,32 @@ const PlayingHistoryManagement: React.FC = () => {
 
       if (editingHistory) {
         await playingHistoryAPI.update(editingHistory.id, data);
-        setSuccess('Playing history updated successfully!');
+        setSuccess('Career history updated successfully!');
       } else {
         await playingHistoryAPI.create(data);
-        setSuccess('Playing history added successfully!');
+        setSuccess('Career history added successfully!');
       }
 
       closeDialog();
       loadData();
     } catch (err) {
       console.error('Error saving playing history:', err);
-      setError('Failed to save playing history');
+      setError('Failed to save career history');
     }
   };
 
   const handleDelete = async (historyId: string) => {
-    if (!window.confirm('Are you sure you want to delete this playing history entry?')) {
+    if (!window.confirm('Are you sure you want to delete this career entry?')) {
       return;
     }
 
     try {
       await playingHistoryAPI.delete(historyId);
-      setSuccess('Playing history deleted successfully!');
+      setSuccess('Career history deleted successfully!');
       loadData();
     } catch (err) {
       console.error('Error deleting playing history:', err);
-      setError('Failed to delete playing history');
+      setError('Failed to delete career history');
     }
   };
 
@@ -275,7 +275,7 @@ const PlayingHistoryManagement: React.FC = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="400px">
-        <div>Loading playing history...</div>
+        <div>Loading career history...</div>
       </Box>
     );
   }
@@ -394,12 +394,12 @@ const PlayingHistoryManagement: React.FC = () => {
         </Accordion>
       )}
 
-      {/* Playing History Section */}
+      {/* Career History Section */}
       <Paper sx={{ p: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h5">
             <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Playing History
+            Career History
           </Typography>
           <Button
             variant="contained"
@@ -414,7 +414,7 @@ const PlayingHistoryManagement: React.FC = () => {
           <Box textAlign="center" py={6}>
             <SportsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              No playing history yet
+              No career history yet
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Add your football teams and track your playing career
@@ -533,7 +533,7 @@ const PlayingHistoryManagement: React.FC = () => {
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onClose={closeDialog} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editingHistory ? 'Edit Playing History' : 'Add Playing History'}
+          {editingHistory ? 'Edit Career Entry' : 'Add Career Entry'}
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
