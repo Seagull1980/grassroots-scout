@@ -107,9 +107,42 @@ const getItemDateValue = (item: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+const toGuestLocationLabel = (location: string): string => {
+  if (!location) return 'UK';
+  const parts = location.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return 'UK';
+  return parts.length === 1 ? parts[0] : `${parts[0]}, ${parts[parts.length - 1]}`;
+};
+
+const sanitizeMapResultForGuest = (item: any, itemType: 'vacancy' | 'player' | 'team-location') => {
+  const title =
+    itemType === 'player'
+      ? 'Player Profile'
+      : itemType === 'team-location'
+        ? 'Club Location'
+        : 'Team Opportunity';
+
+  return {
+    ...item,
+    teamName: title,
+    title,
+    fullName: title,
+    name: title,
+    description: 'Sign up to unlock full details and messaging.',
+    location: toGuestLocationLabel(item.location || ''),
+    displayName: 'Member',
+    firstName: '',
+    lastName: '',
+    contactInfo: undefined,
+    email: undefined,
+    phone: undefined
+  };
+};
+
 const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isGuest = !user;
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -517,8 +550,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               item.matchLocationData;
             
             if (hasLocation) {
+              const mappedItem = isGuest
+                ? sanitizeMapResultForGuest(item, response.type as 'vacancy' | 'player' | 'team-location')
+                : item;
               allResults.push({
-                ...item,
+                ...mappedItem,
                 itemType: response.type
               });
             }
@@ -536,7 +572,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
 
     fetchData();
-  }, [searchType]);
+  }, [searchType, isGuest]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -666,8 +702,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         // Check if messaging is available for this item
         const recipient = getMessageRecipient(item);
         const canContactFromMap =
-          (type === 'Player') ||
-          (item.itemType === 'team-location' && item.allowMapContact === true);
+          !isGuest &&
+          (
+            type === 'Player' ||
+            (item.itemType === 'team-location' && item.allowMapContact === true)
+          );
         const messageButton = recipient && canContactFromMap ? `
           <button 
             id="map-message-btn-${getResultKey(item)}"
@@ -692,6 +731,27 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
             </svg>
             Message
+          </button>
+        ` : '';
+
+        const signupButton = isGuest ? `
+          <button
+            id="map-signup-btn-${getResultKey(item)}"
+            style="
+              margin-top: 8px;
+              padding: 6px 12px;
+              background-color: #2e7d32;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 13px;
+              font-weight: 500;
+            "
+            onmouseover="this.style.backgroundColor='#1b5e20'"
+            onmouseout="this.style.backgroundColor='#2e7d32'"
+          >
+            Sign up to unlock full details
           </button>
         ` : '';
         
@@ -756,9 +816,10 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               color: #999;
               font-style: italic;
             ">
-              Click to highlight in table below
+              ${isGuest ? 'Create an account to unlock full profiles and messaging' : 'Click to highlight in table below'}
             </p>
             ${messageButton}
+            ${signupButton}
           </div>
         `;
       };
@@ -801,6 +862,14 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                 }
               });
             }
+
+            const signupBtn = document.getElementById(`map-signup-btn-${resultKey}`);
+            if (signupBtn) {
+              signupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigate('/register');
+              });
+            }
             
             // Info window content click handler to highlight table row
             const infoContent = document.getElementById(`map-info-content-${resultKey}`);
@@ -818,7 +887,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       markerByKeyRef.current[resultKey] = marker;
     });
 
-  }, [results, filteredResults, hasActiveFilter]);
+  }, [results, filteredResults, hasActiveFilter, isGuest, navigate, searchType]);
 
   const handleMyLocation = () => {
     if (!mapInstanceRef.current) return;
@@ -1189,6 +1258,25 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       {/* Control Panel */}
       <Paper elevation={2} sx={{ p: 1.5, mb: 1 }}>
         <Stack spacing={1.5}>
+          {isGuest && (
+            <Alert
+              severity="info"
+              sx={{ py: 0.5 }}
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Button color="inherit" size="small" variant="outlined" onClick={() => navigate('/login')}>
+                    Log in
+                  </Button>
+                  <Button color="inherit" size="small" variant="contained" onClick={() => navigate('/register')}>
+                    Sign up
+                  </Button>
+                </Stack>
+              }
+            >
+              Guest mode: you can browse map matches with limited detail. Sign up to unlock full profiles, full descriptions, and messaging.
+            </Alert>
+          )}
+
           {showOnboarding && (
             <Alert
               severity="info"
@@ -1666,7 +1754,18 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
                       />
                     </TableCell>
                     <TableCell>
-                      {result.itemType === 'player' && (
+                      {isGuest ? (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/register');
+                          }}
+                        >
+                          Sign up to interact
+                        </Button>
+                      ) : result.itemType === 'player' && (
                         (() => {
                           const recipient = getMessageRecipient(result);
                           const multipleSelected = selectedCount > 1;

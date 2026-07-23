@@ -181,6 +181,13 @@ const defaultFilters: SearchFiltersState = {
   hasPathwayToSenior: false,
   playingTimePolicy: [] };
 
+const toGuestLocationLabel = (location: string): string => {
+  if (!location) return 'UK';
+  const parts = location.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return 'UK';
+  return parts.length === 1 ? parts[0] : `${parts[0]}, ${parts[parts.length - 1]}`;
+};
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
 
@@ -201,6 +208,7 @@ const SearchPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isGuest = !user;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // const { isMobile } = useResponsive();
@@ -814,7 +822,22 @@ const SearchPage: React.FC = () => {
       const response = await api.get('/vacancies', { params: cleanFilters });
       // Handle the API response structure
       const vacanciesData = response.data.vacancies || response.data;
-      setVacancies(Array.isArray(vacanciesData) ? vacanciesData : []);
+      const safeVacancies = Array.isArray(vacanciesData) ? vacanciesData : [];
+
+      if (isGuest) {
+        setVacancies(
+          safeVacancies.map((vacancy: TeamVacancy) => ({
+            ...vacancy,
+            description: 'Sign up to view full vacancy details and interact with this team.',
+            location: toGuestLocationLabel(vacancy.location || ''),
+            firstName: '',
+            lastName: '',
+            contactInfo: undefined
+          }))
+        );
+      } else {
+        setVacancies(safeVacancies);
+      }
     } catch (err) {
       console.error('Error fetching vacancies:', err);
       setError('Failed to load team vacancies');
@@ -879,7 +902,8 @@ const SearchPage: React.FC = () => {
         Object.entries(apiFilters).filter(([_, value]) => value !== undefined && value !== '')
       );
       
-      const response = await api.get('/player-availability', { params: cleanFilters });
+      const endpoint = isGuest ? '/public/player-availability' : '/player-availability';
+      const response = await api.get(endpoint, { params: cleanFilters });
       // Handle the API response structure
       const playersData = response.data.players || response.data;
       
@@ -888,54 +912,22 @@ const SearchPage: React.FC = () => {
         id: player.id,
         playerId: player.id, // playerId matches id
         userId: player.userId || player.id, // Add userId field
-        playerName: `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Unknown Player',
-        firstName: player.firstName || '',
-        lastName: player.lastName || '',
+        playerName: isGuest ? 'Player Profile' : `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Unknown Player',
+        firstName: isGuest ? '' : (player.firstName || ''),
+        lastName: isGuest ? '' : (player.lastName || ''),
         age: typeof player.age === 'number' ? player.age : 0,
         position: Array.isArray(player.positions) ? player.positions.join(', ') : (player.position || 'Any Position'),
         positions: Array.isArray(player.positions) ? player.positions : [player.position || 'Any Position'],
-        location: player.location || '',
+        location: isGuest ? toGuestLocationLabel(player.location || '') : (player.location || ''),
         experience: player.experience || 'Unknown',
-        description: player.description || player.title || '',
-        title: player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available',
+        description: isGuest ? 'Sign up to view full player details and send messages.' : (player.description || player.title || ''),
+        title: isGuest ? 'Player Profile' : (player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available'),
         createdAt: player.createdAt || player.created_at })) : [];
       
       setPlayerAvailability(transformedPlayers);
     } catch (err) {
       console.error('Error fetching player availability:', err);
-      // Keep mock data as fallback for now
-      setPlayerAvailability([
-        {
-          id: 1,
-          playerId: 1,
-          userId: 1,
-          playerName: 'James Wilson',
-          firstName: 'James',
-          lastName: 'Wilson',
-          age: 17,
-          position: 'Central Midfielder',
-          positions: ['Central Midfielder'],
-          location: 'London, UK',
-          experience: '8 years',
-          title: 'Looking for competitive team',
-          description: 'Experienced central midfielder with excellent passing and vision.',
-          createdAt: new Date().toISOString() },
-        {
-          id: 2,
-          playerId: 2,
-          userId: 2,
-          playerName: 'Alex Thompson',
-          firstName: 'Alex',
-          lastName: 'Thompson',
-          age: 15,
-          position: 'Striker',
-          positions: ['Striker'],
-          location: 'Leeds, UK',
-          experience: '3 years',
-          title: 'Seeking striker position',
-          description: 'Fast and aggressive striker seeking opportunities in competitive league.',
-          createdAt: new Date(Date.now() - 86400000).toISOString() },
-      ]);
+      setPlayerAvailability([]);
     } finally {
       setLoading(false);
     }
@@ -997,6 +989,7 @@ const SearchPage: React.FC = () => {
     filters.trainingFrequency,
     filters.availability,
     filters.coachingLicense,
+    isGuest,
   ]);
 
   // Age groups and team gender options
@@ -1431,41 +1424,77 @@ const SearchPage: React.FC = () => {
         subtitle={user?.role === 'Coach' ? 'Browse player availability in your area' : user?.role ? 'Find teams looking for your skills' : 'Find teams and players that match your goals'}
         icon={<Search sx={{ fontSize: 32 }} />}
         actions={(
-          <>
-            <Button
-              variant="outlined"
-              startIcon={<BookmarkIcon />}
-              onClick={() => setSavedSearchesOpen(true)}
-              sx={{
-                borderColor: 'rgba(255,255,255,0.6)',
-                color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
-            >
-              Saved Searches
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<BookmarkIcon />}
-              onClick={() => setSavedAdsOpen(true)}
-              sx={{
-                borderColor: 'rgba(255,255,255,0.6)',
-                color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
-            >
-              Saved Ads
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<MapIcon />}
-              onClick={() => navigate('/maps')}
-              sx={{
-                borderColor: 'rgba(255,255,255,0.6)',
-                color: 'white',
-                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
-            >
-              Map Search
-            </Button>
-          </>
+          isGuest ? (
+            <>
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/login')}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  color: 'white',
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
+              >
+                Log in
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => navigate('/register')}
+                sx={{
+                  bgcolor: 'white',
+                  color: 'primary.main',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' } }}
+              >
+                Sign up for full access
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<MapIcon />}
+                onClick={() => navigate('/maps')}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  color: 'white',
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
+              >
+                Map Search
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<BookmarkIcon />}
+                onClick={() => setSavedSearchesOpen(true)}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  color: 'white',
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
+              >
+                Saved Searches
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<BookmarkIcon />}
+                onClick={() => setSavedAdsOpen(true)}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  color: 'white',
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
+              >
+                Saved Ads
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<MapIcon />}
+                onClick={() => navigate('/maps')}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.6)',
+                  color: 'white',
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}
+              >
+                Map Search
+              </Button>
+            </>
+          )
         )}
       />
       <Container maxWidth="lg">
@@ -1489,6 +1518,25 @@ const SearchPage: React.FC = () => {
           />
         </Tabs>
       </Box>
+
+      {isGuest && (
+        <Alert
+          severity="info"
+          sx={{ mb: 3 }}
+          action={
+            <Stack direction="row" spacing={1}>
+              <Button color="inherit" size="small" variant="outlined" onClick={() => navigate('/login')}>
+                Log in
+              </Button>
+              <Button color="inherit" size="small" variant="contained" onClick={() => navigate('/register')}>
+                Sign up
+              </Button>
+            </Stack>
+          }
+        >
+          Guest mode: you can search and preview opportunities. Sign up to unlock full profiles, full descriptions, and messaging.
+        </Alert>
+      )}
 
       {isMobile && (
         <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
@@ -2793,16 +2841,20 @@ const SearchPage: React.FC = () => {
                               </Typography>
                             </Box>
                             <Typography variant="body2" color="text.secondary">
-                              Posted by {(item as TeamVacancy).firstName} {(item as TeamVacancy).lastName} • {formatRelativeDate((item as TeamVacancy).createdAt)}
+                              {isGuest
+                                ? `Posted ${formatRelativeDate((item as TeamVacancy).createdAt)}`
+                                : `Posted by ${(item as TeamVacancy).firstName} ${(item as TeamVacancy).lastName} • ${formatRelativeDate((item as TeamVacancy).createdAt)}`}
                             </Typography>
-                            <Box sx={{ mt: 1 }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Activity: {(activityByAd[`vacancy-${item.id}`]?.views || 0)} views • {(activityByAd[`vacancy-${item.id}`]?.contacts || 0)} contacts
-                                {activityByAd[`vacancy-${item.id}`]?.lastContactedAt && (
-                                  <> • Last contacted {formatRelativeDate(activityByAd[`vacancy-${item.id}`]?.lastContactedAt)}</>
-                                )}
-                              </Typography>
-                            </Box>
+                            {!isGuest && (
+                              <Box sx={{ mt: 1 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  Activity: {(activityByAd[`vacancy-${item.id}`]?.views || 0)} views • {(activityByAd[`vacancy-${item.id}`]?.contacts || 0)} contacts
+                                  {activityByAd[`vacancy-${item.id}`]?.lastContactedAt && (
+                                    <> • Last contacted {formatRelativeDate(activityByAd[`vacancy-${item.id}`]?.lastContactedAt)}</>
+                                  )}
+                                </Typography>
+                              </Box>
+                            )}
                             <Collapse in={expandedCards[`vacancy-${item.id}`]} timeout="auto" unmountOnExit>
                               <Divider sx={{ my: 2 }} />
                               <Typography variant="subtitle2" gutterBottom>
@@ -2890,14 +2942,16 @@ const SearchPage: React.FC = () => {
                                 Posted {formatRelativeDate((item as PlayerAvailability).createdAt as string)}
                               </Typography>
                             )}
-                            <Box sx={{ mt: 1 }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Activity: {(activityByAd[`player-${item.id}`]?.views || 0)} views • {(activityByAd[`player-${item.id}`]?.contacts || 0)} contacts
-                                {activityByAd[`player-${item.id}`]?.lastContactedAt && (
-                                  <> • Last contacted {formatRelativeDate(activityByAd[`player-${item.id}`]?.lastContactedAt)}</>
-                                )}
-                              </Typography>
-                            </Box>
+                            {!isGuest && (
+                              <Box sx={{ mt: 1 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  Activity: {(activityByAd[`player-${item.id}`]?.views || 0)} views • {(activityByAd[`player-${item.id}`]?.contacts || 0)} contacts
+                                  {activityByAd[`player-${item.id}`]?.lastContactedAt && (
+                                    <> • Last contacted {formatRelativeDate(activityByAd[`player-${item.id}`]?.lastContactedAt)}</>
+                                  )}
+                                </Typography>
+                              </Box>
+                            )}
                             <Collapse in={expandedCards[`player-${item.id}`]} timeout="auto" unmountOnExit>
                               <Divider sx={{ my: 2 }} />
                               <Typography variant="subtitle2" gutterBottom>
@@ -2912,23 +2966,35 @@ const SearchPage: React.FC = () => {
                       </CardContent>
                       <CardActions sx={{ px: isMobile ? 2 : 2, pb: isMobile ? 2 : 2, flexWrap: 'wrap', gap: 1 }}>
                         {tabValue === 0 ? (
-                          <Button 
-                            size="small" 
-                            variant="contained"
-                            onClick={() => handleContact(item as TeamVacancy)}
-                          >
-                            Express Interest
-                          </Button>
+                          isGuest ? (
+                            <Button size="small" variant="contained" onClick={() => navigate('/register')}>
+                              Sign up to express interest
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="small" 
+                              variant="contained"
+                              onClick={() => handleContact(item as TeamVacancy)}
+                            >
+                              Express Interest
+                            </Button>
+                          )
                         ) : (
                           <Tooltip title={user?.role === 'Coach' ? '' : 'Only coaches can send training invitations'}>
                             <span>
                               <Button
                                 size="small"
                                 variant="contained"
-                                disabled={user?.role !== 'Coach'}
-                                onClick={() => handleSendTrainingInvite(item as PlayerAvailability)}
+                                disabled={isGuest || user?.role !== 'Coach'}
+                                onClick={() => {
+                                  if (isGuest) {
+                                    navigate('/register');
+                                    return;
+                                  }
+                                  handleSendTrainingInvite(item as PlayerAvailability);
+                                }}
                               >
-                                Send Training Invite
+                                {isGuest ? 'Sign up to interact' : 'Send Training Invite'}
                               </Button>
                             </span>
                           </Tooltip>
@@ -2936,9 +3002,17 @@ const SearchPage: React.FC = () => {
                         <Button
                           size="small"
                           variant="outlined"
-                          onClick={() => toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`)}
+                          onClick={() => {
+                            if (isGuest) {
+                              navigate('/register');
+                              return;
+                            }
+                            toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`);
+                          }}
                         >
-                          {expandedCards[`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`] ? 'Hide Details' : 'View Full Details'}
+                          {isGuest
+                            ? 'Sign up to view full details'
+                            : (expandedCards[`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`] ? 'Hide Details' : 'View Full Details')}
                         </Button>
                         {tabValue === 1 && user?.role === 'Coach' && (
                           <Button 
@@ -2952,13 +3026,15 @@ const SearchPage: React.FC = () => {
                             Add to Trial
                           </Button>
                         )}
-                        <IconButton
-                          size="small"
-                          onClick={() => handleToggleSave(item as any, tabValue === 0 ? 'vacancy' : 'player')}
-                          aria-label={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'Unsave advert' : 'Save advert'}
-                        >
-                          <BookmarkIcon color={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'primary' : 'inherit'} />
-                        </IconButton>
+                        {!isGuest && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleToggleSave(item as any, tabValue === 0 ? 'vacancy' : 'player')}
+                            aria-label={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'Unsave advert' : 'Save advert'}
+                          >
+                            <BookmarkIcon color={savedAds.some((ad) => ad.id === item.id && ad.type === (tabValue === 0 ? 'vacancy' : 'player')) ? 'primary' : 'inherit'} />
+                          </IconButton>
+                        )}
                       </CardActions>
                     </Card>
                   </Grid>
@@ -3000,6 +3076,10 @@ const SearchPage: React.FC = () => {
                               size="small"
                               variant="outlined"
                               onClick={() => {
+                                if (isGuest) {
+                                  navigate('/register');
+                                  return;
+                                }
                                 if (tabValue === 0) {
                                   handleContact(item as TeamVacancy);
                                 } else {
@@ -3007,13 +3087,19 @@ const SearchPage: React.FC = () => {
                                 }
                               }}
                             >
-                              {tabValue === 0 ? 'Express Interest' : 'Send Training Invite'}
+                              {isGuest ? 'Sign up to interact' : (tabValue === 0 ? 'Express Interest' : 'Send Training Invite')}
                             </Button>
                             <Button
                               size="small"
-                              onClick={() => toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`)}
+                              onClick={() => {
+                                if (isGuest) {
+                                  navigate('/register');
+                                  return;
+                                }
+                                toggleExpand(`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`);
+                              }}
                             >
-                              View Full Details
+                              {isGuest ? 'Sign up to view details' : 'View Full Details'}
                             </Button>
                           </CardActions>
                         </Card>

@@ -139,7 +139,7 @@ const HomePage: React.FC = () => {
             lineHeight: 1.2
           }}
         >
-          Find your next opportunity in grassroots football
+          The UK's football transfer network for grassroots players and clubs
         </Typography>
 
         <Typography
@@ -154,7 +154,7 @@ const HomePage: React.FC = () => {
             lineHeight: 1.7
           }}
         >
-          Grassroots Scout connects players, clubs, and teams across local football — helping you move, sign, trial, or recruit at the right level.
+          Join players looking for new clubs and coaches searching for new talent.
         </Typography>
 
         {/* Primary CTAs - Split by Role */}
