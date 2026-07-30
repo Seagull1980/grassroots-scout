@@ -34,12 +34,13 @@ import {
 import { Delete as DeleteIcon, PostAdd as PostAddIcon } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { vacanciesAPI, playerAvailabilityAPI, leaguesAPI, League } from '../services/api';
+import { vacanciesAPI, playerAvailabilityAPI, leaguesAPI, profileAPI, League, UserProfile } from '../services/api';
 import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
 import LocationInput from '../components/LocationInput';
 import LeagueRequestDialog from '../components/LeagueRequestDialog';
 import { Location } from '../types';
 import PageHeader from '../components/PageHeader';
+import { buildAdvertDefaults } from '../utils/onboardingDefaults';
 interface Team {
   id: number;
   teamName: string;
@@ -81,6 +82,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
       return [];
     }
   });
+  const [profileDefaults, setProfileDefaults] = useState<Partial<UserProfile> | null>(null);
   const [draftName, setDraftName] = useState('');
   const [selectedDraftId, setSelectedDraftId] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'info' | 'error' });
@@ -169,6 +171,68 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
       navigate('/login');
     }
   }, [user, isLoading, navigate]);
+
+  useEffect(() => {
+    const loadProfileDefaults = async () => {
+      if (!user) {
+        setProfileDefaults(null);
+        return;
+      }
+
+      try {
+        const response = await profileAPI.get();
+        setProfileDefaults(response.profile || null);
+      } catch {
+        setProfileDefaults(null);
+      }
+    };
+
+    loadProfileDefaults();
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (!user || !profileDefaults) return;
+
+    const resolvedType = initialPostType || (location.pathname === '/post-availability'
+      ? 'availability'
+      : location.pathname === '/post-vacancy'
+        ? 'vacancy'
+        : undefined);
+
+    const isCoach = user.role === 'Coach' || (user.role === 'Admin' && formData.adminPostType === 'vacancy');
+    const defaults = buildAdvertDefaults({
+      role: user.role,
+      profile: profileDefaults,
+      initialPostType: resolvedType,
+      existingFormData: formData,
+    });
+
+    const updates: Partial<typeof formData> = {};
+
+    if (!formData.title && defaults.title) {
+      updates.title = defaults.title;
+    }
+
+    if (!formData.description && defaults.description) {
+      updates.description = defaults.description;
+    }
+
+    if (!formData.location && defaults.location) {
+      updates.location = defaults.location;
+    }
+
+    if (isCoach && !formData.position && defaults.position) {
+      updates.position = defaults.position;
+    }
+
+    if (!isCoach && formData.positions.length === 0 && defaults.positions.length > 0) {
+      updates.positions = defaults.positions;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setFormData((prev) => ({ ...prev, ...updates }));
+    }
+  }, [user, profileDefaults, initialPostType, location.pathname, formData.adminPostType, formData.title, formData.description, formData.location, formData.position, formData.positions.length]);
 
   // Calculate advert quality score (0-100)
   const calculateQualityScore = () => {
@@ -519,6 +583,7 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
 
   const isCoach = user.role === 'Coach' || (user?.role === 'Admin' && formData.adminPostType === 'vacancy');
   const isAdmin = user.role === 'Admin';
+  const showStarterDraftHint = Boolean(profileDefaults && !formData.title && !formData.description && !formData.location && !formData.position && formData.positions.length === 0);
   const pageTitle = isCoach ? 'Post Team Vacancy' : 'Post Player Availability';
   const titlePlaceholder = isCoach ? 'e.g. Striker Wanted - U16 League Team' : 'e.g. Experienced Midfielder Available';
   const descriptionPlaceholder = isCoach 
@@ -641,6 +706,12 @@ const PostAdvertPage: React.FC<PostAdvertPageProps> = ({ initialPostType }) => {
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {typeof error === 'string' ? error : JSON.stringify(error)}
+          </Alert>
+        )}
+
+        {showStarterDraftHint && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            We’ve prefilled a starter draft from your profile details so you can publish faster. You can edit anything before posting.
           </Alert>
         )}
 

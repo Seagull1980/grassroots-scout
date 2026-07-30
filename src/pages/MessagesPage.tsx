@@ -50,8 +50,9 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Conversation, MatchProgress, MatchProgressStage } from '../types';
-import { API_URL } from '../services/api';
+import { API_URL, profileAPI, UserProfile } from '../services/api';
 import PageHeader from '../components/PageHeader';
+import { calculateProfileCompletion } from '../utils/profileActivation';
 import ActionEmptyState from '../components/ActionEmptyState';
 // Simple date formatting utility
 const formatDistanceToNow = (date: Date): string => {
@@ -132,6 +133,7 @@ const MessagesPage: React.FC = () => {
   const [userPrivacySettings, setUserPrivacySettings] = useState<any>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'needsReply'>('all');
+  const [profileCompletion, setProfileCompletion] = useState(0);
 
   const sortedConversations = useMemo(() => {
     const conversationsWithPriority = [...conversations].sort((a, b) => {
@@ -179,6 +181,35 @@ const MessagesPage: React.FC = () => {
       loadPrivacySettings();
     }
   }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
+
+  useEffect(() => {
+    if (!user) {
+      setProfileCompletion(0);
+      return;
+    }
+
+    let active = true;
+
+    const loadProfileCompletion = async () => {
+      try {
+        const response = await profileAPI.get();
+        if (!active) return;
+
+        const profile = response.profile as UserProfile;
+        const completion = calculateProfileCompletion(user.role, profile, { hasChildren: false });
+        setProfileCompletion(completion);
+      } catch {
+        if (active) {
+          setProfileCompletion(0);
+        }
+      }
+    };
+
+    loadProfileCompletion();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.role]);
 
   // Handle incoming state from map search
   useEffect(() => {
@@ -729,6 +760,19 @@ const MessagesPage: React.FC = () => {
         maxWidth="xl"
       />
       <Container maxWidth="xl">
+        {!user ? null : profileCompletion > 0 && profileCompletion < 70 && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button color="inherit" size="small" variant="outlined" onClick={() => navigate('/profile')}>
+                Complete profile
+              </Button>
+            }
+          >
+            Your profile is {profileCompletion}% complete. Add a few details so conversations feel warmer and more relevant.
+          </Alert>
+        )}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>

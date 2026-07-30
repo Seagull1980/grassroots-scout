@@ -27,6 +27,7 @@ import { useAnalytics } from '../hooks/useAnalytics';
 import PageHeader from '../components/PageHeader';
 import RoleOnboardingChecklist from '../components/RoleOnboardingChecklist';
 import api, { profileAPI, UserProfile } from '../services/api';
+import { calculateProfileCompletion, getProfileCompletionChecklist } from '../utils/profileActivation';
 
 interface QuickAction {
   title: string;
@@ -43,11 +44,16 @@ const StartHerePage: React.FC = () => {
   const [unreadMessages, setUnreadMessages] = useState<number>(0);
   const [childrenCount, setChildrenCount] = useState<number>(0);
   const [showAllActions, setShowAllActions] = useState<boolean>(false);
+  const [newUserWelcome, setNewUserWelcome] = useState<boolean>(false);
+  const [profileChecklist, setProfileChecklist] = useState(() => getProfileCompletionChecklist('Player'));
 
   if (!user) return null;
 
   useEffect(() => {
     const loadSignals = async () => {
+      const newUserFlag = localStorage.getItem(`new_user_${user.id}`) === 'true';
+      setNewUserWelcome(newUserFlag);
+
       const childrenRequest = user.role === 'Parent/Guardian'
         ? api.get('/children')
         : Promise.resolve({ data: { children: [] } });
@@ -60,16 +66,12 @@ const StartHerePage: React.FC = () => {
 
       if (profileResult.status === 'fulfilled') {
         const profile: UserProfile = profileResult.value.profile;
-        const baseFields = [profile.firstname, profile.lastname, profile.dateofbirth, profile.location, profile.bio];
-        const roleFields =
-          user.role === 'Player'
-            ? [profile.position, profile.preferredfoot, profile.experiencelevel]
-            : user.role === 'Coach'
-              ? [profile.coachinglicense?.length ? 'ok' : '', profile.yearsexperience, profile.teamname]
-              : [];
-        const allFields = [...baseFields, ...roleFields];
-        const filledFields = allFields.filter((field) => field !== undefined && field !== null && field !== '').length;
-        const completion = Math.round((filledFields / allFields.length) * 100);
+        const resolvedChildrenCount = childrenResult.status === 'fulfilled'
+          ? (Array.isArray(childrenResult.value.data?.children) ? childrenResult.value.data.children.length : 0)
+          : 0;
+        const checklist = getProfileCompletionChecklist(user.role, profile, { hasChildren: resolvedChildrenCount > 0 });
+        const completion = calculateProfileCompletion(user.role, profile, { hasChildren: resolvedChildrenCount > 0 });
+        setProfileChecklist(checklist);
         setProfileCompletion(completion);
         localStorage.setItem('profile_completion', String(completion));
       } else {
@@ -94,7 +96,7 @@ const StartHerePage: React.FC = () => {
     };
 
     loadSignals();
-  }, [user.role]);
+  }, [user.id, user.role]);
 
   const parentNeedsChildProfile = user.role === 'Parent/Guardian' && childrenCount === 0;
 
@@ -218,6 +220,14 @@ const StartHerePage: React.FC = () => {
   const actions = [...(roleActions[user.role] || []), ...commonActions];
 
   const topPriority = useMemo(() => {
+    if (newUserWelcome) {
+      return {
+        title: 'Welcome aboard — set up your first advert',
+        description: 'You’ve just joined. Start with one clear action so your profile is discoverable and your next steps feel obvious.',
+        actionLabel: user.role === 'Coach' ? 'Post Vacancy' : user.role === 'Parent/Guardian' ? 'Add Child Profile' : 'Post Availability',
+        path: user.role === 'Coach' ? '/post-vacancy' : user.role === 'Parent/Guardian' ? '/children' : '/post-availability' };
+    }
+
     if (profileCompletion > 0 && profileCompletion < 70) {
       return {
         title: 'Complete your profile first',
@@ -271,7 +281,7 @@ const StartHerePage: React.FC = () => {
       description: 'Review moderation and platform health first before doing lower-priority admin tasks.',
       actionLabel: 'Open Admin',
       path: '/admin' };
-  }, [parentNeedsChildProfile, profileCompletion, unreadMessages, user.role]);
+  }, [newUserWelcome, parentNeedsChildProfile, profileCompletion, unreadMessages, user.role]);
 
   const secondaryActions = useMemo(() => {
     return actions.filter((action) => action.path !== topPriority.path).slice(0, 1);
@@ -326,6 +336,12 @@ const StartHerePage: React.FC = () => {
           </Alert>
         )}
 
+        {newUserWelcome && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            Welcome! We’ve highlighted the fastest way to get visible and start receiving interest.
+          </Alert>
+        )}
+
         <Paper
           sx={{
             p: 2.5,
@@ -351,6 +367,48 @@ const StartHerePage: React.FC = () => {
         </Paper>
 
         <RoleOnboardingChecklist role={user.role as 'Coach' | 'Player' | 'Parent/Guardian' | 'Admin'} />
+
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Profile progress
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {profileCompletion < 70
+                    ? `You’re ${profileCompletion}% complete. Finish these next steps to become easier to discover.`
+                    : 'Your profile is looking strong. Keep the momentum going with one more action.'}
+                </Typography>
+              </Box>
+              <Chip color={profileCompletion < 70 ? 'warning' : 'success'} label={`${profileCompletion}% complete`} />
+            </Stack>
+
+            <Stack spacing={1.5}>
+              {profileChecklist.map((item) => (
+                <Paper key={item.id} variant="outlined" sx={{ p: 2, borderColor: item.completed ? 'success.main' : 'divider' }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {item.label}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {item.description}
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant={item.completed ? 'outlined' : 'contained'}
+                      size="small"
+                      onClick={() => navigate(item.actionPath)}
+                    >
+                      {item.completed ? 'Review' : item.actionLabel}
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
 
         <Card sx={{ mb: 3 }}>
           <CardContent>

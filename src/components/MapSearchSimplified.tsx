@@ -45,8 +45,9 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { analyticsTracking } from '../services/analyticsTracking';
-import { API_URL } from '../services/api';
+import { API_URL, profileAPI, UserProfile } from '../services/api';
 import { ageGroupMatches } from '../utils/mapFilters';
+import { calculateProfileCompletion } from '../utils/profileActivation';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
 type SortMode = 'relevance' | 'distance' | 'age' | 'recent';
@@ -167,6 +168,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => localStorage.getItem('mapOnboardingDismissed') !== 'true');
   const [clusteredHiddenCount, setClusteredHiddenCount] = useState(0);
+  const [profileCompletion, setProfileCompletion] = useState(0);
   const [selectedResultKey, setSelectedResultKey] = useState<string | null>(null);
   const [pulsingResultKey, setPulsingResultKey] = useState<string | null>(null);
   const [mapCenter] = useState<google.maps.LatLngLiteral>(() => getInitialMapCenter());
@@ -282,6 +284,34 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
     return Array.from(aliasSet).some(alias => resultNorm.includes(alias) || alias.includes(resultNorm));
   };
+
+  useEffect(() => {
+    if (!user) {
+      setProfileCompletion(0);
+      return;
+    }
+
+    let active = true;
+
+    const loadProfileCompletion = async () => {
+      try {
+        const response = await profileAPI.get();
+        if (!active) return;
+
+        const profile = response.profile as UserProfile;
+        setProfileCompletion(calculateProfileCompletion(user.role, profile, { hasChildren: false }));
+      } catch {
+        if (active) {
+          setProfileCompletion(0);
+        }
+      }
+    };
+
+    loadProfileCompletion();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1274,6 +1304,20 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               }
             >
               Guest mode: you can browse map matches with limited detail. Sign up to unlock full profiles, full descriptions, and messaging.
+            </Alert>
+          )}
+
+          {!isGuest && profileCompletion > 0 && profileCompletion < 70 && (
+            <Alert
+              severity="info"
+              sx={{ py: 0.5 }}
+              action={
+                <Button color="inherit" size="small" variant="outlined" onClick={() => navigate('/profile')}>
+                  Complete profile
+                </Button>
+              }
+            >
+              Your profile is {profileCompletion}% complete. Add a few details so map matches feel more relevant.
             </Alert>
           )}
 

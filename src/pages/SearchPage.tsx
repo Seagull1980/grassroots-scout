@@ -65,8 +65,9 @@ import {
   Folder,
   Add,
   Clear } from '@mui/icons-material';
-import api, { leaguesAPI, League } from '../services/api';
+import api, { leaguesAPI, League, profileAPI, UserProfile } from '../services/api';
 import { useDebounce } from '../utils/performance';
+import { calculateProfileCompletion } from '../utils/profileActivation';
 import QuickMatchCompletion from '../components/QuickMatchCompletion';
 // import TrainingInviteDialog from '../components/TrainingInviteDialog'; // Temporarily disabled
 import QuickAddToTrialDialog from '../components/QuickAddToTrialDialog';
@@ -256,8 +257,38 @@ const SearchPage: React.FC = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!user) {
+      setProfileCompletion(0);
+      return;
+    }
+
+    let active = true;
+
+    const loadProfileCompletion = async () => {
+      try {
+        const response = await profileAPI.get();
+        if (!active) return;
+
+        const profile = response.profile as UserProfile;
+        const completion = calculateProfileCompletion(user.role, profile, { hasChildren: false });
+        setProfileCompletion(completion);
+      } catch {
+        if (active) {
+          setProfileCompletion(0);
+        }
+      }
+    };
+
+    loadProfileCompletion();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.role]);
+
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [profileCompletion, setProfileCompletion] = useState(0);
   const [quickMatchMode, setQuickMatchMode] = useState(true);
   const [page, setPage] = useState(1);
   const [vacancies, setVacancies] = useState<TeamVacancy[]>([]);
@@ -1535,6 +1566,20 @@ const SearchPage: React.FC = () => {
           }
         >
           Guest mode: you can search and preview opportunities. Sign up to unlock full profiles, full descriptions, and messaging.
+        </Alert>
+      )}
+
+      {!isGuest && profileCompletion > 0 && profileCompletion < 70 && (
+        <Alert
+          severity="info"
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" variant="outlined" onClick={() => navigate('/profile')}>
+              Complete profile
+            </Button>
+          }
+        >
+          Your profile is {profileCompletion}% complete. Add a few key details so the right opportunities feel more relevant.
         </Alert>
       )}
 
