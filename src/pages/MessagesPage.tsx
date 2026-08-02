@@ -130,7 +130,6 @@ const MessagesPage: React.FC = () => {
   const [reporting, setReporting] = useState(false);
   const [blockMenuAnchor, setBlockMenuAnchor] = useState<null | HTMLElement>(null);
   const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
-  const [userPrivacySettings, setUserPrivacySettings] = useState<any>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'needsReply'>('all');
   const [profileCompletion, setProfileCompletion] = useState(0);
@@ -178,7 +177,6 @@ const MessagesPage: React.FC = () => {
     if (user) {
       loadConversations();
       loadMatchProgress();
-      loadPrivacySettings();
     }
   }, [user?.id]); // Only reload when user ID changes (login/logout), not on every user object update
 
@@ -285,21 +283,6 @@ const MessagesPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load match progress:', error);
-    }
-  };
-
-  // P2: Load user privacy settings for anonymous name display
-  const loadPrivacySettings = async () => {
-    try {
-      const response = await fetch(`${API_URL}/users/privacy-settings`, {
-        headers: {}
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUserPrivacySettings(data.settings);
-      }
-    } catch (error) {
-      console.error('Failed to load privacy settings:', error);
     }
   };
 
@@ -614,10 +597,7 @@ const MessagesPage: React.FC = () => {
   // P2: Helper function to get display name (respecting anonymity)
   const getDisplayName = (firstName: string, lastName: string, isCurrentUser: boolean) => {
     if (isCurrentUser) return 'You';
-    if (userPrivacySettings?.useAnonymousName && userPrivacySettings?.anonymousDisplayName) {
-      return userPrivacySettings.anonymousDisplayName;
-    }
-    return `${firstName} ${lastName}`;
+    return `${firstName} ${lastName}`.trim() || 'Member';
   };
 
   const getStageIcon = (stage: MatchProgressStage) => {

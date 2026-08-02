@@ -20,6 +20,13 @@ const alertService = require('./services/alertService');
 const cronService = require('./services/cronService');
 const adminKpiReportService = require('./services/adminKpiReportService.cjs');
 const {
+  VALID_MATCH_PROGRESS_STAGES,
+  matchProgressStageLabels,
+  parseConversationParticipants,
+  deriveMatchProgressStage,
+  isRoleAllowedByRecipientPrefs
+} = require('./utils/messagingHelpers');
+const {
   generalLimiter,
   authLimiter,
   sanitizeRequest,
@@ -4490,75 +4497,197 @@ app.get('/api/success-stories', async (req, res) => {
 // Get user's conversations
 app.get('/api/conversations', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
-    
-    // Get conversations where user is a participant
+    const userId = parseInt(req.user.userId, 10);
+
     const conversationsResult = await db.query(`
       WITH participant_pairs AS (
         SELECT
-          CASE WHEN m1.senderId < m1.recipientId THEN m1.senderId ELSE m1.recipientId END as participantA,
-          CASE WHEN m1.senderId < m1.recipientId THEN m1.recipientId ELSE m1.senderId END as participantB,
-          MAX(m1.createdAt) as lastMessageTime,
-          COUNT(CASE WHEN m1.recipientId = ? AND m1.isRead = false THEN 1 END) as unreadCount
-        FROM messages m1
-        WHERE m1.senderId = ? OR m1.recipientId = ?
+          CASE WHEN m.senderId < m.recipientId THEN m.senderId ELSE m.recipientId END as participantA,
+          CASE WHEN m.senderId < m.recipientId THEN m.recipientId ELSE m.senderId END as participantB,
+          MAX(m.createdAt) as lastMessageTime,
+          COUNT(
+            CASE
+              WHEN m.recipientId = ? AND m.isRead = false AND COALESCE(m.isDeleted, false) = false
+              THEN 1
+            END
+          ) as unreadCount
+        FROM messages m
+        WHERE m.senderId = ? OR m.recipientId = ?
         GROUP BY 1, 2
+      ),
+      messages_with_pairs AS (
+        SELECT
+          m.*,
+          CASE WHEN m.senderId < m.recipientId THEN m.senderId ELSE m.recipientId END as participantA,
+          CASE WHEN m.senderId < m.recipientId THEN m.recipientId ELSE m.senderId END as participantB
+        FROM messages m
+        WHERE m.senderId = ? OR m.recipientId = ?
+      ),
+      latest_messages AS (
+        SELECT * FROM (
+          SELECT
+            mwp.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY mwp.participantA, mwp.participantB
+              ORDER BY mwp.createdAt DESC
+            ) as rn
+          FROM messages_with_pairs mwp
+        ) ranked
+        WHERE ranked.rn = 1
+      ),
+      latest_visible_messages AS (
+        SELECT * FROM (
+          SELECT
+            mwp.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY mwp.participantA, mwp.participantB
+              ORDER BY mwp.createdAt DESC
+            ) as rn
+          FROM messages_with_pairs mwp
+          WHERE COALESCE(mwp.isDeleted, false) = false
+        ) ranked
+        WHERE ranked.rn = 1
+      ),
+      latest_match_updates AS (
+        SELECT * FROM (
+          SELECT
+            mwp.participantA,
+            mwp.participantB,
+            mwp.subject,
+            mwp.message,
+            mwp.createdAt,
+            ROW_NUMBER() OVER (
+              PARTITION BY mwp.participantA, mwp.participantB
+              ORDER BY mwp.createdAt DESC
+            ) as rn
+          FROM messages_with_pairs mwp
+          WHERE mwp.messageType = 'match_update'
+        ) ranked
+        WHERE ranked.rn = 1
       )
       SELECT
-        CASE WHEN participantA = ? THEN participantB ELSE participantA END as otherUserId,
-        lastMessageTime,
-        unreadCount
-      FROM participant_pairs
-      ORDER BY lastMessageTime DESC
-    `, [userId, userId, userId, userId]);
+        pp.participantA,
+        pp.participantB,
+        CASE WHEN pp.participantA = ? THEN pp.participantB ELSE pp.participantA END as otherUserId,
+        pp.lastMessageTime,
+        pp.unreadCount,
+        u.role as otherUserRole,
+        CASE
+          WHEN ups.useAnonymousName = TRUE AND COALESCE(ups.anonymousDisplayName, '') != ''
+          THEN ups.anonymousDisplayName
+          ELSE u.firstName
+        END as otherFirstName,
+        CASE
+          WHEN ups.useAnonymousName = TRUE AND COALESCE(ups.anonymousDisplayName, '') != ''
+          THEN ''
+          ELSE u.lastName
+        END as otherLastName,
+        lm.id as latestMessageId,
+        lm.senderId as latestSenderId,
+        lm.recipientId as latestRecipientId,
+        lm.subject as latestSubject,
+        lm.message as latestBody,
+        lm.messageType as latestMessageType,
+        lm.relatedVacancyId as latestRelatedVacancyId,
+        lm.relatedPlayerAvailabilityId as latestRelatedPlayerAvailabilityId,
+        lm.relatedChildDisplayName as latestRelatedChildDisplayName,
+        lm.isRead as latestIsRead,
+        lm.isDeleted as latestIsDeleted,
+        lm.deletedReason as latestDeletedReason,
+        lm.createdAt as latestCreatedAt,
+        lvm.id as visibleMessageId,
+        lvm.senderId as visibleSenderId,
+        lvm.recipientId as visibleRecipientId,
+        lvm.subject as visibleSubject,
+        lvm.message as visibleBody,
+        lvm.messageType as visibleMessageType,
+        lvm.relatedVacancyId as visibleRelatedVacancyId,
+        lvm.relatedPlayerAvailabilityId as visibleRelatedPlayerAvailabilityId,
+        lvm.relatedChildDisplayName as visibleRelatedChildDisplayName,
+        lvm.isRead as visibleIsRead,
+        lvm.isDeleted as visibleIsDeleted,
+        lvm.deletedReason as visibleDeletedReason,
+        lvm.createdAt as visibleCreatedAt,
+        lmu.subject as latestMatchUpdateSubject,
+        lmu.message as latestMatchUpdateBody,
+        lmu.createdAt as latestMatchUpdateCreatedAt
+      FROM participant_pairs pp
+      JOIN latest_messages lm ON lm.participantA = pp.participantA AND lm.participantB = pp.participantB
+      LEFT JOIN latest_visible_messages lvm ON lvm.participantA = pp.participantA AND lvm.participantB = pp.participantB
+      LEFT JOIN latest_match_updates lmu ON lmu.participantA = pp.participantA AND lmu.participantB = pp.participantB
+      JOIN users u ON u.id = CASE WHEN pp.participantA = ? THEN pp.participantB ELSE pp.participantA END
+      LEFT JOIN user_privacy_settings ups ON ups.userId = u.id
+      ORDER BY pp.lastMessageTime DESC
+    `, [userId, userId, userId, userId, userId, userId, userId]);
 
-    const conversations = [];
-    
-    for (const conv of conversationsResult.rows) {
-      // Get other participant details
-      const otherUserResult = await db.query(
-        'SELECT id, firstName, lastName, role FROM users WHERE id = ?',
-        [conv.otherUserId]
-      );
-      
-      // Get latest message
-      const latestMessageResult = await db.query(`
-        SELECT * FROM messages 
-        WHERE (senderId = ? AND recipientId = ?) OR (senderId = ? AND recipientId = ?)
-        ORDER BY createdAt DESC LIMIT 1
-      `, [userId, conv.otherUserId, conv.otherUserId, userId]);
+    const conversations = (conversationsResult.rows || []).map((conv) => {
+      const latestMessage = {
+        id: conv.latestMessageId,
+        senderId: conv.latestSenderId,
+        recipientId: conv.latestRecipientId,
+        subject: conv.latestSubject,
+        message: conv.latestBody,
+        messageType: conv.latestMessageType,
+        relatedVacancyId: conv.latestRelatedVacancyId,
+        relatedPlayerAvailabilityId: conv.latestRelatedPlayerAvailabilityId,
+        relatedChildDisplayName: conv.latestRelatedChildDisplayName,
+        isRead: conv.latestIsRead,
+        isDeleted: conv.latestIsDeleted,
+        deletedReason: conv.latestDeletedReason,
+        createdAt: conv.latestCreatedAt
+      };
 
-      if (otherUserResult.rows.length > 0 && latestMessageResult.rows.length > 0) {
-        const otherUser = otherUserResult.rows[0];
-        const latestMessage = latestMessageResult.rows[0];
-        
-        // Determine match progress stage based on message content and related data
-        let matchProgressStage = 'initial_interest';
-        if (latestMessage.messageType === 'training_invitation') {
-          matchProgressStage = 'trial_invited';
-        } else if (typeof latestMessage.message === 'string' && latestMessage.message.toLowerCase().includes('trial')) {
-          matchProgressStage = 'trial_scheduled';
-        }
+      const latestVisibleMessage = conv.visibleMessageId
+        ? {
+            id: conv.visibleMessageId,
+            senderId: conv.visibleSenderId,
+            recipientId: conv.visibleRecipientId,
+            subject: conv.visibleSubject,
+            message: conv.visibleBody,
+            messageType: conv.visibleMessageType,
+            relatedVacancyId: conv.visibleRelatedVacancyId,
+            relatedPlayerAvailabilityId: conv.visibleRelatedPlayerAvailabilityId,
+            relatedChildDisplayName: conv.visibleRelatedChildDisplayName,
+            isRead: conv.visibleIsRead,
+            isDeleted: conv.visibleIsDeleted,
+            deletedReason: conv.visibleDeletedReason,
+            createdAt: conv.visibleCreatedAt
+          }
+        : null;
 
-        conversations.push({
-          id: `${Math.min(userId, conv.otherUserId)}_${Math.max(userId, conv.otherUserId)}`,
-          participantIds: [userId, conv.otherUserId],
-          participants: [
-            {
-              userId: otherUser.id,
-              firstName: otherUser.firstName,
-              lastName: otherUser.lastName,
-              role: otherUser.role
-            }
-          ],
-          latestMessage: latestMessage,
-          unreadCount: conv.unreadCount || 0,
-          matchProgressStage: matchProgressStage,
-          createdAt: latestMessage.createdAt,
-          updatedAt: latestMessage.createdAt
-        });
-      }
-    }
+      const previewMessage = latestVisibleMessage || {
+        ...latestMessage,
+        message: '[Message deleted]',
+        isDeleted: true,
+        deletedReason: latestMessage.deletedReason || 'Message deleted'
+      };
+
+      const latestMatchUpdateMessage = conv.latestMatchUpdateSubject
+        ? {
+            subject: conv.latestMatchUpdateSubject,
+            message: conv.latestMatchUpdateBody,
+            createdAt: conv.latestMatchUpdateCreatedAt
+          }
+        : null;
+
+      return {
+        id: `${Math.min(userId, conv.otherUserId)}_${Math.max(userId, conv.otherUserId)}`,
+        participantIds: [String(userId), String(conv.otherUserId)],
+        participants: [
+          {
+            userId: String(conv.otherUserId),
+            firstName: conv.otherFirstName,
+            lastName: conv.otherLastName,
+            role: conv.otherUserRole
+          }
+        ],
+        latestMessage: previewMessage,
+        unreadCount: conv.unreadCount || 0,
+        matchProgressStage: deriveMatchProgressStage(latestMatchUpdateMessage, latestMessage),
+        createdAt: latestMessage.createdAt,
+        updatedAt: latestMessage.createdAt
+      };
+    });
 
     res.json({ conversations });
   } catch (error) {
@@ -4570,24 +4699,33 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
 // Get messages in a conversation
 app.get('/api/conversations/:conversationId/messages', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = parseInt(req.user.userId, 10);
     const { conversationId } = req.params;
     
     // Parse conversation ID to get participant IDs
-    const participantIds = conversationId.split('_').map(id => parseInt(id));
+    const participantIds = parseConversationParticipants(conversationId);
     
-    if (!participantIds.includes(parseInt(userId))) {
+    if (!participantIds || !participantIds.includes(userId)) {
       return res.status(403).json({ error: 'Access denied to this conversation' });
     }
     
-    const otherUserId = participantIds.find(id => id !== parseInt(userId));
+    const otherUserId = participantIds.find(id => id !== userId);
     
     const messagesResult = await db.query(`
       SELECT m.*, 
-             sender.firstName as senderFirstName, 
-             sender.lastName as senderLastName
+             CASE
+               WHEN senderPrivacy.useAnonymousName = TRUE AND COALESCE(senderPrivacy.anonymousDisplayName, '') != ''
+               THEN senderPrivacy.anonymousDisplayName
+               ELSE sender.firstName
+             END as senderFirstName,
+             CASE
+               WHEN senderPrivacy.useAnonymousName = TRUE AND COALESCE(senderPrivacy.anonymousDisplayName, '') != ''
+               THEN ''
+               ELSE sender.lastName
+             END as senderLastName
       FROM messages m
       JOIN users sender ON m.senderId = sender.id
+      LEFT JOIN user_privacy_settings senderPrivacy ON senderPrivacy.userId = sender.id
       WHERE (m.senderId = ? AND m.recipientId = ?) OR (m.senderId = ? AND m.recipientId = ?)
       ORDER BY m.createdAt ASC
     `, [userId, otherUserId, otherUserId, userId]);
@@ -4608,6 +4746,67 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   } catch (error) {
     console.error('Get conversation messages error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update conversation match progress stage
+app.patch('/api/conversations/:conversationId/status', authenticateToken, [
+  body('matchProgressStage')
+    .isString()
+    .custom((value) => VALID_MATCH_PROGRESS_STAGES.includes(value))
+    .withMessage('Valid match progress stage required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const userId = parseInt(req.user.userId, 10);
+    const { conversationId } = req.params;
+    const { matchProgressStage } = req.body;
+    const participantIds = parseConversationParticipants(conversationId);
+
+    if (!participantIds || !participantIds.includes(userId)) {
+      return res.status(403).json({ error: 'Access denied to this conversation' });
+    }
+
+    const otherUserId = participantIds.find(id => id !== userId);
+    if (!otherUserId) {
+      return res.status(400).json({ error: 'Invalid conversation participants' });
+    }
+
+    const conversationExists = await db.query(
+      `SELECT id FROM messages
+       WHERE (senderId = ? AND recipientId = ?) OR (senderId = ? AND recipientId = ?)
+       LIMIT 1`,
+      [userId, otherUserId, otherUserId, userId]
+    );
+
+    if (!conversationExists.rows || conversationExists.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const stageLabel = matchProgressStageLabels[matchProgressStage] || 'Status Updated';
+    await db.query(
+      `INSERT INTO messages (senderId, recipientId, subject, message, messageType, isRead)
+       VALUES (?, ?, ?, ?, 'match_update', false)`,
+      [
+        userId,
+        otherUserId,
+        `Match stage update:${matchProgressStage}`,
+        `Conversation status updated to ${stageLabel}.`
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Conversation status updated successfully',
+      matchProgressStage
+    });
+  } catch (error) {
+    console.error('Update conversation status error:', error);
+    res.status(500).json({ error: 'Failed to update conversation status' });
   }
 });
 
@@ -4640,13 +4839,58 @@ app.post('/api/messages', authenticateToken, messageLimiter, [
       return res.status(400).json({ error: 'Recipient ID is required' });
     }
 
-    // P0 SAFEGUARD: Check if recipient is blocked by sender
-    const blockCheck = await db.query(
+    const recipientIdNumeric = parseInt(actualRecipientId, 10);
+    if (!Number.isInteger(recipientIdNumeric) || recipientIdNumeric <= 0) {
+      return res.status(400).json({ error: 'Valid recipient ID is required' });
+    }
+    actualRecipientId = recipientIdNumeric;
+
+    if (parseInt(senderId, 10) === actualRecipientId) {
+      return res.status(400).json({ error: 'You cannot message yourself' });
+    }
+
+    // P0 SAFEGUARD: Check if sender has blocked recipient
+    const senderBlockCheck = await db.query(
+      'SELECT id FROM user_blocks WHERE blockerId = ? AND blockedUserId = ?',
+      [senderId, actualRecipientId]
+    );
+    if (senderBlockCheck.rows && senderBlockCheck.rows.length > 0) {
+      return res.status(403).json({ error: 'You have blocked this user. Unblock them to send messages.' });
+    }
+
+    // P0 SAFEGUARD: Check if sender is blocked by recipient
+    const recipientBlockCheck = await db.query(
       'SELECT id FROM user_blocks WHERE blockerId = ? AND blockedUserId = ?',
       [actualRecipientId, senderId]
     );
-    if (blockCheck.rows && blockCheck.rows.length > 0) {
-      return res.status(403).json({ error: 'You have blocked this user' });
+    if (recipientBlockCheck.rows && recipientBlockCheck.rows.length > 0) {
+      return res.status(403).json({ error: 'This user is not accepting messages from you' });
+    }
+
+    // Enforce recipient privacy preferences for incoming message roles.
+    const senderAndRecipient = await db.query(
+      `SELECT u.id, u.role,
+              ups.allowsMessagesFromCoaches,
+              ups.allowsMessagesFromPlayers,
+              ups.allowsMessagesFromParents
+       FROM users u
+       LEFT JOIN user_privacy_settings ups ON ups.userId = u.id
+       WHERE u.id IN (?, ?)
+       ORDER BY u.id ASC`,
+      [senderId, actualRecipientId]
+    );
+
+    const senderRow = (senderAndRecipient.rows || []).find(row => parseInt(row.id, 10) === parseInt(senderId, 10));
+    const recipientRow = (senderAndRecipient.rows || []).find(row => parseInt(row.id, 10) === actualRecipientId);
+
+    if (!senderRow || !recipientRow) {
+      return res.status(404).json({ error: 'Sender or recipient not found' });
+    }
+
+    const senderRole = String(senderRow.role || '');
+    const rolePolicyCheck = isRoleAllowedByRecipientPrefs(senderRole, recipientRow);
+    if (!rolePolicyCheck.allowed) {
+      return res.status(403).json({ error: rolePolicyCheck.reason || 'This user is not accepting messages from your role' });
     }
 
     // P0 SAFEGUARD: If this is a child player availability, ensure sender is parent
@@ -12289,10 +12533,18 @@ app.post('/api/messages/:messageId/report', authenticateToken, [
     const reporterId = req.user.userId;
     const { reason, details } = req.body;
 
-    // Check if message exists
-    const messageCheck = await db.query('SELECT id FROM messages WHERE id = ?', [messageId]);
+    // Check if message exists and reporter is a participant
+    const messageCheck = await db.query('SELECT id, senderId, recipientId FROM messages WHERE id = ?', [messageId]);
     if (!messageCheck.rows || messageCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const targetMessage = messageCheck.rows[0];
+    const isParticipant =
+      parseInt(targetMessage.senderId, 10) === parseInt(reporterId, 10) ||
+      parseInt(targetMessage.recipientId, 10) === parseInt(reporterId, 10);
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'You can only report messages from your own conversations' });
     }
 
     // Prevent duplicate reports by same user
