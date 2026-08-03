@@ -40,7 +40,11 @@ const parseConversationParticipants = (conversationId) => {
   return [Math.min(a, b), Math.max(a, b)];
 };
 
-const deriveMatchProgressStage = (latestMatchUpdateMessage, latestMessage) => {
+const deriveMatchProgressStage = (latestMatchUpdateMessage, latestMessage, persistedStatus) => {
+  if (persistedStatus && VALID_MATCH_PROGRESS_STAGES.includes(persistedStatus)) {
+    return persistedStatus;
+  }
+
   if (latestMatchUpdateMessage && latestMatchUpdateMessage.subject) {
     const subjectMatch = String(latestMatchUpdateMessage.subject).match(/match stage update\s*:\s*([a-z_]+)/i);
     const parsedStage = subjectMatch && subjectMatch[1];
@@ -64,10 +68,12 @@ const deriveMatchProgressStage = (latestMatchUpdateMessage, latestMessage) => {
   return 'initial_interest';
 };
 
+const isExplicitlyDisabled = (value) => value === false || value === 0 || value === '0' || value === 'false';
+
 const isRoleAllowedByRecipientPrefs = (senderRole, recipientPrefs) => {
-  const allowFromCoaches = recipientPrefs && recipientPrefs.allowsMessagesFromCoaches !== false;
-  const allowFromPlayers = recipientPrefs && recipientPrefs.allowsMessagesFromPlayers !== false;
-  const allowFromParents = recipientPrefs && recipientPrefs.allowsMessagesFromParents !== false;
+  const allowFromCoaches = !isExplicitlyDisabled(recipientPrefs && recipientPrefs.allowsMessagesFromCoaches);
+  const allowFromPlayers = !isExplicitlyDisabled(recipientPrefs && recipientPrefs.allowsMessagesFromPlayers);
+  const allowFromParents = !isExplicitlyDisabled(recipientPrefs && recipientPrefs.allowsMessagesFromParents);
 
   if (senderRole === 'Coach' && !allowFromCoaches) {
     return { allowed: false, reason: 'This user does not accept messages from coaches' };

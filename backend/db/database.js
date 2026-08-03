@@ -191,7 +191,10 @@ class Database {
     pgSql = pgSql.replace(/BOOLEAN DEFAULT 1/gi, 'BOOLEAN DEFAULT TRUE');
 
     // Convert common SQLite date/time expressions used throughout the backend.
-    pgSql = pgSql.replace(/datetime\(\s*'now'\s*,\s*'-(\d+)\s+(day|days|month|months|year|years|hour|hours)'\s*\)/gi, "NOW() - INTERVAL '$1 $2'");
+    pgSql = pgSql.replace(
+      /datetime\(\s*'now'\s*,\s*'([+-])(\d+)\s+(day|days|month|months|year|years|hour|hours)'\s*\)/gi,
+      (match, sign, amount, unit) => (sign === '-' ? `NOW() - INTERVAL '${amount} ${unit}'` : `NOW() + INTERVAL '${amount} ${unit}'`)
+    );
     pgSql = pgSql.replace(/date\(\s*'now'\s*,\s*'-(\d+)\s+(day|days|month|months|year|years)'\s*\)/gi, "(CURRENT_DATE - INTERVAL '$1 $2')::date");
     pgSql = pgSql.replace(/date\(\s*'now'\s*\)/gi, 'CURRENT_DATE');
     pgSql = pgSql.replace(/date\(\s*'now'\s*,\s*'start of month'\s*,\s*'-(\d+)\s+months'\s*\)/gi, "(date_trunc('month', CURRENT_DATE) - INTERVAL '$1 months')::date");
@@ -530,7 +533,7 @@ class Database {
         status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'rejected')),
         invitationToken VARCHAR UNIQUE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expiresAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP + INTERVAL '7 days',
+        expiresAt TIMESTAMP DEFAULT (datetime('now', '+7 days')),
         respondedAt TIMESTAMP,
         FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE,
         FOREIGN KEY (invitedUserId) REFERENCES users (id) ON DELETE CASCADE,
@@ -848,6 +851,21 @@ class Database {
         FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (relatedVacancyId) REFERENCES team_vacancies (id) ON DELETE SET NULL,
         FOREIGN KEY (relatedPlayerAvailabilityId) REFERENCES player_availability (id) ON DELETE SET NULL
+      )`,
+
+      // Persisted status per two-party conversation (independent of message history)
+      `CREATE TABLE IF NOT EXISTS conversation_status (
+        id SERIAL PRIMARY KEY,
+        participantA INTEGER NOT NULL,
+        participantB INTEGER NOT NULL,
+        status VARCHAR NOT NULL DEFAULT 'initial_interest' CHECK(status IN ('initial_interest', 'dialogue_active', 'trial_invited', 'trial_scheduled', 'trial_completed', 'decision_pending', 'match_confirmed', 'match_declined', 'completed')),
+        updatedBy INTEGER,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(participantA, participantB),
+        FOREIGN KEY (participantA) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (participantB) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (updatedBy) REFERENCES users (id) ON DELETE SET NULL
       )`,
       
       // User-level blocking for more granular control
@@ -1709,6 +1727,55 @@ class Database {
           console.warn('Warning creating child_co_owners table:', err.message);
         }
       }
+
+      // Migration: persisted conversation_status table for messaging progress
+      try {
+        const conversationStatusCheck = this.dbType === 'postgresql'
+          ? `SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'conversation_status')`
+          : `SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_status'`;
+
+        const conversationStatusResult = await this.query(conversationStatusCheck);
+        const hasConversationStatus = this.dbType === 'postgresql'
+          ? conversationStatusResult.rows[0]?.exists
+          : conversationStatusResult.rows?.length > 0;
+
+        if (!hasConversationStatus) {
+          const createConversationStatusSql = this.dbType === 'postgresql'
+            ? `CREATE TABLE conversation_status (
+                id SERIAL PRIMARY KEY,
+                participantA INTEGER NOT NULL,
+                participantB INTEGER NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'initial_interest' CHECK(status IN ('initial_interest', 'dialogue_active', 'trial_invited', 'trial_scheduled', 'trial_completed', 'decision_pending', 'match_confirmed', 'match_declined', 'completed')),
+                updatedBy INTEGER,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(participantA, participantB),
+                FOREIGN KEY (participantA) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (participantB) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (updatedBy) REFERENCES users (id) ON DELETE SET NULL
+              )`
+            : `CREATE TABLE conversation_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                participantA INTEGER NOT NULL,
+                participantB INTEGER NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'initial_interest' CHECK(status IN ('initial_interest', 'dialogue_active', 'trial_invited', 'trial_scheduled', 'trial_completed', 'decision_pending', 'match_confirmed', 'match_declined', 'completed')),
+                updatedBy INTEGER,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(participantA, participantB),
+                FOREIGN KEY (participantA) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (participantB) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (updatedBy) REFERENCES users (id) ON DELETE SET NULL
+              )`;
+
+          await this.query(createConversationStatusSql);
+          console.log('✅ Created conversation_status table');
+        }
+      } catch (err) {
+        if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
+          console.warn('Warning creating conversation_status table:', err.message);
+        }
+      }
     } catch (error) {
       // Only log non-duplicate column errors
       if (!error.message.includes('duplicate column')) {
@@ -1733,6 +1800,8 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipientId)',
       'CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(senderId)',
       'CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(createdAt)',
+      'CREATE INDEX IF NOT EXISTS idx_conversation_status_pair ON conversation_status(participantA, participantB)',
+      'CREATE INDEX IF NOT EXISTS idx_conversation_status_updated ON conversation_status(updatedAt)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_coach ON training_invitations(coachId)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_player ON training_invitations(playerId)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_status ON training_invitations(status)',

@@ -4498,6 +4498,10 @@ app.get('/api/success-stories', async (req, res) => {
 app.get('/api/conversations', authenticateToken, async (req, res) => {
   try {
     const userId = parseInt(req.user.userId, 10);
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const requestedOffset = parseInt(req.query.offset, 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 50)) : 20;
+    const offset = Number.isInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
 
     const conversationsResult = await db.query(`
       WITH participant_pairs AS (
@@ -4571,6 +4575,7 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
         CASE WHEN pp.participantA = ? THEN pp.participantB ELSE pp.participantA END as otherUserId,
         pp.lastMessageTime,
         pp.unreadCount,
+        cs.status as persistedStatus,
         u.role as otherUserRole,
         CASE
           WHEN ups.useAnonymousName = TRUE AND COALESCE(ups.anonymousDisplayName, '') != ''
@@ -4615,10 +4620,26 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
       JOIN latest_messages lm ON lm.participantA = pp.participantA AND lm.participantB = pp.participantB
       LEFT JOIN latest_visible_messages lvm ON lvm.participantA = pp.participantA AND lvm.participantB = pp.participantB
       LEFT JOIN latest_match_updates lmu ON lmu.participantA = pp.participantA AND lmu.participantB = pp.participantB
+      LEFT JOIN conversation_status cs ON cs.participantA = pp.participantA AND cs.participantB = pp.participantB
       JOIN users u ON u.id = CASE WHEN pp.participantA = ? THEN pp.participantB ELSE pp.participantA END
       LEFT JOIN user_privacy_settings ups ON ups.userId = u.id
       ORDER BY pp.lastMessageTime DESC
-    `, [userId, userId, userId, userId, userId, userId, userId]);
+      LIMIT ? OFFSET ?
+    `, [userId, userId, userId, userId, userId, userId, userId, limit, offset]);
+
+    const conversationCountResult = await db.query(`
+      WITH participant_pairs AS (
+        SELECT
+          CASE WHEN m.senderId < m.recipientId THEN m.senderId ELSE m.recipientId END as participantA,
+          CASE WHEN m.senderId < m.recipientId THEN m.recipientId ELSE m.senderId END as participantB
+        FROM messages m
+        WHERE m.senderId = ? OR m.recipientId = ?
+        GROUP BY 1, 2
+      )
+      SELECT COUNT(*) as total FROM participant_pairs
+    `, [userId, userId]);
+
+    const total = conversationCountResult.rows?.[0]?.total || 0;
 
     const conversations = (conversationsResult.rows || []).map((conv) => {
       const latestMessage = {
@@ -4683,13 +4704,21 @@ app.get('/api/conversations', authenticateToken, async (req, res) => {
         ],
         latestMessage: previewMessage,
         unreadCount: conv.unreadCount || 0,
-        matchProgressStage: deriveMatchProgressStage(latestMatchUpdateMessage, latestMessage),
+        matchProgressStage: deriveMatchProgressStage(latestMatchUpdateMessage, latestMessage, conv.persistedStatus),
         createdAt: latestMessage.createdAt,
         updatedAt: latestMessage.createdAt
       };
     });
 
-    res.json({ conversations });
+    res.json({
+      conversations,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + conversations.length < total
+      }
+    });
   } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -4701,6 +4730,10 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
   try {
     const userId = parseInt(req.user.userId, 10);
     const { conversationId } = req.params;
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const requestedOffset = parseInt(req.query.offset, 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 100)) : 50;
+    const offset = Number.isInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
     
     // Parse conversation ID to get participant IDs
     const participantIds = parseConversationParticipants(conversationId);
@@ -4710,6 +4743,13 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
     }
     
     const otherUserId = participantIds.find(id => id !== userId);
+
+    const messageCountResult = await db.query(
+      `SELECT COUNT(*) as total
+       FROM messages m
+       WHERE (m.senderId = ? AND m.recipientId = ?) OR (m.senderId = ? AND m.recipientId = ?)`,
+      [userId, otherUserId, otherUserId, userId]
+    );
     
     const messagesResult = await db.query(`
       SELECT m.*, 
@@ -4728,7 +4768,8 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
       LEFT JOIN user_privacy_settings senderPrivacy ON senderPrivacy.userId = sender.id
       WHERE (m.senderId = ? AND m.recipientId = ?) OR (m.senderId = ? AND m.recipientId = ?)
       ORDER BY m.createdAt ASC
-    `, [userId, otherUserId, otherUserId, userId]);
+      LIMIT ? OFFSET ?
+    `, [userId, otherUserId, otherUserId, userId, limit, offset]);
 
     // Mark messages as read
     await db.query(
@@ -4742,7 +4783,17 @@ app.get('/api/conversations/:conversationId/messages', authenticateToken, async 
       relatedChildDisplayName: msg.relatedChildDisplayName || null
     }));
 
-    res.json({ messages });
+    const total = messageCountResult.rows?.[0]?.total || 0;
+
+    res.json({
+      messages,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + messages.length < total
+      }
+    });
   } catch (error) {
     console.error('Get conversation messages error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -4788,9 +4839,20 @@ app.patch('/api/conversations/:conversationId/status', authenticateToken, [
     }
 
     const stageLabel = matchProgressStageLabels[matchProgressStage] || 'Status Updated';
+    const participantA = Math.min(userId, otherUserId);
+    const participantB = Math.max(userId, otherUserId);
+
+    await db.query(
+      `INSERT INTO conversation_status (participantA, participantB, status, updatedBy, updatedAt)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(participantA, participantB)
+       DO UPDATE SET status = excluded.status, updatedBy = excluded.updatedBy, updatedAt = CURRENT_TIMESTAMP`,
+      [participantA, participantB, matchProgressStage, userId]
+    );
+
     await db.query(
       `INSERT INTO messages (senderId, recipientId, subject, message, messageType, isRead)
-       VALUES (?, ?, ?, ?, 'match_update', false)`,
+       VALUES (?, ?, ?, ?, 'system', false)`,
       [
         userId,
         otherUserId,
@@ -4831,8 +4893,8 @@ app.post('/api/messages', authenticateToken, messageLimiter, [
     
     // If conversationId is provided, extract recipient from it
     if (conversationId && !recipientId) {
-      const participantIds = conversationId.split('_').map(id => parseInt(id));
-      actualRecipientId = participantIds.find(id => id !== parseInt(senderId));
+      const participantIds = parseConversationParticipants(conversationId);
+      actualRecipientId = participantIds ? participantIds.find(id => id !== parseInt(senderId, 10)) : undefined;
     }
     
     if (!actualRecipientId) {

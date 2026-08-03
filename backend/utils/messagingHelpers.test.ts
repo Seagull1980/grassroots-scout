@@ -23,6 +23,16 @@ describe('messaging helpers', () => {
     expect(stage).toBe('decision_pending');
   });
 
+  it('prefers persisted status over message heuristics', () => {
+    const stage = deriveMatchProgressStage(
+      { subject: 'Match stage update:trial_invited' },
+      { messageType: 'general', message: 'trial soon' },
+      'match_confirmed'
+    );
+
+    expect(stage).toBe('match_confirmed');
+  });
+
   it('falls back to heuristics when no explicit stage update exists', () => {
     expect(
       deriveMatchProgressStage(null, { messageType: 'training_invitation', message: 'hello' })

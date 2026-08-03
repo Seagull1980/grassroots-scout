@@ -32,6 +32,7 @@ import {
   RadioGroup,
   FormControlLabel,
   Radio,
+  Snackbar,
   useMediaQuery,
   useTheme
 } from '@mui/material';
@@ -131,8 +132,21 @@ const MessagesPage: React.FC = () => {
   const [blockMenuAnchor, setBlockMenuAnchor] = useState<null | HTMLElement>(null);
   const [blockTargetUserId, setBlockTargetUserId] = useState<string | null>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<string | null>(null);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'needsReply'>('all');
   const [profileCompletion, setProfileCompletion] = useState(0);
+  const [conversationsPagination, setConversationsPagination] = useState({ total: 0, limit: 20, offset: 0, hasMore: false });
+  const [messagesPagination, setMessagesPagination] = useState({ total: 0, limit: 50, offset: 0, hasMore: false });
+  const [messagesLoadingMore, setMessagesLoadingMore] = useState(false);
+  const [notice, setNotice] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+
+  const showNotice = (message: string, severity: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+    setNotice({ open: true, message, severity });
+  };
 
   const sortedConversations = useMemo(() => {
     const conversationsWithPriority = [...conversations].sort((a, b) => {
@@ -256,17 +270,20 @@ const MessagesPage: React.FC = () => {
     navigate(location.pathname, { replace: true, state: {} });
   }, [conversations, location.pathname, location.state, navigate]);
 
-  const loadConversations = async () => {
+  const loadConversations = async (nextOffset = 0, append = false) => {
     try {
-      const response = await fetch(`${API_URL}/conversations`, {
+      const response = await fetch(`${API_URL}/conversations?limit=20&offset=${nextOffset}`, {
         headers: {}
       });
       if (response.ok) {
         const data = await response.json();
-        setConversations(data.conversations || []);
+        const nextConversations = data.conversations || [];
+        setConversations((current) => (append ? [...current, ...nextConversations] : nextConversations));
+        setConversationsPagination(data.pagination || { total: nextConversations.length, limit: 20, offset: nextOffset, hasMore: false });
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
+      showNotice('Failed to load conversations.', 'error');
     } finally {
       setLoading(false);
     }
@@ -308,11 +325,11 @@ const MessagesPage: React.FC = () => {
         await loadMatchProgress();
       } else {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        alert(`Failed to update status: ${error.error || 'Please try again'}`);
+        showNotice(`Failed to update status: ${error.error || 'Please try again'}`, 'error');
       }
     } catch (error) {
       console.error('Failed to update match stage:', error);
-      alert('Failed to update status. Please check your connection.');
+      showNotice('Failed to update status. Please check your connection.', 'error');
     }
   };
 
@@ -351,23 +368,44 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  const loadConversationMessages = async (conversationId: string) => {
+  const loadConversationMessages = async (conversationId: string, nextOffset = 0, append = false) => {
     try {
-      const response = await fetch(`${API_URL}/conversations/${conversationId}/messages`, {
+      if (append) {
+        setMessagesLoadingMore(true);
+      }
+
+      const response = await fetch(`${API_URL}/conversations/${conversationId}/messages?limit=50&offset=${nextOffset}`, {
         headers: {}
       });
       if (response.ok) {
         const data = await response.json();
-        setMessages(data.messages || []);
+        const nextMessages = data.messages || [];
+        setMessages((current) => (append ? [...current, ...nextMessages] : nextMessages));
+        setMessagesPagination(data.pagination || { total: nextMessages.length, limit: 50, offset: nextOffset, hasMore: false });
       }
     } catch (error) {
       console.error('Failed to load conversation messages:', error);
+      showNotice('Failed to load conversation messages.', 'error');
+    } finally {
+      if (append) {
+        setMessagesLoadingMore(false);
+      }
     }
   };
 
   const handleConversationSelect = (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    loadConversationMessages(conversation.id);
+    loadConversationMessages(conversation.id, 0, false);
+  };
+
+  const handleLoadMoreConversations = () => {
+    if (!conversationsPagination.hasMore || loading) return;
+    loadConversations(conversationsPagination.offset + conversationsPagination.limit, true);
+  };
+
+  const handleLoadMoreMessages = () => {
+    if (!selectedConversation || !messagesPagination.hasMore || messagesLoadingMore) return;
+    loadConversationMessages(selectedConversation.id, messagesPagination.offset + messagesPagination.limit, true);
   };
 
   const handleSendReply = async () => {
@@ -379,7 +417,7 @@ const MessagesPage: React.FC = () => {
       // Extract recipient ID from conversation participants
       const otherParticipant = selectedConversation.participants.find(p => p.userId !== user?.id);
       if (!otherParticipant) {
-        alert('Could not find recipient');
+        showNotice('Could not find recipient.', 'error');
         setSending(false);
         return;
       }
@@ -401,14 +439,15 @@ const MessagesPage: React.FC = () => {
         setReplyOpen(false);
         await loadConversationMessages(selectedConversation.id);
         await loadConversations(); // Refresh to update latest message
+        showNotice('Reply sent successfully.', 'success');
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('Failed to send reply:', errorData);
-        alert(`Failed to send message: ${errorData.error || 'Please try again'}`);
+        showNotice(`Failed to send message: ${errorData.error || 'Please try again'}`, 'error');
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      alert('Failed to send message. Please check your connection and try again.');
+      showNotice('Failed to send message. Please check your connection and try again.', 'error');
     } finally {
       setSending(false);
     }
@@ -482,13 +521,15 @@ const MessagesPage: React.FC = () => {
       }
 
       if (failedRecipients.length > 0) {
-        alert(`Sent ${successCount} message${successCount === 1 ? '' : 's'}. Failed for: ${failedRecipients.join(', ')}`);
+        showNotice(`Sent ${successCount} message${successCount === 1 ? '' : 's'}. Failed for: ${failedRecipients.join(', ')}`, 'warning');
       } else if (recipients.length > 1) {
-        alert(`Sent ${successCount} individual messages successfully.`);
+        showNotice(`Sent ${successCount} individual messages successfully.`, 'success');
+      } else if (successCount === 1) {
+        showNotice('Message sent successfully.', 'success');
       }
     } catch (error) {
       console.error('Failed to send new message:', error);
-      alert('Failed to send message. Please check your internet connection and try again.');
+      showNotice('Failed to send message. Please check your internet connection and try again.', 'error');
     } finally {
       setSending(false);
     }
@@ -504,7 +545,7 @@ const MessagesPage: React.FC = () => {
 
   const handleSubmitReport = async () => {
     if (!reportMessageId || !reportReason.trim()) {
-      alert('Please select a reason for reporting');
+      showNotice('Please select a reason for reporting', 'warning');
       return;
     }
 
@@ -525,14 +566,14 @@ const MessagesPage: React.FC = () => {
         setReportMessageId(null);
         setReportReason('');
         setReportDetails('');
-        alert('Thank you for reporting this message. Our moderation team will review it shortly.');
+        showNotice('Thank you for reporting this message. Our moderation team will review it shortly.', 'success');
       } else {
         const error = await response.json();
-        alert(`Failed to report message: ${error.error || 'Please try again'}`);
+        showNotice(`Failed to report message: ${error.error || 'Please try again'}`, 'error');
       }
     } catch (error) {
       console.error('Report error:', error);
-      alert('Failed to report message. Please try again.');
+      showNotice('Failed to report message. Please try again.', 'error');
     } finally {
       setReporting(false);
     }
@@ -553,23 +594,19 @@ const MessagesPage: React.FC = () => {
       if (response.ok) {
         setBlockMenuAnchor(null);
         setBlockTargetUserId(null);
-        alert('User blocked successfully. You will not receive messages from this user.');
+        showNotice('User blocked successfully. You will not receive messages from this user.', 'success');
       } else {
         const error = await response.json();
-        alert(`Failed to block user: ${error.error || 'Please try again'}`);
+        showNotice(`Failed to block user: ${error.error || 'Please try again'}`, 'error');
       }
     } catch (error) {
       console.error('Block error:', error);
-      alert('Failed to block user. Please try again.');
+      showNotice('Failed to block user. Please try again.', 'error');
     }
   };
 
   // P2: Handler for deleting own message
   const handleDeleteMessage = async (messageId: string) => {
-    if (!window.confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
-      return;
-    }
-
     try {
       setDeletingMessageId(messageId);
       const response = await fetch(`${API_URL}/messages/${messageId}`, {
@@ -582,15 +619,17 @@ const MessagesPage: React.FC = () => {
         if (selectedConversation) {
           await loadConversationMessages(selectedConversation.id);
         }
+        showNotice('Message deleted.', 'success');
       } else {
         const error = await response.json();
-        alert(`Failed to delete message: ${error.error || 'Please try again'}`);
+        showNotice(`Failed to delete message: ${error.error || 'Please try again'}`, 'error');
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert('Failed to delete message. Please try again.');
+      showNotice('Failed to delete message. Please try again.', 'error');
     } finally {
       setDeletingMessageId(null);
+      setConfirmDeleteMessageId(null);
     }
   };
 
@@ -781,7 +820,7 @@ const MessagesPage: React.FC = () => {
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                   <Typography variant="h6">Conversations</Typography>
-                  <IconButton onClick={loadConversations} size="small">
+                  <IconButton onClick={() => loadConversations()} size="small">
                     <RefreshIcon />
                   </IconButton>
                 </Box>
@@ -821,6 +860,7 @@ const MessagesPage: React.FC = () => {
                     secondaryAction={{ label: user?.role === 'Coach' ? 'Applications Hub' : 'My Applications', onClick: () => navigate(user?.role === 'Coach' ? '/coach-applications' : '/my-applications') }}
                   />
                 ) : (
+                  <>
                   <List>
                     {sortedConversations.map((conversation) => {
                       const otherParticipant = conversation.participants.find(p => p.userId !== user?.id);
@@ -864,6 +904,14 @@ const MessagesPage: React.FC = () => {
                       );
                     })}
                   </List>
+                  {conversationsPagination.hasMore && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                      <Button size="small" variant="outlined" onClick={handleLoadMoreConversations}>
+                        Load more conversations
+                      </Button>
+                    </Box>
+                  )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1020,7 +1068,7 @@ const MessagesPage: React.FC = () => {
                               {isFromMe && !isDeleted && (
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleDeleteMessage(message.id)}
+                                  onClick={() => setConfirmDeleteMessageId(message.id)}
                                   disabled={deletingMessageId === message.id}
                                   title="Delete this message"
                                   sx={{ mt: -1 }}
@@ -1043,6 +1091,18 @@ const MessagesPage: React.FC = () => {
                           </Paper>
                         );
                       })}
+                      {messagesPagination.hasMore && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', pb: 1 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={handleLoadMoreMessages}
+                            disabled={messagesLoadingMore}
+                          >
+                            {messagesLoadingMore ? 'Loading...' : 'Load older messages'}
+                          </Button>
+                        </Box>
+                      )}
                     </Box>
                   )}
                 </CardContent>
@@ -1351,6 +1411,46 @@ const MessagesPage: React.FC = () => {
           <BlockIcon sx={{ mr: 1 }} /> Block User
         </MenuItem>
       </Menu>
+
+      <Dialog
+        open={!!confirmDeleteMessageId}
+        onClose={() => setConfirmDeleteMessageId(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Message?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteMessageId(null)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => confirmDeleteMessageId && handleDeleteMessage(confirmDeleteMessageId)}
+            disabled={deletingMessageId === confirmDeleteMessageId}
+          >
+            {deletingMessageId === confirmDeleteMessageId ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={notice.open}
+        autoHideDuration={5000}
+        onClose={() => setNotice((current) => ({ ...current, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setNotice((current) => ({ ...current, open: false }))}
+          severity={notice.severity}
+          sx={{ width: '100%' }}
+        >
+          {notice.message}
+        </Alert>
+      </Snackbar>
 
       </Container>
     </Box>
