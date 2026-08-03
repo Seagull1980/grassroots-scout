@@ -2919,6 +2919,366 @@ app.get('/api/public/player-availability', async (req, res) => {
   }
 });
 
+const normalizeMapSearchText = (value) => String(value ?? '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+const parseMapAgeGroupTokens = (value) => {
+  const raw = String(value ?? '').toLowerCase().trim();
+  if (!raw) return [];
+
+  const underMatches = [...raw.matchAll(/(?:u|under)\s*[-]?\s*(\d{1,2})/gi)].map((match) => `u${match[1]}`);
+  if (underMatches.length > 0) {
+    return [...new Set(underMatches)];
+  }
+
+  if (raw.includes('open age') || raw.includes('adult')) return ['adult'];
+  if (raw.includes('veteran')) return ['veterans'];
+
+  const normalized = normalizeMapSearchText(raw);
+  return normalized ? [normalized] : [];
+};
+
+const mapAgeGroupMatches = (selectedAgeGroup, resultAgeGroup) => {
+  const selectedTokens = parseMapAgeGroupTokens(selectedAgeGroup);
+  const resultTokens = parseMapAgeGroupTokens(resultAgeGroup);
+
+  if (selectedTokens.length === 0 || resultTokens.length === 0) return false;
+
+  return selectedTokens.some((selectedToken) =>
+    resultTokens.some((resultToken) =>
+      resultToken === selectedToken ||
+      resultToken.includes(selectedToken) ||
+      selectedToken.includes(resultToken)
+    )
+  );
+};
+
+const parseMapSearchBounds = (query) => {
+  const minLat = Number(query.minLat);
+  const maxLat = Number(query.maxLat);
+  const minLng = Number(query.minLng);
+  const maxLng = Number(query.maxLng);
+
+  if ([minLat, maxLat, minLng, maxLng].every(Number.isFinite)) {
+    return { minLat, maxLat, minLng, maxLng };
+  }
+
+  return null;
+};
+
+const mapResultInBounds = (locationData, bounds) => {
+  if (!bounds) return true;
+  const latitude = Number(locationData?.latitude);
+  const longitude = Number(locationData?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  return latitude >= bounds.minLat && latitude <= bounds.maxLat && longitude >= bounds.minLng && longitude <= bounds.maxLng;
+};
+
+const parseMapPositions = (result) => {
+  if (Array.isArray(result.positions)) return result.positions.filter(Boolean);
+  if (typeof result.positions === 'string' && result.positions.trim()) {
+    try {
+      const parsed = JSON.parse(result.positions);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [result.positions];
+    } catch {
+      return [result.positions];
+    }
+  }
+
+  if (Array.isArray(result.position)) return result.position.filter(Boolean);
+  if (typeof result.position === 'string' && result.position.trim()) {
+    try {
+      const parsed = JSON.parse(result.position);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [result.position];
+    } catch {
+      return [result.position];
+    }
+  }
+
+  return result.preferredPosition ? [result.preferredPosition] : [];
+};
+
+const mapPositionMatches = (selectedPos, resultPos) => {
+  const selectedNorm = normalizeMapSearchText(selectedPos);
+  const resultNorm = normalizeMapSearchText(resultPos);
+  if (!selectedNorm || !resultNorm) return false;
+  return selectedNorm.includes(resultNorm) || resultNorm.includes(selectedNorm);
+};
+
+// Public map discovery endpoint (map-safe fields only)
+app.get('/api/public/map-search', async (req, res) => {
+  try {
+    const searchType = String(req.query.searchType || 'both');
+    const selectedAgeGroup = String(req.query.ageGroup || '').trim();
+    const selectedLeague = String(req.query.league || '').trim().toLowerCase();
+    const selectedPositions = String(req.query.positions || '')
+      .split('|')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const bounds = parseMapSearchBounds(req.query);
+
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const requestedOffset = parseInt(req.query.offset, 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 500)) : 250;
+    const offset = Number.isInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
+
+    const includeVacancies = searchType === 'vacancies' || searchType === 'both';
+    const includePlayers = searchType === 'players' || searchType === 'both';
+    const includeTeamLocations = searchType === 'team-locations' || searchType === 'both';
+
+    let collectedResults = [];
+
+    if (includeVacancies) {
+      const frozenFilterClause = db.dbType === 'postgresql'
+        ? '(tv.isFrozen = FALSE OR tv.isFrozen IS NULL)'
+        : '(tv.isFrozen = 0 OR tv.isFrozen IS NULL)';
+      const expiryFilter = getExpiryComparison('tv.expiresAt');
+
+      const vacanciesResult = await db.query(`
+        SELECT
+          tv.*
+        FROM team_vacancies tv
+        WHERE tv.status = 'active'
+          AND (tv.expiresAt IS NULL OR ${expiryFilter})
+          AND ${frozenFilterClause}
+        ORDER BY tv.createdAt DESC
+      `);
+
+      const vacancies = (vacanciesResult.rows || []).map((row) => {
+        let locationData = null;
+        try {
+          const rawLocationData = row.locationData ?? row.locationdata ?? row.location_data ?? null;
+          locationData = rawLocationData
+            ? (typeof rawLocationData === 'string' ? JSON.parse(rawLocationData) : rawLocationData)
+            : null;
+        } catch {
+          locationData = null;
+        }
+
+        const locationAddress =
+          row.locationAddress ??
+          row.locationaddress ??
+          row.location_address ??
+          row.location ??
+          '';
+        const latitudeRaw = row.locationLatitude ?? row.locationlatitude ?? row.location_latitude ?? row.latitude;
+        const longitudeRaw = row.locationLongitude ?? row.locationlongitude ?? row.location_longitude ?? row.longitude;
+        const latitude = latitudeRaw !== undefined && latitudeRaw !== null ? Number(latitudeRaw) : null;
+        const longitude = longitudeRaw !== undefined && longitudeRaw !== null ? Number(longitudeRaw) : null;
+
+        if (!locationData && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          locationData = {
+            address: locationAddress,
+            latitude,
+            longitude,
+            placeId: row.locationPlaceId ?? row.locationplaceid ?? row.location_place_id ?? null
+          };
+        }
+
+        return {
+          id: row.id,
+          itemType: 'vacancy',
+          title: row.title,
+          description: row.description,
+          league: row.league,
+          ageGroup: row.ageGroup ?? row.agegroup,
+          position: row.position,
+          teamGender: row.teamGender ?? row.teamgender,
+          location: locationAddress,
+          locationData,
+          contactUserId: row.postedBy ?? row.postedby,
+          createdAt: row.createdAt ?? row.createdat,
+          updatedAt: row.updatedAt ?? row.updatedat,
+          status: row.status
+        };
+      });
+
+      collectedResults = collectedResults.concat(vacancies);
+    }
+
+    if (includePlayers) {
+      const expiryFilter = getExpiryComparison('expiresAt');
+      const availabilityResult = await db.query(
+        `SELECT *
+         FROM player_availability
+         WHERE status = ?
+           AND (expiresAt IS NULL OR ${expiryFilter})
+         ORDER BY createdAt DESC`,
+        ['active']
+      );
+
+      const availability = (availabilityResult.rows || []).map((row) => {
+        let preferredLeagues = [];
+        let positions = [];
+
+        try {
+          preferredLeagues = row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [];
+          if (!Array.isArray(preferredLeagues)) preferredLeagues = [row.preferredLeagues];
+        } catch {
+          preferredLeagues = row.preferredLeagues ? [row.preferredLeagues] : [];
+        }
+
+        try {
+          const rawPositions = row.positions ?? row.position;
+          positions = rawPositions ? JSON.parse(rawPositions) : [];
+          if (!Array.isArray(positions)) positions = [rawPositions];
+        } catch {
+          const rawPositions = row.positions ?? row.position;
+          positions = rawPositions ? [rawPositions] : [];
+        }
+
+        const latitudeRaw = row.locationLatitude ?? row.locationlatitude ?? row.location_latitude ?? row.latitude;
+        const longitudeRaw = row.locationLongitude ?? row.locationlongitude ?? row.location_longitude ?? row.longitude;
+        const latitude = latitudeRaw !== undefined && latitudeRaw !== null ? Number(latitudeRaw) : null;
+        const longitude = longitudeRaw !== undefined && longitudeRaw !== null ? Number(longitudeRaw) : null;
+        const hasValidCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+        const locationAddress =
+          row.locationAddress ??
+          row.locationaddress ??
+          row.location_address ??
+          row.location ??
+          '';
+
+        const preferredPosition = row.preferredPosition ?? row.preferredposition ?? row.position ?? '';
+
+        return {
+          id: row.id,
+          itemType: 'player',
+          title: row.title,
+          description: row.description,
+          ageGroup: row.ageGroup ?? row.agegroup,
+          positions,
+          preferredPosition,
+          preferredLeagues,
+          preferredTeamGender: row.preferredTeamGender ?? row.preferredteamgender,
+          location: locationAddress,
+          locationData: hasValidCoordinates
+            ? {
+                address: locationAddress,
+                latitude,
+                longitude,
+                placeId: row.locationPlaceId ?? row.locationplaceid ?? row.location_place_id ?? null
+              }
+            : null,
+          contactUserId: row.postedBy ?? row.postedby,
+          createdAt: row.createdAt ?? row.createdat,
+          updatedAt: row.updatedAt ?? row.updatedat,
+          status: row.status
+        };
+      });
+
+      collectedResults = collectedResults.concat(availability);
+    }
+
+    if (includeTeamLocations) {
+      const teamsResult = await db.query(`
+        SELECT
+          t.id,
+          t.teamname as "teamName",
+          t.clubname as "clubName",
+          t.agegroup as "ageGroup",
+          t.league,
+          t.teamgender as "teamGender",
+          t.location,
+          t.locationdata as "locationData",
+          t.showonteamlocationmap as "showOnTeamLocationMap",
+          t.allowmapcontact as "allowMapContact",
+          t.createdat as "createdAt",
+          tm.userid as "contactUserId"
+        FROM teams t
+        LEFT JOIN team_members tm ON tm.teamId = t.id AND tm.role = 'Head Coach'
+        WHERE t.showOnTeamLocationMap = ?
+        ORDER BY t.createdAt DESC
+      `, [true]);
+
+      const teamLocations = (teamsResult.rows || []).map((row) => {
+        let locationData = null;
+        try {
+          locationData = row.locationData
+            ? (typeof row.locationData === 'string' ? JSON.parse(row.locationData) : row.locationData)
+            : null;
+        } catch {
+          locationData = null;
+        }
+
+        return {
+          id: row.id,
+          itemType: 'team-location',
+          teamName: row.teamName,
+          clubName: row.clubName,
+          ageGroup: row.ageGroup,
+          league: row.league,
+          teamGender: row.teamGender,
+          location: row.location,
+          locationData,
+          allowMapContact: !!row.allowMapContact,
+          contactUserId: row.contactUserId,
+          createdAt: row.createdAt,
+          updatedAt: row.createdAt
+        };
+      });
+
+      collectedResults = collectedResults.concat(teamLocations);
+    }
+
+    let filteredResults = collectedResults.filter((item) => {
+      const latitude = Number(item.locationData?.latitude);
+      const longitude = Number(item.locationData?.longitude);
+      return Number.isFinite(latitude) && Number.isFinite(longitude);
+    });
+
+    if (bounds) {
+      filteredResults = filteredResults.filter((item) => mapResultInBounds(item.locationData, bounds));
+    }
+
+    if (selectedAgeGroup) {
+      filteredResults = filteredResults.filter((item) => mapAgeGroupMatches(selectedAgeGroup, item.ageGroup || ''));
+    }
+
+    if (selectedPositions.length > 0) {
+      filteredResults = filteredResults.filter((item) => {
+        const positions = parseMapPositions(item);
+        if (!positions.length) return false;
+        return selectedPositions.some((selectedPos) => positions.some((resultPos) => mapPositionMatches(selectedPos, resultPos)));
+      });
+    }
+
+    if (selectedLeague) {
+      filteredResults = filteredResults.filter((item) => {
+        if (item.itemType === 'player') return includePlayers && searchType === 'both';
+
+        const leagueValues = [];
+        if (item.league) leagueValues.push(String(item.league));
+        if (Array.isArray(item.preferredLeagues)) leagueValues.push(...item.preferredLeagues.map((value) => String(value)));
+
+        return leagueValues.some((league) => league.toLowerCase() === selectedLeague);
+      });
+    }
+
+    filteredResults.sort((a, b) => {
+      const aDate = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bDate = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bDate - aDate;
+    });
+
+    const total = filteredResults.length;
+    const paginatedResults = filteredResults.slice(offset, offset + limit);
+
+    res.json({
+      results: paginatedResults,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + paginatedResults.length < total
+      }
+    });
+  } catch (error) {
+    console.error('Get public map search error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create new player availability
 app.post('/api/player-availability', [
   authenticateToken,

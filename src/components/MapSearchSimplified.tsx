@@ -47,6 +47,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { analyticsTracking } from '../services/analyticsTracking';
 import { API_URL, profileAPI, UserProfile } from '../services/api';
 import { ageGroupMatches } from '../utils/mapFilters';
+import { canBulkMessageResultForRole, getAgeSortKey, getMessageRecipient } from '../utils/mapSearchHelpers';
 import { calculateProfileCompletion } from '../utils/profileActivation';
 const UK_CENTER = { lat: 54.0, lng: -2.5 };
 
@@ -107,6 +108,15 @@ const getItemDateValue = (item: any): number => {
   const parsed = source ? new Date(source).getTime() : NaN;
   return isNaN(parsed) ? 0 : parsed;
 };
+
+const escapeHtml = (value: unknown): string => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/\"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const toDomSafeId = (value: string): string => value.replace(/[^a-zA-Z0-9_-]/g, '_');
 
 const toGuestLocationLabel = (location: string): string => {
   if (!location) return 'UK';
@@ -173,6 +183,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const [pulsingResultKey, setPulsingResultKey] = useState<string | null>(null);
   const [mapCenter] = useState<google.maps.LatLngLiteral>(() => getInitialMapCenter());
   const [mapZoom] = useState(() => getInitialMapZoom());
+  const [mapBounds, setMapBounds] = useState<{ minLat: number; maxLat: number; minLng: number; maxLng: number } | null>(null);
   const [debugCounts, setDebugCounts] = useState({ total: 0, inView: 0, filtered: 0 });
   const [selectedRecipients, setSelectedRecipients] = useState<Record<string, {
     id: string;
@@ -387,7 +398,11 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     }
 
     if (sortBy === 'age') {
-      return cloned.sort((a, b) => (a.ageGroup || '').localeCompare(b.ageGroup || ''));
+      return cloned.sort((a, b) => {
+        const keyDiff = getAgeSortKey(a.ageGroup) - getAgeSortKey(b.ageGroup);
+        if (keyDiff !== 0) return keyDiff;
+        return String(a.ageGroup || '').localeCompare(String(b.ageGroup || ''));
+      });
     }
 
     if (sortBy === 'distance') {
@@ -459,14 +474,40 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
       mapOpenTrackedRef.current = true;
     }
     
-    // Save map position when user moves or zooms
-    map.addListener('idle', () => {
+    // Save map position and visible bounds when user moves or zooms.
+    mapIdleListenerRef.current = map.addListener('idle', () => {
       const center = map.getCenter();
       const zoom = map.getZoom();
       if (center && zoom) {
         const newCenter = { lat: center.lat(), lng: center.lng() };
         localStorage.setItem('mapCenter', JSON.stringify(newCenter));
         localStorage.setItem('mapZoom', zoom.toString());
+      }
+
+      const bounds = map.getBounds();
+      if (bounds) {
+        const northEast = bounds.getNorthEast();
+        const southWest = bounds.getSouthWest();
+        const nextBounds = {
+          minLat: southWest.lat(),
+          maxLat: northEast.lat(),
+          minLng: southWest.lng(),
+          maxLng: northEast.lng()
+        };
+
+        setMapBounds((previous) => {
+          if (
+            previous &&
+            previous.minLat === nextBounds.minLat &&
+            previous.maxLat === nextBounds.maxLat &&
+            previous.minLng === nextBounds.minLng &&
+            previous.maxLng === nextBounds.maxLng
+          ) {
+            return previous;
+          }
+
+          return nextBounds;
+        });
       }
     });
 
@@ -479,119 +520,57 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
   }, []);
 
-  // Viewport-based filtering: keep search area aligned to current visible map bounds
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps?.event) return;
-
-    if (mapIdleListenerRef.current) {
-      window.google.maps.event.removeListener(mapIdleListenerRef.current);
-      mapIdleListenerRef.current = null;
-    }
-
-    mapIdleListenerRef.current = mapInstanceRef.current.addListener('idle', () => {
-      const bounds = mapInstanceRef.current?.getBounds();
-      const inView = filterResultsByMapArea(results, bounds);
-      const finalFiltered = sortResults(applyAdditionalFilters(inView));
-      setDebugCounts((previous) => {
-        const nextCounts = { total: results.length, inView: inView.length, filtered: finalFiltered.length };
-        return previous.total === nextCounts.total && previous.inView === nextCounts.inView && previous.filtered === nextCounts.filtered
-          ? previous
-          : nextCounts;
-      });
-      setFilteredResults((previous) => (hasSameResultOrder(previous, finalFiltered) ? previous : finalFiltered));
-      setHasActiveFilter(true);
-    });
-
-    // Run once immediately when mode turns on/results change
-    const initialBounds = mapInstanceRef.current.getBounds();
-    const inView = filterResultsByMapArea(results, initialBounds);
-    const finalFiltered = sortResults(applyAdditionalFilters(inView));
+    const finalFiltered = sortResults(applyAdditionalFilters(results));
     setDebugCounts((previous) => {
-      const nextCounts = { total: results.length, inView: inView.length, filtered: finalFiltered.length };
+      const nextCounts = { total: results.length, inView: results.length, filtered: finalFiltered.length };
       return previous.total === nextCounts.total && previous.inView === nextCounts.inView && previous.filtered === nextCounts.filtered
         ? previous
         : nextCounts;
     });
     setFilteredResults((previous) => (hasSameResultOrder(previous, finalFiltered) ? previous : finalFiltered));
-    setHasActiveFilter(true);
-
-    return () => {
-      if (mapIdleListenerRef.current) {
-        window.google.maps.event.removeListener(mapIdleListenerRef.current);
-        mapIdleListenerRef.current = null;
-      }
-    };
-  }, [results, selectedAgeGroup, selectedPositions, selectedLeague, sortBy]);
+    setHasActiveFilter(Boolean(mapBounds));
+  }, [results, selectedAgeGroup, selectedPositions, selectedLeague, sortBy, mapBounds]);
 
   // Fetch data based on search type
   useEffect(() => {
     const fetchData = async () => {
+      if (!mapBounds) return;
+
       setIsLoading(true);
       setError(null);
 
       try {
-        const endpoints = [];
-        
-        if (searchType === 'vacancies' || searchType === 'both') {
-          endpoints.push(
-            fetch(`${API_URL}/vacancies`, {
-              headers: {}
-            }).then(async r => {
-              if (!r.ok) throw new Error(`Vacancies endpoint failed: ${r.status}`);
-              const data = await r.json();
-              return { type: 'vacancy', items: Array.isArray(data) ? data : data.vacancies || data.data || [] };
-            })
-          );
-        }
-
-        if (searchType === 'players' || searchType === 'both') {
-          endpoints.push(
-            fetch(`${API_URL}/public/player-availability?sort=recent`, {
-              headers: {}
-            }).then(async r => {
-              if (!r.ok) throw new Error(`Player endpoint failed: ${r.status}`);
-              const data = await r.json();
-              return { type: 'player', items: data.availability || [] };
-            })
-          );
-        }
-
-        if (searchType === 'team-locations') {
-          endpoints.push(
-            fetch(`${API_URL}/public/team-locations`, {
-              headers: {}
-            }).then(async r => {
-              if (!r.ok) throw new Error(`Team locations endpoint failed: ${r.status}`);
-              const data = await r.json();
-              return { type: 'team-location', items: data.teams || [] };
-            })
-          );
-        }
-
-        const responses = await Promise.all(endpoints);
-        const allResults: any[] = [];
-
-        responses.forEach(response => {
-          const items = Array.isArray(response.items) ? response.items : [];
-          items.forEach(item => {
-            // Check for location data - be permissive and accept any location field
-            const hasLocation = item.locationData || 
-              item.trainingLocationData || 
-              item.matchLocationData;
-            
-            if (hasLocation) {
-              const mappedItem = isGuest
-                ? sanitizeMapResultForGuest(item, response.type as 'vacancy' | 'player' | 'team-location')
-                : item;
-              allResults.push({
-                ...mappedItem,
-                itemType: response.type
-              });
-            }
-          });
+        const params = new URLSearchParams({
+          searchType,
+          minLat: mapBounds.minLat.toString(),
+          maxLat: mapBounds.maxLat.toString(),
+          minLng: mapBounds.minLng.toString(),
+          maxLng: mapBounds.maxLng.toString(),
+          limit: '500',
+          offset: '0'
         });
 
-        setResults(allResults);
+        if (selectedAgeGroup) params.set('ageGroup', selectedAgeGroup);
+        if (selectedLeague) params.set('league', selectedLeague);
+        if (selectedPositions.length > 0) params.set('positions', selectedPositions.join('|'));
+
+        const response = await fetch(`${API_URL}/public/map-search?${params.toString()}`, {
+          headers: {}
+        });
+
+        if (!response.ok) {
+          throw new Error(`Map search endpoint failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const apiResults = Array.isArray(data.results) ? data.results : [];
+        const mapResults = apiResults.filter((item: any) => item.locationData || item.trainingLocationData || item.matchLocationData);
+        const shapedResults = isGuest
+          ? mapResults.map((item: any) => sanitizeMapResultForGuest(item, item.itemType as 'vacancy' | 'player' | 'team-location'))
+          : mapResults;
+
+        setResults(shapedResults);
         
       } catch (err) {
         console.error('Map data fetch error:', err);
@@ -602,7 +581,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     };
 
     fetchData();
-  }, [searchType, isGuest]);
+  }, [searchType, isGuest, mapBounds, selectedAgeGroup, selectedPositions, selectedLeague]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -685,34 +664,37 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
       // Create info window content
       const createInfoContent = (item: any, markerIndex: number) => {
+        const domSafeKey = toDomSafeId(getResultKey(item));
         const title = item.teamName || item.title || item.fullName || item.name || 'Location';
         const type = item.itemType === 'player' ? 'Player' : 'Team';
         const markerColor = item.itemType === 'player' ? '#2196f3' : '#f44336';
-        const ageGroup = item.ageGroup ? `<br><strong>Age:</strong> ${item.ageGroup}` : '';
+        const safeTitle = escapeHtml(title);
+        const ageGroup = item.ageGroup ? `<br><strong>Age:</strong> ${escapeHtml(item.ageGroup)}` : '';
         
         // Use positions array from backend
         let positionStr = '';
         if (item.positions && Array.isArray(item.positions) && item.positions.length > 0) {
-          positionStr = `<br><strong>Position:</strong> ${item.positions.join(', ')}`;
+          positionStr = `<br><strong>Position:</strong> ${escapeHtml(item.positions.join(', '))}`;
         } else if (item.preferredPosition) {
-          positionStr = `<br><strong>Position:</strong> ${item.preferredPosition}`;
+          positionStr = `<br><strong>Position:</strong> ${escapeHtml(item.preferredPosition)}`;
         }
         
         const league = item.league || (item.preferredLeagues && Array.isArray(item.preferredLeagues) ? item.preferredLeagues.join(', ') : '') || '';
-        const leagueStr = league ? `<br><strong>League:</strong> ${league}` : '';
-        const location = item.location ? `<br><strong>Location:</strong> ${item.location}` : '';
+        const leagueStr = league ? `<br><strong>League:</strong> ${escapeHtml(league)}` : '';
+        const location = item.location ? `<br><strong>Location:</strong> ${escapeHtml(item.location)}` : '';
         const distance = getDistanceText(item);
-        const distanceStr = distance !== 'N/A' ? `<br><strong>Distance:</strong> ${distance}` : '';
+        const distanceStr = distance !== 'N/A' ? `<br><strong>Distance:</strong> ${escapeHtml(distance)}` : '';
         const status = getRecentStatus(item.createdAt);
         const statusColor = status === 'New' ? '#2e7d32' : status === 'Active' ? '#0288d1' : '#6d6d6d';
         
         // Add preferred team gender for players
         const preferredGenderStr = item.preferredTeamGender && item.itemType === 'player' 
-          ? `<br><strong>Preferred Team:</strong> ${item.preferredTeamGender}` 
+          ? `<br><strong>Preferred Team:</strong> ${escapeHtml(item.preferredTeamGender)}` 
           : '';
         
         // Add description/bio text (truncate if too long)
         const description = item.description || '';
+        const safeDescription = escapeHtml(description);
         const descriptionStr = description 
           ? `<div style="
               margin-top: 8px;
@@ -725,7 +707,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               line-height: 1.4;
               max-width: 280px;
             ">
-              ${description.length > 200 ? description.substring(0, 200) + '...' : description}
+              ${safeDescription.length > 200 ? safeDescription.substring(0, 200) + '...' : safeDescription}
             </div>` 
           : '';
         
@@ -739,7 +721,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           );
         const messageButton = recipient && canContactFromMap ? `
           <button 
-            id="map-message-btn-${getResultKey(item)}"
+            id="map-message-btn-${domSafeKey}"
             style="
               margin-top: 8px;
               padding: 6px 12px;
@@ -766,7 +748,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
 
         const signupButton = isGuest ? `
           <button
-            id="map-signup-btn-${getResultKey(item)}"
+            id="map-signup-btn-${domSafeKey}"
             style="
               margin-top: 8px;
               padding: 6px 12px;
@@ -787,7 +769,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         
         return `
           <div 
-            id="map-info-content-${getResultKey(item)}"
+            id="map-info-content-${domSafeKey}"
             style="
               padding: 8px; 
               min-width: 220px;
@@ -818,7 +800,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               ">
                 ${markerIndex}
               </div>
-              <h3 style="margin: 0; color: #1976d2; font-size: 16px; flex: 1;">${title}</h3>
+              <h3 style="margin: 0; color: #1976d2; font-size: 16px; flex: 1;">${safeTitle}</h3>
             </div>
             <p style="margin: 4px 0 4px 8px; color: #666; font-size: 14px;">
               <strong>Type:</strong> ${type}
@@ -870,8 +852,9 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
           
           // Add event listeners when info window is ready
           window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
+            const domSafeKey = toDomSafeId(resultKey);
             // Message button handler
-            const messageBtn = document.getElementById(`map-message-btn-${resultKey}`);
+            const messageBtn = document.getElementById(`map-message-btn-${domSafeKey}`);
             if (messageBtn) {
               messageBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -893,7 +876,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
               });
             }
 
-            const signupBtn = document.getElementById(`map-signup-btn-${resultKey}`);
+            const signupBtn = document.getElementById(`map-signup-btn-${domSafeKey}`);
             if (signupBtn) {
               signupBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -902,7 +885,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
             }
             
             // Info window content click handler to highlight table row
-            const infoContent = document.getElementById(`map-info-content-${resultKey}`);
+            const infoContent = document.getElementById(`map-info-content-${domSafeKey}`);
             if (infoContent) {
               infoContent.addEventListener('click', () => {
                 setSelectedResultKey(resultKey);
@@ -970,7 +953,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     const recipient = getMessageRecipient(result);
     if (!recipient) return;
 
-    const isTeamTarget = result.itemType === 'team';
+    const isTeamTarget = result.itemType === 'team' || result.itemType === 'vacancy' || result.itemType === 'team-location';
 
     setSelectedRecipients(prev => {
       if (prev[resultKey]) {
@@ -1107,10 +1090,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     user?.role === 'Parent/Guardian' ||
     user?.role === 'Admin';
   const canBulkMessageResult = (result: any) => {
-    if (!isBulkMessagingEnabled) return false;
-    if (user?.role === 'Admin') return result.itemType === 'player' || result.itemType === 'team' || result.itemType === 'vacancy' || result.itemType === 'team-location';
-    if (user?.role === 'Coach') return result.itemType === 'player';
-    return result.itemType === 'team' || result.itemType === 'vacancy' || result.itemType === 'team-location';
+    return canBulkMessageResultForRole(result, user?.role, isBulkMessagingEnabled);
   };
   const selectedCount = Object.keys(selectedRecipients).length;
   const selectedTeamCount = Object.values(selectedRecipients).filter(r => r.relatedVacancyId).length;
@@ -1215,21 +1195,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
     return resolveResultPosition(result);
   };
 
-  const filterResultsByBounds = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
-    if (!bounds || !window.google?.maps?.LatLng) return items;
-
-    return items.filter(result => {
-      const position = getResultPosition(result);
-      if (!position) return false;
-      const latLng = new window.google.maps.LatLng(position.lat, position.lng);
-      return bounds.contains(latLng);
-    });
-  };
-
-  const filterResultsByMapArea = (items: any[], bounds: google.maps.LatLngBounds | null | undefined) => {
-    return filterResultsByBounds(items, bounds);
-  };
-
   const getResultKey = (result: any): string => {
     const pos = getResultPosition(result);
     return [
@@ -1243,45 +1208,6 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
   const eligibleResults = filteredResults.filter(canBulkMessageResult);
   const allEligibleSelected = eligibleResults.length > 0 && eligibleResults.every(r => Boolean(selectedRecipients[getResultKey(r)]));
   const someEligibleSelected = eligibleResults.some(r => Boolean(selectedRecipients[getResultKey(r)]));
-
-  const getMessageRecipient = (result: any): { id: string; name: string } | null => {
-    const candidateValues = [
-      result.contactUserId,
-      result.contactuserid,
-      result.parentId,
-      result.parentid,
-      result.postedBy,
-      result.postedby,
-      result.userId,
-      result.userid,
-      result.createdBy,
-      result.createdby,
-      result.playerId,
-      result.playerid
-    ];
-
-    const rawId = candidateValues.find(value => value !== null && value !== undefined && String(value).trim() !== '');
-    if (rawId === undefined) return null;
-
-    const idString = String(rawId);
-    const numericMatch = idString.match(/\d+$/);
-    const normalizedId = numericMatch ? numericMatch[0] : idString;
-
-    if (!normalizedId || normalizedId.toLowerCase() === 'undefined' || normalizedId.toLowerCase() === 'null') {
-      return null;
-    }
-
-    // Prefer an explicit displayName from the result (populated by API),
-    // then fall back to parentName/fullName/name/title. If none available,
-    // return an anonymous placeholder to avoid leaking child names.
-    const nameFallback = result.parentName || result.fullName || result.name || result.title;
-    const displayName = result.displayName || (result.shareName ? `${result.firstName || ''} ${result.lastName || ''}`.trim() : undefined) || nameFallback || 'Anonymous Player';
-
-    return {
-      id: normalizedId,
-      name: displayName
-    };
-  };
 
   return (
     <Box>
