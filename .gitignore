@@ -8,6 +8,8 @@ backend/.env.local
 dist/
 backend/database.sqlite
 backend/database.sqlite-*
+database.sqlite-wal
+database.sqlite-shm
 backend/*.log
 .vercel
 .env*.local
