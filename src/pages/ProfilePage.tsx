@@ -33,11 +33,12 @@ import {
   DialogActions,
   Tooltip,
   Collapse } from '@mui/material';
-import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess, RateReview } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData, ProfileAchievement } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
+import TestimonialsManager from '../components/TestimonialsManager';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
@@ -688,6 +689,7 @@ const ProfilePage: React.FC = () => {
             {user?.role === 'Player' && <Tab icon={<Work />} label="Player Details" />}
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
             {user?.role === 'Player' && <Tab icon={<History />} label="Career" />}
+            <Tab icon={<RateReview />} label="Testimonials" />
             <Tab icon={<Lock />} label="Security" />
           </Tabs>
         </Box>
@@ -1032,8 +1034,13 @@ const ProfilePage: React.FC = () => {
           </TabPanel>
         )}
 
-        {/* Security Tab - Password Change */}
+        {/* Testimonials Tab */}
         <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 2 : 1)}>
+          <TestimonialsManager />
+        </TabPanel>
+
+        {/* Security Tab - Password Change */}
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 3 : 2)}>
           <Typography variant="h6" gutterBottom>
             Change Password
           </Typography>

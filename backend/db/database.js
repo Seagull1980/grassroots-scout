@@ -1776,6 +1776,101 @@ class Database {
           console.warn('Warning creating conversation_status table:', err.message);
         }
       }
+
+      // Migration: testimonials tables (coach<->player/parent public endorsements)
+      try {
+        const testimonialsCheck = this.dbType === 'postgresql'
+          ? `SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'testimonials')`
+          : `SELECT name FROM sqlite_master WHERE type='table' AND name='testimonials'`;
+
+        const testimonialsResult = await this.query(testimonialsCheck);
+        const hasTestimonials = this.dbType === 'postgresql'
+          ? testimonialsResult.rows[0]?.exists
+          : testimonialsResult.rows?.length > 0;
+
+        if (!hasTestimonials) {
+          const createTestimonialsSql = this.dbType === 'postgresql'
+            ? `CREATE TABLE testimonials (
+                id SERIAL PRIMARY KEY,
+                authorId INTEGER NOT NULL,
+                authorRole VARCHAR NOT NULL,
+                recipientId INTEGER NOT NULL,
+                recipientRole VARCHAR NOT NULL,
+                content VARCHAR NOT NULL,
+                rating INTEGER CHECK(rating IS NULL OR (rating >= 1 AND rating <= 5)),
+                isPublic BOOLEAN DEFAULT FALSE,
+                status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'hidden')),
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (authorId) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE,
+                CHECK (authorId != recipientId)
+              )`
+            : `CREATE TABLE testimonials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                authorId INTEGER NOT NULL,
+                authorRole VARCHAR NOT NULL,
+                recipientId INTEGER NOT NULL,
+                recipientRole VARCHAR NOT NULL,
+                content VARCHAR NOT NULL,
+                rating INTEGER CHECK(rating IS NULL OR (rating >= 1 AND rating <= 5)),
+                isPublic BOOLEAN DEFAULT FALSE,
+                status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'hidden')),
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (authorId) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE,
+                CHECK (authorId != recipientId)
+              )`;
+
+          await this.query(createTestimonialsSql);
+          console.log('✅ Created testimonials table');
+        }
+
+        const testimonialReportsCheck = this.dbType === 'postgresql'
+          ? `SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'testimonial_reports')`
+          : `SELECT name FROM sqlite_master WHERE type='table' AND name='testimonial_reports'`;
+
+        const testimonialReportsResult = await this.query(testimonialReportsCheck);
+        const hasTestimonialReports = this.dbType === 'postgresql'
+          ? testimonialReportsResult.rows[0]?.exists
+          : testimonialReportsResult.rows?.length > 0;
+
+        if (!hasTestimonialReports) {
+          const createTestimonialReportsSql = this.dbType === 'postgresql'
+            ? `CREATE TABLE testimonial_reports (
+                id SERIAL PRIMARY KEY,
+                testimonialId INTEGER NOT NULL,
+                reporterId INTEGER NOT NULL,
+                reason VARCHAR NOT NULL,
+                details VARCHAR,
+                status VARCHAR DEFAULT 'open' CHECK(status IN ('open', 'resolved', 'dismissed')),
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (testimonialId) REFERENCES testimonials (id) ON DELETE CASCADE,
+                FOREIGN KEY (reporterId) REFERENCES users (id) ON DELETE CASCADE,
+                UNIQUE(testimonialId, reporterId)
+              )`
+            : `CREATE TABLE testimonial_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                testimonialId INTEGER NOT NULL,
+                reporterId INTEGER NOT NULL,
+                reason VARCHAR NOT NULL,
+                details VARCHAR,
+                status VARCHAR DEFAULT 'open' CHECK(status IN ('open', 'resolved', 'dismissed')),
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (testimonialId) REFERENCES testimonials (id) ON DELETE CASCADE,
+                FOREIGN KEY (reporterId) REFERENCES users (id) ON DELETE CASCADE,
+                UNIQUE(testimonialId, reporterId)
+              )`;
+
+          await this.query(createTestimonialReportsSql);
+          console.log('✅ Created testimonial_reports table');
+        }
+      } catch (err) {
+        if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
+          console.warn('Warning creating testimonials tables:', err.message);
+        }
+      }
     } catch (error) {
       // Only log non-duplicate column errors
       if (!error.message.includes('duplicate column')) {
@@ -1802,6 +1897,9 @@ class Database {
       'CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(createdAt)',
       'CREATE INDEX IF NOT EXISTS idx_conversation_status_pair ON conversation_status(participantA, participantB)',
       'CREATE INDEX IF NOT EXISTS idx_conversation_status_updated ON conversation_status(updatedAt)',
+      'CREATE INDEX IF NOT EXISTS idx_testimonials_recipient ON testimonials(recipientId)',
+      'CREATE INDEX IF NOT EXISTS idx_testimonials_author ON testimonials(authorId)',
+      'CREATE INDEX IF NOT EXISTS idx_testimonials_public ON testimonials(recipientId, isPublic, status)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_coach ON training_invitations(coachId)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_player ON training_invitations(playerId)',
       'CREATE INDEX IF NOT EXISTS idx_training_invitations_status ON training_invitations(status)',

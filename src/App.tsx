@@ -34,6 +34,7 @@ import EditAdvertPage from './pages/EditAdvertPage.tsx';
 import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
 import SearchPage from './pages/SearchPage';
 import ProfilePage from './pages/ProfilePage.tsx';
+import PublicProfilePage from './pages/PublicProfilePage.tsx';
 import AboutManagementPage from './pages/AboutManagementPage.tsx';
 import CalendarPage from './pages/CalendarPage.tsx';
 import UserAdminPage from './pages/UserAdminPage.tsx';
@@ -216,6 +217,11 @@ const AppRoutes = () => {
         <Route path="/profile" element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile/view/:userId" element={
+          <ProtectedRoute requireAuth={false}>
+            <PublicProfilePage />
           </ProtectedRoute>
         } />
         <Route path="/admin" element={

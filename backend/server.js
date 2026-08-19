@@ -4037,6 +4037,252 @@ app.delete('/api/family-relationships/:relationshipId', authenticateToken, async
   }
 });
 
+// ==================== TESTIMONIALS ENDPOINTS ====================
+
+// Coaches write testimonials about players; players/parents write testimonials about coaches.
+const isTestimonialRolePairAllowed = (authorRole, recipientRole) => {
+  if (authorRole === 'Coach') return recipientRole === 'Player';
+  if (authorRole === 'Player' || authorRole === 'Parent/Guardian') return recipientRole === 'Coach';
+  return false;
+};
+
+// Create a new testimonial for another user
+app.post('/api/testimonials', [
+  authenticateToken,
+  body('recipientId').isInt().withMessage('Valid recipient ID is required'),
+  body('content').isLength({ min: 10, max: 1000 }).withMessage('Testimonial must be between 10 and 1000 characters'),
+  body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const authorId = req.user.userId;
+    const authorRole = req.user.role;
+    const { recipientId, content, rating } = req.body;
+
+    if (parseInt(recipientId, 10) === parseInt(authorId, 10)) {
+      return res.status(400).json({ error: 'You cannot write a testimonial for yourself' });
+    }
+
+    const recipientResult = await db.query('SELECT id, role FROM users WHERE id = ?', [recipientId]);
+    if (!recipientResult.rows || recipientResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    const recipientRole = recipientResult.rows[0].role;
+    if (!isTestimonialRolePairAllowed(authorRole, recipientRole)) {
+      return res.status(403).json({
+        error: 'Coaches can write testimonials for players; players and parents/guardians can write testimonials for coaches'
+      });
+    }
+
+    const result = await db.query(
+      `INSERT INTO testimonials (authorId, authorRole, recipientId, recipientRole, content, rating)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [authorId, authorRole, recipientId, recipientRole, content.trim(), rating ?? null]
+    );
+
+    res.status(201).json({
+      message: 'Testimonial submitted successfully',
+      testimonialId: result.lastID || result.insertId
+    });
+  } catch (error) {
+    console.error('Create testimonial error:', error);
+    res.status(500).json({ error: 'Failed to submit testimonial' });
+  }
+});
+
+// Get testimonials received by the current user (for managing public visibility)
+app.get('/api/testimonials/received', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await db.query(`
+      SELECT
+        t.id, t.authorId, t.authorRole, t.recipientId, t.recipientRole,
+        t.content, t.rating, t.isPublic, t.status, t.createdAt, t.updatedAt,
+        u.firstName as authorFirstName, u.lastName as authorLastName
+      FROM testimonials t
+      JOIN users u ON u.id = t.authorId
+      WHERE t.recipientId = ? AND t.status = 'active'
+      ORDER BY t.createdAt DESC
+    `, [userId]);
+
+    res.json({ testimonials: result.rows || [] });
+  } catch (error) {
+    console.error('Get received testimonials error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get testimonials written by the current user
+app.get('/api/testimonials/given', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await db.query(`
+      SELECT
+        t.id, t.authorId, t.authorRole, t.recipientId, t.recipientRole,
+        t.content, t.rating, t.isPublic, t.status, t.createdAt, t.updatedAt,
+        u.firstName as recipientFirstName, u.lastName as recipientLastName
+      FROM testimonials t
+      JOIN users u ON u.id = t.recipientId
+      WHERE t.authorId = ? AND t.status = 'active'
+      ORDER BY t.createdAt DESC
+    `, [userId]);
+
+    res.json({ testimonials: result.rows || [] });
+  } catch (error) {
+    console.error('Get given testimonials error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get another user's public profile info plus their public testimonials
+app.get('/api/users/:userId/testimonials/public', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const userResult = await db.query('SELECT id, firstName, lastName, role FROM users WHERE id = ?', [userId]);
+    if (!userResult.rows || userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const testimonialsResult = await db.query(`
+      SELECT
+        t.id, t.authorRole, t.content, t.rating, t.createdAt,
+        u.firstName as authorFirstName, u.lastName as authorLastName
+      FROM testimonials t
+      JOIN users u ON u.id = t.authorId
+      WHERE t.recipientId = ? AND t.isPublic = ? AND t.status = 'active'
+      ORDER BY t.createdAt DESC
+    `, [userId, true]);
+
+    res.json({
+      user: userResult.rows[0],
+      testimonials: testimonialsResult.rows || []
+    });
+  } catch (error) {
+    console.error('Get public testimonials error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Recipient toggles whether a received testimonial is shown publicly on their profile
+app.patch('/api/testimonials/:testimonialId/visibility', [
+  authenticateToken,
+  body('isPublic').isBoolean().withMessage('isPublic must be a boolean')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const userId = req.user.userId;
+    const { testimonialId } = req.params;
+    const { isPublic } = req.body;
+
+    const testimonial = await db.query(
+      'SELECT id FROM testimonials WHERE id = ? AND recipientId = ? AND status = ?',
+      [testimonialId, userId, 'active']
+    );
+
+    if (!testimonial.rows || testimonial.rows.length === 0) {
+      return res.status(404).json({ error: 'Testimonial not found or you do not have permission' });
+    }
+
+    await db.query(
+      'UPDATE testimonials SET isPublic = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+      [isPublic, testimonialId]
+    );
+
+    res.json({ message: isPublic ? 'Testimonial is now public on your profile' : 'Testimonial is now private' });
+  } catch (error) {
+    console.error('Update testimonial visibility error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a testimonial (author retracts it, or recipient removes it from their record)
+app.delete('/api/testimonials/:testimonialId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { testimonialId } = req.params;
+
+    const testimonial = await db.query(
+      'SELECT id, authorId, recipientId FROM testimonials WHERE id = ?',
+      [testimonialId]
+    );
+
+    if (!testimonial.rows || testimonial.rows.length === 0) {
+      return res.status(404).json({ error: 'Testimonial not found' });
+    }
+
+    const record = testimonial.rows[0];
+    const isOwner =
+      parseInt(record.authorId, 10) === parseInt(userId, 10) ||
+      parseInt(record.recipientId, 10) === parseInt(userId, 10);
+
+    if (!isOwner) {
+      return res.status(403).json({ error: 'You do not have permission to delete this testimonial' });
+    }
+
+    await db.query('DELETE FROM testimonials WHERE id = ?', [testimonialId]);
+
+    res.json({ message: 'Testimonial deleted successfully' });
+  } catch (error) {
+    console.error('Delete testimonial error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Report an inappropriate testimonial
+app.post('/api/testimonials/:testimonialId/report', [
+  authenticateToken,
+  body('reason').notEmpty().withMessage('Reason is required'),
+  body('details').optional().isString().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const reporterId = req.user.userId;
+    const { testimonialId } = req.params;
+    const { reason, details } = req.body;
+
+    const testimonial = await db.query('SELECT id FROM testimonials WHERE id = ?', [testimonialId]);
+    if (!testimonial.rows || testimonial.rows.length === 0) {
+      return res.status(404).json({ error: 'Testimonial not found' });
+    }
+
+    const existingReport = await db.query(
+      'SELECT id FROM testimonial_reports WHERE testimonialId = ? AND reporterId = ?',
+      [testimonialId, reporterId]
+    );
+
+    if (existingReport.rows && existingReport.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already reported this testimonial' });
+    }
+
+    const result = await db.query(
+      `INSERT INTO testimonial_reports (testimonialId, reporterId, reason, details)
+       VALUES (?, ?, ?, ?)`,
+      [testimonialId, reporterId, reason, details || null]
+    );
+
+    res.status(201).json({ success: true, reportId: result.lastID || result.insertId });
+  } catch (error) {
+    console.error('Report testimonial error:', error);
+    res.status(500).json({ error: 'Failed to report testimonial' });
+  }
+});
+
 // ==================== COACH CHILDREN ENDPOINTS ====================
 
 // Get coach's children (for coaches who are also parents)

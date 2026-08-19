@@ -924,7 +924,18 @@ const MessagesPage: React.FC = () => {
                 <CardContent>
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                     <Typography variant="h6">
-                      Conversation with {selectedConversation.participants.find(p => p.userId !== user?.id)?.firstName}
+                      Conversation with{' '}
+                      <Button
+                        variant="text"
+                        size="small"
+                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 'inherit', fontWeight: 'inherit', verticalAlign: 'baseline' }}
+                        onClick={() => {
+                          const otherParticipant = selectedConversation.participants.find(p => p.userId !== user?.id);
+                          if (otherParticipant?.userId) navigate(`/profile/view/${otherParticipant.userId}`);
+                        }}
+                      >
+                        {selectedConversation.participants.find(p => p.userId !== user?.id)?.firstName}
+                      </Button>
                     </Typography>
                     <Box display="flex" gap={1}>
                       <Button

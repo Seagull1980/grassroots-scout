@@ -607,6 +607,41 @@ export interface CreateFamilyRelationshipData {
   notes?: string;
 }
 
+// Testimonials
+export interface Testimonial {
+  id: number;
+  authorId: number;
+  authorRole: 'Coach' | 'Player' | 'Parent/Guardian';
+  recipientId: number;
+  recipientRole: 'Coach' | 'Player' | 'Parent/Guardian';
+  content: string;
+  rating?: number;
+  isPublic: boolean;
+  status: 'active' | 'hidden';
+  createdAt: string;
+  updatedAt: string;
+  authorFirstName?: string;
+  authorLastName?: string;
+  recipientFirstName?: string;
+  recipientLastName?: string;
+}
+
+export interface CreateTestimonialData {
+  recipientId: number;
+  content: string;
+  rating?: number;
+}
+
+export interface PublicTestimonial {
+  id: number;
+  authorRole: 'Coach' | 'Player' | 'Parent/Guardian';
+  content: string;
+  rating?: number;
+  createdAt: string;
+  authorFirstName?: string;
+  authorLastName?: string;
+}
+
 export interface CreateCoachChildData {
   childId: number;
   relationshipType: 'parent' | 'guardian' | 'step_parent';
@@ -1297,6 +1332,54 @@ export const familyRelationshipsAPI = {
     const response = await api.delete(`/family-relationships/${relationshipId}`);
     return response.data;
   } };
+
+// Testimonials API - coaches endorse players, players/parents endorse coaches
+export const testimonialAPI = {
+  // Submit a testimonial for another user
+  create: async (data: CreateTestimonialData): Promise<{ message: string; testimonialId: number }> => {
+    const response = await api.post('/testimonials', data);
+    return response.data;
+  },
+
+  // Testimonials received by the current user
+  getReceived: async (): Promise<{ testimonials: Testimonial[] }> => {
+    const response = await api.get('/testimonials/received');
+    return response.data;
+  },
+
+  // Testimonials written by the current user
+  getGiven: async (): Promise<{ testimonials: Testimonial[] }> => {
+    const response = await api.get('/testimonials/given');
+    return response.data;
+  },
+
+  // Public profile info + public testimonials for any user
+  getPublicForUser: async (userId: number): Promise<{
+    user: { id: number; firstName: string; lastName: string; role: string };
+    testimonials: PublicTestimonial[];
+  }> => {
+    const response = await api.get(`/users/${userId}/testimonials/public`);
+    return response.data;
+  },
+
+  // Recipient toggles whether a testimonial is shown on their public profile
+  setVisibility: async (testimonialId: number, isPublic: boolean): Promise<{ message: string }> => {
+    const response = await api.patch(`/testimonials/${testimonialId}/visibility`, { isPublic });
+    return response.data;
+  },
+
+  // Delete a testimonial (author or recipient)
+  delete: async (testimonialId: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/testimonials/${testimonialId}`);
+    return response.data;
+  },
+
+  // Report an inappropriate testimonial
+  report: async (testimonialId: number, reason: string, details?: string): Promise<{ success: boolean; reportId: number }> => {
+    const response = await api.post(`/testimonials/${testimonialId}/report`, { reason, details });
+    return response.data;
+  }
+};
 
 // Coach Children API (for coaches who are also parents)
 export const coachChildrenAPI = {
