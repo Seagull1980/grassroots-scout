@@ -121,6 +121,7 @@ interface PlayerAvailability {
   title: string; // Add title property
   createdAt?: string;
   status?: 'active' | 'inactive'; // Add status property for relevance calculation
+  profileStatus?: 'Available' | 'Open to opportunities' | '' | null; // Opt-in visibility status of the poster
 }
 
 interface SavedAd {
@@ -163,6 +164,7 @@ interface SearchFiltersState {
   hasMatchRecording: boolean;
   hasPathwayToSenior: boolean;
   playingTimePolicy: string[];
+  openToOpportunitiesOnly: boolean;
 }
 
 const defaultFilters: SearchFiltersState = {
@@ -180,7 +182,8 @@ const defaultFilters: SearchFiltersState = {
   coachingLicense: '',
   hasMatchRecording: false,
   hasPathwayToSenior: false,
-  playingTimePolicy: [] };
+  playingTimePolicy: [],
+  openToOpportunitiesOnly: false };
 
 const toGuestLocationLabel = (location: string): string => {
   if (!location) return 'UK';
@@ -619,6 +622,7 @@ const SearchPage: React.FC = () => {
     if (filters.playingTimePolicy.length > 0) count += 1;
     if (filters.hasMatchRecording) count += 1;
     if (filters.hasPathwayToSenior) count += 1;
+    if (filters.openToOpportunitiesOnly) count += 1;
     if (filters.travelDistance !== 25) count += 1;
     return count;
   }, [filters]);
@@ -721,6 +725,12 @@ const SearchPage: React.FC = () => {
         key: 'hasPathwayToSenior',
         label: 'Pathway to Senior',
         onDelete: () => resetFilterValue('hasPathwayToSenior', false) });
+    }
+    if (filters.openToOpportunitiesOnly) {
+      chips.push({
+        key: 'openToOpportunitiesOnly',
+        label: 'Status shared',
+        onDelete: () => resetFilterValue('openToOpportunitiesOnly', false) });
     }
     if (filters.travelDistance !== 25) {
       chips.push({
@@ -953,7 +963,8 @@ const SearchPage: React.FC = () => {
         experience: player.experience || 'Unknown',
         description: isGuest ? 'Sign up to view full player details and send messages.' : (player.description || player.title || ''),
         title: isGuest ? 'Player Profile' : (player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available'),
-        createdAt: player.createdAt || player.created_at })) : [];
+        createdAt: player.createdAt || player.created_at,
+        profileStatus: player.profileStatus || player.profilestatus || '' })) : [];
       
       setPlayerAvailability(transformedPlayers);
     } catch (err) {
@@ -1093,8 +1104,9 @@ const SearchPage: React.FC = () => {
       player.location.toLowerCase().includes(normalizedRegion);
     const matchesLocation = !filters.location || 
       player.location.toLowerCase().includes(filters.location.toLowerCase());
+    const matchesStatus = !filters.openToOpportunitiesOnly || !!player.profileStatus;
 
-    return matchesSearch && matchesPosition && matchesRegion && matchesLocation;
+    return matchesSearch && matchesPosition && matchesRegion && matchesLocation && matchesStatus;
   });
 
   const currentData = tabValue === 0 ? filteredVacancies : filteredPlayers;
@@ -2314,6 +2326,22 @@ const SearchPage: React.FC = () => {
                   </>
                 )}
 
+                {/* Availability status (for player searches) */}
+                {tabValue === 1 && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Checkbox
+                        checked={filters.openToOpportunitiesOnly}
+                        onChange={(e) => setFilters({ ...filters, openToOpportunitiesOnly: e.target.checked })}
+                        name="openToOpportunitiesOnly"
+                      />
+                      <Typography variant="body2">
+                        Only show players who have shared their status
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
                 {/* Quick Filter Presets */}
                 <Grid item xs={12}>
                   <Box sx={{ mt: 2 }}>
@@ -2975,6 +3003,13 @@ const SearchPage: React.FC = () => {
                                 />
                               )}
                               <Chip label={`${(item as PlayerAvailability).experience} experience`} size="small" />
+                              {(item as PlayerAvailability).profileStatus && (
+                                <Chip
+                                  label={(item as PlayerAvailability).profileStatus}
+                                  size="small"
+                                  color={(item as PlayerAvailability).profileStatus === 'Available' ? 'success' : 'warning'}
+                                />
+                              )}
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                               <LocationOn fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />

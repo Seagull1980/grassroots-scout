@@ -328,6 +328,7 @@ class Database {
         medicalInfo VARCHAR,
         profilePicture VARCHAR,
         isProfileComplete BOOLEAN DEFAULT FALSE,
+        status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities')),
         lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
       )`,
@@ -650,6 +651,7 @@ class Database {
         profilePicture VARCHAR,
         achievements TEXT,
         careerHistory TEXT,
+        status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities')),
         isActive BOOLEAN DEFAULT TRUE,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1869,6 +1871,60 @@ class Database {
       } catch (err) {
         if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
           console.warn('Warning creating testimonials tables:', err.message);
+        }
+      }
+
+      // Migration: opt-in "status" field (Available / Open to opportunities) for user_profiles and children.
+      // Hidden (NULL) by default - players/parents must explicitly opt in to display it.
+      try {
+        const checkUserProfileStatusCol = this.dbType === 'postgresql'
+          ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'user_profiles'`
+          : `PRAGMA table_info(user_profiles)`;
+        const userProfileStatusColumns = await this.query(checkUserProfileStatusCol);
+
+        if (this.dbType === 'postgresql') {
+          const names = userProfileStatusColumns.rows.map(row => row.column_name);
+          if (!names.includes('status')) {
+            await this.query("ALTER TABLE user_profiles ADD COLUMN status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities'))");
+            console.log('✅ Added status column to user_profiles table');
+          }
+        } else {
+          const hasStatus = userProfileStatusColumns.rows.some(row => row.name === 'status');
+          if (!hasStatus) {
+            try {
+              await this.query("ALTER TABLE user_profiles ADD COLUMN status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities'))");
+              console.log('✅ Added status column to user_profiles table');
+            } catch (err) {
+              if (!err.message.includes('duplicate column')) throw err;
+            }
+          }
+        }
+
+        const checkChildStatusCol = this.dbType === 'postgresql'
+          ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'children'`
+          : `PRAGMA table_info(children)`;
+        const childStatusColumns = await this.query(checkChildStatusCol);
+
+        if (this.dbType === 'postgresql') {
+          const names = childStatusColumns.rows.map(row => row.column_name);
+          if (!names.includes('status')) {
+            await this.query("ALTER TABLE children ADD COLUMN status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities'))");
+            console.log('✅ Added status column to children table');
+          }
+        } else {
+          const hasStatus = childStatusColumns.rows.some(row => row.name === 'status');
+          if (!hasStatus) {
+            try {
+              await this.query("ALTER TABLE children ADD COLUMN status VARCHAR CHECK(status IS NULL OR status IN ('Available', 'Open to opportunities'))");
+              console.log('✅ Added status column to children table');
+            } catch (err) {
+              if (!err.message.includes('duplicate column')) throw err;
+            }
+          }
+        }
+      } catch (err) {
+        if (!err.message.includes('duplicate column')) {
+          console.warn('Warning adding status column:', err.message);
         }
       }
     } catch (error) {

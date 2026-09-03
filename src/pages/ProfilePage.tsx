@@ -13,6 +13,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormHelperText,
   Checkbox,
   ListItemText,
   OutlinedInput,
@@ -130,7 +131,8 @@ const ProfilePage: React.FC = () => {
     teamName: '',
     currentAgeGroup: '',
     trainingTime: '',
-    matchDay: '' });
+    matchDay: '',
+    status: '' });
 
   const achievementYears = Array.from({ length: 41 }, (_, index) => String(new Date().getFullYear() - index));
 
@@ -356,7 +358,8 @@ const ProfilePage: React.FC = () => {
         teamName: profileResponse.teamname || '',
         currentAgeGroup: profileResponse.currentagegroup || '',
         trainingTime: profileResponse.trainingtime || '',
-        matchDay: profileResponse.matchday || '' });
+        matchDay: profileResponse.matchday || '',
+        status: profileResponse.status || '' });
     } catch (error) {
       console.error('Error loading profile:', error);
       setError('Failed to load profile data');
@@ -449,6 +452,8 @@ const ProfilePage: React.FC = () => {
         Object.entries(profileData).filter(([key, value]) => {
           // Always include required fields
           if (requiredFields.includes(key)) return true;
+          // Status is opt-in and must stay in the payload even when cleared, so it can be turned back off
+          if (key === 'status') return true;
           // Filter out empty/undefined optional fields
           if (value === undefined || value === '') return false;
           if (Array.isArray(value) && value.length === 0) return false;
@@ -771,6 +776,26 @@ const ProfilePage: React.FC = () => {
                 inputProps={{ maxLength: 500 }}
               />
             </Grid>
+            {user?.role === 'Player' && (
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={profileData.status || ''}
+                    label="Status"
+                    onChange={handleSelectChange('status')}
+                  >
+                    <MenuItem value="">Not shown</MenuItem>
+                    <MenuItem value="Available">Available</MenuItem>
+                    <MenuItem value="Open to opportunities">Open to opportunities</MenuItem>
+                  </Select>
+                  <FormHelperText>
+                    Hidden by default. Setting this makes it visible to any coach browsing search results or your
+                    profile — including coaches at your current club. Only enable this if you're comfortable with that.
+                  </FormHelperText>
+                </FormControl>
+              </Grid>
+            )}
           </Grid>
 
           {user?.role === 'Coach' && (

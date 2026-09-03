@@ -266,6 +266,11 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register(registrationData);
+      // The registration API doesn't create a child record (only a name-less DOB is captured here),
+      // so stash it and prefill the "Add Child" dialog once the parent logs in and adds the real profile.
+      if (registrationData.childDateOfBirth) {
+        localStorage.setItem('pendingChildDateOfBirth', registrationData.childDateOfBirth);
+      }
       setPendingStep(null);
       navigate('/email-verification-pending');
     } catch (error: any) {

@@ -941,12 +941,47 @@ export const OnboardingFlow: React.FC = () => {
             Your profile is set up and you'll start receiving personalized recommendations 
             and notifications based on your preferences.
           </Typography>
-          
-          <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto' }}>
+
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+            {user.role === 'Parent/Guardian'
+              ? 'Would you like to add your child and place their first advert now?'
+              : 'Would you like to place your first advert now?'}
+          </Typography>
+
+          <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto', mb: 3 }}>
+            <Grid item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={() => {
+                  handleComplete();
+                  if (user.role === 'Coach') navigate('/post-vacancy');
+                  else if (user.role === 'Parent/Guardian') navigate('/children');
+                  else navigate('/post-availability');
+                }}
+              >
+                Yes, take me there
+              </Button>
+            </Grid>
             <Grid item xs={12} sm={6}>
               <Button
                 fullWidth
                 variant="outlined"
+                onClick={() => {
+                  handleComplete();
+                  navigate('/start');
+                }}
+              >
+                I will do this later
+              </Button>
+            </Grid>
+          </Grid>
+
+          <Grid container spacing={2} sx={{ maxWidth: 400, mx: 'auto' }}>
+            <Grid item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="text"
                 startIcon={<SearchIcon />}
                 onClick={() => {
                   handleComplete();
@@ -959,7 +994,7 @@ export const OnboardingFlow: React.FC = () => {
             <Grid item xs={12} sm={6}>
               <Button
                 fullWidth
-                variant="outlined"
+                variant="text"
                 startIcon={<MapIcon />}
                 onClick={() => {
                   handleComplete();

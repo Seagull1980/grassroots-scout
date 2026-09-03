@@ -34,7 +34,7 @@ const PublicProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [profileUser, setProfileUser] = useState<{ id: number; firstName: string; lastName: string; role: string } | null>(null);
+  const [profileUser, setProfileUser] = useState<{ id: number; firstName: string; lastName: string; role: string; status?: 'Available' | 'Open to opportunities' | '' } | null>(null);
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -124,7 +124,17 @@ const PublicProfilePage: React.FC = () => {
             <Typography variant="h5">
               {profileUser.firstName} {profileUser.lastName}
             </Typography>
-            <Chip label={profileUser.role} size="small" color="primary" variant="outlined" />
+            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+              <Chip label={profileUser.role} size="small" color="primary" variant="outlined" />
+              {profileUser.status && (
+                <Chip
+                  label={profileUser.status}
+                  size="small"
+                  color={profileUser.status === 'Available' ? 'success' : 'warning'}
+                  variant="filled"
+                />
+              )}
+            </Stack>
           </Box>
         </Stack>
 

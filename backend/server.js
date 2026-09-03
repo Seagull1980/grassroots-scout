@@ -1932,6 +1932,14 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
+
+    // Opt-in "status" (Available / Open to opportunities) is hidden by default and must match an allowed value
+    if (req.body.status !== undefined && req.body.status !== null && req.body.status !== '') {
+      const allowedStatuses = ['Available', 'Open to opportunities'];
+      if (!allowedStatuses.includes(req.body.status)) {
+        return res.status(400).json({ error: 'Invalid status value' });
+      }
+    }
     
     // normalize incoming keys to lowercase so we can map them reliably
     const normalizedBody = {};
@@ -1965,7 +1973,8 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       emergencyphone: 'emergencyPhone',
       medicalinfo: 'medicalInfo',
       profilepicture: 'profilePicture',
-      isprofilecomplete: 'isProfileComplete'
+      isprofilecomplete: 'isProfileComplete',
+      status: 'status'
     };
     
     console.log('Profile update request body:', {
@@ -2204,7 +2213,8 @@ app.post('/api/children', [
   body('firstName').notEmpty().withMessage('First name is required'),
   body('lastName').notEmpty().withMessage('Last name is required'),
   body('dateOfBirth').isISO8601().withMessage('Valid date of birth is required'),
-  body('gender').optional().isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required')
+  body('gender').optional({ checkFalsy: true }).isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required'),
+  body('status').optional({ checkFalsy: true }).isIn(['Available', 'Open to opportunities']).withMessage('Valid status is required')
 ], async (req, res) => {
   try {
     if (req.user.role !== 'Parent/Guardian') {
@@ -2310,7 +2320,8 @@ app.put('/api/children/:childId', [
   body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
   body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
   body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth is required'),
-  body('gender').optional().isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required')
+  body('gender').optional({ checkFalsy: true }).isIn(['Male', 'Female', 'Other']).withMessage('Valid gender is required'),
+  body('status').optional({ checkFalsy: true }).isIn(['Available', 'Open to opportunities']).withMessage('Valid status is required')
 ], async (req, res) => {
   try {
     if (req.user.role !== 'Parent/Guardian') {
@@ -2734,7 +2745,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
 
     const expiryFilter = getExpiryComparison('expiresAt');
     const availabilityResult = await db.query(
-      `SELECT * FROM player_availability 
+      `SELECT *, (SELECT status FROM user_profiles WHERE user_profiles.userId = player_availability.postedBy) as profileStatus FROM player_availability 
        ${userQuery}
          AND (expiresAt IS NULL OR ${expiryFilter})
        ORDER BY createdAt DESC`,
@@ -2837,7 +2848,7 @@ app.get('/api/public/player-availability', async (req, res) => {
 
     const expiryFilter = getExpiryComparison('expiresAt');
     const availabilityResult = await db.query(
-      `SELECT * FROM player_availability
+      `SELECT *, (SELECT status FROM user_profiles WHERE user_profiles.userId = player_availability.postedBy) as profileStatus FROM player_availability
        WHERE status = ?
          AND (expiresAt IS NULL OR ${expiryFilter})
        ORDER BY createdAt ${orderClause}`,
@@ -4146,7 +4157,13 @@ app.get('/api/users/:userId/testimonials/public', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const userResult = await db.query('SELECT id, firstName, lastName, role FROM users WHERE id = ?', [userId]);
+    const userResult = await db.query(
+      `SELECT u.id, u.firstName, u.lastName, u.role, up.status as status
+       FROM users u
+       LEFT JOIN user_profiles up ON up.userId = u.id
+       WHERE u.id = ?`,
+      [userId]
+    );
     if (!userResult.rows || userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }

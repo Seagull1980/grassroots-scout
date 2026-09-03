@@ -16,6 +16,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormHelperText,
   IconButton,
   Chip,
   Alert,
@@ -52,6 +53,7 @@ interface Child {
   emergencyPhone?: string;
   schoolName?: string;
   bio?: string;
+  status?: 'Available' | 'Open to opportunities' | '';
   achievements?: ChildAchievement[];
   careerHistory?: ChildCareerEntry[];
   profilePicture?: string;
@@ -78,6 +80,7 @@ interface ChildFormData {
   preferredPosition: string;
   preferredTeamGender: string;
   bio: string;
+  status: string;
   achievements: ChildAchievement[];
   careerHistory: ChildCareerEntry[];
   // emergency and school fields intentionally omitted for parent-created child profiles
@@ -151,6 +154,7 @@ const normalizeChild = (rawChild: Record<string, unknown>): Child => {
     emergencyPhone: pickFirst(rawChild, ['emergencyPhone', 'emergencyphone', 'emergency_phone'], undefined),
     schoolName: pickFirst(rawChild, ['schoolName', 'schoolname', 'school_name'], undefined),
     bio: pickFirst(rawChild, ['bio'], undefined),
+    status: pickFirst(rawChild, ['status'], undefined),
     achievements: normalizeListValue<ChildAchievement>(pickFirst(rawChild, ['achievements'], undefined)),
     careerHistory: normalizeListValue<ChildCareerEntry>(pickFirst(rawChild, ['careerHistory', 'careerhistory', 'career_history'], undefined)),
     profilePicture: pickFirst(rawChild, ['profilePicture', 'profilepicture', 'profile_picture'], undefined),
@@ -177,6 +181,7 @@ const ChildrenManagementPage: React.FC = () => {
     preferredPosition: '',
     preferredTeamGender: 'Mixed',
     bio: '',
+    status: '',
     achievements: [],
     careerHistory: [],
     // emergency and school fields intentionally omitted
@@ -319,7 +324,10 @@ const ChildrenManagementPage: React.FC = () => {
       };
 
       await api.post('/children', payload);
-      
+
+      // Clear any pending DOB captured during registration now that a child has been added
+      localStorage.removeItem('pendingChildDateOfBirth');
+
       setSuccess('Child added successfully!');
       setShowAddDialog(false);
       resetForm();
@@ -356,8 +364,9 @@ const ChildrenManagementPage: React.FC = () => {
       };
 
       await api.put(`/children/${editingChild.id}`, payload);
-      
+
       setSuccess('Child information updated successfully!');
+      setShowAddDialog(false);
       setEditingChild(null);
       resetForm();
       loadChildren();
@@ -391,16 +400,26 @@ const ChildrenManagementPage: React.FC = () => {
       preferredPosition: '',
       preferredTeamGender: 'Mixed',
       bio: '',
+      status: '',
       achievements: [],
       careerHistory: [],
       // emergency and school fields intentionally omitted
     });
   };
 
-  const openEditDialog = (child: Child) => {
-    // Ensure dialog opens in add/edit modal state and pre-fill the form with the child's data
-    setEditingChild(child);
+  const openAddDialog = () => {
+    // Prefill the child's DOB if it was captured during Parent/Guardian registration
+    const pendingChildDateOfBirth = localStorage.getItem('pendingChildDateOfBirth');
+    if (pendingChildDateOfBirth) {
+      setFormData(prev => ({ ...prev, dateOfBirth: pendingChildDateOfBirth }));
+    }
     setShowAddDialog(true);
+  };
+
+  const openEditDialog = (child: Child) => {
+    // editingChild alone controls the dialog's open state; leave showAddDialog untouched
+    // so a successful edit (which clears editingChild) doesn't leave the dialog stuck open.
+    setEditingChild(child);
     setFormData({
       firstName: child.firstName,
       lastName: child.lastName,
@@ -409,6 +428,7 @@ const ChildrenManagementPage: React.FC = () => {
       preferredPosition: child.preferredPosition || '',
       preferredTeamGender: child.preferredTeamGender || 'Mixed',
       bio: child.bio || '',
+      status: child.status || '',
       achievements: child.achievements || [],
       careerHistory: child.careerHistory || []
     });
@@ -445,7 +465,7 @@ const ChildrenManagementPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setShowAddDialog(true)}
+            onClick={openAddDialog}
           >
             Add Child
           </Button>
@@ -477,7 +497,7 @@ const ChildrenManagementPage: React.FC = () => {
             'Add a short bio during setup so coaches quickly understand the child profile.',
             'Use child availability once the profile is complete.',
           ]}
-          primaryAction={{ label: 'Add Your First Child', onClick: () => setShowAddDialog(true) }}
+          primaryAction={{ label: 'Add Your First Child', onClick: openAddDialog }}
           secondaryAction={{ label: 'Open Family Relationships', onClick: () => navigate('/family-relationships') }}
         />
       ) : (
@@ -557,6 +577,13 @@ const ChildrenManagementPage: React.FC = () => {
                     <Chip label={childAge !== null ? `Age ${childAge}` : 'Age unknown'} size="small" />
                     <Chip label={child.preferredPosition || 'Position missing'} size="small" variant="outlined" color={child.preferredPosition ? 'default' : 'warning'} />
                     <Chip label={child.bio ? 'Bio added' : 'Bio needed'} size="small" color={child.bio ? 'success' : 'warning'} variant="outlined" />
+                    {child.status && (
+                      <Chip
+                        label={child.status}
+                        size="small"
+                        color={child.status === 'Available' ? 'success' : 'warning'}
+                      />
+                    )}
                   </Stack>
 
                   <Stack spacing={1}>
@@ -748,6 +775,26 @@ const ChildrenManagementPage: React.FC = () => {
                 onChange={(e) => handleInputChange('bio', e.target.value)}
                 placeholder="Brief bio: football experience, development centre, academy, or key strengths..."
               />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.status}
+                  label="Status"
+                  onChange={(e) => handleInputChange('status', e.target.value)}
+                >
+                  <MenuItem value="">Not shown</MenuItem>
+                  <MenuItem value="Available">Available</MenuItem>
+                  <MenuItem value="Open to opportunities">Open to opportunities</MenuItem>
+                </Select>
+                <FormHelperText>
+                  Hidden by default. Setting this makes it visible to any coach browsing search results or this
+                  profile — including a coach at your child's current club. Only enable this if you're comfortable
+                  with that.
+                </FormHelperText>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12}>

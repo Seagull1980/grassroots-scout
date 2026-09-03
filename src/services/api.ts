@@ -276,6 +276,8 @@ export interface UserProfile {
   profilepicture?: string;
   isprofilecomplete?: boolean;
   lastupdated?: string;
+  // Opt-in visibility status (hidden unless the player/coach explicitly sets it)
+  status?: 'Available' | 'Open to opportunities' | '';
   // Parsed versions of JSON fields
   trainingDays?: string[];
   ageGroupsCoached?: string[];
@@ -333,6 +335,7 @@ export interface ProfileUpdateData {
   trainingTime?: string;
   matchDay?: string;
   profilePicture?: string;
+  status?: 'Available' | 'Open to opportunities' | '';
 }
 
 export interface ProfileAchievement {
@@ -1355,7 +1358,7 @@ export const testimonialAPI = {
 
   // Public profile info + public testimonials for any user
   getPublicForUser: async (userId: number): Promise<{
-    user: { id: number; firstName: string; lastName: string; role: string };
+    user: { id: number; firstName: string; lastName: string; role: string; status?: 'Available' | 'Open to opportunities' | '' };
     testimonials: PublicTestimonial[];
   }> => {
     const response = await api.get(`/users/${userId}/testimonials/public`);
