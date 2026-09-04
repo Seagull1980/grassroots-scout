@@ -40,7 +40,7 @@ interface Feedback {
   description: string;
   category: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'new' | 'reviewing' | 'in-progress' | 'completed' | 'wont-fix' | 'duplicate';
+  status: 'new' | 'reviewing' | 'in-progress' | 'implemented' | 'reviewed-not-implemented' | 'no-action-needed' | 'completed' | 'wont-fix' | 'duplicate';
   adminNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -145,6 +145,9 @@ const MyFeedbackPage: React.FC = () => {
       case 'new': return 'primary';
       case 'reviewing': return 'info';
       case 'in-progress': return 'warning';
+      case 'implemented': return 'success';
+      case 'reviewed-not-implemented': return 'default';
+      case 'no-action-needed': return 'default';
       case 'completed': return 'success';
       case 'wont-fix': return 'default';
       case 'duplicate': return 'default';
@@ -153,7 +156,13 @@ const MyFeedbackPage: React.FC = () => {
   };
 
   const getStatusLabel = (status: string) => {
-    return status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    const labels: Record<string, string> = {
+      'reviewed-not-implemented': 'Reviewed but not implemented',
+      'no-action-needed': 'No action needed',
+      'in-progress': 'In progress',
+      'wont-fix': "Won't fix"
+    };
+    return labels[status] || status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   return (
@@ -174,7 +183,7 @@ const MyFeedbackPage: React.FC = () => {
       )}
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Help us improve! Report bugs or suggest new features. Our team reviews all feedback.
+        Help us improve! Report bugs or suggest new features. Our team reviews all feedback and may add a response here.
       </Alert>
 
       {loading ? (

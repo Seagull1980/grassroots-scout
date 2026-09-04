@@ -7409,6 +7409,21 @@ app.put('/api/admin/feedback/:feedbackId', authenticateToken, async (req, res) =
     const updates = [];
     const params = [];
 
+    const allowedStatuses = [
+      'new',
+      'reviewing',
+      'in-progress',
+      'implemented',
+      'reviewed-not-implemented',
+      'no-action-needed',
+      'completed',
+      'wont-fix',
+      'duplicate'
+    ];
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid feedback status' });
+    }
+
     if (status) {
       updates.push('status = ?');
       params.push(status);

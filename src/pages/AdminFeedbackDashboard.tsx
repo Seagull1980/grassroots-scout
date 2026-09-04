@@ -35,8 +35,7 @@ import {
   Close,
   FilterList,
   TrendingUp } from '@mui/icons-material';
-import axios from 'axios';
-import { ROSTER_API_URL } from '../services/api';
+import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Feedback {
@@ -47,7 +46,7 @@ interface Feedback {
   description: string;
   category: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'new' | 'reviewing' | 'in-progress' | 'completed' | 'wont-fix' | 'duplicate';
+  status: 'new' | 'reviewing' | 'in-progress' | 'implemented' | 'reviewed-not-implemented' | 'no-action-needed' | 'completed' | 'wont-fix' | 'duplicate';
   adminNotes: string | null;
   browserInfo: string | null;
   pageUrl: string | null;
@@ -107,7 +106,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   const fetchFeedback = async () => {
     setLoading(true);
     setError('');
-    try {      const params: any = {};
+    try {
+      const params: any = {};
       
       if (activeTab !== 'all') {
         params.feedbackType = activeTab === 'bugs' ? 'bug' : 'improvement';
@@ -116,9 +116,7 @@ const AdminFeedbackDashboard: React.FC = () => {
       if (priorityFilter) params.priority = priorityFilter;
       if (categoryFilter) params.category = categoryFilter;
 
-      const response = await axios.get(`${ROSTER_API_URL}/api/admin/feedback`, {
-        headers: {},
-        params });
+      const response = await api.get('/admin/feedback', { params });
 
       setFeedback(response.data.feedback);
       setStats(response.data.stats);
@@ -130,8 +128,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   };
 
   const fetchFeedbackDetails = async (feedbackId: number) => {
-    try {      const response = await axios.get(`${ROSTER_API_URL}/feedback/${feedbackId}`, {
-        headers: {} });
+    try {
+      const response = await api.get(`/feedback/${feedbackId}`);
 
       setComments(response.data.comments);
     } catch (err: any) {
@@ -153,11 +151,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleUpdateFeedback = async (updates: Partial<Feedback>) => {
     if (!selectedFeedback) return;
 
-    try {      await axios.put(
-        `${ROSTER_API_URL}/api/admin/feedback/${selectedFeedback.id}`,
-        updates,
-        { headers: {} }
-      );
+    try {
+      await api.put(`/admin/feedback/${selectedFeedback.id}`, updates);
 
       await fetchFeedback();
       if (selectedFeedback) {
@@ -174,11 +169,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleAddComment = async () => {
     if (!selectedFeedback || !newComment.trim()) return;
 
-    try {      await axios.post(
-        `${ROSTER_API_URL}/feedback/${selectedFeedback.id}/comments`,
-        { comment: newComment.trim() },
-        { headers: {} }
-      );
+    try {
+      await api.post(`/feedback/${selectedFeedback.id}/comments`, { comment: newComment.trim() });
 
       setNewComment('');
       await fetchFeedbackDetails(selectedFeedback.id);
@@ -191,8 +183,8 @@ const AdminFeedbackDashboard: React.FC = () => {
   const handleDeleteFeedback = async (feedbackId: number) => {
     if (!confirm('Are you sure you want to delete this feedback?')) return;
 
-    try {      await axios.delete(`${ROSTER_API_URL}/api/admin/feedback/${feedbackId}`, {
-        headers: {} });
+    try {
+      await api.delete(`/admin/feedback/${feedbackId}`);
 
       await fetchFeedback();
       handleCloseDetails();
@@ -216,6 +208,9 @@ const AdminFeedbackDashboard: React.FC = () => {
       case 'new': return 'primary';
       case 'reviewing': return 'info';
       case 'in-progress': return 'warning';
+      case 'implemented': return 'success';
+      case 'reviewed-not-implemented': return 'default';
+      case 'no-action-needed': return 'default';
       case 'completed': return 'success';
       case 'wont-fix': return 'default';
       case 'duplicate': return 'default';
@@ -318,6 +313,9 @@ const AdminFeedbackDashboard: React.FC = () => {
                   <MenuItem value="new">New</MenuItem>
                   <MenuItem value="reviewing">Reviewing</MenuItem>
                   <MenuItem value="in-progress">In Progress</MenuItem>
+                  <MenuItem value="implemented">Implemented</MenuItem>
+                  <MenuItem value="reviewed-not-implemented">Reviewed but not implemented</MenuItem>
+                  <MenuItem value="no-action-needed">No action needed</MenuItem>
                   <MenuItem value="completed">Completed</MenuItem>
                   <MenuItem value="wont-fix">Won't Fix</MenuItem>
                   <MenuItem value="duplicate">Duplicate</MenuItem>
@@ -492,6 +490,9 @@ const AdminFeedbackDashboard: React.FC = () => {
                       <MenuItem value="new">New</MenuItem>
                       <MenuItem value="reviewing">Reviewing</MenuItem>
                       <MenuItem value="in-progress">In Progress</MenuItem>
+                      <MenuItem value="implemented">Implemented</MenuItem>
+                      <MenuItem value="reviewed-not-implemented">Reviewed but not implemented</MenuItem>
+                      <MenuItem value="no-action-needed">No action needed</MenuItem>
                       <MenuItem value="completed">Completed</MenuItem>
                       <MenuItem value="wont-fix">Won't Fix</MenuItem>
                       <MenuItem value="duplicate">Duplicate</MenuItem>
