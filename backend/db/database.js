@@ -1927,6 +1927,42 @@ class Database {
           console.warn('Warning adding status column:', err.message);
         }
       }
+
+      // Testimonial requests are private until the recipient submits and the profile owner publishes them.
+      try {
+        const requestTableSql = this.dbType === 'postgresql'
+          ? `CREATE TABLE IF NOT EXISTS testimonial_requests (
+              id SERIAL PRIMARY KEY,
+              requesterId INTEGER NOT NULL,
+              recipientId INTEGER NOT NULL,
+              recipientEmail VARCHAR NOT NULL,
+              tokenHash VARCHAR UNIQUE NOT NULL,
+              status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'declined', 'expired')),
+              expiresAt TIMESTAMP NOT NULL,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              completedAt TIMESTAMP,
+              FOREIGN KEY (requesterId) REFERENCES users (id) ON DELETE CASCADE,
+              FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE
+            )`
+          : `CREATE TABLE IF NOT EXISTS testimonial_requests (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              requesterId INTEGER NOT NULL,
+              recipientId INTEGER NOT NULL,
+              recipientEmail VARCHAR NOT NULL,
+              tokenHash VARCHAR UNIQUE NOT NULL,
+              status VARCHAR NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'declined', 'expired')),
+              expiresAt TIMESTAMP NOT NULL,
+              createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              completedAt TIMESTAMP,
+              FOREIGN KEY (requesterId) REFERENCES users (id) ON DELETE CASCADE,
+              FOREIGN KEY (recipientId) REFERENCES users (id) ON DELETE CASCADE
+            )`;
+        await this.query(requestTableSql);
+      } catch (err) {
+        if (!err.message.includes('already exists')) {
+          console.warn('Warning creating testimonial_requests table:', err.message);
+        }
+      }
     } catch (error) {
       // Only log non-duplicate column errors
       if (!error.message.includes('duplicate column')) {

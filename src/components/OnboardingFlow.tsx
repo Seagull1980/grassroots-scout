@@ -943,7 +943,7 @@ export const OnboardingFlow: React.FC = () => {
           </Typography>
 
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-            {user.role === 'Parent/Guardian'
+            {user?.role === 'Parent/Guardian'
               ? 'Would you like to add your child and place their first advert now?'
               : 'Would you like to place your first advert now?'}
           </Typography>
@@ -955,8 +955,8 @@ export const OnboardingFlow: React.FC = () => {
                 variant="contained"
                 onClick={() => {
                   handleComplete();
-                  if (user.role === 'Coach') navigate('/post-vacancy');
-                  else if (user.role === 'Parent/Guardian') navigate('/children');
+                  if (user?.role === 'Coach') navigate('/post-vacancy');
+                  else if (user?.role === 'Parent/Guardian') navigate('/children');
                   else navigate('/post-availability');
                 }}
               >

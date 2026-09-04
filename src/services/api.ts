@@ -635,6 +635,13 @@ export interface CreateTestimonialData {
   rating?: number;
 }
 
+export interface TestimonialRequestSummary {
+  id: number;
+  firstName: string;
+  lastName: string;
+  expiresAt: string;
+}
+
 export interface PublicTestimonial {
   id: number;
   authorRole: 'Coach' | 'Player' | 'Parent/Guardian';
@@ -1338,6 +1345,21 @@ export const familyRelationshipsAPI = {
 
 // Testimonials API - coaches endorse players, players/parents endorse coaches
 export const testimonialAPI = {
+  request: async (recipientEmail: string): Promise<{ message: string; emailSent: boolean }> => {
+    const response = await api.post('/testimonials/requests', { recipientEmail });
+    return response.data;
+  },
+
+  getRequest: async (token: string): Promise<{ request: TestimonialRequestSummary }> => {
+    const response = await api.get(`/testimonials/requests/${token}`);
+    return response.data;
+  },
+
+  submitRequest: async (token: string, content: string, rating?: number): Promise<{ message: string }> => {
+    const response = await api.post(`/testimonials/requests/${token}/submit`, { content, rating });
+    return response.data;
+  },
+
   // Submit a testimonial for another user
   create: async (data: CreateTestimonialData): Promise<{ message: string; testimonialId: number }> => {
     const response = await api.post('/testimonials', data);

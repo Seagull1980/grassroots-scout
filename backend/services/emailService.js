@@ -846,6 +846,28 @@ class EmailService {
     }
   }
 
+  async sendTestimonialRequest(recipientEmail, recipientName, requesterName, requestLink) {
+    try {
+      const result = await this.sendMailWithAudit({
+        from: this.getFromAddress(),
+        to: recipientEmail,
+        subject: `${requesterName} has requested a testimonial`,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2>Testimonial request</h2>
+          <p>Hi ${recipientName || 'there'},</p>
+          <p>${requesterName} has asked you to provide a testimonial for their Grassroots Scout profile.</p>
+          <p>The testimonial will remain private until they choose to display it.</p>
+          <p><a href="${requestLink}" style="background:#2E7D32;color:#fff;padding:12px 20px;text-decoration:none;display:inline-block;">Write testimonial</a></p>
+          <p style="color:#777;font-size:12px;">This link expires in 7 days.</p>
+        </div>`
+      }, { templateName: 'testimonialRequest' });
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('Failed to send testimonial request email:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async sendInvitationResponse(inviterEmail, inviterName, teamName, coachName, status) {
     try {
       const statusText = status === 'accepted' ? 'accepted' : 'declined';

@@ -4106,6 +4106,113 @@ app.post('/api/testimonials', [
   }
 });
 
+// Request a testimonial from an existing coach using a single-use email link.
+app.post('/api/testimonials/requests', [
+  authenticateToken,
+  body('recipientEmail').isEmail().withMessage('A valid coach email is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (req.user.role !== 'Player' && req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only players and parents/guardians can request testimonials' });
+    }
+
+    const recipientEmail = req.body.recipientEmail.trim().toLowerCase();
+    const recipientResult = await db.query(
+      'SELECT id, firstName, lastName, role, email FROM users WHERE LOWER(email) = ?',
+      [recipientEmail]
+    );
+    if (!recipientResult.rows?.length || recipientResult.rows[0].role !== 'Coach') {
+      return res.status(404).json({ error: 'No Coach account was found for that email address' });
+    }
+
+    const recipient = recipientResult.rows[0];
+    if (Number(recipient.id) === Number(req.user.userId)) {
+      return res.status(400).json({ error: 'You cannot request a testimonial from yourself' });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const requesterResult = await db.query('SELECT firstName, lastName FROM users WHERE id = ?', [req.user.userId]);
+    const requester = requesterResult.rows[0] || {};
+    const requesterName = `${requester.firstName || ''} ${requester.lastName || ''}`.trim() || 'A Grassroots Scout user';
+
+    await db.query(
+      `INSERT INTO testimonial_requests (requesterId, recipientId, recipientEmail, tokenHash, expiresAt)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.user.userId, recipient.id, recipientEmail, tokenHash, expiresAt]
+    );
+
+    const requestLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/testimonial-request/${rawToken}`;
+    const emailResult = await emailService.sendTestimonialRequest(
+      recipientEmail,
+      `${recipient.firstName || ''} ${recipient.lastName || ''}`.trim(),
+      requesterName,
+      requestLink
+    );
+
+    res.status(201).json({
+      message: emailResult.success ? 'Testimonial request sent' : 'Request created, but email delivery failed',
+      emailSent: emailResult.success
+    });
+  } catch (error) {
+    console.error('Create testimonial request error:', error);
+    res.status(500).json({ error: 'Failed to create testimonial request' });
+  }
+});
+
+app.get('/api/testimonials/requests/:token', async (req, res) => {
+  try {
+    const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const result = await db.query(
+      `SELECT tr.id, tr.expiresAt, u.firstName, u.lastName
+       FROM testimonial_requests tr JOIN users u ON u.id = tr.requesterId
+       WHERE tr.tokenHash = ? AND tr.status = 'pending' AND tr.expiresAt > ?`,
+      [tokenHash, new Date()]
+    );
+    if (!result.rows?.length) return res.status(404).json({ error: 'This testimonial request is invalid or has expired' });
+    res.json({ request: result.rows[0] });
+  } catch (error) {
+    console.error('Get testimonial request error:', error);
+    res.status(500).json({ error: 'Failed to load testimonial request' });
+  }
+});
+
+app.post('/api/testimonials/requests/:token/submit', [
+  body('content').isLength({ min: 10, max: 1000 }).withMessage('Testimonial must be between 10 and 1000 characters'),
+  body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const requestResult = await db.query(
+      `SELECT tr.*, u.role as requesterRole
+       FROM testimonial_requests tr JOIN users u ON u.id = tr.requesterId
+       WHERE tr.tokenHash = ? AND tr.status = 'pending' AND tr.expiresAt > ?`,
+      [tokenHash, new Date()]
+    );
+    if (!requestResult.rows?.length) return res.status(404).json({ error: 'This testimonial request is invalid or has expired' });
+
+    const request = requestResult.rows[0];
+    await db.query(
+      `INSERT INTO testimonials (authorId, authorRole, recipientId, recipientRole, content, rating)
+       VALUES (?, 'Coach', ?, ?, ?, ?)`,
+      [request.recipientId, request.requesterId, request.requesterRole, req.body.content.trim(), req.body.rating ?? null]
+    );
+    await db.query(
+      `UPDATE testimonial_requests SET status = 'completed', completedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+      [request.id]
+    );
+    res.status(201).json({ message: 'Testimonial submitted privately to the requester' });
+  } catch (error) {
+    console.error('Submit testimonial request error:', error);
+    res.status(500).json({ error: 'Failed to submit testimonial' });
+  }
+});
+
 // Get testimonials received by the current user (for managing public visibility)
 app.get('/api/testimonials/received', authenticateToken, async (req, res) => {
   try {

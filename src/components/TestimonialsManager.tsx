@@ -7,6 +7,12 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
   FormControlLabel,
   Switch,
   IconButton,
@@ -24,6 +30,9 @@ const TestimonialsManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [requesting, setRequesting] = useState(false);
 
   const loadTestimonials = async () => {
     setIsLoading(true);
@@ -79,6 +88,20 @@ const TestimonialsManager: React.FC = () => {
     }
   };
 
+  const handleRequest = async () => {
+    setRequesting(true);
+    setError('');
+    try {
+      await testimonialAPI.request(recipientEmail.trim());
+      setRequestOpen(false);
+      setRecipientEmail('');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to send testimonial request.');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -96,6 +119,10 @@ const TestimonialsManager: React.FC = () => {
         Coaches can write testimonials for players, and players or parents/guardians can write testimonials for
         coaches. Choose which received testimonials appear publicly on your profile.
       </Typography>
+
+      <Button variant="contained" onClick={() => setRequestOpen(true)} sx={{ mb: 2 }}>
+        Request a Testimonial
+      </Button>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -196,6 +223,29 @@ const TestimonialsManager: React.FC = () => {
           </Stack>
         )
       )}
+
+      <Dialog open={requestOpen} onClose={() => setRequestOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Request a Testimonial</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enter the email address of a Coach you have worked with. They will receive a private link to write a testimonial. It will not appear publicly until you choose to show it.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            type="email"
+            label="Coach email address"
+            value={recipientEmail}
+            onChange={(event) => setRecipientEmail(event.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRequestOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleRequest} disabled={requesting || !recipientEmail.trim()}>
+            {requesting ? 'Sending...' : 'Send Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

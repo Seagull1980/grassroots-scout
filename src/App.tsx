@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import StorageNotification from './components/StorageNotification';
 import MobileAdminSwitcher from './components/MobileAdminSwitcher';
 import FeedbackButton from './components/FeedbackButton';
+import BetaBanner from './components/BetaBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import AuthDebugger from './components/AuthDebugger';
 import { OnboardingFlow } from './components/OnboardingFlow';
@@ -35,6 +36,7 @@ import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
 import SearchPage from './pages/SearchPage';
 import ProfilePage from './pages/ProfilePage.tsx';
 import PublicProfilePage from './pages/PublicProfilePage.tsx';
+import TestimonialRequestPage from './pages/TestimonialRequestPage.tsx';
 import AboutManagementPage from './pages/AboutManagementPage.tsx';
 import CalendarPage from './pages/CalendarPage.tsx';
 import UserAdminPage from './pages/UserAdminPage.tsx';
@@ -154,6 +156,7 @@ const AppRoutes = () => {
             <EmailVerificationPage />
           </ProtectedRoute>
         } />
+        <Route path="/testimonial-request/:token" element={<TestimonialRequestPage />} />
         <Route path="/forgot-password" element={
           <ProtectedRoute requireAuth={false}>
             <ForgotPasswordPage />
@@ -458,6 +461,7 @@ function App() {
               <ErrorBoundary>
                 <Navbar />
               </ErrorBoundary>
+              <BetaBanner />
               <StorageNotification />
               <ErrorBoundary>
                 <AuthDebugger />
