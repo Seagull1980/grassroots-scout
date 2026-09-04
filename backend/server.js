@@ -814,6 +814,7 @@ const ensureTeamLocationMapColumns = async () => {
     await db.createTables();
     await ensureAdvertExpiryColumns();
     await ensureProfileEnhancementColumns();
+    await ensureMessageModerationColumns();
     await ensureTeamLocationMapColumns();
 
     emailService.setAuditLogger(async (entry) => {
@@ -11496,6 +11497,28 @@ const ensureProfileEnhancementColumns = async () => {
         }
       }
     }
+  }
+};
+
+const ensureMessageModerationColumns = async () => {
+  const columns = [
+    { name: 'isDeleted', definition: 'BOOLEAN DEFAULT FALSE' },
+    { name: 'deletedReason', definition: 'VARCHAR' }
+  ];
+
+  const existingResult = await db.query(
+    db.dbType === 'postgresql'
+      ? "SELECT column_name FROM information_schema.columns WHERE table_name = 'messages'"
+      : 'PRAGMA table_info(messages)'
+  );
+  const existingNames = new Set((existingResult.rows || []).map((row) =>
+    String(row.column_name || row.name).toLowerCase()
+  ));
+
+  for (const column of columns) {
+    if (existingNames.has(column.name.toLowerCase())) continue;
+    await db.query(`ALTER TABLE messages ADD COLUMN ${column.name} ${column.definition}`);
+    console.log(`Added ${column.name} column to messages table`);
   }
 };
 
