@@ -293,7 +293,7 @@ const AppRoutes = () => {
         } />
         <Route path="/team-profile" element={
           <ProtectedRoute>
-            <TeamProfilePage />
+            <Navigate to="/team-management" replace />
           </ProtectedRoute>
         } />
         <Route path="/team-profile/:teamId" element={
