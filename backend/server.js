@@ -7471,6 +7471,35 @@ app.delete('/api/admin/feedback/:feedbackId', authenticateToken, async (req, res
 // USER FEEDBACK ENDPOINTS
 // ===========================
 
+// Submit new feedback (bug report or improvement idea)
+app.post('/api/feedback', authenticateToken, async (req, res) => {
+  try {
+    const { feedbackType, title, description, category, browserInfo, pageUrl } = req.body;
+
+    if (!feedbackType || !title || !description) {
+      return res.status(400).json({ error: 'Feedback type, title, and description are required' });
+    }
+
+    if (!['bug', 'improvement'].includes(feedbackType)) {
+      return res.status(400).json({ error: 'Invalid feedback type' });
+    }
+
+    const result = await db.query(
+      `INSERT INTO user_feedback (userId, feedbackType, title, description, category, browserInfo, pageUrl)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.userId, feedbackType, title.trim(), description.trim(), category || 'general', browserInfo, pageUrl]
+    );
+
+    res.status(201).json({
+      message: 'Feedback submitted successfully',
+      feedbackId: result.lastID || result.insertId
+    });
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+});
+
 // Get user's own feedback submissions
 app.get('/api/feedback/my-submissions', authenticateToken, async (req, res) => {
   try {

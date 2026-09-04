@@ -16,8 +16,7 @@ import {
   Tabs,
   Tab } from '@mui/material';
 import { BugReport, Lightbulb } from '@mui/icons-material';
-import axios from 'axios';
-import { ROSTER_API_URL } from '../services/api';
+import api from '../services/api';
 
 interface FeedbackDialogProps {
   open: boolean;
@@ -63,20 +62,19 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({ open, onClose, defaultT
     setSubmitting(true);
     setError('');
 
-    try {      const browserInfo = getBrowserInfo();
+    try {
+      const browserInfo = getBrowserInfo();
       const pageUrl = window.location.href;
 
-      await axios.post(
-        `${ROSTER_API_URL}/feedback`,
+      await api.post(
+        '/feedback',
         {
           feedbackType,
           title: title.trim(),
           description: description.trim(),
           category,
           browserInfo: JSON.stringify(browserInfo),
-          pageUrl },
-        {
-          headers: {} }
+          pageUrl }
       );
 
       setSuccess(true);
