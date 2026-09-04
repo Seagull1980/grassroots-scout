@@ -76,6 +76,25 @@ interface TeamDetails {
   trainingLocation?: string;
   homePitchLocation?: string;
   honours?: string;
+  members?: TeamMember[];
+}
+
+interface TeamMember {
+  id: number;
+  userId: number;
+  firstName: string;
+  lastName: string;
+  role: string;
+  joinedAt: string;
+}
+
+interface TeamVacancy {
+  id: number;
+  title: string;
+  description: string;
+  ageGroup: string;
+  position: string;
+  createdAt: string;
 }
 
 const TeamProfilePage: React.FC = () => {
@@ -85,6 +104,7 @@ const TeamProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<TeamProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
+  const [teamVacancies, setTeamVacancies] = useState<TeamVacancy[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -152,6 +172,14 @@ const TeamProfilePage: React.FC = () => {
 
         const data = await response.json();
         setTeamDetails(data.team || null);
+
+        const vacanciesResponse = await fetch(`/api/teams/${teamId}/vacancies`, {
+          headers: {}
+        });
+        if (vacanciesResponse.ok) {
+          const vacanciesData = await vacanciesResponse.json();
+          setTeamVacancies(Array.isArray(vacanciesData.vacancies) ? vacanciesData.vacancies : []);
+        }
       } catch (err: any) {
         setTeamError(err.message || 'Failed to fetch team details');
       } finally {
@@ -164,7 +192,8 @@ const TeamProfilePage: React.FC = () => {
 
   const searchClubs = async (searchTerm: string) => {
     try {
-      setLoadingClubs(true);      const response = await fetch(`/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
+      setLoadingClubs(true);
+      const response = await fetch(`/api/clubs/search?q=${encodeURIComponent(searchTerm)}`, {
         headers: {}
       });
       const data = await response.json();
@@ -332,6 +361,17 @@ const TeamProfilePage: React.FC = () => {
           )}
         </Box>
 
+        <Paper sx={{ p: 2, mb: 2, backgroundColor: 'primary.50' }}>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Team Passport
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <Chip label={`${teamDetails.members?.length || 0} coaching staff`} size="small" />
+            <Chip label={`${teamVacancies.length} active ${teamVacancies.length === 1 ? 'vacancy' : 'vacancies'}`} size="small" color={teamVacancies.length > 0 ? 'success' : 'default'} />
+            <Chip label={teamDetails.location || 'Location not listed'} size="small" variant="outlined" />
+          </Box>
+        </Paper>
+
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
@@ -341,6 +381,46 @@ const TeamProfilePage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 {teamDetails.teamBio || 'No team bio added yet.'}
               </Typography>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" gutterBottom>
+                Coaching Staff
+              </Typography>
+              {teamDetails.members && teamDetails.members.length > 0 ? (
+                teamDetails.members.map((member) => (
+                  <Box key={member.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.75 }}>
+                    <Typography variant="body2">
+                      {member.firstName} {member.lastName}
+                    </Typography>
+                    <Chip label={member.role} size="small" variant="outlined" />
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">No coaching staff listed yet.</Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" gutterBottom>
+                Active Opportunities
+              </Typography>
+              {teamVacancies.length > 0 ? (
+                teamVacancies.map((vacancy) => (
+                  <Box key={vacancy.id} sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2">{vacancy.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {vacancy.position} · {vacancy.ageGroup}
+                    </Typography>
+                  </Box>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">No active vacancies at the moment.</Typography>
+              )}
             </Paper>
           </Grid>
 
