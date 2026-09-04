@@ -12152,6 +12152,63 @@ app.get('/api/teams/:teamId/vacancies', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/teams/:teamId/testimonials', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT tt.id, tt.content, tt.rating, tt.isPublic, tt.createdAt,
+        u.firstName as authorFirstName, u.lastName as authorLastName, u.role as authorRole
+      FROM team_testimonials tt
+      JOIN users u ON u.id = tt.authorId
+      WHERE tt.teamId = ? AND tt.status = 'active'
+        AND (tt.isPublic = ? OR EXISTS (SELECT 1 FROM team_members tm WHERE tm.teamId = tt.teamId AND tm.userId = ?))
+      ORDER BY tt.createdAt DESC
+    `, [req.params.teamId, true, req.user.userId]);
+    res.json({ testimonials: result.rows || [] });
+  } catch (error) {
+    console.error('Get team testimonials error:', error);
+    res.status(500).json({ error: 'Failed to fetch team testimonials' });
+  }
+});
+
+app.post('/api/teams/:teamId/testimonials', [
+  authenticateToken,
+  body('content').isLength({ min: 10, max: 1000 }).withMessage('Testimonial must be between 10 and 1000 characters'),
+  body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (req.user.role !== 'Player' && req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only players and parents/guardians can review a team' });
+    }
+    const team = await db.query('SELECT id FROM teams WHERE id = ?', [req.params.teamId]);
+    if (!team.rows?.length) return res.status(404).json({ error: 'Team not found' });
+    await db.query(
+      `INSERT INTO team_testimonials (teamId, authorId, content, rating) VALUES (?, ?, ?, ?)`,
+      [req.params.teamId, req.user.userId, req.body.content.trim(), req.body.rating ?? null]
+    );
+    res.status(201).json({ message: 'Team testimonial submitted for approval' });
+  } catch (error) {
+    console.error('Create team testimonial error:', error);
+    res.status(500).json({ error: 'Failed to submit team testimonial' });
+  }
+});
+
+app.patch('/api/teams/:teamId/testimonials/:testimonialId/visibility', [authenticateToken, body('isPublic').isBoolean()], async (req, res) => {
+  try {
+    const owner = await db.query(
+      `SELECT tm.id FROM team_members tm WHERE tm.teamId = ? AND tm.userId = ? AND tm.role = 'Head Coach'`,
+      [req.params.teamId, req.user.userId]
+    );
+    if (!owner.rows?.length && req.user.role !== 'Admin') return res.status(403).json({ error: 'Team owner access required' });
+    await db.query('UPDATE team_testimonials SET isPublic = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND teamId = ?', [req.body.isPublic, req.params.testimonialId, req.params.teamId]);
+    res.json({ message: 'Team testimonial visibility updated' });
+  } catch (error) {
+    console.error('Update team testimonial visibility error:', error);
+    res.status(500).json({ error: 'Failed to update team testimonial visibility' });
+  }
+});
+
 // Search for coaches by name or email
 app.get('/api/coaches/search', authenticateToken, async (req, res) => {
   try {

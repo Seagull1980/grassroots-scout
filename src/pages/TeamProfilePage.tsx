@@ -19,7 +19,8 @@ import {
   CardContent,
   CircularProgress,
   Divider,
-  Autocomplete
+  Autocomplete,
+  Rating
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -107,6 +108,17 @@ interface TeamVacancy {
   createdAt: string;
 }
 
+interface TeamTestimonial {
+  id: number;
+  content: string;
+  rating?: number;
+  isPublic: boolean;
+  authorFirstName: string;
+  authorLastName: string;
+  authorRole: string;
+  createdAt: string;
+}
+
 const TeamProfilePage: React.FC = () => {
   const { user } = useAuth();
   const { teamId } = useParams();
@@ -115,6 +127,10 @@ const TeamProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
   const [teamVacancies, setTeamVacancies] = useState<TeamVacancy[]>([]);
+  const [teamTestimonials, setTeamTestimonials] = useState<TeamTestimonial[]>([]);
+  const [testimonialDialogOpen, setTestimonialDialogOpen] = useState(false);
+  const [testimonialContent, setTestimonialContent] = useState('');
+  const [testimonialRating, setTestimonialRating] = useState<number | null>(null);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -190,6 +206,12 @@ const TeamProfilePage: React.FC = () => {
           const vacanciesData = await vacanciesResponse.json();
           setTeamVacancies(Array.isArray(vacanciesData.vacancies) ? vacanciesData.vacancies : []);
         }
+
+        const testimonialsResponse = await fetch(`/api/teams/${teamId}/testimonials`, { headers: {} });
+        if (testimonialsResponse.ok) {
+          const testimonialsData = await testimonialsResponse.json();
+          setTeamTestimonials(Array.isArray(testimonialsData.testimonials) ? testimonialsData.testimonials : []);
+        }
       } catch (err: any) {
         setTeamError(err.message || 'Failed to fetch team details');
       } finally {
@@ -199,6 +221,35 @@ const TeamProfilePage: React.FC = () => {
 
     fetchTeamDetails();
   }, [teamId]);
+
+  const submitTeamTestimonial = async () => {
+    if (!teamId || testimonialContent.trim().length < 10) return;
+    try {
+      const response = await fetch(`/api/teams/${teamId}/testimonials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: testimonialContent.trim(), rating: testimonialRating ?? undefined })
+      });
+      if (!response.ok) throw new Error('Failed to submit team testimonial');
+      setTestimonialDialogOpen(false);
+      setTestimonialContent('');
+      setTestimonialRating(null);
+    } catch (err: any) {
+      setTeamError(err.message || 'Failed to submit team testimonial');
+    }
+  };
+
+  const toggleTeamTestimonialVisibility = async (testimonial: TeamTestimonial) => {
+    if (!teamId) return;
+    const response = await fetch(`/api/teams/${teamId}/testimonials/${testimonial.id}/visibility`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isPublic: !testimonial.isPublic })
+    });
+    if (response.ok) {
+      setTeamTestimonials((previous) => previous.map((item) => item.id === testimonial.id ? { ...item, isPublic: !item.isPublic } : item));
+    }
+  };
 
   const searchClubs = async (searchTerm: string) => {
     try {
@@ -498,7 +549,65 @@ const TeamProfilePage: React.FC = () => {
               </Typography>
             </Paper>
           </Grid>
+
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Team Testimonials</Typography>
+                {(user?.role === 'Player' || user?.role === 'Parent/Guardian') && (
+                  <Button variant="outlined" size="small" onClick={() => setTestimonialDialogOpen(true)}>
+                    Share Experience
+                  </Button>
+                )}
+              </Box>
+              {teamTestimonials.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No team testimonials yet.</Typography>
+              ) : (
+                teamTestimonials.map((testimonial) => (
+                  <Box key={testimonial.id} sx={{ borderTop: 1, borderColor: 'divider', py: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                      <Typography variant="body2">{testimonial.content}</Typography>
+                      {testimonial.rating && <Rating value={testimonial.rating} readOnly size="small" />}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      {testimonial.authorFirstName} {testimonial.authorLastName} · {testimonial.authorRole}
+                    </Typography>
+                    {teamDetails.members?.some((member) => member.userId === Number(user?.id) && member.role === 'Head Coach') && (
+                      <Switch
+                        size="small"
+                        checked={testimonial.isPublic}
+                        onChange={() => toggleTeamTestimonialVisibility(testimonial)}
+                        inputProps={{ 'aria-label': 'toggle team testimonial visibility' }}
+                      />
+                    )}
+                  </Box>
+                ))
+              )}
+            </Paper>
+          </Grid>
         </Grid>
+
+        <Dialog open={testimonialDialogOpen} onClose={() => setTestimonialDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Share your team experience</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              fullWidth
+              multiline
+              minRows={5}
+              label="Your testimonial"
+              value={testimonialContent}
+              onChange={(event) => setTestimonialContent(event.target.value)}
+              helperText="Your testimonial will remain private until the team owner approves it."
+              sx={{ mt: 1 }}
+            />
+            <Rating value={testimonialRating} onChange={(_, value) => setTestimonialRating(value)} sx={{ mt: 2 }} />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTestimonialDialogOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={submitTeamTestimonial} disabled={testimonialContent.trim().length < 10}>Submit</Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     );
   }

@@ -621,6 +621,20 @@ class Database {
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (coachId) REFERENCES users (id) ON DELETE CASCADE
       )`,
+
+      `CREATE TABLE IF NOT EXISTS team_testimonials (
+        id SERIAL PRIMARY KEY,
+        teamId INTEGER NOT NULL,
+        authorId INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        rating INTEGER CHECK(rating IS NULL OR (rating >= 1 AND rating <= 5)),
+        isPublic BOOLEAN DEFAULT FALSE,
+        status VARCHAR DEFAULT 'active' CHECK(status IN ('active', 'hidden')),
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (teamId) REFERENCES teams (id) ON DELETE CASCADE,
+        FOREIGN KEY (authorId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
       
       // Playing History table
       `CREATE TABLE IF NOT EXISTS playing_history (
