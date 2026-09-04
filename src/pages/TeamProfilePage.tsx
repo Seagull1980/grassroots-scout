@@ -73,6 +73,16 @@ interface TeamDetails {
   teamGender?: string;
   location?: string;
   teamBio?: string;
+  establishedYear?: number | null;
+  teamDescription?: string;
+  coachingPhilosophy?: string;
+  trainingFocus?: string;
+  developmentAreas?: string;
+  teamAchievements?: string;
+  hasPathwayProgram?: boolean;
+  pathwayDescription?: string;
+  linkedAdultTeam?: string;
+  academyAffiliation?: string;
   trainingLocation?: string;
   homePitchLocation?: string;
   honours?: string;
@@ -339,6 +349,9 @@ const TeamProfilePage: React.FC = () => {
             <Typography variant="h4" gutterBottom>
               {teamDetails.teamName}
             </Typography>
+            <Typography variant="subtitle2" color="primary.main" sx={{ mb: 0.5 }}>
+              Football Passport
+            </Typography>
             {teamDetails.clubName && (
               <Typography variant="subtitle1" color="text.secondary">
                 {teamDetails.clubName}
@@ -379,10 +392,39 @@ const TeamProfilePage: React.FC = () => {
                 Team Bio
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {teamDetails.teamBio || 'No team bio added yet.'}
+                {teamDetails.teamDescription || teamDetails.teamBio || 'No team bio added yet.'}
               </Typography>
+              {teamDetails.establishedYear && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Established {teamDetails.establishedYear}
+                </Typography>
+              )}
             </Paper>
           </Grid>
+
+          {(teamDetails.coachingPhilosophy || teamDetails.trainingFocus || teamDetails.developmentAreas) && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>Coaching Philosophy & Development</Typography>
+                {teamDetails.coachingPhilosophy && <Typography variant="body2" sx={{ mb: 1 }}>{teamDetails.coachingPhilosophy}</Typography>}
+                {teamDetails.trainingFocus && <Typography variant="body2" color="text.secondary"><strong>Training focus:</strong> {teamDetails.trainingFocus}</Typography>}
+                {teamDetails.developmentAreas && <Typography variant="body2" color="text.secondary"><strong>Development areas:</strong> {teamDetails.developmentAreas}</Typography>}
+              </Paper>
+            </Grid>
+          )}
+
+          {(teamDetails.teamAchievements || teamDetails.hasPathwayProgram) && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>Achievements & Pathways</Typography>
+                {teamDetails.teamAchievements && <Typography variant="body2" sx={{ mb: 1 }}>{teamDetails.teamAchievements}</Typography>}
+                {teamDetails.hasPathwayProgram && <Chip label="Pathway programme" color="success" size="small" sx={{ mr: 1 }} />}
+                {teamDetails.linkedAdultTeam && <Chip label={`Linked: ${teamDetails.linkedAdultTeam}`} size="small" variant="outlined" sx={{ mr: 1 }} />}
+                {teamDetails.academyAffiliation && <Chip label={`Academy: ${teamDetails.academyAffiliation}`} size="small" variant="outlined" />}
+                {teamDetails.pathwayDescription && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{teamDetails.pathwayDescription}</Typography>}
+              </Paper>
+            </Grid>
+          )}
 
           <Grid item xs={12} md={6}>
             <Paper sx={{ p: 2, height: '100%' }}>

@@ -815,6 +815,7 @@ const ensureTeamLocationMapColumns = async () => {
     await ensureAdvertExpiryColumns();
     await ensureProfileEnhancementColumns();
     await ensureMessageModerationColumns();
+    await ensureTeamPassportColumns();
     await ensureTeamLocationMapColumns();
 
     emailService.setAuditLogger(async (entry) => {
@@ -11522,6 +11523,33 @@ const ensureMessageModerationColumns = async () => {
   }
 };
 
+const ensureTeamPassportColumns = async () => {
+  const columns = [
+    ['establishedYear', 'INTEGER'],
+    ['teamDescription', 'TEXT'],
+    ['coachingPhilosophy', 'TEXT'],
+    ['trainingFocus', 'VARCHAR'],
+    ['developmentAreas', 'TEXT'],
+    ['teamAchievements', 'TEXT'],
+    ['hasPathwayProgram', 'BOOLEAN DEFAULT FALSE'],
+    ['pathwayDescription', 'TEXT'],
+    ['linkedAdultTeam', 'VARCHAR'],
+    ['academyAffiliation', 'VARCHAR']
+  ];
+  const result = await db.query(
+    db.dbType === 'postgresql'
+      ? "SELECT column_name FROM information_schema.columns WHERE table_name = 'teams'"
+      : 'PRAGMA table_info(teams)'
+  );
+  const existing = new Set((result.rows || []).map(row => String(row.column_name || row.name).toLowerCase()));
+  for (const [name, definition] of columns) {
+    if (!existing.has(name.toLowerCase())) {
+      await db.query(`ALTER TABLE teams ADD COLUMN ${name} ${definition}`);
+      console.log(`Added ${name} column to teams table`);
+    }
+  }
+};
+
 // Mount league requests router
 app.use('/api/league-requests', leagueRequestsRouter);
 
@@ -11735,6 +11763,16 @@ app.get('/api/teams/:teamId', authenticateToken, async (req, res) => {
         t.website,
         t.socialmedia as "socialMedia",
         t.teambio as "teamBio",
+        t.establishedyear as "establishedYear",
+        t.teamdescription as "teamDescription",
+        t.coachingphilosophy as "coachingPhilosophy",
+        t.trainingfocus as "trainingFocus",
+        t.developmentareas as "developmentAreas",
+        t.teamachievements as "teamAchievements",
+        t.haspathwayprogram as "hasPathwayProgram",
+        t.pathwaydescription as "pathwayDescription",
+        t.linkedadultteam as "linkedAdultTeam",
+        t.academyaffiliation as "academyAffiliation",
         t.traininglocation as "trainingLocation",
         t.homepitchlocation as "homePitchLocation",
         t.honours as "honours",
@@ -11834,6 +11872,16 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       website,
       socialMedia,
       teamBio,
+      establishedYear,
+      teamDescription,
+      coachingPhilosophy,
+      trainingFocus,
+      developmentAreas,
+      teamAchievements,
+      hasPathwayProgram,
+      pathwayDescription,
+      linkedAdultTeam,
+      academyAffiliation,
       trainingLocation,
       homePitchLocation,
       honours,
@@ -11845,7 +11893,10 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       UPDATE teams SET
         teamName = ?, clubName = ?, ageGroup = ?, league = ?, teamGender = ?, playingTimePolicy = ?,
         location = ?, locationData = ?, contactEmail = ?, website = ?, socialMedia = ?,
-        teamBio = ?, trainingLocation = ?, homePitchLocation = ?, honours = ?,
+        teamBio = ?, establishedYear = ?, teamDescription = ?, coachingPhilosophy = ?,
+        trainingFocus = ?, developmentAreas = ?, teamAchievements = ?, hasPathwayProgram = ?,
+        pathwayDescription = ?, linkedAdultTeam = ?, academyAffiliation = ?,
+        trainingLocation = ?, homePitchLocation = ?, honours = ?,
         showOnTeamLocationMap = ?, allowMapContact = ?,
         updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -11862,6 +11913,16 @@ app.put('/api/teams/:teamId', authenticateToken, async (req, res) => {
       website,
       socialMedia ? JSON.stringify(socialMedia) : null,
       teamBio || null,
+      establishedYear || null,
+      teamDescription || null,
+      coachingPhilosophy || null,
+      trainingFocus || null,
+      developmentAreas || null,
+      teamAchievements || null,
+      !!hasPathwayProgram,
+      pathwayDescription || null,
+      linkedAdultTeam || null,
+      academyAffiliation || null,
       trainingLocation || null,
       homePitchLocation || null,
       honours || null,

@@ -52,6 +52,16 @@ interface Team {
   location?: string;
   locationData?: Location | null;
   teamBio?: string;
+  establishedYear?: number | null;
+  teamDescription?: string;
+  coachingPhilosophy?: string;
+  trainingFocus?: string;
+  developmentAreas?: string;
+  teamAchievements?: string;
+  hasPathwayProgram?: boolean;
+  pathwayDescription?: string;
+  linkedAdultTeam?: string;
+  academyAffiliation?: string;
   trainingLocation?: string;
   homePitchLocation?: string;
   honours?: string;
@@ -125,6 +135,16 @@ const TeamManagement: React.FC = () => {
     locationData: null as Location | null,
     playingTimePolicy: '',
     teamBio: '',
+    establishedYear: null as number | null,
+    teamDescription: '',
+    coachingPhilosophy: '',
+    trainingFocus: '',
+    developmentAreas: '',
+    teamAchievements: '',
+    hasPathwayProgram: false,
+    pathwayDescription: '',
+    linkedAdultTeam: '',
+    academyAffiliation: '',
     trainingLocation: '',
     homePitchLocation: '',
     honours: '',
@@ -142,6 +162,16 @@ const TeamManagement: React.FC = () => {
     locationData: null as Location | null,
     playingTimePolicy: '',
     teamBio: '',
+    establishedYear: null as number | null,
+    teamDescription: '',
+    coachingPhilosophy: '',
+    trainingFocus: '',
+    developmentAreas: '',
+    teamAchievements: '',
+    hasPathwayProgram: false,
+    pathwayDescription: '',
+    linkedAdultTeam: '',
+    academyAffiliation: '',
     trainingLocation: '',
     homePitchLocation: '',
     honours: '',
@@ -231,6 +261,16 @@ const TeamManagement: React.FC = () => {
         locationData: null,
         playingTimePolicy: '',
         teamBio: '',
+        establishedYear: null as number | null,
+        teamDescription: '',
+        coachingPhilosophy: '',
+        trainingFocus: '',
+        developmentAreas: '',
+        teamAchievements: '',
+        hasPathwayProgram: false,
+        pathwayDescription: '',
+        linkedAdultTeam: '',
+        academyAffiliation: '',
         trainingLocation: '',
         homePitchLocation: '',
         honours: '',
@@ -348,6 +388,16 @@ const TeamManagement: React.FC = () => {
         locationData: parseLocationData(fullTeam.locationData),
         playingTimePolicy: fullTeam.playingTimePolicy || '',
         teamBio: fullTeam.teamBio || '',
+        establishedYear: fullTeam.establishedYear || null,
+        teamDescription: fullTeam.teamDescription || '',
+        coachingPhilosophy: fullTeam.coachingPhilosophy || '',
+        trainingFocus: fullTeam.trainingFocus || '',
+        developmentAreas: fullTeam.developmentAreas || '',
+        teamAchievements: fullTeam.teamAchievements || '',
+        hasPathwayProgram: !!fullTeam.hasPathwayProgram,
+        pathwayDescription: fullTeam.pathwayDescription || '',
+        linkedAdultTeam: fullTeam.linkedAdultTeam || '',
+        academyAffiliation: fullTeam.academyAffiliation || '',
         trainingLocation: fullTeam.trainingLocation || '',
         homePitchLocation: fullTeam.homePitchLocation || '',
         honours: fullTeam.honours || '',
@@ -642,6 +692,16 @@ const TeamManagement: React.FC = () => {
               multiline
               rows={3}
             />
+            <TextField fullWidth label="Team Description" value={editForm.teamDescription} onChange={(e) => setEditForm({ ...editForm, teamDescription: e.target.value })} sx={{ mt: 2 }} multiline rows={3} />
+            <TextField fullWidth label="Established Year" type="number" value={editForm.establishedYear || ''} onChange={(e) => setEditForm({ ...editForm, establishedYear: e.target.value ? Number(e.target.value) : null })} sx={{ mt: 2 }} />
+            <TextField fullWidth label="Coaching Philosophy" value={editForm.coachingPhilosophy} onChange={(e) => setEditForm({ ...editForm, coachingPhilosophy: e.target.value })} sx={{ mt: 2 }} multiline rows={3} />
+            <TextField fullWidth label="Training Focus" value={editForm.trainingFocus} onChange={(e) => setEditForm({ ...editForm, trainingFocus: e.target.value })} sx={{ mt: 2 }} />
+            <TextField fullWidth label="Development Areas" value={editForm.developmentAreas} onChange={(e) => setEditForm({ ...editForm, developmentAreas: e.target.value })} sx={{ mt: 2 }} multiline rows={2} />
+            <TextField fullWidth label="Team Achievements" value={editForm.teamAchievements} onChange={(e) => setEditForm({ ...editForm, teamAchievements: e.target.value })} sx={{ mt: 2 }} multiline rows={3} />
+            <FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={!!editForm.hasPathwayProgram} onChange={(e) => setEditForm({ ...editForm, hasPathwayProgram: e.target.checked })} />} label="Pathway to an adult team or academy" />
+            <TextField fullWidth label="Pathway Description" value={editForm.pathwayDescription} onChange={(e) => setEditForm({ ...editForm, pathwayDescription: e.target.value })} sx={{ mt: 1 }} multiline rows={2} />
+            <TextField fullWidth label="Linked Adult Team" value={editForm.linkedAdultTeam} onChange={(e) => setEditForm({ ...editForm, linkedAdultTeam: e.target.value })} sx={{ mt: 2 }} />
+            <TextField fullWidth label="Academy Affiliation" value={editForm.academyAffiliation} onChange={(e) => setEditForm({ ...editForm, academyAffiliation: e.target.value })} sx={{ mt: 2 }} />
             <LocationAutocomplete
               fullWidth
               label="Training Location"
