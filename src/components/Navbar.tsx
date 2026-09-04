@@ -38,7 +38,6 @@ import {
   Info,
   Message,
   SwapHoriz,
-  Business,
   Analytics,
   MoreHoriz,
   ManageAccounts,
@@ -266,9 +265,8 @@ const Navbar: React.FC = () => {
     { path: '/calendar', label: 'Calendar', icon: <CalendarToday /> },
     ...(user?.role === 'Coach' ? [
       { path: '/team-roster', label: 'Team Roster', icon: <Groups /> },
-      { path: '/team-management', label: 'Team Management', icon: <ManageAccounts /> },
+      { path: '/team-management', label: 'Team Management & Passport', icon: <ManageAccounts /> },
       { path: '/invitations', label: 'Team Invitations', icon: <MailOutline />, badge: pendingInvitationsCount },
-      { path: '/team-profile', label: 'Team Profile', icon: <Business /> },
       { path: '/family-relationships', label: 'Family Relationships', icon: <People /> }
     ] : []),
     ...(user?.role === 'Parent/Guardian' ? [

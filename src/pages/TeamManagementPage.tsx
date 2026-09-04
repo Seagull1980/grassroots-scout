@@ -437,7 +437,12 @@ const TeamManagement: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Team Management</Typography>
+        <Box>
+          <Typography variant="h4">Team Management & Passport</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Manage your team and keep its public football identity ready for players and parents.
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
