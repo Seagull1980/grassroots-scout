@@ -28,8 +28,7 @@ import {
   Close,
   Comment,
   Add } from '@mui/icons-material';
-import axios from 'axios';
-import { ROSTER_API_URL, ngrokHeaders } from '../services/api';
+import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import FeedbackDialog from '../components/FeedbackDialog';
 
@@ -80,8 +79,8 @@ const MyFeedbackPage: React.FC = () => {
   const fetchMyFeedback = async () => {
     setLoading(true);
     setError('');
-    try {      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/my-submissions`, {
-        headers: {  ...ngrokHeaders } });
+    try {
+      const response = await api.get('/feedback/my-submissions');
 
       setFeedback(response.data?.feedback || []);
     } catch (err: any) {
@@ -92,8 +91,8 @@ const MyFeedbackPage: React.FC = () => {
   };
 
   const fetchFeedbackDetails = async (feedbackId: number) => {
-    try {      const response = await axios.get(`${ROSTER_API_URL}/api/feedback/${feedbackId}`, {
-        headers: {  ...ngrokHeaders } });
+    try {
+      const response = await api.get(`/feedback/${feedbackId}`);
 
       setComments(response.data?.comments || []);
     } catch (err: any) {
@@ -115,10 +114,10 @@ const MyFeedbackPage: React.FC = () => {
   const handleAddComment = async () => {
     if (!selectedFeedback || !newComment.trim()) return;
 
-    try {      await axios.post(
-        `${ROSTER_API_URL}/api/feedback/${selectedFeedback.id}/comments`,
-        { comment: newComment.trim() },
-        { headers: {  ...ngrokHeaders } }
+    try {
+      await api.post(
+        `/feedback/${selectedFeedback.id}/comments`,
+        { comment: newComment.trim() }
       );
 
       setNewComment('');
