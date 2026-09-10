@@ -2021,6 +2021,9 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
           if (dbColName === 'experienceLevel') {
             finalVal = mapExperience(value);
           }
+          if (dbColName === 'status' && finalVal === '') {
+            finalVal = null;
+          }
           // Handle JSON fields
           if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
             insertValues.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
@@ -2072,6 +2075,9 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
           if (dbColName === 'experienceLevel') {
             finalVal = mapExperience(value);
           }
+          if (dbColName === 'status' && finalVal === '') {
+            finalVal = null;
+          }
           // Handle JSON fields
           if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
             values.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
@@ -2119,10 +2125,11 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
           if (value !== undefined && columnMapping[key]) {
             const dbColName = columnMapping[key];
             updates.push(`${dbColName} = ?`);
+            const finalVal = (dbColName === 'status' && value === '') ? null : value;
             if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
-              values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
+              values.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
             } else {
-              values.push(value);
+              values.push(finalVal);
             }
           }
         }
@@ -11691,7 +11698,10 @@ const ensureProfileEnhancementColumns = async () => {
 const ensureMessageModerationColumns = async () => {
   const columns = [
     { name: 'isDeleted', definition: 'BOOLEAN DEFAULT FALSE' },
-    { name: 'deletedReason', definition: 'VARCHAR' }
+    { name: 'deletedReason', definition: 'VARCHAR' },
+    { name: 'relatedVacancyId', definition: 'INTEGER' },
+    { name: 'relatedPlayerAvailabilityId', definition: 'INTEGER' },
+    { name: 'relatedChildDisplayName', definition: 'VARCHAR' }
   ];
 
   const existingResult = await db.query(
