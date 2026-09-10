@@ -37,8 +37,9 @@ import {
 import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess, RateReview } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { profileAPI, authAPI, UserProfile, ProfileUpdateData, ProfileAchievement } from '../services/api';
+import { profileAPI, authAPI, UserProfile, ProfileUpdateData, ProfileAchievement, ProfileQualification } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
+import CoachingHistoryManagement from '../components/CoachingHistoryManagement';
 import TestimonialsManager from '../components/TestimonialsManager';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
@@ -116,6 +117,7 @@ const ProfilePage: React.FC = () => {
     location: '',
     bio: '',
     achievements: [],
+    coachingQualifications: [],
     position: '',
     preferredFoot: undefined,
     height: undefined,
@@ -140,6 +142,36 @@ const ProfilePage: React.FC = () => {
     title: '',
     year: String(new Date().getFullYear())
   });
+
+  const createEmptyQualification = (): ProfileQualification => ({
+    title: '',
+    issuingBody: '',
+    year: String(new Date().getFullYear())
+  });
+
+  const normalizeQualifications = (value: unknown): ProfileQualification[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => ({
+          title: String((item as ProfileQualification).title || ''),
+          issuingBody: String((item as ProfileQualification).issuingBody || ''),
+          year: String((item as ProfileQualification).year || new Date().getFullYear())
+        }))
+        .filter((item) => item.title.trim());
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? normalizeQualifications(parsed) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  };
 
   const normalizeAchievements = (value: unknown): ProfileAchievement[] => {
     if (!value) return [];
@@ -326,6 +358,9 @@ const ProfilePage: React.FC = () => {
       const achievements = normalizeAchievements(
         profileResponse.achievements || (profileResponse as typeof profileResponse & { achievements?: unknown }).achievements
       );
+      const coachingQualifications = normalizeQualifications(
+        profileResponse.coachingqualifications || (profileResponse as typeof profileResponse & { coachingQualifications?: unknown }).coachingQualifications
+      );
 
       console.log('DOB load:', {
         raw: rawDateOfBirth,
@@ -339,6 +374,7 @@ const ProfilePage: React.FC = () => {
         location: profileResponse.location || '',
         bio: profileResponse.bio || '',
         achievements,
+        coachingQualifications,
         position: profileResponse.position || '',
         preferredFoot: profileResponse.preferredfoot,
         height: profileResponse.height,
@@ -433,6 +469,37 @@ const ProfilePage: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
+  const updateQualification = (index: number, field: keyof ProfileQualification, value: string) => {
+    setProfileData((prev) => {
+      const coachingQualifications = [...(prev.coachingQualifications || [])];
+      coachingQualifications[index] = {
+        ...coachingQualifications[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        coachingQualifications
+      };
+    });
+    setHasUnsavedChanges(true);
+  };
+
+  const addQualification = () => {
+    setProfileData((prev) => ({
+      ...prev,
+      coachingQualifications: [...(prev.coachingQualifications || []), createEmptyQualification()]
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  const removeQualification = (index: number) => {
+    setProfileData((prev) => ({
+      ...prev,
+      coachingQualifications: (prev.coachingQualifications || []).filter((_, itemIndex) => itemIndex !== index)
+    }));
+    setHasUnsavedChanges(true);
+  };
+
   const handleSaveProfile = async () => {
     try {
       setIsSaving(true);
@@ -443,6 +510,13 @@ const ProfilePage: React.FC = () => {
         .map((achievement) => ({
           title: achievement.title.trim(),
           year: achievement.year
+        }));
+      const normalizedQualifications = (profileData.coachingQualifications || [])
+        .filter((qualification) => qualification.title.trim())
+        .map((qualification) => ({
+          title: qualification.title.trim(),
+          issuingBody: qualification.issuingBody.trim(),
+          year: qualification.year
         }));
       
       // Filter out empty strings and undefined values for optional fields only
@@ -462,6 +536,9 @@ const ProfilePage: React.FC = () => {
       );
       if (normalizedAchievements.length > 0) {
         cleanedProfileData.achievements = normalizedAchievements;
+      }
+      if (normalizedQualifications.length > 0) {
+        cleanedProfileData.coachingQualifications = normalizedQualifications;
       }
       
       console.log('DOB save:', {
@@ -694,6 +771,7 @@ const ProfilePage: React.FC = () => {
             {user?.role === 'Player' && <Tab icon={<Work />} label="Player Details" />}
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
             {user?.role === 'Player' && <Tab icon={<History />} label="Career" />}
+            {user?.role === 'Coach' && <Tab icon={<History />} label="Coaching History" />}
             <Tab icon={<RateReview />} label="Testimonials" />
             <Tab icon={<Lock />} label="Security" />
           </Tabs>
@@ -1049,6 +1127,69 @@ const ProfilePage: React.FC = () => {
                 You haven't created any teams yet. Click "Manage Teams" to create your first team.
               </Alert>
             )}
+
+            <Box sx={{ mt: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6">Coaching Badges & Qualifications</Typography>
+                <Button variant="outlined" size="small" onClick={addQualification}>
+                  Add Qualification
+                </Button>
+              </Box>
+
+              {(profileData.coachingQualifications || []).length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Add coaching badges such as FA Level 1/2, Youth Award, Goalkeeping badge, or First Aid certification.
+                </Alert>
+              ) : null}
+
+              <Stack spacing={2}>
+                {(profileData.coachingQualifications || []).map((qualification, index) => (
+                  <Paper key={`${qualification.title || 'qualification'}-${index}`} variant="outlined" sx={{ p: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} sm={5}>
+                        <TextField
+                          fullWidth
+                          label="Qualification"
+                          value={qualification.title}
+                          onChange={(event) => updateQualification(index, 'title', event.target.value)}
+                          placeholder="e.g., FA Level 2 in Coaching Football"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          label="Issuing Body"
+                          value={qualification.issuingBody}
+                          onChange={(event) => updateQualification(index, 'issuingBody', event.target.value)}
+                          placeholder="e.g., The FA"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <FormControl fullWidth>
+                          <InputLabel>Year</InputLabel>
+                          <Select
+                            value={qualification.year}
+                            label="Year"
+                            onChange={(event) => updateQualification(index, 'year', String(event.target.value))}
+                          >
+                            {achievementYears.map((year) => (
+                              <MenuItem key={year} value={year}>
+                                {year}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} sm={1}>
+                        <IconButton aria-label="remove qualification" onClick={() => removeQualification(index)}>
+                          <Close fontSize="small" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
           </TabPanel>
         )}
 
@@ -1059,13 +1200,20 @@ const ProfilePage: React.FC = () => {
           </TabPanel>
         )}
 
+        {/* Coaching History Tab - Only for Coaches */}
+        {user?.role === 'Coach' && (
+          <TabPanel value={tabValue} index={2}>
+            <CoachingHistoryManagement />
+          </TabPanel>
+        )}
+
         {/* Testimonials Tab */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 2 : 1)}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 3 : 1)}>
           <TestimonialsManager />
         </TabPanel>
 
         {/* Security Tab - Password Change */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 3 : 2)}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 4 : 2)}>
           <Typography variant="h6" gutterBottom>
             Change Password
           </Typography>

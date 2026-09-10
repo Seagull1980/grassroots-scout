@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { storage } from '../utils/storage';
-import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory } from '../types';
+import { TeamRoster, TeamPlayer, PositionGap, PlayingHistory, CoachingHistory } from '../types';
 
 // Dynamic API URL configuration for different environments
 
@@ -254,6 +254,7 @@ export interface UserProfile {
   bio?: string;
   achievements?: ProfileAchievement[];
   careerhistory?: ProfileCareerEntry[];
+  coachingqualifications?: ProfileQualification[];
   // Player-specific fields
   position?: string;
   preferredfoot?: 'Left' | 'Right' | 'Both';
@@ -318,6 +319,7 @@ export interface ProfileUpdateData {
   bio?: string;
   achievements?: ProfileAchievement[];
   careerHistory?: ProfileCareerEntry[];
+  coachingQualifications?: ProfileQualification[];
   position?: string;
   preferredFoot?: 'Left' | 'Right' | 'Both';
   height?: number;
@@ -346,6 +348,12 @@ export interface ProfileAchievement {
 export interface ProfileCareerEntry {
   teamName: string;
   season: string;
+}
+
+export interface ProfileQualification {
+  title: string;
+  issuingBody: string;
+  year: string;
 }
 
 export interface League {
@@ -1130,61 +1138,58 @@ export const teamRosterAPI = {
   }
 };
 
-// Playing History API
+// Playing History API (Player "Career" CV)
 export const playingHistoryAPI = {
-  // Get all playing history for a player
-  getHistory: async (playerId?: string): Promise<{ history: PlayingHistory[] }> => {
-    const endpoint = playerId ? `/playing-history/${playerId}` : '/playing-history';
-    const historyAPI = axios.create({
-      baseURL: ROSTER_API_URL,
-      headers: {
-        'Content-Type': 'application/json' }
-    });
-    const response = await historyAPI.get(endpoint);
+  getHistory: async (): Promise<{ history: PlayingHistory[] }> => {
+    const response = await api.get('/playing-history');
     return response.data;
   },
-
-  // Add new playing history entry
-  create: async (historyData: Omit<PlayingHistory, 'id' | 'playerId' | 'createdAt' | 'updatedAt'>): Promise<{ history: PlayingHistory }> => {
-    const historyAPI = axios.create({
-      baseURL: ROSTER_API_URL,
-      headers: {
-        'Content-Type': 'application/json' }
-    });
-    const response = await historyAPI.post('/playing-history', historyData);
+  create: async (historyData: Omit<PlayingHistory, 'id' | 'playerId' | 'createdAt' | 'updatedAt'>): Promise<{ message: string }> => {
+    const response = await api.post('/playing-history', historyData);
     return response.data;
   },
-
-  // Update playing history entry
-  update: async (historyId: string, historyData: Partial<Omit<PlayingHistory, 'id' | 'playerId' | 'createdAt' | 'updatedAt'>>): Promise<{ history: PlayingHistory }> => {
-    const historyAPI = axios.create({
-      baseURL: ROSTER_API_URL,
-      headers: {
-        'Content-Type': 'application/json' }
-    });
-    const response = await historyAPI.put(`/playing-history/${historyId}`, historyData);
+  update: async (historyId: string, historyData: Partial<Omit<PlayingHistory, 'id' | 'playerId' | 'createdAt' | 'updatedAt'>>): Promise<{ message: string }> => {
+    const response = await api.put(`/playing-history/${historyId}`, historyData);
     return response.data;
   },
-
-  // Delete playing history entry
   delete: async (historyId: string): Promise<{ message: string }> => {
-    const historyAPI = axios.create({
-      baseURL: ROSTER_API_URL,
-      headers: {
-        'Content-Type': 'application/json' }
-    });
-    const response = await historyAPI.delete(`/playing-history/${historyId}`);
+    const response = await api.delete(`/playing-history/${historyId}`);
     return response.data;
   },
+  updateCurrentStatus: async (historyId: string, isCurrentTeam: boolean): Promise<{ message: string }> => {
+    const response = await api.patch(`/playing-history/${historyId}/current-status`, { isCurrentTeam });
+    return response.data;
+  },
+  getStats: async (): Promise<{ success: boolean; stats: Record<string, unknown>; positions: Array<{ position: string; count: number }>; leagues: Array<{ league: string; count: number }> }> => {
+    const response = await api.get('/playing-history/stats');
+    return response.data;
+  }
+};
 
-  // Mark team as current/former
-  updateCurrentStatus: async (historyId: string, isCurrentTeam: boolean): Promise<{ history: PlayingHistory }> => {
-    const historyAPI = axios.create({
-      baseURL: ROSTER_API_URL,
-      headers: {
-        'Content-Type': 'application/json' }
-    });
-    const response = await historyAPI.patch(`/playing-history/${historyId}/current-status`, { isCurrentTeam });
+// Coaching History API (Coach "Coaching History" CV - teams managed, roles, seasons)
+export const coachingHistoryAPI = {
+  getHistory: async (): Promise<{ history: CoachingHistory[] }> => {
+    const response = await api.get('/coaching-history');
+    return response.data;
+  },
+  create: async (historyData: Omit<CoachingHistory, 'id' | 'coachId' | 'createdAt' | 'updatedAt'>): Promise<{ message: string }> => {
+    const response = await api.post('/coaching-history', historyData);
+    return response.data;
+  },
+  update: async (historyId: string, historyData: Partial<Omit<CoachingHistory, 'id' | 'coachId' | 'createdAt' | 'updatedAt'>>): Promise<{ message: string }> => {
+    const response = await api.put(`/coaching-history/${historyId}`, historyData);
+    return response.data;
+  },
+  delete: async (historyId: string): Promise<{ message: string }> => {
+    const response = await api.delete(`/coaching-history/${historyId}`);
+    return response.data;
+  },
+  updateCurrentStatus: async (historyId: string, isCurrentTeam: boolean): Promise<{ message: string }> => {
+    const response = await api.patch(`/coaching-history/${historyId}/current-status`, { isCurrentTeam });
+    return response.data;
+  },
+  getStats: async (): Promise<{ success: boolean; stats: Record<string, unknown>; leagues: Array<{ league: string; count: number }> }> => {
+    const response = await api.get('/coaching-history/stats');
     return response.data;
   }
 };

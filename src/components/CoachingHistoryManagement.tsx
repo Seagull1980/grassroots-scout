@@ -28,39 +28,30 @@ import {
   Switch,
   FormControlLabel,
   Tooltip,
-  Badge,
   Stack,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Autocomplete } from '@mui/material';
+  Autocomplete
+} from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Sports as SportsIcon,
   Timeline as TimelineIcon,
-  EmojiEvents as TrophyIcon,
   ExpandMore as ExpandMoreIcon,
   History as HistoryIcon
 } from '@mui/icons-material';
-import { playingHistoryAPI } from '../services/api';
-import { PlayingHistory } from '../types';
+import { coachingHistoryAPI } from '../services/api';
+import { CoachingHistory } from '../types';
 
-interface PlayingHistoryStats {
+interface CoachingHistoryStats {
   totalTeams: number;
   currentTeams: number;
-  totalMatches: number;
-  totalGoals: number;
   leaguesPlayed: number;
-  positionsPlayed: number;
   firstTeamDate: string | null;
   lastActiveDate: string | null;
-}
-
-interface PositionCount {
-  position: string;
-  count: number;
 }
 
 interface LeagueCount {
@@ -68,46 +59,33 @@ interface LeagueCount {
   count: number;
 }
 
-const PlayingHistoryManagement: React.FC = () => {
-  const [history, setHistory] = useState<PlayingHistory[]>([]);
-  const [stats, setStats] = useState<PlayingHistoryStats | null>(null);
-  const [positions, setPositions] = useState<PositionCount[]>([]);
+const CoachingHistoryManagement: React.FC = () => {
+  const [history, setHistory] = useState<CoachingHistory[]>([]);
+  const [stats, setStats] = useState<CoachingHistoryStats | null>(null);
   const [leagues, setLeagues] = useState<LeagueCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [editingHistory, setEditingHistory] = useState<PlayingHistory | null>(null);
+  const [editingHistory, setEditingHistory] = useState<CoachingHistory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Form state
   const [formData, setFormData] = useState({
     teamName: '',
+    clubName: '',
     league: '',
     ageGroup: '',
-    position: '',
+    role: '',
     season: '',
     startDate: '',
     endDate: '',
     isCurrentTeam: false,
     achievements: '',
-    matchesPlayed: '',
-    goalsScored: '',
     notes: ''
   });
 
-  // Football positions
-  const footballPositions = [
-    'Goalkeeper',
-    'Centre-back',
-    'Left-back',
-    'Right-back',
-    'Defensive Midfielder',
-    'Central Midfielder',
-    'Attacking Midfielder',
-    'Left Wing',
-    'Right Wing',
-    'Striker',
-    'Centre Forward'
+  const coachRoles = [
+    'Head Coach', 'Assistant Coach', 'Youth Coach', 'Goalkeeper Coach',
+    'Fitness Coach', 'Academy Coach', 'Volunteer Coach'
   ];
 
   const ageGroups = [
@@ -130,19 +108,18 @@ const PlayingHistoryManagement: React.FC = () => {
     try {
       setLoading(true);
       const [historyResponse, statsResponse] = await Promise.all([
-        playingHistoryAPI.getHistory(),
-        playingHistoryAPI.getStats()
+        coachingHistoryAPI.getHistory(),
+        coachingHistoryAPI.getStats()
       ]);
 
       setHistory(historyResponse.history);
       if (statsResponse.success) {
-        setStats(statsResponse.stats as unknown as PlayingHistoryStats);
-        setPositions(statsResponse.positions);
+        setStats(statsResponse.stats as unknown as CoachingHistoryStats);
         setLeagues(statsResponse.leagues);
       }
     } catch (err) {
-      console.error('Error loading playing history:', err);
-      setError('Failed to load career history');
+      console.error('Error loading coaching history:', err);
+      setError('Failed to load coaching history');
     } finally {
       setLoading(false);
     }
@@ -151,36 +128,34 @@ const PlayingHistoryManagement: React.FC = () => {
   const resetForm = () => {
     setFormData({
       teamName: '',
+      clubName: '',
       league: '',
       ageGroup: '',
-      position: '',
+      role: '',
       season: '',
       startDate: '',
       endDate: '',
       isCurrentTeam: false,
       achievements: '',
-      matchesPlayed: '',
-      goalsScored: '',
       notes: ''
     });
     setEditingHistory(null);
   };
 
-  const openDialog = (historyItem?: PlayingHistory) => {
+  const openDialog = (historyItem?: CoachingHistory) => {
     if (historyItem) {
       setEditingHistory(historyItem);
       setFormData({
         teamName: historyItem.teamName,
+        clubName: historyItem.clubName || '',
         league: historyItem.league,
         ageGroup: historyItem.ageGroup,
-        position: historyItem.position,
+        role: historyItem.role,
         season: historyItem.season,
-        startDate: historyItem.startDate.split('T')[0], // Convert to YYYY-MM-DD format
+        startDate: historyItem.startDate.split('T')[0],
         endDate: historyItem.endDate ? historyItem.endDate.split('T')[0] : '',
         isCurrentTeam: historyItem.isCurrentTeam,
         achievements: historyItem.achievements || '',
-        matchesPlayed: historyItem.matchesPlayed?.toString() || '',
-        goalsScored: historyItem.goalsScored?.toString() || '',
         notes: historyItem.notes || ''
       });
     } else {
@@ -198,45 +173,43 @@ const PlayingHistoryManagement: React.FC = () => {
     try {
       const data = {
         ...formData,
-        matchesPlayed: formData.matchesPlayed ? parseInt(formData.matchesPlayed) : undefined,
-        goalsScored: formData.goalsScored ? parseInt(formData.goalsScored) : undefined,
         endDate: formData.endDate || undefined
       };
 
       if (editingHistory) {
-        await playingHistoryAPI.update(editingHistory.id, data);
-        setSuccess('Career history updated successfully!');
+        await coachingHistoryAPI.update(editingHistory.id, data);
+        setSuccess('Coaching history updated successfully!');
       } else {
-        await playingHistoryAPI.create(data);
-        setSuccess('Career history added successfully!');
+        await coachingHistoryAPI.create(data);
+        setSuccess('Coaching history added successfully!');
       }
 
       closeDialog();
       loadData();
     } catch (err) {
-      console.error('Error saving playing history:', err);
-      setError('Failed to save career history');
+      console.error('Error saving coaching history:', err);
+      setError('Failed to save coaching history');
     }
   };
 
   const handleDelete = async (historyId: string) => {
-    if (!window.confirm('Are you sure you want to delete this career entry?')) {
+    if (!window.confirm('Are you sure you want to delete this coaching history entry?')) {
       return;
     }
 
     try {
-      await playingHistoryAPI.delete(historyId);
-      setSuccess('Career history deleted successfully!');
+      await coachingHistoryAPI.delete(historyId);
+      setSuccess('Coaching history deleted successfully!');
       loadData();
     } catch (err) {
-      console.error('Error deleting playing history:', err);
-      setError('Failed to delete career history');
+      console.error('Error deleting coaching history:', err);
+      setError('Failed to delete coaching history');
     }
   };
 
   const handleCurrentTeamToggle = async (historyId: string, isCurrentTeam: boolean) => {
     try {
-      await playingHistoryAPI.updateCurrentStatus(historyId, isCurrentTeam);
+      await coachingHistoryAPI.updateCurrentStatus(historyId, isCurrentTeam);
       setSuccess('Current team status updated!');
       loadData();
     } catch (err) {
@@ -257,11 +230,10 @@ const PlayingHistoryManagement: React.FC = () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
-    
-    // Football season typically runs from August to May
-    if (month >= 7) { // August onwards
+
+    if (month >= 7) {
       return `${year}/${year + 1}`;
-    } else { // January to July
+    } else {
       return `${year - 1}/${year}`;
     }
   };
@@ -269,7 +241,7 @@ const PlayingHistoryManagement: React.FC = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="400px">
-        <div>Loading career history...</div>
+        <div>Loading coaching history...</div>
       </Box>
     );
   }
@@ -281,37 +253,36 @@ const PlayingHistoryManagement: React.FC = () => {
           {error}
         </Alert>
       )}
-      
+
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
           {success}
         </Alert>
       )}
 
-      {/* Statistics Section */}
       {stats && (
         <Accordion defaultExpanded sx={{ mb: 3 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box display="flex" alignItems="center">
               <TimelineIcon sx={{ mr: 1 }} />
-              <Typography variant="h6">Playing Statistics</Typography>
+              <Typography variant="h6">Coaching Experience</Typography>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center', py: 2 }}>
                     <Typography variant="h4" color="primary">
                       {stats.totalTeams}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Total Teams
+                      Teams Managed
                     </Typography>
                   </CardContent>
                 </Card>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center', py: 2 }}>
                     <Typography variant="h4" color="secondary">
@@ -323,84 +294,53 @@ const PlayingHistoryManagement: React.FC = () => {
                   </CardContent>
                 </Card>
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center', py: 2 }}>
                     <Typography variant="h4" color="success.main">
-                      {stats.totalMatches}
+                      {stats.leaguesPlayed}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Total Matches
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Card>
-                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                    <Typography variant="h4" color="warning.main">
-                      {stats.totalGoals}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Goals
+                      Leagues Coached
                     </Typography>
                   </CardContent>
                 </Card>
               </Grid>
             </Grid>
 
-            {/* Most Played Positions and Leagues */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  <SportsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Most Played Positions
-                </Typography>
-                <Stack spacing={1}>
-                  {positions.slice(0, 3).map((pos) => (
-                    <Box key={pos.position} display="flex" alignItems="center" justifyContent="space-between">
-                      <Typography variant="body2">{pos.position}</Typography>
-                      <Badge badgeContent={pos.count} color="primary">
-                        <SportsIcon color="action" />
-                      </Badge>
-                    </Box>
-                  ))}
-                </Stack>
+            {leagues.length > 0 && (
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    Leagues Coached
+                  </Typography>
+                  <Stack spacing={1}>
+                    {leagues.slice(0, 3).map((league) => (
+                      <Box key={league.league} display="flex" alignItems="center" justifyContent="space-between">
+                        <Typography variant="body2">{league.league}</Typography>
+                        <Chip label={league.count} size="small" color="secondary" />
+                      </Box>
+                    ))}
+                  </Stack>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
-                  <TrophyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Leagues Played
-                </Typography>
-                <Stack spacing={1}>
-                  {leagues.slice(0, 3).map((league) => (
-                    <Box key={league.league} display="flex" alignItems="center" justifyContent="space-between">
-                      <Typography variant="body2">{league.league}</Typography>
-                      <Badge badgeContent={league.count} color="secondary">
-                        <TrophyIcon color="action" />
-                      </Badge>
-                    </Box>
-                  ))}
-                </Stack>
-              </Grid>
-            </Grid>
+            )}
           </AccordionDetails>
         </Accordion>
       )}
 
-      {/* Career History Section */}
       <Paper sx={{ p: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h5">
             <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Career History
+            Coaching History
           </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => openDialog()}
           >
-            Add Team History
+            Add Team
           </Button>
         </Box>
 
@@ -408,10 +348,10 @@ const PlayingHistoryManagement: React.FC = () => {
           <Box textAlign="center" py={6}>
             <SportsIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              No career history yet
+              No coaching history yet
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Add your football teams and track your playing career
+              Add the teams you have managed to build your coaching CV
             </Typography>
             <Button
               variant="contained"
@@ -427,9 +367,9 @@ const PlayingHistoryManagement: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Team & League</TableCell>
-                  <TableCell>Position</TableCell>
+                  <TableCell>Role</TableCell>
                   <TableCell>Season & Duration</TableCell>
-                  <TableCell>Performance</TableCell>
+                  <TableCell>Achievements</TableCell>
                   <TableCell align="center">Current</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -443,14 +383,14 @@ const PlayingHistoryManagement: React.FC = () => {
                           {item.teamName}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {item.league} • {item.ageGroup}
+                          {item.clubName ? `${item.clubName} · ` : ''}{item.league} • {item.ageGroup}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={item.position} 
-                        size="small" 
+                      <Chip
+                        label={item.role}
+                        size="small"
                         color="primary"
                         icon={<SportsIcon />}
                       />
@@ -467,27 +407,15 @@ const PlayingHistoryManagement: React.FC = () => {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Box>
-                        {item.matchesPlayed && (
-                          <Typography variant="caption" display="block">
-                            🏃 {item.matchesPlayed} matches
-                          </Typography>
-                        )}
-                        {item.goalsScored && (
-                          <Typography variant="caption" display="block">
-                            ⚽ {item.goalsScored} goals
-                          </Typography>
-                        )}
-                        {item.achievements && (
-                          <Tooltip title={item.achievements}>
-                            <Chip 
-                              label="🏆 Achievements" 
-                              size="small" 
-                              variant="outlined"
-                            />
-                          </Tooltip>
-                        )}
-                      </Box>
+                      {item.achievements && (
+                        <Tooltip title={item.achievements}>
+                          <Chip
+                            label="🏆 Achievements"
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Tooltip>
+                      )}
                     </TableCell>
                     <TableCell align="center">
                       <FormControlLabel
@@ -524,10 +452,9 @@ const PlayingHistoryManagement: React.FC = () => {
         )}
       </Paper>
 
-      {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onClose={closeDialog} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editingHistory ? 'Edit Career Entry' : 'Add Career Entry'}
+          {editingHistory ? 'Edit Coaching Entry' : 'Add Coaching Entry'}
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -537,7 +464,15 @@ const PlayingHistoryManagement: React.FC = () => {
                 label="Team Name"
                 value={formData.teamName}
                 onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
-                placeholder="e.g., Manchester United Youth FC"
+                placeholder="e.g., Tamworth U15s"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Club Name (Optional)"
+                value={formData.clubName}
+                onChange={(e) => setFormData({ ...formData, clubName: e.target.value })}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -580,21 +515,21 @@ const PlayingHistoryManagement: React.FC = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>Position</InputLabel>
+                <InputLabel>Your Role</InputLabel>
                 <Select
-                  value={formData.position}
-                  label="Position"
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                  value={formData.role}
+                  label="Your Role"
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 >
-                  {footballPositions.map((position) => (
-                    <MenuItem key={position} value={position}>
-                      {position}
+                  {coachRoles.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {role}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Season"
@@ -604,7 +539,7 @@ const PlayingHistoryManagement: React.FC = () => {
                 helperText="e.g., 2024/25"
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="date"
@@ -614,7 +549,7 @@ const PlayingHistoryManagement: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="date"
@@ -622,7 +557,7 @@ const PlayingHistoryManagement: React.FC = () => {
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                 InputLabelProps={{ shrink: true }}
-                helperText="Leave empty if still playing"
+                helperText="Leave empty if still coaching this team"
               />
             </Grid>
             <Grid item xs={12}>
@@ -636,24 +571,6 @@ const PlayingHistoryManagement: React.FC = () => {
                 label="This is my current team"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Matches Played (Optional)"
-                value={formData.matchesPlayed}
-                onChange={(e) => setFormData({ ...formData, matchesPlayed: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Goals Scored (Optional)"
-                value={formData.goalsScored}
-                onChange={(e) => setFormData({ ...formData, goalsScored: e.target.value })}
-              />
-            </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -662,7 +579,7 @@ const PlayingHistoryManagement: React.FC = () => {
                 label="Achievements (Optional)"
                 value={formData.achievements}
                 onChange={(e) => setFormData({ ...formData, achievements: e.target.value })}
-                placeholder="e.g., League Winners, Cup Finalists, Top Scorer"
+                placeholder="e.g., League Winners, Cup Finalists, Player Development Award"
               />
             </Grid>
             <Grid item xs={12}>
@@ -680,10 +597,10 @@ const PlayingHistoryManagement: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog}>Cancel</Button>
-          <Button 
+          <Button
             onClick={handleSubmit}
             variant="contained"
-            disabled={!formData.teamName || !formData.league || !formData.position || !formData.season || !formData.startDate}
+            disabled={!formData.teamName || !formData.league || !formData.role || !formData.season || !formData.startDate}
           >
             {editingHistory ? 'Update' : 'Add'}
           </Button>
@@ -693,4 +610,4 @@ const PlayingHistoryManagement: React.FC = () => {
   );
 };
 
-export default PlayingHistoryManagement;
+export default CoachingHistoryManagement;

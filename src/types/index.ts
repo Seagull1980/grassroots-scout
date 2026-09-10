@@ -186,6 +186,24 @@ export interface PlayingHistory {
   updatedAt: string;
 }
 
+export interface CoachingHistory {
+  id: string;
+  coachId: string;
+  teamName: string;
+  clubName?: string;
+  league: string;
+  ageGroup: string;
+  role: string;
+  season: string;
+  startDate: string;
+  endDate?: string;
+  isCurrentTeam: boolean;
+  achievements?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MatchCompletion {
   id: string;
   vacancyId?: string;

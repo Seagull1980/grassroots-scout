@@ -310,6 +310,7 @@ class Database {
         position VARCHAR,
         achievements TEXT,
         careerHistory TEXT,
+        coachingQualifications TEXT,
         preferredTeamGender VARCHAR DEFAULT 'Mixed' CHECK(preferredTeamGender IN ('Boys', 'Girls', 'Mixed')),
         preferredFoot VARCHAR CHECK(preferredFoot IN ('Left', 'Right', 'Both')),
         height INTEGER,
@@ -655,6 +656,26 @@ class Database {
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (playerId) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+
+      // Coaching History table - a coach's equivalent CV of teams managed over time
+      `CREATE TABLE IF NOT EXISTS coaching_history (
+        id SERIAL PRIMARY KEY,
+        coachId INTEGER NOT NULL,
+        teamName VARCHAR NOT NULL,
+        clubName VARCHAR,
+        league VARCHAR NOT NULL,
+        ageGroup VARCHAR NOT NULL,
+        role VARCHAR NOT NULL,
+        season VARCHAR NOT NULL,
+        startDate DATE NOT NULL,
+        endDate DATE,
+        isCurrentTeam BOOLEAN DEFAULT FALSE,
+        achievements TEXT,
+        notes TEXT,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (coachId) REFERENCES users (id) ON DELETE CASCADE
       )`,
 
       // Children table for Parent/Guardian accounts

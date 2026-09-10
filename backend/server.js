@@ -1891,6 +1891,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
       position: getProfileValue('position'),
       achievements: parseJsonField(getProfileValue('achievements')),
       careerhistory: parseJsonField(getProfileValue('careerHistory')),
+      coachingqualifications: parseJsonField(getProfileValue('coachingQualifications')),
       preferredfoot: getProfileValue('preferredFoot'),
       preferredteamgender: getProfileValue('preferredTeamGender'),
       height: getProfileValue('height'),
@@ -1958,6 +1959,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
       position: 'position',
       achievements: 'achievements',
       careerhistory: 'careerHistory',
+      coachingqualifications: 'coachingQualifications',
       preferredfoot: 'preferredFoot',
       preferredteamgender: 'preferredTeamGender',
       height: 'height',
@@ -2020,7 +2022,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
             finalVal = mapExperience(value);
           }
           // Handle JSON fields
-          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
             insertValues.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
             insertValues.push(finalVal);
@@ -2071,7 +2073,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
             finalVal = mapExperience(value);
           }
           // Handle JSON fields
-          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
+          if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
             values.push(JSON.stringify(Array.isArray(finalVal) ? finalVal : [finalVal]));
           } else {
             values.push(finalVal);
@@ -2117,7 +2119,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
           if (value !== undefined && columnMapping[key]) {
             const dbColName = columnMapping[key];
             updates.push(`${dbColName} = ?`);
-            if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory'].includes(dbColName)) {
+            if (['availability', 'specializations', 'trainingDays', 'ageGroupsCoached', 'achievements', 'careerHistory', 'coachingQualifications'].includes(dbColName)) {
               values.push(JSON.stringify(Array.isArray(value) ? value : [value]));
             } else {
               values.push(value);
@@ -4048,6 +4050,191 @@ app.delete('/api/family-relationships/:relationshipId', authenticateToken, async
     console.error('Delete family relationship error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ==================== PLAYING / COACHING HISTORY (FOOTBALL CV) ENDPOINTS ====================
+// These power the "Career" tab for Players and the "Coaching History" tab for Coaches.
+
+const buildHistoryEndpoints = ({ table, ownerColumn, allowedRole, extraColumns, label }) => {
+  const baseColumns = ['teamName', 'league', 'ageGroup', 'season', 'startDate', 'endDate', 'isCurrentTeam', 'achievements', 'notes'];
+  const allColumns = [...baseColumns, ...extraColumns.map((c) => c.name)];
+
+  app.get(`/api/${label}`, authenticateToken, async (req, res) => {
+    try {
+      const result = await db.query(
+        `SELECT * FROM ${table} WHERE ${ownerColumn} = ? ORDER BY startDate DESC, createdAt DESC`,
+        [req.user.userId]
+      );
+      res.json({ history: result.rows || [] });
+    } catch (error) {
+      console.error(`Get ${label} error:`, error);
+      res.status(500).json({ error: `Failed to fetch ${label}` });
+    }
+  });
+
+  app.get(`/api/${label}/stats`, authenticateToken, async (req, res) => {
+    try {
+      const hasPosition = extraColumns.some((c) => c.name === 'position');
+      const hasMatchStats = extraColumns.some((c) => c.name === 'matchesPlayed');
+
+      const statsResult = await db.query(
+        `SELECT COUNT(*) as totalTeams,
+                COUNT(CASE WHEN isCurrentTeam = true THEN 1 END) as currentTeams,
+                COUNT(DISTINCT league) as leaguesPlayed,
+                ${hasPosition ? 'COUNT(DISTINCT position) as positionsPlayed,' : ''}
+                ${hasMatchStats ? 'SUM(COALESCE(matchesPlayed, 0)) as totalMatches, SUM(COALESCE(goalsScored, 0)) as totalGoals,' : ''}
+                MIN(startDate) as firstTeamDate,
+                MAX(CASE WHEN endDate IS NOT NULL THEN endDate ELSE startDate END) as lastActiveDate
+         FROM ${table} WHERE ${ownerColumn} = ?`,
+        [req.user.userId]
+      );
+
+      const stats = statsResult.rows?.[0] || {};
+
+      let positions = [];
+      if (hasPosition) {
+        const positionsResult = await db.query(
+          `SELECT position, COUNT(*) as count FROM ${table} WHERE ${ownerColumn} = ? GROUP BY position ORDER BY count DESC`,
+          [req.user.userId]
+        );
+        positions = positionsResult.rows || [];
+      }
+
+      const leaguesResult = await db.query(
+        `SELECT league, COUNT(*) as count FROM ${table} WHERE ${ownerColumn} = ? GROUP BY league ORDER BY count DESC`,
+        [req.user.userId]
+      );
+
+      res.json({ success: true, stats, positions, leagues: leaguesResult.rows || [] });
+    } catch (error) {
+      console.error(`Get ${label} stats error:`, error);
+      res.status(500).json({ error: `Failed to fetch ${label} stats` });
+    }
+  });
+
+  app.post(`/api/${label}`, authenticateToken, async (req, res) => {
+    try {
+      if (allowedRole && req.user.role !== allowedRole && req.user.role !== 'Admin') {
+        return res.status(403).json({ error: `Only ${allowedRole}s can add ${label} entries` });
+      }
+
+      const required = ['teamName', 'league', 'ageGroup', 'season', 'startDate', ...extraColumns.filter((c) => c.required).map((c) => c.name)];
+      const missing = required.filter((field) => !req.body[field]);
+      if (missing.length > 0) {
+        return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
+      }
+
+      if (req.body.isCurrentTeam) {
+        await db.query(`UPDATE ${table} SET isCurrentTeam = ? WHERE ${ownerColumn} = ?`, [false, req.user.userId]);
+      }
+
+      const columns = [ownerColumn, ...allColumns];
+      const values = [req.user.userId, ...allColumns.map((col) => (req.body[col] !== undefined ? req.body[col] : null))];
+      const placeholders = columns.map(() => '?').join(', ');
+
+      const result = await db.query(
+        `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
+        values
+      );
+
+      res.status(201).json({ message: `${label} entry added successfully`, id: result.lastID || result.insertId });
+    } catch (error) {
+      console.error(`Create ${label} error:`, error);
+      res.status(500).json({ error: `Failed to save ${label} entry` });
+    }
+  });
+
+  app.put(`/api/${label}/:id`, authenticateToken, async (req, res) => {
+    try {
+      const existing = await db.query(`SELECT id FROM ${table} WHERE id = ? AND ${ownerColumn} = ?`, [req.params.id, req.user.userId]);
+      if (!existing.rows?.length) {
+        return res.status(404).json({ error: 'Entry not found' });
+      }
+
+      if (req.body.isCurrentTeam) {
+        await db.query(`UPDATE ${table} SET isCurrentTeam = ? WHERE ${ownerColumn} = ? AND id != ?`, [false, req.user.userId, req.params.id]);
+      }
+
+      const updates = [];
+      const values = [];
+      for (const col of allColumns) {
+        if (req.body[col] !== undefined) {
+          updates.push(`${col} = ?`);
+          values.push(req.body[col]);
+        }
+      }
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+      updates.push('updatedAt = CURRENT_TIMESTAMP');
+      values.push(req.params.id);
+
+      await db.query(`UPDATE ${table} SET ${updates.join(', ')} WHERE id = ?`, values);
+      res.json({ message: `${label} entry updated successfully` });
+    } catch (error) {
+      console.error(`Update ${label} error:`, error);
+      res.status(500).json({ error: `Failed to update ${label} entry` });
+    }
+  });
+
+  app.delete(`/api/${label}/:id`, authenticateToken, async (req, res) => {
+    try {
+      const existing = await db.query(`SELECT id FROM ${table} WHERE id = ? AND ${ownerColumn} = ?`, [req.params.id, req.user.userId]);
+      if (!existing.rows?.length) {
+        return res.status(404).json({ error: 'Entry not found' });
+      }
+      await db.query(`DELETE FROM ${table} WHERE id = ?`, [req.params.id]);
+      res.json({ message: `${label} entry deleted successfully` });
+    } catch (error) {
+      console.error(`Delete ${label} error:`, error);
+      res.status(500).json({ error: `Failed to delete ${label} entry` });
+    }
+  });
+
+  app.patch(`/api/${label}/:id/current-status`, authenticateToken, async (req, res) => {
+    try {
+      if (typeof req.body.isCurrentTeam !== 'boolean') {
+        return res.status(400).json({ error: 'isCurrentTeam must be a boolean' });
+      }
+      const existing = await db.query(`SELECT id FROM ${table} WHERE id = ? AND ${ownerColumn} = ?`, [req.params.id, req.user.userId]);
+      if (!existing.rows?.length) {
+        return res.status(404).json({ error: 'Entry not found' });
+      }
+      if (req.body.isCurrentTeam) {
+        await db.query(`UPDATE ${table} SET isCurrentTeam = ? WHERE ${ownerColumn} = ? AND id != ?`, [false, req.user.userId, req.params.id]);
+      }
+      await db.query(`UPDATE ${table} SET isCurrentTeam = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`, [req.body.isCurrentTeam, req.params.id]);
+      res.json({ message: 'Current team status updated successfully' });
+    } catch (error) {
+      console.error(`Update ${label} current status error:`, error);
+      res.status(500).json({ error: `Failed to update ${label} current status` });
+    }
+  });
+};
+
+// Player career history ("Career" tab)
+buildHistoryEndpoints({
+  table: 'playing_history',
+  ownerColumn: 'playerId',
+  allowedRole: 'Player',
+  label: 'playing-history',
+  extraColumns: [
+    { name: 'position', required: true },
+    { name: 'matchesPlayed' },
+    { name: 'goalsScored' }
+  ]
+});
+
+// Coach coaching history ("Coaching History" tab) - the coach equivalent of a football CV
+buildHistoryEndpoints({
+  table: 'coaching_history',
+  ownerColumn: 'coachId',
+  allowedRole: 'Coach',
+  label: 'coaching-history',
+  extraColumns: [
+    { name: 'role', required: true },
+    { name: 'clubName' }
+  ]
 });
 
 // ==================== TESTIMONIALS ENDPOINTS ====================
@@ -11482,7 +11669,7 @@ const ensureAdvertExpiryColumns = async () => {
 
 const ensureProfileEnhancementColumns = async () => {
   const tableDefinitions = [
-    { table: 'user_profiles', columns: ['achievements', 'careerHistory'] },
+    { table: 'user_profiles', columns: ['achievements', 'careerHistory', 'coachingQualifications'] },
     { table: 'children', columns: ['achievements', 'careerHistory'] }
   ];
 
