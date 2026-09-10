@@ -187,8 +187,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     if ('Notification' in window && Notification.permission === 'granted') {
       const browserNotification = new Notification(notification.title, {
         body: notification.message,
-        icon: '/logo.jpg',
-        badge: '/logo.jpg',
+        icon: '/logo.png',
+        badge: '/logo.png',
         tag: notification.id, // Prevent duplicate notifications
       });
 

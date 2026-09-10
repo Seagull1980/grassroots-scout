@@ -60,7 +60,7 @@ const LogoWithOverlay: React.FC<LogoWithOverlayProps> = ({
       >
         <Box
           component="img"
-          src="/logo.jpg"
+          src="/logo.png"
           alt="The Grassroots Scout Logo"
           sx={{
             height: sizes.logoSize,

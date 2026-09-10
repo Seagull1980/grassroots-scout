@@ -27,7 +27,7 @@ const Footer: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Box
                   component="img"
-                  src="/logo.jpg"
+                  src="/logo.png"
                   alt="The Grassroots Scout Logo"
                   sx={{
                     height: 50,
