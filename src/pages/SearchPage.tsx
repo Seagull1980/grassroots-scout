@@ -103,6 +103,7 @@ interface TeamVacancy {
   firstName: string;
   lastName: string;
   postedBy: number; // ID of the user who posted the vacancy
+  passportShared?: boolean;
 }
 
 interface PlayerAvailability {
@@ -122,6 +123,8 @@ interface PlayerAvailability {
   createdAt?: string;
   status?: 'active' | 'inactive'; // Add status property for relevance calculation
   profileStatus?: 'Available' | 'Open to opportunities' | '' | null; // Opt-in visibility status of the poster
+  postedBy?: number;
+  passportShared?: boolean;
 }
 
 interface SavedAd {
@@ -964,7 +967,9 @@ const SearchPage: React.FC = () => {
         description: isGuest ? 'Sign up to view full player details and send messages.' : (player.description || player.title || ''),
         title: isGuest ? 'Player Profile' : (player.title || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player Available'),
         createdAt: player.createdAt || player.created_at,
-        profileStatus: player.profileStatus || player.profilestatus || '' })) : [];
+        profileStatus: player.profileStatus || player.profilestatus || '',
+        postedBy: player.postedBy,
+        passportShared: !isGuest && !!player.passportShared })) : [];
       
       setPlayerAvailability(transformedPlayers);
     } catch (err) {
@@ -3094,6 +3099,24 @@ const SearchPage: React.FC = () => {
                             ? 'Sign up to view full details'
                             : (expandedCards[`${tabValue === 0 ? 'vacancy' : 'player'}-${item.id}`] ? 'Hide Details' : 'View Full Details')}
                         </Button>
+                        {tabValue === 0 && !isGuest && (item as TeamVacancy).passportShared && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => navigate(`/profile/view/${(item as TeamVacancy).postedBy}`)}
+                          >
+                            View Coach Passport
+                          </Button>
+                        )}
+                        {tabValue === 1 && !isGuest && (item as PlayerAvailability).passportShared && (item as PlayerAvailability).postedBy && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => navigate(`/profile/view/${(item as PlayerAvailability).postedBy}`)}
+                          >
+                            View Passport
+                          </Button>
+                        )}
                         {tabValue === 1 && user?.role === 'Coach' && (
                           <Button 
                             size="small" 

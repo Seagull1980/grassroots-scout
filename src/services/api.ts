@@ -521,6 +521,8 @@ export interface PlayerAvailability {
   shareName?: boolean;
   // Computed display name returned by the API (either real name or anonymous placeholder)
   displayName?: string;
+  // True when the poster has opted in to sharing their Football Passport
+  passportShared?: boolean;
 }
 
 export interface TrainingSession {
@@ -1407,6 +1409,60 @@ export const testimonialAPI = {
   // Report an inappropriate testimonial
   report: async (testimonialId: number, reason: string, details?: string): Promise<{ success: boolean; reportId: number }> => {
     const response = await api.post(`/testimonials/${testimonialId}/report`, { reason, details });
+    return response.data;
+  }
+};
+
+// Football Passport - sharing is opt-in and private by default
+export interface PublicPassport {
+  isPublic: boolean;
+  role?: 'Player' | 'Coach';
+  position?: string;
+  history?: Array<{
+    teamName: string;
+    clubName?: string;
+    league: string;
+    ageGroup: string;
+    position?: string;
+    role?: string;
+    season: string;
+    isCurrentTeam: boolean;
+    achievements?: string;
+  }>;
+  achievements?: ProfileAchievement[];
+}
+
+export interface PublicChildPassport {
+  isPublic: boolean;
+  displayName?: string;
+  position?: string;
+  history?: Array<{ teamName: string; season: string }>;
+  achievements?: ProfileAchievement[];
+}
+
+export const passportAPI = {
+  setChildVisibility: async (childId: number, isPublic: boolean): Promise<{ isPublic: boolean; message: string }> => {
+    const response = await api.patch(`/children/${childId}/passport-visibility`, { isPublic });
+    return response.data;
+  },
+
+  getPublicChild: async (childId: number): Promise<PublicChildPassport> => {
+    const response = await api.get(`/children/${childId}/passport/public`);
+    return response.data;
+  },
+
+  getVisibility: async (): Promise<{ isPublic: boolean }> => {
+    const response = await api.get('/profile/passport-visibility');
+    return response.data;
+  },
+
+  setVisibility: async (isPublic: boolean): Promise<{ isPublic: boolean; message: string }> => {
+    const response = await api.patch('/profile/passport-visibility', { isPublic });
+    return response.data;
+  },
+
+  getPublic: async (userId: number): Promise<PublicPassport> => {
+    const response = await api.get(`/users/${userId}/passport/public`);
     return response.data;
   }
 };

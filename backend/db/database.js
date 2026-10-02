@@ -1654,6 +1654,38 @@ class Database {
         }
       }
 
+      // Migration 7c: Football Passport opt-in (private by default)
+      if (this.dbType === 'postgresql') {
+        const names = profileColumns.rows.map(row => row.column_name);
+        if (!names.includes('passportpublic')) {
+          await this.query('ALTER TABLE user_profiles ADD COLUMN passportPublic BOOLEAN DEFAULT FALSE');
+          console.log('✅ Added passportPublic column to user_profiles table');
+        }
+      } else if (!profileColumns.rows.some(row => row.name === 'passportPublic')) {
+        try {
+          await this.query('ALTER TABLE user_profiles ADD COLUMN passportPublic BOOLEAN DEFAULT 0');
+          console.log('✅ Added passportPublic column to user_profiles table');
+        } catch (err) {
+          if (!err.message.includes('duplicate column')) throw err;
+        }
+      }
+
+      // Migration 7d: Football Passport opt-in for children (private by default)
+      const childColumns = await this.query(this.dbType === 'postgresql'
+        ? `SELECT column_name FROM information_schema.columns WHERE table_name = 'children'`
+        : `PRAGMA table_info(children)`);
+      const hasChildPassport = this.dbType === 'postgresql'
+        ? childColumns.rows.some(row => row.column_name === 'passportpublic')
+        : childColumns.rows.some(row => row.name === 'passportPublic');
+      if (!hasChildPassport) {
+        try {
+          await this.query(`ALTER TABLE children ADD COLUMN passportPublic BOOLEAN DEFAULT ${this.dbType === 'postgresql' ? 'FALSE' : '0'}`);
+          console.log('✅ Added passportPublic column to children table');
+        } catch (err) {
+          if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) throw err;
+        }
+      }
+
       if (this.dbType === 'postgresql') {
         const userColumnNames = usersColumns.rows.map(row => row.column_name);
         if (!userColumnNames.includes('isdeleted')) {

@@ -913,7 +913,8 @@ app.get('/api/vacancies', async (req, res) => {
         tv.createdAt,
         tv.status,
         u.firstname as firstName,
-        u.lastname as lastName
+        u.lastname as lastName,
+        (SELECT passportPublic FROM user_profiles up WHERE up.userId = tv.postedBy) as passportShared
       FROM team_vacancies tv
       LEFT JOIN users u ON tv.postedBy = u.id
       WHERE tv.status = 'active'
@@ -946,6 +947,7 @@ app.get('/api/vacancies', async (req, res) => {
         postedBy: row.postedBy?.toString() ?? row.postedBy,
         firstName: row.firstName,
         lastName: row.lastName,
+        passportShared: isTruthyDbFlag(row.passportShared ?? row.passportshared),
         hasMatchRecording: row.hasMatchRecording,
         hasPathwayToSenior: row.hasPathwayToSenior,
         expiresAt: row.expiresAt,
@@ -2361,6 +2363,8 @@ app.put('/api/children/:childId', [
     const updateValues = [];
 
     Object.keys(req.body).forEach(key => {
+      // Sharing is changed only via the dedicated opt-in endpoint
+      if (key.toLowerCase() === 'passportpublic') return;
       if (req.body[key] !== undefined && availableColumns.has(key.toLowerCase())) {
         updateFields.push(`${key} = ?`);
         if (key.toLowerCase() === 'achievements' || key.toLowerCase() === 'careerhistory') {
@@ -2756,7 +2760,8 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
 
     const expiryFilter = getExpiryComparison('expiresAt');
     const availabilityResult = await db.query(
-      `SELECT *, (SELECT status FROM user_profiles WHERE user_profiles.userId = player_availability.postedBy) as profileStatus FROM player_availability 
+      `SELECT *, (SELECT status FROM user_profiles WHERE user_profiles.userId = player_availability.postedBy) as profileStatus,
+        (SELECT passportPublic FROM user_profiles WHERE user_profiles.userId = player_availability.postedBy) as passportShared FROM player_availability
        ${userQuery}
          AND (expiresAt IS NULL OR ${expiryFilter})
        ORDER BY createdAt DESC`,
@@ -2820,6 +2825,7 @@ app.get('/api/player-availability', authenticateToken, async (req, res) => {
 
       return {
         ...row,
+        passportShared: isTruthyDbFlag(row.passportShared ?? row.passportshared),
         preferredLeagues,
         positions,
         expiresAt: row.expiresAt,
@@ -3812,9 +3818,13 @@ app.delete('/api/child-player-availability/:availabilityId', authenticateToken, 
   }
 });
 
-// Get public child player availability (for coaches to see)
-app.get('/api/public/child-player-availability', async (req, res) => {
+// Child availability for coaches (signed-in only; never exposes DOB or a surname unless the parent opted in)
+app.get('/api/public/child-player-availability', authenticateToken, async (req, res) => {
   try {
+    if (!['Coach', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Unauthorized to access child player availability' });
+    }
+
     const { league, ageGroup, position, location } = req.query;
     const expiryFilter = getExpiryComparison('cpa."expiresAt"');
     
@@ -3887,13 +3897,28 @@ app.get('/api/public/child-player-availability', async (req, res) => {
         availability = null;
       }
       
+      const shareFlag = row.shareName || row.share_name || row.sharename || false;
+      const childFirst = row.firstName || row.firstname || '';
+      const childLast = row.lastName || row.lastname || '';
+
+      // Explicit allow-list: no DOB, surname (unless shared), parent id or contact details.
       return {
-        ...row,
+        id: row.id,
+        title: row.title,
+        description: row.description,
         preferredLeagues,
         positions,
+        ageGroup: row.ageGroup,
+        preferredTeamGender: row.preferredTeamGender,
+        location: row.location,
         locationData,
-        expiresAt: row.expiresAt,
-        availability
+        availability,
+        postedBy: row.postedBy ?? row.parentId,
+        shareName: !!shareFlag,
+        displayName: shareFlag ? `${childFirst} ${childLast}`.trim() : 'Anonymous Player',
+        status: row.status,
+        createdAt: row.createdAt,
+        expiresAt: row.expiresAt
       };
     });
 
@@ -4487,6 +4512,199 @@ app.get('/api/users/:userId/testimonials/public', async (req, res) => {
     });
   } catch (error) {
     console.error('Get public testimonials error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==================== FOOTBALL PASSPORT (opt-in sharing) ====================
+// Passport sharing is off by default and only exposed after the owner explicitly opts in.
+const rowValue = (row, key) => (row && row[key] !== undefined ? row[key] : row ? row[key.toLowerCase()] : undefined);
+const isTruthyDbFlag = (value) => value === true || value === 1 || value === '1' || value === 't';
+
+app.get('/api/profile/passport-visibility', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM user_profiles WHERE userId = ?', [req.user.userId]);
+    res.json({ isPublic: isTruthyDbFlag(rowValue(result.rows?.[0], 'passportPublic')) });
+  } catch (error) {
+    console.error('Get passport visibility error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/profile/passport-visibility', [
+  authenticateToken,
+  body('isPublic').isBoolean().withMessage('isPublic must be a boolean')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    if (!['Player', 'Coach'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only players and coaches can share a Football Passport' });
+    }
+
+    const { isPublic } = req.body;
+    const existing = await db.query('SELECT id FROM user_profiles WHERE userId = ?', [req.user.userId]);
+    if (existing.rows && existing.rows.length > 0) {
+      await db.query('UPDATE user_profiles SET passportPublic = ? WHERE userId = ?', [isPublic, req.user.userId]);
+    } else {
+      await db.query('INSERT INTO user_profiles (userId, passportPublic) VALUES (?, ?)', [req.user.userId, isPublic]);
+    }
+
+    res.json({
+      isPublic,
+      message: isPublic ? 'Your Football Passport is now public' : 'Your Football Passport is now private'
+    });
+  } catch (error) {
+    console.error('Set passport visibility error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/users/:userId/passport/public', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const userResult = await db.query(
+      `SELECT u.id, u.firstName, u.lastName, u.role, up.*
+       FROM users u
+       LEFT JOIN user_profiles up ON up.userId = u.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+    const row = userResult.rows?.[0];
+    const role = row ? rowValue(row, 'role') : null;
+    if (!row || !['Player', 'Coach'].includes(role) || !isTruthyDbFlag(rowValue(row, 'passportPublic'))) {
+      return res.json({ isPublic: false });
+    }
+
+    const isPlayer = role === 'Player';
+    const historyResult = await db.query(
+      isPlayer
+        ? 'SELECT * FROM playing_history WHERE playerId = ? ORDER BY startDate DESC'
+        : 'SELECT * FROM coaching_history WHERE coachId = ? ORDER BY startDate DESC',
+      [userId]
+    );
+
+    // Private notes are never exposed.
+    const history = (historyResult.rows || []).map((h) => ({
+      teamName: rowValue(h, 'teamName'),
+      clubName: rowValue(h, 'clubName') || undefined,
+      league: rowValue(h, 'league'),
+      ageGroup: rowValue(h, 'ageGroup'),
+      position: isPlayer ? rowValue(h, 'position') : undefined,
+      role: isPlayer ? undefined : rowValue(h, 'role'),
+      season: rowValue(h, 'season'),
+      isCurrentTeam: isTruthyDbFlag(rowValue(h, 'isCurrentTeam')),
+      achievements: rowValue(h, 'achievements') || undefined
+    }));
+
+    let achievements = [];
+    const rawAchievements = rowValue(row, 'achievements');
+    if (typeof rawAchievements === 'string' && rawAchievements) {
+      try {
+        const parsed = JSON.parse(rawAchievements);
+        if (Array.isArray(parsed)) achievements = parsed;
+      } catch {
+        achievements = [];
+      }
+    } else if (Array.isArray(rawAchievements)) {
+      achievements = rawAchievements;
+    }
+
+    res.json({
+      isPublic: true,
+      role,
+      position: isPlayer ? rowValue(row, 'position') || undefined : undefined,
+      history,
+      achievements: achievements.map((a) => ({ title: String(a.title || ''), year: String(a.year || '') }))
+    });
+  } catch (error) {
+    console.error('Get public passport error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Parent/guardian (owner or approved co-parent) opts a child's passport in or out. Signed-in users only can view it.
+app.patch('/api/children/:childId/passport-visibility', [
+  authenticateToken,
+  body('isPublic').isBoolean().withMessage('isPublic must be a boolean')
+], async (req, res) => {
+  try {
+    if (req.user.role !== 'Parent/Guardian') {
+      return res.status(403).json({ error: 'Only a parent or guardian can share a child\'s Football Passport' });
+    }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { childId } = req.params;
+    const { isPublic } = req.body;
+
+    const childResult = await db.query(
+      `SELECT c.id FROM children c
+       WHERE c.id = ? AND (c.parentId = ? OR EXISTS(
+         SELECT 1 FROM child_co_owners WHERE childId = ? AND parentId = ? AND status = 'approved'
+       ))`,
+      [childId, req.user.userId, childId, req.user.userId]
+    );
+    if (!childResult.rows || childResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found or access denied' });
+    }
+
+    await db.query('UPDATE children SET passportPublic = ? WHERE id = ?', [isPublic, childId]);
+    res.json({
+      isPublic,
+      message: isPublic ? 'Passport is now visible to signed-in members' : 'Passport is now private'
+    });
+  } catch (error) {
+    console.error('Set child passport visibility error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/children/:childId/passport/public', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM children WHERE id = ?', [req.params.childId]);
+    const row = result.rows?.[0];
+    if (!row || !isTruthyDbFlag(rowValue(row, 'isActive')) || !isTruthyDbFlag(rowValue(row, 'passportPublic'))) {
+      return res.json({ isPublic: false });
+    }
+
+    const parseList = (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === 'string' && value) {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    // Minors: first name and last initial only; no DOB, school, medical, emergency or bio.
+    const firstName = rowValue(row, 'firstName') || '';
+    const lastInitial = String(rowValue(row, 'lastName') || '').charAt(0);
+
+    res.json({
+      isPublic: true,
+      displayName: lastInitial ? `${firstName} ${lastInitial}.` : firstName,
+      position: rowValue(row, 'preferredPosition') || undefined,
+      history: parseList(rowValue(row, 'careerHistory')).map((h) => ({
+        teamName: String(h.teamName || ''),
+        season: String(h.season || '')
+      })),
+      achievements: parseList(rowValue(row, 'achievements')).map((a) => ({
+        title: String(a.title || ''),
+        year: String(a.year || '')
+      }))
+    });
+  } catch (error) {
+    console.error('Get child passport error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

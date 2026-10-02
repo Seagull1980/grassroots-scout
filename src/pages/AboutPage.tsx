@@ -85,7 +85,7 @@ const AboutPage: React.FC = () => {
           </Grid>
           <Grid item xs={12} md={8}>
             <Typography variant="h4" gutterBottom sx={{ color: 'primary.main' }}>
-              My Story
+              Why I built Grassroots Scout
             </Typography>
             <Typography variant="body1" paragraph sx={{ fontSize: '1.1rem', lineHeight: 1.8 }}>
               {aboutContent.personalStory.paragraph1}

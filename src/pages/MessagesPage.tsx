@@ -51,7 +51,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Conversation, MatchProgress, MatchProgressStage } from '../types';
-import { API_URL, profileAPI, UserProfile } from '../services/api';
+import { API_URL, profileAPI, passportAPI, UserProfile } from '../services/api';
 import PageHeader from '../components/PageHeader';
 import { calculateProfileCompletion } from '../utils/profileActivation';
 import ActionEmptyState from '../components/ActionEmptyState';
@@ -98,6 +98,17 @@ const MessagesPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [otherPassportShared, setOtherPassportShared] = useState(false);
+
+  const otherParticipantId = selectedConversation?.participants.find(p => p.userId !== user?.id)?.userId;
+  useEffect(() => {
+    setOtherPassportShared(false);
+    if (!otherParticipantId) return;
+    passportAPI
+      .getPublic(Number(otherParticipantId))
+      .then((result) => setOtherPassportShared(!!result.isPublic))
+      .catch(() => setOtherPassportShared(false));
+  }, [otherParticipantId]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [matchProgress, setMatchProgress] = useState<MatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -938,6 +949,11 @@ const MessagesPage: React.FC = () => {
                       </Button>
                     </Typography>
                     <Box display="flex" gap={1}>
+                      {otherPassportShared && otherParticipantId && (
+                        <Button variant="outlined" onClick={() => navigate(`/profile/view/${otherParticipantId}`)}>
+                          View Passport
+                        </Button>
+                      )}
                       <Button
                         startIcon={<ReplyIcon />}
                         onClick={() => setReplyOpen(true)}

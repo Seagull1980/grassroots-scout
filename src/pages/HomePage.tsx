@@ -34,6 +34,22 @@ const HomePage: React.FC = () => {
     successfulMatches: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [vacancies, setVacancies] = useState<Array<{ id: string; title: string; location?: string; position?: string; ageGroup?: string; league?: string }>>([]);
+
+  useEffect(() => {
+    const fetchVacancies = async () => {
+      try {
+        const response = await fetch(`${API_URL}/vacancies`);
+        if (!response.ok) return;
+        const data = await response.json();
+        setVacancies((data.vacancies || []).slice(0, 3));
+      } catch (error) {
+        console.error('Failed to fetch vacancies:', error);
+      }
+    };
+
+    fetchVacancies();
+  }, []);
 
   useEffect(() => {
     const fetchSiteStats = async () => {
@@ -139,7 +155,7 @@ const HomePage: React.FC = () => {
             lineHeight: 1.2
           }}
         >
-          The UK's football transfer network for grassroots players and clubs
+          Your football journey. All in one place.
         </Typography>
 
         <Typography
@@ -154,7 +170,7 @@ const HomePage: React.FC = () => {
             lineHeight: 1.7
           }}
         >
-          Join players looking for new clubs and coaches searching for new talent.
+          Discover opportunities. Connect with clubs and players. Build your football profile. Find a grassroots club or players near you.
         </Typography>
 
         {/* Primary CTAs - Split by Role */}
@@ -192,9 +208,120 @@ const HomePage: React.FC = () => {
         </Box>
 
         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
-          Join a growing network built for grassroots football opportunities — not just visibility, but real movement.
+          Discover. Connect. Develop.
         </Typography>
       </Box>
+    </Box>
+  );
+
+  // ===== LATEST OPPORTUNITIES (hidden when none) =====
+  const renderOpportunities = () => {
+    if (vacancies.length === 0) return null;
+    return (
+      <Box sx={{ mb: 12 }}>
+        <Typography variant="h4" component="h2" sx={{ textAlign: 'center', fontWeight: 800, mb: 6, fontSize: isMobile ? '1.5rem' : '2rem' }}>
+          Latest Opportunities
+        </Typography>
+        <Grid container spacing={3}>
+          {vacancies.map((v) => (
+            <Grid item xs={12} md={4} key={v.id}>
+              <Card sx={{ height: '100%', p: 3, border: '1px solid #e0e0e0' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>{v.title}</Typography>
+                {v.location && <Typography variant="body2" color="text.secondary">📍 {v.location}</Typography>}
+                {v.position && <Typography variant="body2" color="text.secondary">⚽ {v.position}</Typography>}
+                {(v.ageGroup || v.league) && (
+                  <Typography variant="body2" color="text.secondary">🏷️ {[v.ageGroup, v.league].filter(Boolean).join(' · ')}</Typography>
+                )}
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+        <Box sx={{ textAlign: 'center', mt: 4 }}>
+          <Button
+            variant="outlined"
+            size="large"
+            onClick={() => navigateWithTracking('view_all_opportunities', '/search', 'latest_opportunities')}
+            sx={{ fontWeight: 700 }}
+          >
+            View all opportunities <ArrowForward sx={{ ml: 1 }} />
+          </Button>
+        </Box>
+      </Box>
+    );
+  };
+
+  // ===== FOOTBALL PASSPORT =====
+  const renderPassportSection = () => (
+    <Paper
+      sx={{
+        p: isMobile ? 4 : 6,
+        mb: 12,
+        borderRadius: 4,
+        border: '2px solid rgba(0, 102, 255, 0.2)',
+        background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.05) 0%, rgba(255, 107, 53, 0.04) 100%)'
+      }}
+    >
+      <Grid container spacing={4} alignItems="center">
+        <Grid item xs={12} md={6}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2, fontSize: isMobile ? '1.5rem' : '2rem' }}>
+            Your Football Passport
+          </Typography>
+          <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
+            Your club might change. Your football journey doesn't have to start again.
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3, lineHeight: 1.7 }}>
+            Keep your club history and achievements in one place, wherever you play next. Sharing is always your choice: your passport stays private unless you switch it on, and is only ever visible to signed-in members.
+          </Typography>
+          <Button
+            variant="contained"
+            size="large"
+            onClick={() => navigateWithTracking('passport_create', '/register?role=player', 'football_passport', 'Player')}
+            sx={{ background: 'linear-gradient(135deg, #0066FF 0%, #0052CC 100%)', fontWeight: 700, px: 4 }}
+          >
+            Create your passport <ArrowForward sx={{ ml: 1 }} />
+          </Button>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Box sx={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 3, p: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
+              EXAMPLE PASSPORT
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block">
+              Only visible to others if you choose to share it.
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, mt: 1, mb: 2 }}>⚽ Goalkeeper · U15</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>CLUB HISTORY</Typography>
+            {[
+              ['2023–24', 'Example Rangers'],
+              ['2024–25', 'Example Rangers'],
+              ['2025–26', 'Example FC']
+            ].map(([season, club]) => (
+              <Box key={season} sx={{ display: 'flex', gap: 2, py: 0.75, borderTop: '1px solid #eee' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 70 }}>{season}</Typography>
+                <Typography variant="body2" color="text.secondary">{club}</Typography>
+              </Box>
+            ))}
+          </Box>
+        </Grid>
+      </Grid>
+    </Paper>
+  );
+
+  // ===== FOUNDER STORY =====
+  const renderFounderStory = () => (
+    <Box sx={{ mb: 12, textAlign: 'center', maxWidth: 800, mx: 'auto' }}>
+      <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 3, fontSize: isMobile ? '1.5rem' : '2rem' }}>
+        Built from grassroots football
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.05rem', lineHeight: 1.8, mb: 2 }}>
+        Grassroots Scout was created by a football-mad dad and grassroots coach who experienced the problem from both sides: finding the right players for a team, while seeing how hard it could be for players and parents to find the right club.
+      </Typography>
+      <Typography variant="body1" sx={{ fontWeight: 600, mb: 3 }}>
+        So we built the platform we wished existed.
+      </Typography>
+      <Button variant="text" onClick={() => navigateWithTracking('read_our_story', '/about', 'founder_story')} sx={{ fontWeight: 700 }}>
+        Read our story <ArrowForward sx={{ ml: 1 }} />
+      </Button>
     </Box>
   );
 
@@ -527,7 +654,10 @@ const HomePage: React.FC = () => {
   );
 
   // ===== STATS SECTION =====
-  const renderStatsSection = () => (
+  const renderStatsSection = () => {
+    const hasStats = siteStats.registeredPlayers > 0 || siteStats.activeTeams > 0 || siteStats.successfulMatches > 0;
+    if (statsLoading || !hasStats) return null;
+    return (
     <Paper
       sx={{
         p: 6,
@@ -593,7 +723,8 @@ const HomePage: React.FC = () => {
         </Grid>
       </Grid>
     </Paper>
-  );
+    );
+  };
 
   // ===== WHY GRASSROOTS SCOUT SECTION =====
   const renderWhySection = () => (
@@ -620,52 +751,51 @@ const HomePage: React.FC = () => {
           color: '#666'
         }}
       >
-        Built for real grassroots football movement
+        Built for real grassroots football
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', textAlign: 'center', p: 3, border: '1px solid #e0e0e0' }}>
-            <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: '#0066FF' }}>
-              ✓ Not just profiles
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Real opportunities
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', textAlign: 'center', p: 3, border: '1px solid #e0e0e0' }}>
-            <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: '#FF6B35' }}>
-              ✓ Not just scouting
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Direct recruitment
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', textAlign: 'center', p: 3, border: '1px solid #e0e0e0' }}>
-            <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: '#0066FF' }}>
-              ✓ Not just exposure
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Actual club movement
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', textAlign: 'center', p: 3, border: '1px solid #e0e0e0' }}>
-            <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: '#FF6B35' }}>
-              ✓ Built for grassroots
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Local football, not academies
-            </Typography>
-          </Card>
-        </Grid>
+        {[
+          { icon: '⚽', title: 'Built around the player', text: 'Your playing history and football profile stay with you.', color: '#0066FF' },
+          { icon: '🤝', title: 'Built around connection', text: 'Players, parents and clubs can find each other without relying on word of mouth.', color: '#FF6B35' },
+          { icon: '🌱', title: 'Built around grassroots', text: 'Created by someone who has lived grassroots football as both a parent and a coach.', color: '#0066FF' }
+        ].map((b) => (
+          <Grid item xs={12} md={4} key={b.title}>
+            <Card sx={{ height: '100%', textAlign: 'center', p: 3, border: '1px solid #e0e0e0' }}>
+              <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: b.color }}>
+                {b.icon} {b.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {b.text}
+              </Typography>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
     </Box>
+  );
+
+  const renderSafetySection = () => (
+    <Paper sx={{ p: isMobile ? 4 : 6, mb: 8, borderRadius: 4, background: '#f9f9f9', border: '1px solid #e0e0e0' }}>
+      <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2, textAlign: 'center', fontSize: isMobile ? '1.5rem' : '2rem' }}>
+        Safe by design
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', mb: 4, maxWidth: 700, mx: 'auto', lineHeight: 1.7 }}>
+        Youth football needs extra care, so safety is built in from the start.
+      </Typography>
+      <Grid container spacing={3}>
+        {[
+          { title: 'Parent and guardian accounts', text: 'Under-16 players are represented by a parent or guardian.' },
+          { title: 'Monitored messaging', text: 'Messages are scanned for harmful content and flagged for review.' },
+          { title: 'Report and moderation', text: 'Any user can report a message, and our admins review reports.' }
+        ].map((item) => (
+          <Grid item xs={12} md={4} key={item.title}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>🛡️ {item.title}</Typography>
+            <Typography variant="body2" color="text.secondary">{item.text}</Typography>
+          </Grid>
+        ))}
+      </Grid>
+    </Paper>
   );
 
   // ===== FINAL CTA SECTION =====
@@ -745,6 +875,15 @@ const HomePage: React.FC = () => {
         {/* Hero Section */}
         {renderHeroSection()}
 
+        {/* Latest Opportunities */}
+        {renderOpportunities()}
+
+        {/* Football Passport */}
+        {renderPassportSection()}
+
+        {/* Founder Story */}
+        {renderFounderStory()}
+
         {/* Quick Value Snapshot */}
         {renderValueSnapshot()}
 
@@ -765,6 +904,9 @@ const HomePage: React.FC = () => {
 
         {/* Why Grassroots Scout */}
         {renderWhySection()}
+
+        {/* Safe by design */}
+        {renderSafetySection()}
 
         {/* Final CTA */}
         {renderFinalCta()}

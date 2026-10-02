@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import { RateReview as RateReviewIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { testimonialAPI, PublicTestimonial } from '../services/api';
+import { testimonialAPI, passportAPI, PublicTestimonial, PublicPassport } from '../services/api';
 
 const isTestimonialRolePairAllowed = (authorRole?: string, recipientRole?: string) => {
   if (authorRole === 'Coach') return recipientRole === 'Player';
@@ -36,6 +36,7 @@ const PublicProfilePage: React.FC = () => {
 
   const [profileUser, setProfileUser] = useState<{ id: number; firstName: string; lastName: string; role: string; status?: 'Available' | 'Open to opportunities' | '' } | null>(null);
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
+  const [passport, setPassport] = useState<PublicPassport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -56,6 +57,10 @@ const PublicProfilePage: React.FC = () => {
         const result = await testimonialAPI.getPublicForUser(Number(userId));
         setProfileUser(result.user);
         setTestimonials(result.testimonials || []);
+        // Passport endpoint requires sign-in; skip for visitors to avoid the login redirect.
+        if (user) {
+          passportAPI.getPublic(Number(userId)).then(setPassport).catch(() => setPassport(null));
+        }
       } catch (err) {
         console.error('Failed to load public profile:', err);
         setError('This profile could not be found.');
@@ -65,7 +70,7 @@ const PublicProfilePage: React.FC = () => {
     };
 
     loadPublicProfile();
-  }, [userId]);
+  }, [userId, user?.id]);
 
   const canWriteTestimonial =
     !!user &&
@@ -149,6 +154,55 @@ const PublicProfilePage: React.FC = () => {
           </Button>
         )}
       </Paper>
+
+      {passport?.isPublic && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Football Passport
+          </Typography>
+          {passport.position && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Position: {passport.position}
+            </Typography>
+          )}
+
+          <Typography variant="subtitle2" gutterBottom>
+            {passport.role === 'Coach' ? 'Coaching history' : 'Club history'}
+          </Typography>
+          {passport.history && passport.history.length > 0 ? (
+            <Stack spacing={1} sx={{ mb: 2 }}>
+              {passport.history.map((entry, index) => (
+                <Box key={index} sx={{ display: 'flex', gap: 2, py: 0.5, borderTop: '1px solid #eee' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 80 }}>{entry.season}</Typography>
+                  <Box>
+                    <Typography variant="body2">
+                      {entry.teamName}{entry.isCurrentTeam ? ' (current)' : ''}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {[entry.ageGroup, entry.league, entry.position || entry.role].filter(Boolean).join(' · ')}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>No history added yet.</Typography>
+          )}
+
+          {passport.achievements && passport.achievements.length > 0 && (
+            <>
+              <Typography variant="subtitle2" gutterBottom>Achievements</Typography>
+              <Stack spacing={0.5}>
+                {passport.achievements.map((achievement, index) => (
+                  <Typography key={index} variant="body2">
+                    {achievement.title}{achievement.year ? ` (${achievement.year})` : ''}
+                  </Typography>
+                ))}
+              </Stack>
+            </>
+          )}
+        </Paper>
+      )}
 
       <Typography variant="h6" gutterBottom>
         Testimonials

@@ -1107,9 +1107,13 @@ app.delete('/api/child-player-availability/:availabilityId', authenticateToken, 
   }
 });
 
-// Get public child player availability (for coaches to see)
-app.get('/api/public/child-player-availability', async (req, res) => {
+// Child availability for coaches (signed-in only)
+app.get('/api/public/child-player-availability', authenticateToken, async (req, res) => {
   try {
+    if (!['Coach', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Unauthorized to access child player availability' });
+    }
+
     const { league, ageGroup, position, location } = req.query;
     
     let query = `
@@ -1147,8 +1151,6 @@ app.get('/api/public/child-player-availability', async (req, res) => {
 
     const availability = (availabilityResult.rows || []).map(row => ({
       id: row.id,
-      childId: row.childId,
-      parentId: row.parentId,
       title: row.title,
       description: row.description,
       preferredLeagues: row.preferredLeagues ? JSON.parse(row.preferredLeagues) : [],
@@ -1157,12 +1159,11 @@ app.get('/api/public/child-player-availability', async (req, res) => {
       preferredTeamGender: row.preferredTeamGender,
       location: row.location,
       locationData: row.locationData ? JSON.parse(row.locationData) : null,
-      contactInfo: row.contactInfo,
       availability: row.availability ? JSON.parse(row.availability) : null,
       status: row.status,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      // privacy: do not return firstName/lastName/parentEmail in public listing
+      postedBy: row.parentId,
       shareName: !!row.shareName,
       displayName: row.shareName ? `${row.firstName} ${row.lastName}` : 'Anonymous Player'
     }));

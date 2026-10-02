@@ -1646,6 +1646,19 @@ const MapSearch: React.FC<MapSearchProps> = ({ searchType }) => {
             >
               Send Message
             </Button>
+            {selectedResult.type === 'availability' && (item as { passportShared?: boolean }).passportShared && (
+              <Button
+                variant="outlined"
+                fullWidth
+                sx={{ mt: 1 }}
+                onClick={() => {
+                  setSelectedResult(null);
+                  navigate(`/profile/view/${item.postedBy}`);
+                }}
+              >
+                View Passport
+              </Button>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>

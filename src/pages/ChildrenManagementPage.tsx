@@ -38,6 +38,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import PageHeader from '../components/PageHeader';
 import ActionEmptyState from '../components/ActionEmptyState';
+import ChildPassportSharingDialog from '../components/ChildPassportSharingDialog';
 
 interface Child {
   id: number;
@@ -56,6 +57,7 @@ interface Child {
   status?: 'Available' | 'Open to opportunities' | '';
   achievements?: ChildAchievement[];
   careerHistory?: ChildCareerEntry[];
+  passportPublic?: boolean;
   profilePicture?: string;
   isActive: boolean;
   createdAt: string;
@@ -158,6 +160,7 @@ const normalizeChild = (rawChild: Record<string, unknown>): Child => {
     achievements: normalizeListValue<ChildAchievement>(pickFirst(rawChild, ['achievements'], undefined)),
     careerHistory: normalizeListValue<ChildCareerEntry>(pickFirst(rawChild, ['careerHistory', 'careerhistory', 'career_history'], undefined)),
     profilePicture: pickFirst(rawChild, ['profilePicture', 'profilepicture', 'profile_picture'], undefined),
+    passportPublic: [true, 1, '1', 't'].includes(pickFirst(rawChild, ['passportPublic', 'passportpublic'], false) as never),
     isActive: Boolean(pickFirst(rawChild, ['isActive', 'isactive', 'is_active'], true)),
     createdAt: createdAt || new Date().toISOString(),
     updatedAt: updatedAt || createdAt || new Date().toISOString()
@@ -173,6 +176,7 @@ const ChildrenManagementPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [passportChild, setPassportChild] = useState<Child | null>(null);
   const [formData, setFormData] = useState<ChildFormData>({
     firstName: '',
     lastName: '',
@@ -584,6 +588,12 @@ const ChildrenManagementPage: React.FC = () => {
                         color={child.status === 'Available' ? 'success' : 'warning'}
                       />
                     )}
+                    <Chip
+                      label={child.passportPublic ? 'Passport: shared' : 'Passport: private'}
+                      size="small"
+                      color={child.passportPublic ? 'warning' : 'success'}
+                      variant="outlined"
+                    />
                   </Stack>
 
                   <Stack spacing={1}>
@@ -644,6 +654,9 @@ const ChildrenManagementPage: React.FC = () => {
                 <CardActions sx={{ px: 2, pb: 2, pt: 0, mt: 'auto', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button size="small" variant="contained" onClick={() => openEditDialog(child)}>
                     Edit Profile
+                  </Button>
+                  <Button size="small" variant="outlined" onClick={() => setPassportChild(child)}>
+                    Passport sharing
                   </Button>
                   <Button size="small" variant="outlined" onClick={() => navigate('/child-player-availability')}>
                     Child Availability
@@ -913,6 +926,20 @@ const ChildrenManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {passportChild && (
+        <ChildPassportSharingDialog
+          open
+          childId={passportChild.id}
+          childFirstName={passportChild.firstName}
+          isPublic={!!passportChild.passportPublic}
+          onClose={() => setPassportChild(null)}
+          onChanged={(isPublic) => {
+            setChildren((prev) => prev.map((c) => (c.id === passportChild.id ? { ...c, passportPublic: isPublic } : c)));
+            setPassportChild((prev) => (prev ? { ...prev, passportPublic: isPublic } : prev));
+          }}
+        />
+      )}
       </Box>
     </Box>
   );

@@ -36,6 +36,7 @@ import MyAdvertsPage from './pages/MyAdvertsPage.tsx';
 import SearchPage from './pages/SearchPage';
 import ProfilePage from './pages/ProfilePage.tsx';
 import PublicProfilePage from './pages/PublicProfilePage.tsx';
+import ChildPassportPage from './pages/ChildPassportPage.tsx';
 import TestimonialRequestPage from './pages/TestimonialRequestPage.tsx';
 import AboutManagementPage from './pages/AboutManagementPage.tsx';
 import CalendarPage from './pages/CalendarPage.tsx';
@@ -225,6 +226,11 @@ const AppRoutes = () => {
         <Route path="/profile/view/:userId" element={
           <ProtectedRoute requireAuth={false}>
             <PublicProfilePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/passport/child/:childId" element={
+          <ProtectedRoute>
+            <ChildPassportPage />
           </ProtectedRoute>
         } />
         <Route path="/admin" element={

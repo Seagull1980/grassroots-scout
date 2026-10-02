@@ -34,13 +34,14 @@ import {
   DialogActions,
   Tooltip,
   Collapse } from '@mui/material';
-import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess, RateReview } from '@mui/icons-material';
+import { Save, Person, Work, History, Lock, Visibility, VisibilityOff, CheckCircle, RadioButtonUnchecked, Close, ArrowForward, ExpandMore, ExpandLess, RateReview, Public } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { profileAPI, authAPI, UserProfile, ProfileUpdateData, ProfileAchievement, ProfileQualification } from '../services/api';
 import PlayingHistoryManagement from '../components/PlayingHistoryManagement';
 import CoachingHistoryManagement from '../components/CoachingHistoryManagement';
 import TestimonialsManager from '../components/TestimonialsManager';
+import PassportSharing from '../components/PassportSharing';
 import VerificationBadge from '../components/VerificationBadge';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import GoogleMapsWrapper from '../components/GoogleMapsWrapper';
@@ -772,6 +773,7 @@ const ProfilePage: React.FC = () => {
             {user?.role === 'Coach' && <Tab icon={<Work />} label="Team Details" />}
             {user?.role === 'Player' && <Tab icon={<History />} label="Career" />}
             {user?.role === 'Coach' && <Tab icon={<History />} label="Coaching History" />}
+            {(user?.role === 'Player' || user?.role === 'Coach') && <Tab icon={<Public />} label="Football Passport" />}
             <Tab icon={<RateReview />} label="Testimonials" />
             <Tab icon={<Lock />} label="Security" />
           </Tabs>
@@ -1196,6 +1198,13 @@ const ProfilePage: React.FC = () => {
         {/* Playing History Tab - Only for Players */}
         {user?.role === 'Player' && (
           <TabPanel value={tabValue} index={2}>
+            <Alert
+              severity="info"
+              sx={{ mb: 2 }}
+              action={<Button color="inherit" size="small" onClick={(e) => handleTabChange(e, 3)}>Choose</Button>}
+            >
+              This history is private. You choose whether to share it as your Football Passport.
+            </Alert>
             <PlayingHistoryManagement />
           </TabPanel>
         )}
@@ -1203,17 +1212,31 @@ const ProfilePage: React.FC = () => {
         {/* Coaching History Tab - Only for Coaches */}
         {user?.role === 'Coach' && (
           <TabPanel value={tabValue} index={2}>
+            <Alert
+              severity="info"
+              sx={{ mb: 2 }}
+              action={<Button color="inherit" size="small" onClick={(e) => handleTabChange(e, 3)}>Choose</Button>}
+            >
+              This history is private. You choose whether to share it as your Football Passport.
+            </Alert>
             <CoachingHistoryManagement />
           </TabPanel>
         )}
 
+        {/* Football Passport sharing (opt-in) */}
+        {(user?.role === 'Player' || user?.role === 'Coach') && (
+          <TabPanel value={tabValue} index={3}>
+            <PassportSharing />
+          </TabPanel>
+        )}
+
         {/* Testimonials Tab */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 3 : (user?.role === 'Coach' ? 3 : 1)}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 4 : 1)}>
           <TestimonialsManager />
         </TabPanel>
 
         {/* Security Tab - Password Change */}
-        <TabPanel value={tabValue} index={user?.role === 'Player' ? 4 : (user?.role === 'Coach' ? 4 : 2)}>
+        <TabPanel value={tabValue} index={user?.role === 'Player' ? 5 : (user?.role === 'Coach' ? 5 : 2)}>
           <Typography variant="h6" gutterBottom>
             Change Password
           </Typography>
