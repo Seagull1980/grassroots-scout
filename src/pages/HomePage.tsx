@@ -786,8 +786,8 @@ const HomePage: React.FC = () => {
       <Grid container spacing={3}>
         {[
           { title: 'Parent and guardian accounts', text: 'Under-16 players are represented by a parent or guardian.' },
-          { title: 'Monitored messaging', text: 'Messages are scanned for harmful content and flagged for review.' },
-          { title: 'Report and moderation', text: 'Any user can report a message, and our admins review reports.' }
+          { title: 'Block and report', text: 'You can block anyone who contacts you, and report any message to our moderation team.' },
+          { title: 'Your child\'s name, your choice', text: 'Parents decide whether a child\'s name is shown on their adverts.' }
         ].map((item) => (
           <Grid item xs={12} md={4} key={item.title}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>🛡️ {item.title}</Typography>
