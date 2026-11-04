@@ -97,20 +97,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ showButton = tr
       console.warn('Could not fetch messages for notifications');
     }
 
-    // Add system notification for profile completion
-    const profileCompletion = localStorage.getItem('profile_completion');
-    if (!profileCompletion || parseInt(profileCompletion) < 80) {
-      mocks.push({
-        id: Date.now() + 1,
-        type: 'system',
-        title: 'Complete Your Profile',
-        message: 'Add more details to get better matches',
-        read: false,
-        createdAt: new Date().toISOString(),
-        actionUrl: '/profile'
-      });
-    }
-
     return mocks;
   };
 
