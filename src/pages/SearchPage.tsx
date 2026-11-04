@@ -2001,24 +2001,25 @@ const SearchPage: React.FC = () => {
               {quickMatchMode ? 'Quick Match' : 'Full Search'}
             </Button>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={(
-                <Badge color="primary" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
-                  <FilterList /> && !quickMatchMode
-                </Badge>
-              )}
-              onClick={() => setShowMoreFilters(!showMoreFilters)}
-              disabled={quickMatchMode}
-              sx={{ height: '56px' }}
-            >
-              {showMoreFilters ? 'Hide' : 'Show'} More Filters
-            </Button>
-          </Grid>
+          {!quickMatchMode && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={(
+                  <Badge color="primary" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
+                    <FilterList />
+                  </Badge>
+                )}
+                onClick={() => setShowMoreFilters(!showMoreFilters)}
+                sx={{ height: '56px' }}
+              >
+                {showMoreFilters ? 'Hide' : 'Show'} More Filters
+              </Button>
+            </Grid>
+          )}
         </Grid>
-        <Collapse in={showMoreFilters}>
+        <Collapse in={showMoreFilters && !quickMatchMode}>
           <Box sx={{ mt: 3 }}>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={3}>
