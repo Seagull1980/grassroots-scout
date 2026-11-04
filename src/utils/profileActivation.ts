@@ -76,7 +76,10 @@ export const calculateProfileCompletion = (
   profile?: Partial<UserProfile> | null,
   options?: { hasChildren?: boolean }
 ): number => {
-  const checklist = getProfileCompletionChecklist(role, profile, options);
+  // Posting an advert is a next step, not part of profile completeness; child profiles only count when known
+  const checklist = getProfileCompletionChecklist(role, profile, options).filter(
+    (item) => item.id !== 'first-advert' && !(item.id === 'child-profile' && options?.hasChildren === undefined)
+  );
   const completedCount = checklist.filter((item) => item.completed).length;
   if (checklist.length === 0) return 0;
   return Math.round((completedCount / checklist.length) * 100);

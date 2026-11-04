@@ -310,7 +310,7 @@ const MapSearchSimplified: React.FC<MapSearchSimplifiedProps> = ({ searchType })
         if (!active) return;
 
         const profile = response.profile as UserProfile;
-        setProfileCompletion(calculateProfileCompletion(user.role, profile, { hasChildren: false }));
+        setProfileCompletion(calculateProfileCompletion(user.role, profile));
       } catch {
         if (active) {
           setProfileCompletion(0);

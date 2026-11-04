@@ -11,6 +11,10 @@ describe('profile activation helpers', () => {
   it('calculates profile completion from completed checklist items', () => {
     const completion = calculateProfileCompletion('Player', { firstname: 'Alex', lastname: 'Stone', location: 'Manchester', bio: 'Ready to play', position: 'Midfielder', preferredfoot: 'Right', experiencelevel: 'Intermediate' });
 
-    expect(completion).toBe(67);
+    expect(completion).toBe(100);
+  });
+
+  it('ignores child profiles when children are unknown', () => {
+    expect(calculateProfileCompletion('Parent/Guardian', { firstname: 'Sam', lastname: 'Lee', location: 'Leeds', bio: 'Parent' })).toBe(100);
   });
 });

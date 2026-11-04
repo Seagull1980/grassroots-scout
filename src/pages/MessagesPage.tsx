@@ -219,7 +219,7 @@ const MessagesPage: React.FC = () => {
         if (!active) return;
 
         const profile = response.profile as UserProfile;
-        const completion = calculateProfileCompletion(user.role, profile, { hasChildren: false });
+        const completion = calculateProfileCompletion(user.role, profile);
         setProfileCompletion(completion);
       } catch {
         if (active) {
