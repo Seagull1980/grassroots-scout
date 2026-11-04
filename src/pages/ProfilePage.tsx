@@ -86,7 +86,7 @@ const ProfilePage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [, setProfile] = useState<UserProfile | null>(null);
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -618,6 +618,7 @@ const ProfilePage: React.FC = () => {
   }
 
   const { percentage: completionPercentage, checklist: completionChecklist } = getProfileCompletion();
+  const isProfileComplete = completionPercentage === 100;
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -629,7 +630,7 @@ const ProfilePage: React.FC = () => {
       </Box>
       
       {/* Welcome message and profile completion for new users */}
-      {!profile?.isprofilecomplete && showCompletionAlert && (
+      {!isProfileComplete && showCompletionAlert && (
         <Alert 
           severity="info" 
           sx={{ mb: 3 }}
@@ -1334,7 +1335,7 @@ const ProfilePage: React.FC = () => {
         <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Box>
-              {profile?.isprofilecomplete ? (
+              {isProfileComplete ? (
                 <Chip label="Profile Complete" color="success" variant="outlined" />
               ) : (
                 <Tooltip 
@@ -1368,7 +1369,7 @@ const ProfilePage: React.FC = () => {
       </Paper>
 
       {/* Profile completeness reminder */}
-      {!profile?.isprofilecomplete && (
+      {!isProfileComplete && (
         <Alert severity="info" sx={{ mt: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
             Complete your profile to get the most out of The Grassroots Scout!
